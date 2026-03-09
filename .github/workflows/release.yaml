@@ -2,19 +2,37 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  ci:
-    name: CI
-    uses: ./.github/workflows/ci.yaml
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-24.04
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
 
-  build:
-    name: Build package
-    needs: [ci]
+  publish:
+    name: Build & publish to PyPI
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/fluxopt
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -31,87 +49,15 @@ jobs:
       - name: Build
         run: uv build
 
-      - name: Verify version matches tag
-        run: |
-          TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          PKG_VERSION=$(ls dist/*.whl | sed 's/^[^-]*-\([^-]*\)-.*/\1/')
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match package version ($PKG_VERSION)"
-            exit 1
-          fi
-
-      - uses: actions/upload-artifact@v6
-        with:
-          name: dist
-          path: dist/
-          retention-days: 5
-
-  publish:
-    name: Publish to PyPI
-    needs: [build]
-    runs-on: ubuntu-24.04
-    environment:
-      name: pypi
-      url: https://pypi.org/project/fluxopt
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v7
-        with:
-          name: dist
-          path: dist/
-
       - uses: pypa/gh-action-pypi-publish@release/v1
-
-  verify:
-    name: Verify PyPI installation
-    needs: [publish]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: astral-sh/setup-uv@v7
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Verify
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          TOTAL_WAIT=0
-          for delay in 15 30 60 90; do
-            sleep "$delay"
-            TOTAL_WAIT=$((TOTAL_WAIT + delay))
-            echo "Attempting install (waited ${TOTAL_WAIT}s total)..."
-            if uv pip install --system "fluxopt==$VERSION" && \
-               python -c "from importlib.metadata import version; assert version('fluxopt') == '$VERSION'"; then
-              echo "Verified fluxopt==$VERSION on PyPI"
-              exit 0
-            fi
-          done
-          echo "::error::Failed to verify fluxopt==$VERSION on PyPI"
-          exit 1
-
-  github-release:
-    name: GitHub release
-    needs: [verify]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
 
   deploy-docs:
     name: Deploy docs
-    needs: [github-release]
+    needs: [release-please, publish]
+    if: needs.release-please.outputs.release_created
     permissions:
       contents: write
     uses: ./.github/workflows/docs.yaml
     with:
       deploy: true
-      version: ${{ github.ref_name }}
+      version: ${{ needs.release-please.outputs.tag_name }}

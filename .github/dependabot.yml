@@ -7,6 +7,8 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
+    commit-message:
+      prefix: "chore"
     groups:
       linting:
         patterns:
@@ -32,3 +34,5 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
+    commit-message:
+      prefix: "ci"
