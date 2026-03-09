@@ -46,9 +46,6 @@ packages = ["src/fluxopt"]
 [tool.hatch.build.targets.sdist]
 include = ["src/fluxopt/", "LICENSE", "README.md"]
 
-[project.optional-dependencies]
-viz = ["plotly>=6"]
-
 [dependency-groups]
 dev = [
     "mypy==1.19.1",
@@ -58,9 +55,6 @@ dev = [
     "pytest-cov==7.0.0",
     "pytest-xdist==3.8.0",
     "ruff==0.15.5",
-]
-viz = [
-    "plotly>=6",
 ]
 docs = [
     "plotly>=6",

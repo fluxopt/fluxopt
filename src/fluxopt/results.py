@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import xarray as xr
+
+try:
+    from fluxopt_plot.accessor import PlotAccessor  # type: ignore[import-not-found]
+except ImportError:
+    PlotAccessor = None
 
 if TYPE_CHECKING:
     from fluxopt.model import FlowSystem
@@ -130,6 +136,13 @@ class Result:
         solution = xr.load_dataset(p, engine='netcdf4')
         data = ModelData.from_netcdf(p)
         return cls(solution=solution, data=data)
+
+    @cached_property
+    def plot(self) -> PlotAccessor:
+        """Plotting accessor (requires ``fluxopt-plot``)."""
+        if PlotAccessor is None:
+            raise ImportError('Plotting requires fluxopt-plot. Install it with: pip install fluxopt-plot')
+        return PlotAccessor(self)
 
     @classmethod
     def from_model(cls, model: FlowSystem) -> Result:
