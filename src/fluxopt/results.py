@@ -15,13 +15,13 @@ except ImportError:
 if TYPE_CHECKING:
     from fluxopt.model import FlowSystem
     from fluxopt.model_data import ModelData
+    from fluxopt.stats import StatsAccessor
 
 
 @dataclass
 class Result:
     solution: xr.Dataset
     data: ModelData | None = field(default=None, repr=False)
-    _contributions_cache: xr.Dataset | None = field(default=None, repr=False, init=False)
 
     @property
     def objective(self) -> float:
@@ -89,28 +89,16 @@ class Result:
         """
         return self.storage_levels.sel(storage=storage_id)
 
-    def effect_contributions(self) -> xr.Dataset:
-        """Per-contributor breakdown of effect contributions.
-
-        Returns:
-            Dataset with ``temporal`` (contributor, effect, time),
-            ``periodic`` (contributor, effect), and ``total``
-            (contributor, effect). The contributor dim contains flow
-            IDs and (if present) storage IDs.
+    @cached_property
+    def stats(self) -> StatsAccessor:
+        """Post-processing statistics accessor.
 
         Raises:
             ValueError: If ``data`` is not available on this Result.
         """
-        if self._contributions_cache is not None:
-            return self._contributions_cache
+        from fluxopt.stats import StatsAccessor
 
-        if self.data is None:
-            raise ValueError('ModelData is required for effect_contributions (not available on this Result)')
-
-        from fluxopt.contributions import compute_effect_contributions
-
-        self._contributions_cache = compute_effect_contributions(self.solution, self.data)
-        return self._contributions_cache
+        return StatsAccessor(self)
 
     def to_netcdf(self, path: str | Path) -> None:
         """Write solution and model data to NetCDF.

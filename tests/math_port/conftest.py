@@ -58,7 +58,7 @@ def optimize(request, tmp_path):
         path = tmp_path / 'result.nc'
         result.to_netcdf(path)
         loaded = Result.from_netcdf(path)
-        loaded.effect_contributions()  # validate contributions survive IO roundtrip
+        _ = loaded.stats.effect_contributions  # validate contributions survive IO roundtrip
         return loaded
 
     return _optimize
