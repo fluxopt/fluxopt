@@ -26,6 +26,7 @@ nav:
     - Effects: math/effects.md
     - Sizing: math/sizing.md
     - Status: math/status.md
+  - Changelog: changelog.md
 
 theme:
   name: material
@@ -91,6 +92,7 @@ markdown_extensions:
 
 plugins:
   - search
+  - include-markdown
 
   - mkdocs-jupyter:
       include_source: true

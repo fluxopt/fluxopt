@@ -2,17 +2,30 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  ci:
-    name: CI
-    uses: ./.github/workflows/ci.yaml
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-24.04
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   publish:
     name: Build & publish to PyPI
-    needs: [ci]
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -36,37 +49,15 @@ jobs:
       - name: Build
         run: uv build
 
-      - name: Verify version matches tag
-        run: |
-          TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          PKG_VERSION=$(ls dist/*.whl | sed 's/^[^-]*-\([^-]*\)-.*/\1/')
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match package version ($PKG_VERSION)"
-            exit 1
-          fi
-
       - uses: pypa/gh-action-pypi-publish@release/v1
-
-  github-release:
-    name: GitHub release
-    needs: [publish]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
 
   deploy-docs:
     name: Deploy docs
-    needs: [github-release]
+    needs: [release-please, publish]
+    if: needs.release-please.outputs.release_created
     permissions:
       contents: write
     uses: ./.github/workflows/docs.yaml
     with:
       deploy: true
-      version: ${{ github.ref_name }}
+      version: ${{ needs.release-please.outputs.tag_name }}
