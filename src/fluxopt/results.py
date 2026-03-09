@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 @dataclass
 class Result:
     solution: xr.Dataset
-    data: ModelData | None = field(default=None, repr=False)
+    data: ModelData = field(repr=False)
 
     @property
     def objective(self) -> float:
@@ -91,11 +91,7 @@ class Result:
 
     @cached_property
     def stats(self) -> StatsAccessor:
-        """Post-processing statistics accessor.
-
-        Raises:
-            ValueError: If ``data`` is not available on this Result.
-        """
+        """Post-processing statistics accessor."""
         from fluxopt.stats import StatsAccessor
 
         return StatsAccessor(self)
@@ -108,8 +104,7 @@ class Result:
         """
         p = Path(path)
         self.solution.to_netcdf(p, mode='w', engine='netcdf4')
-        if self.data is not None:
-            self.data.to_netcdf(p)
+        self.data.to_netcdf(p)
 
     @classmethod
     def from_netcdf(cls, path: str | Path) -> Result:

@@ -894,20 +894,17 @@ class ModelData:
         meta.to_netcdf(p, mode=current_mode, group='model/meta', engine='netcdf4')
 
     @classmethod
-    def from_netcdf(cls, path: str | Path) -> ModelData | None:
+    def from_netcdf(cls, path: str | Path) -> ModelData:
         """Read model data from NetCDF groups.
 
         Args:
             path: Input file path.
 
-        Returns:
-            ModelData or None if no model groups found.
+        Raises:
+            OSError: If no model data groups found in the file.
         """
         p = Path(path)
-        try:
-            meta = xr.load_dataset(p, group='model/meta', engine='netcdf4')
-        except OSError:
-            return None
+        meta = xr.load_dataset(p, group='model/meta', engine='netcdf4')
 
         datasets: dict[str, xr.Dataset] = {}
         for name, group in _NC_GROUPS.items():

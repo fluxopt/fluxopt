@@ -18,17 +18,14 @@ if TYPE_CHECKING:
 class StatsAccessor:
     """Post-processing statistics for a solved optimization result.
 
-    Accessed via ``result.stats``. Requires ``result.data`` (ModelData).
+    Accessed via ``result.stats``.
 
     Args:
-        result: Solved Result with ModelData attached.
+        result: Solved Result.
     """
 
     def __init__(self, result: Result) -> None:
-        if result.data is None:
-            raise ValueError('Stats requires ModelData (not available on this Result)')
         self._result = result
-        self._data = result.data
 
     @cached_property
     def flow_hours(self) -> xr.DataArray:
@@ -37,7 +34,7 @@ class StatsAccessor:
         Returns:
             DataArray (flow, time) in energy units (e.g. MWh).
         """
-        return self._result.flow_rates * self._data.dt
+        return self._result.flow_rates * self._result.data.dt
 
     @cached_property
     def total_flow_hours(self) -> xr.DataArray:
@@ -46,7 +43,7 @@ class StatsAccessor:
         Returns:
             DataArray (flow,) — weighted sum of flow_hours over time.
         """
-        return (self.flow_hours * self._data.weights).sum('time')
+        return (self.flow_hours * self._result.data.weights).sum('time')
 
     @cached_property
     def effect_contributions(self) -> xr.Dataset:
@@ -59,4 +56,4 @@ class StatsAccessor:
         """
         from fluxopt.contributions import compute_effect_contributions
 
-        return compute_effect_contributions(self._result.solution, self._data)
+        return compute_effect_contributions(self._result.solution, self._result.data)

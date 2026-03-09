@@ -414,22 +414,6 @@ class TestEdgeCases:
         contrib = result.stats.effect_contributions
         assert float(contrib['total'].sum().values) == pytest.approx(0.0, abs=1e-6)
 
-    def test_data_required(self):
-        """Stats raises when data is missing."""
-        source = Flow(bus='elec', size=100, effects_per_flow_hour={'cost': 0.04})
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-
-        result = optimize(
-            timesteps=ts(3),
-            buses=[Bus('elec')],
-            effects=[Effect('cost', is_objective=True)],
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-        )
-
-        result.data = None
-        with pytest.raises(ValueError, match='Stats requires ModelData'):
-            result.stats  # noqa: B018
-
     def test_multiple_effects_sum_to_total(self):
         """Multiple effects tracked simultaneously all sum correctly."""
         source = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
