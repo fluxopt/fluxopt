@@ -1,0 +1,27 @@
+name: PR Title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate:
+    name: Validate conventional commit format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refac
+            test
+            docs
+            chore
+            ci
+            perf
+          requireScope: false
+          subjectPattern: ^.+$
+          subjectPatternError: "PR title must have a description after the type"
