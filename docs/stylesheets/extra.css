@@ -58,7 +58,7 @@
 }
 
 /* Compact plotly chart spacing */
-.js-plotly-plot {
+.jp-OutputArea .js-plotly-plot {
   margin: 0.25em 0 !important;
 }
 
