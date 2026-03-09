@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
       
@@ -1650,10 +1650,10 @@ formulation.</p>
 <a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">effects_periodic</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="per-contributor-breakdown">Per-Contributor Breakdown<a class="headerlink" href="#per-contributor-breakdown" title="Permanent link">&para;</a></h3>
-<p><code>effect_contributions()</code> decomposes effect totals into per-contributor parts
+<p><code>stats.effect_contributions</code> decomposes effect totals into per-contributor parts
 on a unified <code>contributor</code> dimension (flow IDs + storage IDs), matching the
 model's temporal/periodic domain structure:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">contrib</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">effect_contributions</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">contrib</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">effect_contributions</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># Per-timestep contributions (contributor, effect, time) — flows only</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">contrib</span><span class="p">[</span><span class="s1">&#39;temporal&#39;</span><span class="p">]</span>
