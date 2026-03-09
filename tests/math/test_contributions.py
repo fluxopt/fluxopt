@@ -21,7 +21,7 @@ class TestSumToTotal:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
         total_from_solver = float(result.effect_totals.sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
@@ -43,7 +43,7 @@ class TestSumToTotal:
             ],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
         total_from_solver = float(result.effect_totals.sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
@@ -60,7 +60,7 @@ class TestSumToTotal:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         temporal_sum = contrib['temporal'].sel(effect='cost').sum('contributor')
         ept = result.effects_temporal.sel(effect='cost')
         xr.testing.assert_allclose(temporal_sum, ept)
@@ -84,7 +84,7 @@ class TestProportionalSplit:
             ],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         cheap_cost = float(contrib['total'].sel(contributor='cheap_src(elec)', effect='cost').values)
         exp_cost = float(contrib['total'].sel(contributor='exp_src(elec)', effect='cost').values)
         demand_total = 50 + 80 + 60
@@ -109,7 +109,7 @@ class TestCrossEffects:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         total_energy = sum(demand)
         direct_cost = total_energy * 0.04
         co2_total = total_energy * 0.5
@@ -144,7 +144,7 @@ class TestCrossEffects:
             ],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         # Clean source has zero CO2 -> zero carbon tax contribution
         clean_co2 = float(contrib['temporal'].sel(contributor='clean_src(elec)', effect='co2').sum('time').values)
         assert clean_co2 == pytest.approx(0.0, abs=1e-6)
@@ -170,7 +170,7 @@ class TestCrossEffects:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         total_energy = sum(demand)
         pe_total = total_energy * 2.0
         co2_total = pe_total * 0.3
@@ -197,7 +197,7 @@ class TestSizing:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         grid_inv = float(contrib['periodic'].sel(contributor='grid(elec)', effect='cost').values)
         demand_inv = float(contrib['periodic'].sel(contributor='demand(elec)', effect='cost').values)
         # size=50 (min to meet demand) * effects_per_size=100
@@ -225,7 +225,7 @@ class TestSizing:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
         assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
 
@@ -252,7 +252,7 @@ class TestSizing:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
         assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
 
@@ -283,7 +283,7 @@ class TestStatus:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
         total_from_solver = float(result.effect_totals.sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
@@ -313,7 +313,7 @@ class TestConverter:
             converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat)],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         # Boiler fuel flow has cost
         boiler_fuel_cost = float(contrib['total'].sel(contributor='boiler(gas)', effect='cost').values)
         assert boiler_fuel_cost == pytest.approx(sum([50, 80, 60]) / 0.9 * 0.03, abs=1e-5)
@@ -349,7 +349,7 @@ class TestStorage:
             ],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         # Storage appears as a contributor in periodic
         bat_inv = float(contrib['periodic'].sel(contributor='battery', effect='cost').values)
         bat_capacity = float(result.storage_capacities.sel(storage='battery').values)
@@ -385,7 +385,7 @@ class TestStorage:
             ],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
         solver_total = float(result.effect_totals.sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(solver_total, abs=1e-6)
@@ -411,24 +411,8 @@ class TestEdgeCases:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         assert float(contrib['total'].sum().values) == pytest.approx(0.0, abs=1e-6)
-
-    def test_data_required(self):
-        """effect_contributions raises when data is missing."""
-        source = Flow(bus='elec', size=100, effects_per_flow_hour={'cost': 0.04})
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-
-        result = optimize(
-            timesteps=ts(3),
-            buses=[Bus('elec')],
-            effects=[Effect('cost', is_objective=True)],
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-        )
-
-        result.data = None
-        with pytest.raises(ValueError, match='ModelData is required'):
-            result.effect_contributions()
 
     def test_multiple_effects_sum_to_total(self):
         """Multiple effects tracked simultaneously all sum correctly."""
@@ -442,14 +426,14 @@ class TestEdgeCases:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        contrib = result.effect_contributions()
+        contrib = result.stats.effect_contributions
         for eff in ['cost', 'co2']:
             total_from_contrib = float(contrib['total'].sel(effect=eff).sum('contributor').values)
             total_from_solver = float(result.effect_totals.sel(effect=eff).values)
             assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
 
     def test_caching(self):
-        """Repeated calls return the same cached object."""
+        """Stats accessor and its properties are cached."""
         source = Flow(bus='elec', size=100, effects_per_flow_hour={'cost': 0.04})
         sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
@@ -460,6 +444,5 @@ class TestEdgeCases:
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
-        first = result.effect_contributions()
-        second = result.effect_contributions()
-        assert first is second
+        assert result.stats is result.stats
+        assert result.stats.effect_contributions is result.stats.effect_contributions

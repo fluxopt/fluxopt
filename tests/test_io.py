@@ -161,16 +161,3 @@ class TestSolutionDataset:
         assert isinstance(ds, xr.Dataset)
         assert 'flow--rate' in ds
         assert ds.attrs['objective'] == pytest.approx(result.objective)
-
-
-class TestEdgeCases:
-    def test_no_data_field(self, tmp_nc: Path) -> None:
-        """Result without data field still serializes solution."""
-        ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        result = _solve_simple(ts)
-        result.data = None
-
-        result.to_netcdf(tmp_nc)
-        loaded = Result.from_netcdf(tmp_nc)
-
-        assert loaded.objective == pytest.approx(result.objective, abs=1e-6)

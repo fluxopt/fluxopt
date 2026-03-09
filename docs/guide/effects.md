@@ -143,12 +143,12 @@ print(result.effects_periodic)
 
 ### Per-Contributor Breakdown
 
-`effect_contributions()` decomposes effect totals into per-contributor parts
+`stats.effect_contributions` decomposes effect totals into per-contributor parts
 on a unified `contributor` dimension (flow IDs + storage IDs), matching the
 model's temporal/periodic domain structure:
 
 ```python
-contrib = result.effect_contributions()
+contrib = result.stats.effect_contributions
 
 # Per-timestep contributions (contributor, effect, time) — flows only
 contrib['temporal']
