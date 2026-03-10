@@ -445,13 +445,18 @@ class CarriersData:
         """Deserialize from xr.Dataset.
 
         Args:
-            ds: Dataset with ``flow_coeff``, ``unit``, ``color``, ``description``.
+            ds: Dataset with ``flow_coeff`` and optional ``unit``, ``color``, ``description``.
         """
+        coeff = ds['flow_coeff']
+        carrier_ids = list(coeff.coords['carrier'].values)
+        n = len(carrier_ids)
+        empty = xr.DataArray([''] * n, dims=['carrier'], coords={'carrier': carrier_ids})
+        default_unit = xr.DataArray(['MWh'] * n, dims=['carrier'], coords={'carrier': carrier_ids})
         return cls(
-            flow_coeff=ds['flow_coeff'],
-            unit=ds['unit'],
-            color=ds['color'],
-            description=ds['description'],
+            flow_coeff=coeff,
+            unit=ds.get('unit', default_unit),
+            color=ds.get('color', empty),
+            description=ds.get('description', empty),
         )
 
     @classmethod
