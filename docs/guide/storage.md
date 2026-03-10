@@ -10,12 +10,10 @@ See [Storage (Math)](../math/storage.md) for the formulation.
 A storage needs two flows (charging and discharging) on the same carrier:
 
 ```python
-from fluxopt import Carrier, Flow, Storage
+from fluxopt import Flow, Storage
 
-elec = Carrier('elec')
-
-charge = Flow(elec, size=50)     # max charge rate 50 MW
-discharge = Flow(elec, size=50)  # max discharge rate 50 MW
+charge = Flow('elec', size=50)     # max charge rate 50 MW
+discharge = Flow('elec', size=50)  # max discharge rate 50 MW
 
 battery = Storage('battery', charging=charge, discharging=discharge, capacity=100.0)
 ```
@@ -96,18 +94,16 @@ Battery arbitrage — charge in cheap hours, discharge in expensive hours:
 
 ```python
 from datetime import datetime
-from fluxopt import Carrier, Effect, Flow, Port, Storage, optimize
+from fluxopt import Effect, Flow, Port, Storage, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(4)]
 prices = [0.02, 0.08, 0.02, 0.08]
 
-elec = Carrier('elec')
+source = Flow('elec', size=200, effects_per_flow_hour={'cost': prices})
+demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
 
-source = Flow(elec, size=200, effects_per_flow_hour={'cost': prices})
-demand = Flow(elec, size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
-
-charge = Flow(elec, size=50)
-discharge = Flow(elec, size=50)
+charge = Flow('elec', size=50)
+discharge = Flow('elec', size=50)
 battery = Storage('battery', charging=charge, discharging=discharge, capacity=100.0)
 
 result = optimize(

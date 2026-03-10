@@ -52,14 +52,14 @@ optional parameters like `fixed_relative_profile` or `effects_per_flow_hour`.
 
 ```python
 # Gas source: up to 500 MW, costs 0.04 €/kWh
-gas_source = Flow(gas, size=500, effects_per_flow_hour={'cost': 0.04})
+gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
 
 # Boiler fuel input and heat output
-fuel = Flow(gas, size=300)
-heat_out = Flow(heat, size=200)
+fuel = Flow('gas', size=300)
+heat_out = Flow('heat', size=200)
 
 # Heat demand: 100 MW capacity, profile sets actual demand per timestep
-demand = Flow(heat, size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+demand = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
 ```
 
 ### 5. Define Ports and Converters

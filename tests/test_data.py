@@ -135,3 +135,44 @@ class TestCarrierBalance:
         total = balance.sum('flow')
         for val in total.sel(carrier='elec').values:
             assert val == pytest.approx(0.0, abs=1e-6)
+
+
+class TestMultiNodeCarrier:
+    def test_independent_node_balance(self):
+        """Two flows on the same carrier but different nodes get independent balance equations."""
+        result = optimize(
+            timesteps=ts(3),
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port('src_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]),
+                Port('src_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 0.04})]),
+                Port('sink_a', exports=[Flow('heat', node='A', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
+                Port('sink_b', exports=[Flow('heat', node='B', size=100, fixed_relative_profile=[0.8, 0.8, 0.8])]),
+            ],
+        )
+        # Source A matches sink A demand (50 MW)
+        rate_a = result.flow_rate('src_a(heat:A)').values
+        for val in rate_a:
+            assert val == pytest.approx(50.0, abs=1e-4)
+
+        # Source B matches sink B demand (80 MW)
+        rate_b = result.flow_rate('src_b(heat:B)').values
+        for val in rate_b:
+            assert val == pytest.approx(80.0, abs=1e-4)
+
+    def test_node_in_carrier_dim_id(self):
+        """Carrier dimension coordinates contain 'heat:A' and 'heat:B'."""
+        data = ModelData.build(
+            ts(3),
+            [Effect('cost', is_objective=True)],
+            ports=[
+                Port('src_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]),
+                Port('src_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 0.04})]),
+                Port('sink_a', exports=[Flow('heat', node='A', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
+                Port('sink_b', exports=[Flow('heat', node='B', size=100, fixed_relative_profile=[0.8, 0.8, 0.8])]),
+            ],
+        )
+        carrier_ids = list(data.carriers.flow_coeff.coords['carrier'].values)
+        assert 'heat:A' in carrier_ids
+        assert 'heat:B' in carrier_ids
+        assert len(carrier_ids) == 2

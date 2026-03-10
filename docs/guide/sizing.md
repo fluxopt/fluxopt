@@ -11,12 +11,10 @@ See [Sizing (Math)](../math/sizing.md) for the formulation.
 Pass a `Sizing` object instead of a numeric `size`:
 
 ```python
-from fluxopt import Carrier, Flow, Sizing
-
-elec = Carrier('elec')
+from fluxopt import Flow, Sizing
 
 # Solver picks optimal size between 50 and 200 MW
-source = Flow(elec, size=Sizing(min_size=50, max_size=200, mandatory=True))
+source = Flow('elec', size=Sizing(min_size=50, max_size=200, mandatory=True))
 ```
 
 ## Mandatory vs Optional
@@ -28,7 +26,7 @@ The component **must** be built. The solver picks a continuous size in
 
 ```python
 # Always built, size in [50, 200] MW
-Flow(elec, size=Sizing(min_size=50, max_size=200))
+Flow('elec', size=Sizing(min_size=50, max_size=200))
 ```
 
 With `min_size=0`, the solver *can* choose size=0, effectively not building
@@ -36,7 +34,7 @@ the component — but without the overhead of a binary indicator variable:
 
 ```python
 # Size in [0, 200] MW — solver may pick 0 (no binary needed)
-Flow(elec, size=Sizing(min_size=0, max_size=200))
+Flow('elec', size=Sizing(min_size=0, max_size=200))
 ```
 
 ### Optional (`mandatory=False`)
@@ -48,7 +46,7 @@ or when `min_size > 0` must be enforced only if built:
 
 ```python
 # Built at [50, 200] MW or not built at all
-Flow(elec, size=Sizing(min_size=50, max_size=200, mandatory=False))
+Flow('elec', size=Sizing(min_size=50, max_size=200, mandatory=False))
 ```
 
 ### Binary Invest (fixed-size yes/no)
@@ -58,7 +56,7 @@ decision — build at exactly that size or not at all:
 
 ```python
 # Either build a 100 MW unit or nothing
-Flow(elec, size=Sizing(min_size=100, max_size=100, mandatory=False))
+Flow('elec', size=Sizing(min_size=100, max_size=100, mandatory=False))
 ```
 
 ## Investment Effects
@@ -72,7 +70,7 @@ Cost proportional to the invested size (e.g., EUR/MW or kg_CO2/MWh):
 ```python
 # 500 €/MW investment cost
 Flow(
-    elec,
+    'elec',
     size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'cost': 500}),
 )
 ```
@@ -85,7 +83,7 @@ sizing (`mandatory=False`) since it's gated by the binary indicator:
 ```python
 # 10,000 € fixed cost if built, plus 500 €/MW
 Flow(
-    elec,
+    'elec',
     size=Sizing(
         min_size=50, max_size=200, mandatory=False,
         effects_per_size={'cost': 500},
@@ -99,12 +97,10 @@ Flow(
 `Storage.capacity` also accepts `Sizing` for optimizing battery or tank size:
 
 ```python
-from fluxopt import Carrier, Flow, Sizing, Storage
+from fluxopt import Flow, Sizing, Storage
 
-elec = Carrier('elec')
-
-charge = Flow(elec, size=50)
-discharge = Flow(elec, size=50)
+charge = Flow('elec', size=50)
+discharge = Flow('elec', size=50)
 
 battery = Storage(
     'battery',
@@ -133,20 +129,18 @@ Two competing sources — the solver decides whether to invest in a cheaper sour
 
 ```python
 from datetime import datetime
-from fluxopt import Carrier, Effect, Flow, Port, Sizing, optimize
+from fluxopt import Effect, Flow, Port, Sizing, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(4)]
 
-elec = Carrier('elec')
-
-demand = Flow(elec, size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
 
 # Always-available expensive source
-grid = Flow(elec, size=200, effects_per_flow_hour={'cost': 0.10})
+grid = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.10})
 
 # Optional cheap source with investment cost
 solar = Flow(
-    elec,
+    'elec',
     size=Sizing(min_size=50, max_size=200, mandatory=False, effects_per_size={'cost': 20}),
     effects_per_flow_hour={'cost': 0.01},
     fixed_relative_profile=[0.0, 0.8, 0.8, 0.0],  # only available midday

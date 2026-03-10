@@ -19,7 +19,7 @@ nav:
   - Math:
     - Notation: math/notation.md
     - Objective: math/objective.md
-    - Bus Balance: math/bus-balance.md
+    - Carrier Balance: math/bus-balance.md
     - Flows: math/flows.md
     - Converters: math/converters.md
     - Storage: math/storage.md

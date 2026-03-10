@@ -26,15 +26,13 @@ Flows contribute to effects via `effects_per_flow_hour`. The value is in
 effect-units per flow-hour (e.g., €/MWh):
 
 ```python
-from fluxopt import Carrier, Flow
-
-gas = Carrier('gas')
+from fluxopt import Flow
 
 # Single effect
-gas_flow = Flow(gas, size=500, effects_per_flow_hour={'cost': 0.04})
+gas_flow = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
 
 # Multiple effects
-gas_flow = Flow(gas, size=500, effects_per_flow_hour={'cost': 0.04, 'co2': 0.2})
+gas_flow = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04, 'co2': 0.2})
 ```
 
 At each timestep, the contribution is `coefficient * flow_rate * dt`.
@@ -175,15 +173,13 @@ Two sources with different cost/CO2 tradeoffs, subject to an emission cap:
 
 ```python
 from datetime import datetime
-from fluxopt import Carrier, Effect, Flow, Port, optimize
+from fluxopt import Effect, Flow, Port, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(3)]
 
-elec = Carrier('elec')
-
-demand = Flow(elec, size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-cheap_dirty = Flow(elec, size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
-expensive_clean = Flow(elec, size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
+demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+cheap_dirty = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
+expensive_clean = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
 
 result = optimize(
     timesteps=timesteps,

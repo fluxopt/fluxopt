@@ -37,3 +37,50 @@ A thermal carrier with a boiler output (3 MW) and a demand input (3 MW):
 \[
 \underbrace{P_{\text{boiler\_th},t}}_{+1 \times 3} + \underbrace{(-1) \cdot P_{\text{demand},t}}_{-1 \times 3} = 0 \quad \checkmark
 \]
+
+## Multi-Node Carriers
+
+A carrier can be split into independent **nodes**, each with its own balance
+equation. This models spatially separated subsystems on the same physical
+medium — e.g., separate heat networks in different buildings.
+
+### Formulation
+
+Each node \(n\) of carrier \(b\) gets its own balance constraint:
+
+\[
+\sum_{f \in \mathcal{F}_{b:n}} \text{coeff}_{b:n,f} \cdot P_{f,t} = 0 \quad \forall \, (b, n), \; t \in \mathcal{T}
+\]
+
+The compound coordinate \(b\!:\!n\) (e.g., `heat:A`, `heat:B`) identifies each
+node in the carrier dimension. Flows on different nodes never interact — their
+balance equations are fully independent.
+
+### Example
+
+Two independent heat nodes A and B, each with its own supply and demand:
+
+\[
+\begin{aligned}
+\text{Node A:}\quad & P_{\text{src\_a(heat:A)},t} - P_{\text{sink\_a(heat:A)},t} = 0 \\
+\text{Node B:}\quad & P_{\text{src\_b(heat:B)},t} - P_{\text{sink\_b(heat:B)},t} = 0
+\end{aligned}
+\]
+
+Node A's supply serves only node A's demand. Node B is balanced independently.
+
+### Usage
+
+```python
+from fluxopt import Flow, Port
+
+# Flows declare their node
+supply_a = Flow('heat', node='A', size=100)
+demand_a = Flow('heat', node='A', size=100, fixed_relative_profile=[0.5])
+
+supply_b = Flow('heat', node='B', size=100)
+demand_b = Flow('heat', node='B', size=100, fixed_relative_profile=[0.8])
+```
+
+The flow id auto-includes the node: `Flow('heat', node='A')` gets `id='heat:A'`,
+which qualifies to `src_a(heat:A)` after component qualification.

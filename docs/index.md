@@ -22,10 +22,10 @@ gas = Carrier('gas')
 heat = Carrier('heat')
 
 # Flows
-gas_source = Flow(gas, size=500, effects_per_flow_hour={'cost': 0.04})
-fuel = Flow(gas, size=300)
-heat_out = Flow(heat, size=200)
-demand = Flow(heat, size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
+fuel = Flow('gas', size=300)
+heat_out = Flow('heat', size=200)
+demand = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
 
 result = optimize(
     timesteps=timesteps,
