@@ -41,7 +41,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -95,7 +95,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -107,7 +107,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.2,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -153,7 +153,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -165,7 +165,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -204,7 +204,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -258,7 +258,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'ExpBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=20,
@@ -270,7 +270,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -321,7 +321,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -333,7 +333,7 @@ class TestFlowStatus:
                 Converter.boiler(
                     'ExpensiveBackup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -379,7 +379,7 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -421,7 +421,7 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -463,7 +463,7 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -508,7 +508,7 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -554,7 +554,7 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -566,7 +566,7 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'ExpensiveBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -609,7 +609,7 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,

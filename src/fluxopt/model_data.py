@@ -540,11 +540,13 @@ class ConvertersData:
                 mask_row[eq_i] = True
             eq_mask_rows.append(mask_row)
 
+            qid_to_short = {v: k for k, v in conv._flow_id.items()}
             for flow in (*conv.inputs, *conv.outputs):
+                short = qid_to_short[flow.id]
                 eq_coeffs = np.zeros((max_eq, n_time))
                 for eq_i, equation in enumerate(conv.conversion_factors):
-                    if flow in equation:
-                        eq_coeffs[eq_i] = as_dataarray(equation[flow], {'time': time}).values
+                    if short in equation:
+                        eq_coeffs[eq_i] = as_dataarray(equation[short], {'time': time}).values
                 pairs_conv.append(conv.id)
                 pairs_flow.append(flow.id)
                 coeff_arrays.append(eq_coeffs)

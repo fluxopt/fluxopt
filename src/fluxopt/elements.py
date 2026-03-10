@@ -79,18 +79,19 @@ class Status:
 class Flow:
     """A single energy flow on a carrier.
 
-    ``id`` is optional: defaults to the carrier name. Set explicitly to
+    ``short_id`` defaults to the carrier name. Set explicitly to
     disambiguate multiple flows on the same carrier::
 
-        Flow('elec')  # id → 'elec' → boiler(elec)
-        Flow('elec', id='base')  # id → 'base' → chp(base)
+        Flow('elec')  # short_id='elec'
+        Flow('elec', short_id='base')  # short_id='base'
 
-    After ``__post_init__`` of the parent component, ``id`` is expanded
-    to the qualified form ``component(id)``.
+    ``short_id`` is never mutated.  ``id`` is the qualified form set by
+    the parent component: ``component(short_id)``.
     """
 
     carrier: str
-    id: str = ''
+    short_id: str = ''
+    id: str = field(init=False, default='')
     node: str | None = None
     size: float | Sizing | None = None  # P̄_f  [MW]
     relative_minimum: TimeSeries = 0.0  # p̲_f  [-]
@@ -101,12 +102,13 @@ class Flow:
     prior_rates: list[float] | None = None  # flow rates before horizon [MW]
 
     def __post_init__(self) -> None:
-        """Default id to carrier name, including node if set."""
-        if not self.id:
-            self.id = node_id(self.carrier, self.node) if self.node else self.carrier
+        """Default short_id from carrier/node, set id = short_id."""
+        if not self.short_id:
+            self.short_id = node_id(self.carrier, self.node) if self.node else self.carrier
+        self.id = self.short_id
         if self.status is not None and isinstance(self.relative_minimum, (int, float)) and self.relative_minimum <= 0:
             msg = (
-                f'Flow {self.id!r}: relative_minimum must be > 0 when status is set, '
+                f'Flow {self.short_id!r}: relative_minimum must be > 0 when status is set, '
                 f'otherwise on/off is indistinguishable (got {self.relative_minimum})'
             )
             raise ValueError(msg)
@@ -160,8 +162,8 @@ class Storage:
                 f'!= discharging carrier {self.discharging.carrier!r}'
             )
             raise ValueError(msg)
-        if self.charging.id == self.discharging.id:
-            self.charging.id = 'charge'
-            self.discharging.id = 'discharge'
-        self.charging.id = qualified_id(self.id, self.charging.id)
-        self.discharging.id = qualified_id(self.id, self.discharging.id)
+        if self.charging.short_id == self.discharging.short_id:
+            self.charging.short_id = 'charge'
+            self.discharging.short_id = 'discharge'
+        self.charging.id = qualified_id(self.id, self.charging.short_id)
+        self.discharging.id = qualified_id(self.id, self.discharging.short_id)

@@ -36,7 +36,7 @@ class TestConversionEfficiency:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=0.8,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat'),
                 ),
             ],
@@ -72,7 +72,7 @@ class TestConversionEfficiency:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=np.array([0.5, 1.0]),
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat'),
                 ),
             ],
@@ -116,7 +116,7 @@ class TestConversionEfficiency:
                     'CHP',
                     eta_el=0.4,
                     eta_th=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     electrical_flow=Flow('Elec'),
                     thermal_flow=Flow('Heat'),
                 ),
