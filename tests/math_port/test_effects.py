@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port, Sizing
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing
 
 from .conftest import ts, waste
 
@@ -27,6 +27,7 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2'),
@@ -62,6 +63,7 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'CO2': 0.5}),
                 Effect('CO2'),
@@ -92,6 +94,7 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', maximum_total=15),
@@ -134,6 +137,7 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', minimum_total=25),
@@ -178,6 +182,7 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', maximum_per_hour=8),
@@ -219,6 +224,7 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', minimum_per_hour=10),
@@ -283,6 +289,7 @@ class TestEffects:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'CO2': 10}),
                 Effect('CO2'),

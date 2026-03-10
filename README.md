@@ -30,14 +30,14 @@ timesteps = [datetime(2024, 1, 1) + timedelta(hours=i) for i in range(4)]
 
 result = fx.optimize(
     timesteps=timesteps,
-    buses=[fx.Bus('electricity')],
+    carriers=[fx.Carrier('electricity')],
     effects=[fx.Effect('cost', is_objective=True)],
     ports=[
         fx.Port('grid', imports=[
-            fx.Flow(bus='electricity', size=200, effects_per_flow_hour={'cost': 0.04}),
+            fx.Flow('electricity', size=200, effects_per_flow_hour={'cost': 0.04}),
         ]),
         fx.Port('demand', exports=[
-            fx.Flow(bus='electricity', size=100, fixed_relative_profile=[0.5, 0.8, 1.0, 0.6]),
+            fx.Flow('electricity', size=100, fixed_relative_profile=[0.5, 0.8, 1.0, 0.6]),
         ]),
     ],
 )

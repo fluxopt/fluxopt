@@ -9,7 +9,10 @@ from __future__ import annotations
 from conftest import ts
 from numpy.testing import assert_allclose
 
-from fluxopt import Effect, Flow, Port, Sizing, Storage, optimize
+from fluxopt import Carrier, Effect, Flow, Port, Sizing, Storage, optimize
+
+_heat = [Carrier('Heat')]
+_elec = [Carrier('Elec')]
 
 
 class TestFlowSizing:
@@ -21,6 +24,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -52,6 +56,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -82,6 +87,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -112,6 +118,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -139,6 +146,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[25, 50])]),
@@ -169,6 +177,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
@@ -211,6 +220,7 @@ class TestStorageSizing:
         """
         result = optimize(
             ts(3),
+            carriers=_elec,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 50, 0])]),

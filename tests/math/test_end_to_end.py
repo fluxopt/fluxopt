@@ -4,6 +4,7 @@ import pytest
 from conftest import ts
 
 from fluxopt import (
+    Carrier,
     Converter,
     Effect,
     Flow,
@@ -29,6 +30,7 @@ class TestEndToEnd:
 
         result = optimize(
             timesteps=ts(4),
+            carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_source]),
@@ -64,6 +66,7 @@ class TestEndToEnd:
 
         result = optimize(
             timesteps=ts(4),
+            carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_source]),
@@ -85,7 +88,8 @@ class TestEndToEnd:
 
         data = ModelData.build(
             ts(3),
-            [Effect('cost', is_objective=True)],
+            carriers=[Carrier('elec')],
+            effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -108,6 +112,7 @@ class TestEndToEnd:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -139,6 +144,7 @@ class TestEndToEnd:
 
         result = optimize(
             timesteps=timesteps,
+            carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_source]),

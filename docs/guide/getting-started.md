@@ -83,6 +83,7 @@ converters = [
 ```python
 result = optimize(
     timesteps=timesteps,
+    carriers=[gas, heat],
     effects=effects,
     ports=ports,
     converters=converters,

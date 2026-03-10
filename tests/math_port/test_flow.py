@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port
+from fluxopt import Carrier, Converter, Effect, Flow, Port
 
 from .conftest import ts, waste
 
@@ -23,6 +23,7 @@ class TestFlowConstraints:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -67,6 +68,7 @@ class TestFlowConstraints:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(

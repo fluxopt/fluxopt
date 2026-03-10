@@ -129,7 +129,7 @@ Two competing sources — the solver decides whether to invest in a cheaper sour
 
 ```python
 from datetime import datetime
-from fluxopt import Effect, Flow, Port, Sizing, optimize
+from fluxopt import Carrier, Effect, Flow, Port, Sizing, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(4)]
 
@@ -146,8 +146,11 @@ solar = Flow(
     fixed_relative_profile=[0.0, 0.8, 0.8, 0.0],  # only available midday
 )
 
+elec = Carrier('elec')
+
 result = optimize(
     timesteps=timesteps,
+    carriers=[elec],
     effects=[Effect('cost', is_objective=True)],
     ports=[
         Port('grid', imports=[grid]),

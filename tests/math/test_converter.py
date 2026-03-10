@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Converter, Effect, Flow, Port, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, optimize
 
 
 class TestBoiler:
@@ -19,6 +19,7 @@ class TestBoiler:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_flow]),
@@ -42,6 +43,7 @@ class TestBoiler:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_flow]),
@@ -69,6 +71,7 @@ class TestCHP:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('gas'), Carrier('elec'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_source]),

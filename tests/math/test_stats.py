@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Effect, Flow, Port, optimize
+from fluxopt import Carrier, Effect, Flow, Port, optimize
+
+_elec = [Carrier('elec')]
 
 
 class TestFlowHours:
@@ -11,6 +13,7 @@ class TestFlowHours:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
@@ -24,6 +27,7 @@ class TestFlowHours:
         demand = [50.0, 80.0, 60.0]
         result = optimize(
             timesteps=ts(3),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
@@ -39,6 +43,7 @@ class TestCaching:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),

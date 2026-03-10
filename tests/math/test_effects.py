@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Effect, Flow, Port, Sizing, optimize
+from fluxopt import Carrier, Effect, Flow, Port, Sizing, optimize
 
 
 class TestEffects:
@@ -16,6 +16,7 @@ class TestEffects:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -39,6 +40,7 @@ class TestEffects:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True), Effect('co2', unit='kg')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -62,6 +64,7 @@ class TestEffects:
         co2_limit = 100.0  # demand_total = 190, so can't use all cheap
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True), Effect('co2', maximum_total=co2_limit)],
             ports=[
                 Port('cheap_src', imports=[cheap_dirty]),
@@ -82,6 +85,7 @@ class TestEffects:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -100,6 +104,7 @@ class TestContributionFrom:
         with pytest.raises(ValueError, match='cannot reference itself'):
             optimize(
                 timesteps=ts(3),
+                carriers=[Carrier('elec')],
                 effects=[Effect('cost', is_objective=True, contribution_from={'cost': 0.5})],
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             )
@@ -113,6 +118,7 @@ class TestContributionFrom:
         with pytest.raises(ValueError, match='Circular contribution_from dependency'):
             optimize(
                 timesteps=ts(3),
+                carriers=[Carrier('elec')],
                 effects=[
                     Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                     Effect('co2', unit='kg', contribution_from={'cost': 0.01}),
@@ -121,7 +127,7 @@ class TestContributionFrom:
             )
 
     def test_contribution_from_carbon_pricing(self):
-        """CO2 at 0.5 kg/MWh, carbon price 50 €/t → cost includes CO2 * 50."""
+        """CO2 at 0.5 kg/MWh, carbon price 50 €/kg → cost includes CO2 * 50."""
         demand = [50.0, 80.0, 60.0]
 
         source = Flow(
@@ -133,6 +139,7 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
@@ -160,6 +167,7 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
@@ -185,6 +193,7 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),  # 0.3 kg_CO2/kWh_PE
@@ -216,6 +225,7 @@ class TestContributionFrom:
         carbon_prices = [40.0, 50.0, 60.0]
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect(
                     'cost',
@@ -247,6 +257,7 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
@@ -280,6 +291,7 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),

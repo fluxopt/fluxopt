@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Effect, Flow, Port, Storage, optimize
+from fluxopt import Carrier, Effect, Flow, Port, Storage, optimize
+
+_elec = [Carrier('elec')]
 
 
 class TestStorage:
@@ -20,6 +22,7 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(4),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
@@ -58,6 +61,7 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(4),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
@@ -88,6 +92,7 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
@@ -124,6 +129,7 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],

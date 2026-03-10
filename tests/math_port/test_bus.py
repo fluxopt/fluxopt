@@ -3,7 +3,7 @@
 import numpy as np
 from numpy.testing import assert_allclose
 
-from fluxopt import Effect, Flow, Port
+from fluxopt import Carrier, Effect, Flow, Port
 
 from .conftest import ts
 
@@ -13,6 +13,7 @@ class TestCarrierBalance:
         """Verify merit-order dispatch yields Src1=20, Src2=10 for demand=30."""
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -50,6 +51,7 @@ class TestMultiNodeBalance:
         """Verify two nodes on the same carrier balance independently (no cross-node dispatch)."""
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('heat', nodes=['A', 'B'])],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('cheap_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 1})]),
@@ -70,6 +72,7 @@ class TestMultiNodeBalance:
         """Verify a cheap source on node A cannot serve demand on node B."""
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('heat', nodes=['A', 'B'])],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('cheap_a', imports=[Flow('heat', node='A', size=200, effects_per_flow_hour={'cost': 1})]),
@@ -87,6 +90,7 @@ class TestMultiNodeBalance:
         """Verify single-node and multi-node carriers coexist in one optimization."""
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('elec'), Carrier('heat', nodes=['A', 'B'])],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 # Electricity: single-node

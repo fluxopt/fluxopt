@@ -3,13 +3,18 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Converter, Effect, Flow, ModelData, Port, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, ModelData, Port, Storage, optimize
 
 
 class TestFlowsTable:
     def test_bounds_with_size(self):
         flow = Flow('b', size=100, relative_minimum=0.2, relative_maximum=0.8)
-        data = ModelData.build(ts(3), [Effect('cost', is_objective=True)], ports=[Port('src', imports=[flow])])
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier('b')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[Port('src', imports=[flow])],
+        )
         ds = data.flows
         lb = ds.rel_lb.sel(flow='src(b)').values
         ub = ds.rel_ub.sel(flow='src(b)').values
@@ -22,7 +27,8 @@ class TestFlowsTable:
         flow = Flow('b', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
         data = ModelData.build(
             ts(3),
-            [Effect('cost', is_objective=True)],
+            carriers=[Carrier('b')],
+            effects=[Effect('cost', is_objective=True)],
             ports=[Port('sink', exports=[flow])],
         )
         fixed = data.flows.fixed_profile.sel(flow='sink(b)').values
@@ -33,7 +39,8 @@ class TestFlowsTable:
         flow = Flow('b')
         data = ModelData.build(
             ts(3),
-            [Effect('cost', is_objective=True)],
+            carriers=[Carrier('b')],
+            effects=[Effect('cost', is_objective=True)],
             ports=[Port('src', imports=[flow])],
         )
         assert str(data.flows.bound_type.sel(flow='src(b)').values) == 'unsized'
@@ -45,7 +52,8 @@ class TestCarriersData:
         in_flow = Flow('b', size=100)
         data = ModelData.build(
             ts(3),
-            [Effect('cost', is_objective=True)],
+            carriers=[Carrier('b')],
+            effects=[Effect('cost', is_objective=True)],
             ports=[Port('src', imports=[out_flow]), Port('sink', exports=[in_flow])],
         )
         coeffs = data.carriers.flow_coeff
@@ -53,6 +61,32 @@ class TestCarriersData:
         in_coeff = float(coeffs.sel(carrier='b', flow='sink(b)').values)
         assert out_coeff == 1.0  # output to carrier
         assert in_coeff == -1.0  # input from carrier
+
+    def test_metadata(self):
+        data = ModelData.build(
+            ts(2),
+            carriers=[Carrier('elec', unit='kWh', color='blue', description='Electricity')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[Port('src', imports=[Flow('elec', size=100)])],
+        )
+        assert str(data.carriers.unit.sel(carrier='elec').values) == 'kWh'
+        assert str(data.carriers.color.sel(carrier='elec').values) == 'blue'
+        assert str(data.carriers.description.sel(carrier='elec').values) == 'Electricity'
+
+    def test_from_dataset_roundtrip(self):
+        from fluxopt.model_data import CarriersData
+
+        data = ModelData.build(
+            ts(2),
+            carriers=[Carrier('elec', unit='kWh', color='red', description='Power')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[Port('src', imports=[Flow('elec', size=100)])],
+        )
+        ds = data.carriers.to_dataset()
+        loaded = CarriersData.from_dataset(ds)
+        assert str(loaded.unit.sel(carrier='elec').values) == 'kWh'
+        assert str(loaded.color.sel(carrier='elec').values) == 'red'
+        assert str(loaded.description.sel(carrier='elec').values) == 'Power'
 
 
 class TestConvertersTable:
@@ -62,7 +96,8 @@ class TestConvertersTable:
         boiler = Converter.boiler('boiler', 0.9, fuel, heat_flow)
         data = ModelData.build(
             ts(3),
-            [Effect('cost', is_objective=True)],
+            carriers=[Carrier('gas'), Carrier('heat')],
+            effects=[Effect('cost', is_objective=True)],
             ports=[Port('src', imports=[Flow('gas', size=200)])],
             converters=[boiler],
         )
@@ -83,7 +118,8 @@ class TestEffectsTable:
         flow = Flow('b', size=100, effects_per_flow_hour={'cost': 0.04})
         data = ModelData.build(
             ts(3),
-            [Effect('cost', is_objective=True)],
+            carriers=[Carrier('b')],
+            effects=[Effect('cost', is_objective=True)],
             ports=[Port('src', imports=[flow])],
         )
         coeff = data.flows.effect_coeff.sel(flow='src(b)', effect='cost')
@@ -92,7 +128,8 @@ class TestEffectsTable:
     def test_objective_effect(self):
         data = ModelData.build(
             ts(3),
-            [Effect('cost', is_objective=True), Effect('co2')],
+            carriers=[Carrier('b')],
+            effects=[Effect('cost', is_objective=True), Effect('co2')],
             ports=[Port('src', imports=[Flow('b', size=100)])],
         )
         assert data.effects.objective_effect == 'cost'
@@ -131,11 +168,44 @@ class TestStorageValidation:
         assert s.discharging.id == 'bat(out)'
 
 
+class TestCarrierValidation:
+    def test_undeclared_carrier_raises(self):
+        """Flow referencing an undeclared carrier raises ValueError."""
+        with pytest.raises(ValueError, match='not in the declared carriers'):
+            optimize(
+                timesteps=ts(2),
+                carriers=[Carrier('gas')],
+                effects=[Effect('cost', is_objective=True)],
+                ports=[Port('grid', imports=[Flow('elec', size=100)])],
+            )
+
+    def test_undeclared_carrier_in_model_data_build(self):
+        """ModelData.build rejects flows with undeclared carriers."""
+        with pytest.raises(ValueError, match="carrier 'elec'"):
+            ModelData.build(
+                ts(2),
+                carriers=[Carrier('gas')],
+                effects=[Effect('cost', is_objective=True)],
+                ports=[Port('grid', imports=[Flow('elec', size=100)])],
+            )
+
+    def test_duplicate_carrier_raises(self):
+        """Duplicate carrier declarations raise ValueError."""
+        with pytest.raises(ValueError, match='Duplicate carrier id'):
+            ModelData.build(
+                ts(2),
+                carriers=[Carrier('elec'), Carrier('elec')],
+                effects=[Effect('cost', is_objective=True)],
+                ports=[Port('grid', imports=[Flow('elec', size=100)])],
+            )
+
+
 class TestCarrierBalance:
     def test_carrier_balance_property(self):
         """StatsAccessor.carrier_balance returns signed balance per carrier."""
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('src', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
@@ -156,6 +226,7 @@ class TestMultiNodeCarrier:
         """Two flows on the same carrier but different nodes get independent balance equations."""
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('heat', nodes=['A', 'B'])],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('src_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]),
@@ -178,7 +249,8 @@ class TestMultiNodeCarrier:
         """Carrier dimension coordinates contain 'heat:A' and 'heat:B'."""
         data = ModelData.build(
             ts(3),
-            [Effect('cost', is_objective=True)],
+            carriers=[Carrier('heat', nodes=['A', 'B'])],
+            effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('src_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('src_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 0.04})]),

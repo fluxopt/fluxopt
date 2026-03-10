@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Effect, Flow, Port, Sizing, Storage
+from fluxopt import Carrier, Effect, Flow, Port, Sizing, Storage
 
 from .conftest import ts
 
@@ -18,6 +18,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -57,6 +58,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -96,6 +98,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -135,6 +138,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -175,6 +179,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(

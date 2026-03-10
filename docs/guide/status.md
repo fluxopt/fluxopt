@@ -168,7 +168,7 @@ A gas boiler with startup costs and minimum run time:
 
 ```python
 from datetime import datetime
-from fluxopt import Converter, Effect, Flow, Port, Status, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Status, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(6)]
 
@@ -188,8 +188,12 @@ heat_out = Flow(
 )
 gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
 
+gas = Carrier('gas')
+heat = Carrier('heat')
+
 result = optimize(
     timesteps=timesteps,
+    carriers=[gas, heat],
     effects=[Effect('cost', is_objective=True)],
     ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
     converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],

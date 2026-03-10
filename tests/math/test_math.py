@@ -4,14 +4,14 @@ Each test builds a tiny, analytically solvable optimization model and asserts
 that the objective (or key solution variables) match a hand-calculated value.
 Sensitivity comments explain what would break if the feature were disabled.
 
-API mapping (flixopt → fluxopt):
-    fx.Source('name', outputs=[...])     → Port('name', imports=[...])
-    fx.Sink('name', inputs=[...])        → Port('name', exports=[...])
-    fx.Flow('label', bus=..., ...)       → Flow(carrier, ...)
-    effects_per_flow_hour=<scalar>       → effects_per_flow_hour={'costs': <scalar>}
-    capacity_in_flow_hours=X             → capacity=X
-    initial_charge_state='equals_final'  → cyclic=True
-    imbalance_penalty_per_flow_hour=0    → waste Port (absorbs excess at zero cost)
+API mapping (flixopt -> fluxopt):
+    fx.Source('name', outputs=[...])     -> Port('name', imports=[...])
+    fx.Sink('name', inputs=[...])        -> Port('name', exports=[...])
+    fx.Flow('label', bus=..., ...)       -> Flow(carrier, ...)
+    effects_per_flow_hour=<scalar>       -> effects_per_flow_hour={'costs': <scalar>}
+    capacity_in_flow_hours=X             -> capacity=X
+    initial_charge_state='equals_final'  -> cyclic=True
+    imbalance_penalty_per_flow_hour=0    -> waste Port (absorbs excess at zero cost)
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from __future__ import annotations
 from conftest import ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Storage, optimize
 
 # ---------------------------------------------------------------------------
 # Bus balance & dispatch
@@ -28,7 +28,7 @@ from fluxopt import Converter, Effect, Flow, Port, Storage, optimize
 
 class TestBusBalance:
     def test_merit_order_dispatch(self):
-        """Src1: 1€/kWh, max 20. Src2: 2€/kWh, max 20. Demand=30/ts.
+        """Src1: 1EUR/kWh, max 20. Src2: 2EUR/kWh, max 20. Demand=30/ts.
         Optimal: Src1=20, Src2=10.
 
         Sensitivity: Without merit order, cost could be 100 (Src2 first).
@@ -36,6 +36,7 @@ class TestBusBalance:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 30])]),
@@ -66,6 +67,7 @@ class TestConversionEfficiency:
         thermal = Flow('Heat')
         result = optimize(
             ts(3),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 20, 10])]),
@@ -78,13 +80,14 @@ class TestConversionEfficiency:
     def test_variable_efficiency(self):
         """Boiler eta=[0.5, 1.0], demand=[10,10]. fuel = 10/0.5 + 10/1.0 = 30.
 
-        Sensitivity: Scalar mean (0.75) → 26.67. Only per-timestep yields 30.
+        Sensitivity: Scalar mean (0.75) -> 26.67. Only per-timestep yields 30.
         """
 
         fuel = Flow('Gas')
         thermal = Flow('Heat')
         result = optimize(
             ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -95,7 +98,7 @@ class TestConversionEfficiency:
         assert_allclose(result.objective, 30.0, rtol=1e-5)
 
     def test_chp_dual_output(self):
-        """CHP eta_th=0.5, eta_el=0.4. demand=50 heat/ts. Elec sold at -2€/kWh.
+        """CHP eta_th=0.5, eta_el=0.4. demand=50 heat/ts. Elec sold at -2EUR/kWh.
         fuel=50/0.5=100, elec=100*0.4=40. cost/ts = 100*1 - 40*2 = 20. total=40.
 
         Sensitivity: If eta_el broken, cost=200. If eta_th wrong (1.0), cost=-60.
@@ -106,6 +109,7 @@ class TestConversionEfficiency:
         electrical = Flow('Elec')
         result = optimize(
             ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat'), Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('HeatDemand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -124,13 +128,14 @@ class TestConversionEfficiency:
 
 class TestEffects:
     def test_effects_per_flow_hour(self):
-        """costs=2€/kWh, CO2=0.5kg/kWh. Total flow=30.
+        """costs=2EUR/kWh, CO2=0.5kg/kWh. Total flow=30.
         costs=60, CO2=15.
 
         Sensitivity: If only one effect applied, the other would be wrong.
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2')],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 20])]),
@@ -142,13 +147,14 @@ class TestEffects:
         assert_allclose(co2, 15.0, rtol=1e-5)
 
     def test_effect_maximum_total(self):
-        """CO2 capped at 15. Dirty: 1€+1kgCO2/kWh. Clean: 10€+0kgCO2.
-        Demand=20. Split: 15 Dirty + 5 Clean → cost=65.
+        """CO2 capped at 15. Dirty: 1EUR+1kgCO2/kWh. Clean: 10EUR+0kgCO2.
+        Demand=20. Split: 15 Dirty + 5 Clean -> cost=65.
 
-        Sensitivity: Without CO2 cap, all Dirty → cost=20.
+        Sensitivity: Without CO2 cap, all Dirty -> cost=20.
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_total=15)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -161,13 +167,14 @@ class TestEffects:
         assert_allclose(co2, 15.0, rtol=1e-5)
 
     def test_effect_minimum_total(self):
-        """CO2 floor at 25. Dirty: 1€+1kgCO2. Demand=20. Must overproduce.
+        """CO2 floor at 25. Dirty: 1EUR+1kgCO2. Demand=20. Must overproduce.
         Dirty=25 (5 excess absorbed by waste port). cost=25.
 
-        Sensitivity: Without minimum_total, Dirty=20 → cost=20.
+        Sensitivity: Without minimum_total, Dirty=20 -> cost=20.
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_total=25)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -181,14 +188,15 @@ class TestEffects:
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
     def test_effect_maximum_per_hour(self):
-        """CO2 max_per_hour=8. Dirty: 1€+1kgCO2. Clean: 5€+0kgCO2.
-        Demand=[15,5]. Dirty capped at 8/ts → Dirty=[8,5], Clean=[7,0].
+        """CO2 max_per_hour=8. Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2.
+        Demand=[15,5]. Dirty capped at 8/ts -> Dirty=[8,5], Clean=[7,0].
         cost = 13*1 + 7*5 = 48.
 
-        Sensitivity: Without max_per_hour, all Dirty → cost=20.
+        Sensitivity: Without max_per_hour, all Dirty -> cost=20.
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_per_hour=8)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[15, 5])]),
@@ -199,14 +207,15 @@ class TestEffects:
         assert_allclose(result.objective, 48.0, rtol=1e-5)
 
     def test_effect_minimum_per_hour(self):
-        """CO2 min_per_hour=10. Dirty: 1€+1kgCO2. Demand=[5,5].
-        Must produce ≥10 CO2/ts → Dirty ≥10/ts. Excess absorbed by waste.
+        """CO2 min_per_hour=10. Dirty: 1EUR+1kgCO2. Demand=[5,5].
+        Must produce >=10 CO2/ts -> Dirty >=10/ts. Excess absorbed by waste.
         cost=20.
 
-        Sensitivity: Without min_per_hour, Dirty=5/ts → cost=10.
+        Sensitivity: Without min_per_hour, Dirty=5/ts -> cost=10.
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_per_hour=10)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
@@ -219,14 +228,15 @@ class TestEffects:
         assert_allclose(co2, 20.0, rtol=1e-5)
 
     def test_effect_maximum_temporal(self):
-        """CO2 maximum_total=12 (≡ maximum_temporal when no periodic effects).
-        Dirty: 1€+1kgCO2. Clean: 5€+0kgCO2. Demand=[10,10].
-        Dirty=12, Clean=8 → cost=52.
+        """CO2 maximum_total=12 (= maximum_temporal when no periodic effects).
+        Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2. Demand=[10,10].
+        Dirty=12, Clean=8 -> cost=52.
 
-        Sensitivity: Without cap, all Dirty → cost=20.
+        Sensitivity: Without cap, all Dirty -> cost=20.
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_total=12)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -239,13 +249,14 @@ class TestEffects:
         assert_allclose(co2, 12.0, rtol=1e-5)
 
     def test_effect_minimum_temporal(self):
-        """CO2 minimum_total=25 (≡ minimum_temporal). Dirty: 1€+1kgCO2.
-        Demand=[10,10]. Dirty ≥25 → 5 excess. cost=25.
+        """CO2 minimum_total=25 (= minimum_temporal). Dirty: 1EUR+1kgCO2.
+        Demand=[10,10]. Dirty >=25 -> 5 excess. cost=25.
 
-        Sensitivity: Without floor, Dirty=20 → cost=20.
+        Sensitivity: Without floor, Dirty=20 -> cost=20.
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_total=25)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -265,16 +276,17 @@ class TestEffects:
 
 class TestFlowConstraints:
     def test_relative_minimum(self):
-        """Boiler (size=100, relative_minimum=0.4). When on, must produce ≥40.
-        Demand=30 → excess absorbed by waste. fuel = 40/1.0 = 40. cost=80.
+        """Boiler (size=100, relative_minimum=0.4). When on, must produce >=40.
+        Demand=30 -> excess absorbed by waste. fuel = 40/1.0 = 40. cost=80.
 
-        Sensitivity: Without relative_minimum, boiler=30 → cost=60.
+        Sensitivity: Without relative_minimum, boiler=30 -> cost=60.
         """
 
         fuel = Flow('Gas')
         thermal = Flow('Heat', size=100, relative_minimum=0.4)
         result = optimize(
             ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 30])]),
@@ -289,12 +301,13 @@ class TestFlowConstraints:
 
     def test_relative_maximum(self):
         """Source (size=100, relative_maximum=0.5). Max output=50.
-        Demand=60 → CheapSrc=50, ExpensiveSrc=10. cost=2*(50*1+10*5)=200.
+        Demand=60 -> CheapSrc=50, ExpensiveSrc=10. cost=2*(50*1+10*5)=200.
 
-        Sensitivity: Without relative_maximum, all from CheapSrc → cost=120.
+        Sensitivity: Without relative_maximum, all from CheapSrc -> cost=120.
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
@@ -317,14 +330,15 @@ class TestFlowConstraints:
 
 class TestStorage:
     def test_storage_shift_saves_money(self):
-        """Price=[10,1,10]. Demand=[0,0,20]. Storage buys at t=1 @1€.
+        """Price=[10,1,10]. Demand=[0,0,20]. Storage buys at t=1 @1EUR.
         cost=20.
 
-        Sensitivity: Without storage, buy at t=2 @10€ → cost=200.
+        Sensitivity: Without storage, buy at t=2 @10EUR -> cost=200.
         """
 
         result = optimize(
             ts(3),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 0, 20])]),
@@ -350,11 +364,12 @@ class TestStorage:
         """10% loss/h. Charge 100 at t=0, available after 1h = 90.
         Demand=[0,90]. Grid price=[1,1000]. cost=100.
 
-        Sensitivity: Without losses, charge only 90 → cost=90.
+        Sensitivity: Without losses, charge only 90 -> cost=90.
         """
 
         result = optimize(
             ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 90])]),
@@ -377,15 +392,16 @@ class TestStorage:
         assert_allclose(result.objective, 100.0, rtol=1e-5)
 
     def test_storage_eta_charge_discharge(self):
-        """eta_c=0.9, eta_d=0.8. Need 72 out → stored=72/0.8=90, charge=90/0.9=100.
+        """eta_c=0.9, eta_d=0.8. Need 72 out -> stored=72/0.8=90, charge=90/0.9=100.
         Demand=[0,72]. Price=[1,1000]. cost=100.
 
-        Sensitivity: eta_c broken → cost=90. eta_d broken → cost=80.
-        Both broken → cost=72. Only both correct yields 100.
+        Sensitivity: eta_c broken -> cost=90. eta_d broken -> cost=80.
+        Both broken -> cost=72. Only both correct yields 100.
         """
 
         result = optimize(
             ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 72])]),
@@ -408,14 +424,15 @@ class TestStorage:
         assert_allclose(result.objective, 100.0, rtol=1e-5)
 
     def test_storage_soc_bounds(self):
-        """Capacity=100, max SOC=0.5 → 50 usable. Demand=[0,60].
+        """Capacity=100, max SOC=0.5 -> 50 usable. Demand=[0,60].
         Price=[1,100]. Store 50 cheap, buy 10 expensive. cost=1050.
 
-        Sensitivity: Without SOC bound, store 60 → cost=60.
+        Sensitivity: Without SOC bound, store 60 -> cost=60.
         """
 
         result = optimize(
             ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 60])]),
@@ -440,13 +457,14 @@ class TestStorage:
 
     def test_storage_cyclic_level(self):
         """Cyclic: final level = initial level. Price=[1,100]. Demand=[0,50].
-        Must charge 50 at t=0 @1€ and discharge at t=1. cost=50.
+        Must charge 50 at t=0 @1EUR and discharge at t=1. cost=50.
 
-        Sensitivity: Without cyclic, start full (free energy) → cost=0.
+        Sensitivity: Without cyclic, start full (free energy) -> cost=0.
         """
 
         result = optimize(
             ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 50])]),
@@ -467,16 +485,17 @@ class TestStorage:
         assert_allclose(result.objective, 50.0, rtol=1e-5)
 
     def test_storage_relative_minimum_level(self):
-        """Capacity=100, prior_level=50, min level=0.3 (→30 abs).
-        Price=[1,100,1]. Demand=[0,80,0]. Charge 50 @t0 → level=100.
-        Discharge 70 @t1 → level=30 (min). Grid covers 10 @100€.
+        """Capacity=100, prior_level=50, min level=0.3 (->30 abs).
+        Price=[1,100,1]. Demand=[0,80,0]. Charge 50 @t0 -> level=100.
+        Discharge 70 @t1 -> level=30 (min). Grid covers 10 @100EUR.
         cost=50+1000=1050.
 
-        Sensitivity: Without min level, discharge all → no grid → cost=50 less.
+        Sensitivity: Without min level, discharge all -> no grid -> cost=50 less.
         """
 
         result = optimize(
             ts(3),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 80, 0])]),

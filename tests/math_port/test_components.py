@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port
+from fluxopt import Carrier, Converter, Effect, Flow, Port
 
 from .conftest import ts
 
@@ -93,6 +93,7 @@ class TestHeatPump:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -124,6 +125,7 @@ class TestHeatPump:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
