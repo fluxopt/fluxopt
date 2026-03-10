@@ -1460,16 +1460,16 @@ Values are in units per flow-hour (e.g., €/MWh):</p>
 and constraints.</p>
 <h2 id="id-qualification">Id Qualification<a class="headerlink" href="#id-qualification" title="Permanent link">&para;</a></h2>
 <p>Flow ids are auto-qualified by the parent component. You rarely need to set
-<code>id</code> explicitly:</p>
+<code>short_id</code> explicitly:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fluxopt</span><span class="w"> </span><span class="kn">import</span> <span class="n">Port</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">f</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;elec&#39;</span><span class="p">)</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">Port</span><span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="n">imports</span><span class="o">=</span><span class="p">[</span><span class="n">f</span><span class="p">])</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># f.id is now &#39;grid(elec)&#39;</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># f.id is now &#39;grid(elec)&#39;, f.short_id is still &#39;elec&#39;</span>
 </code></pre></div>
-<p>Set <code>id</code> to disambiguate when a component has multiple flows on the same carrier:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">f1</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;elec&#39;</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s1">&#39;base&#39;</span><span class="p">)</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">f2</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;elec&#39;</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s1">&#39;peak&#39;</span><span class="p">)</span>
+<p>Set <code>short_id</code> to disambiguate when a component has multiple flows on the same carrier:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">f1</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;elec&#39;</span><span class="p">,</span> <span class="n">short_id</span><span class="o">=</span><span class="s1">&#39;base&#39;</span><span class="p">)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">f2</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;elec&#39;</span><span class="p">,</span> <span class="n">short_id</span><span class="o">=</span><span class="s1">&#39;peak&#39;</span><span class="p">)</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">Port</span><span class="p">(</span><span class="s1">&#39;plant&#39;</span><span class="p">,</span> <span class="n">imports</span><span class="o">=</span><span class="p">[</span><span class="n">f1</span><span class="p">,</span> <span class="n">f2</span><span class="p">])</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># f1.id = &#39;plant(base)&#39;, f2.id = &#39;plant(peak)&#39;</span>
 </code></pre></div>
@@ -1514,10 +1514,10 @@ the formulation.</p>
 <td>Carrier this flow connects to</td>
 </tr>
 <tr>
-<td><code>id</code></td>
+<td><code>short_id</code></td>
 <td><code>str</code></td>
 <td><code>''</code></td>
-<td>Optional id (auto-qualified by parent)</td>
+<td>Defaults to <code>carrier</code> (or <code>carrier:node</code> when <code>node</code> is set); <code>id</code> is the qualified form <code>component(short_id)</code></td>
 </tr>
 <tr>
 <td><code>node</code></td>
