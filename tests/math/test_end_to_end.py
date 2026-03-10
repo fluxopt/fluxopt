@@ -4,7 +4,6 @@ import pytest
 from conftest import ts
 
 from fluxopt import (
-    Bus,
     Converter,
     Effect,
     Flow,
@@ -19,29 +18,29 @@ from fluxopt.model import FlowSystem
 class TestEndToEnd:
     def test_full_system(self):
         """Full system: gas source -> boiler -> heat bus <- demand, with cost tracking."""
+
         eta = 0.9
         heat_demand = [40.0, 70.0, 50.0, 60.0]
 
-        demand_flow = Flow(bus='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        gas_source = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        fuel = Flow(bus='gas', size=300)
-        heat = Flow(bus='heat', size=200)
+        demand_flow = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+        gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
+        fuel = Flow('gas', size=300)
+        heat_flow = Flow('heat', size=200)
 
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('gas'), Bus('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
             ],
-            converters=[Converter.boiler('boiler', eta, fuel, heat)],
+            converters=[Converter.boiler('boiler', eta, fuel, heat_flow)],
         )
 
         # Verify gas = heat / eta
         gas_rates = result.flow_rate('boiler(gas)').values
-        for gas, hd in zip(gas_rates, heat_demand, strict=False):
-            assert gas == pytest.approx(hd / eta, abs=1e-6)
+        for gas_rate, hd in zip(gas_rates, heat_demand, strict=False):
+            assert gas_rate == pytest.approx(hd / eta, abs=1e-6)
 
         # Verify cost
         total_gas = sum(h / eta for h in heat_demand)
@@ -50,21 +49,21 @@ class TestEndToEnd:
 
     def test_boiler_plus_storage(self):
         """Boiler + thermal storage: store heat in cheap hours."""
+
         eta = 0.9
         gas_prices = [0.02, 0.08, 0.02, 0.08]
 
-        demand_flow = Flow(bus='heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
-        gas_source = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': gas_prices})
-        fuel = Flow(bus='gas', size=300)
-        heat_out = Flow(bus='heat', size=200)
+        demand_flow = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+        gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': gas_prices})
+        fuel = Flow('gas', size=300)
+        heat_out = Flow('heat', size=200)
 
-        charge_flow = Flow(bus='heat', size=100)
-        discharge_flow = Flow(bus='heat', size=100)
+        charge_flow = Flow('heat', size=100)
+        discharge_flow = Flow('heat', size=100)
         storage = Storage('heat_store', charging=charge_flow, discharging=discharge_flow, capacity=200.0)
 
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('gas'), Bus('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_source]),
@@ -80,12 +79,12 @@ class TestEndToEnd:
 
     def test_modified_data(self):
         """Build data, modify bounds, solve -- verify modified result."""
-        sink_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-        source_flow = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.04})
+
+        sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
         data = ModelData.build(
             ts(3),
-            [Bus('elec')],
             [Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -103,12 +102,12 @@ class TestEndToEnd:
 
     def test_result_accessors(self):
         """Test Result accessor methods."""
-        sink_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-        source_flow = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.04})
+
+        sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -130,22 +129,22 @@ class TestEndToEnd:
 
     def test_int_timesteps(self):
         """Smoke test: int timesteps work end-to-end."""
+
         timesteps = [0, 1, 2, 3]
 
-        demand_flow = Flow(bus='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        gas_source = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        fuel = Flow(bus='gas', size=300)
-        heat = Flow(bus='heat', size=200)
+        demand_flow = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+        gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
+        fuel = Flow('gas', size=300)
+        heat_flow = Flow('heat', size=200)
 
         result = optimize(
             timesteps=timesteps,
-            buses=[Bus('gas'), Bus('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
             ],
-            converters=[Converter.boiler('boiler', 0.9, fuel, heat)],
+            converters=[Converter.boiler('boiler', 0.9, fuel, heat_flow)],
         )
 
         assert result.objective == pytest.approx(sum([40, 70, 50, 60]) / 0.9 * 0.04, abs=1e-6)

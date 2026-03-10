@@ -5,6 +5,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
 import xarray as xr
 
 try:
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 class Result:
     solution: xr.Dataset
     data: ModelData = field(repr=False)
+    duals: xr.Dataset = field(default_factory=xr.Dataset, repr=False)
 
     @property
     def objective(self) -> float:
@@ -63,16 +65,6 @@ class Result:
         """Per-period (investment) effect values as (effect,) DataArray."""
         return self.solution['effect--periodic']
 
-    @property
-    def bus_surplus(self) -> xr.DataArray:
-        """Bus surplus slack (bus, time) — overproduction absorbed by penalty."""
-        return self.solution['bus--surplus'] if 'bus--surplus' in self.solution else xr.DataArray()
-
-    @property
-    def bus_shortage(self) -> xr.DataArray:
-        """Bus shortage slack (bus, time) — deficit covered by penalty."""
-        return self.solution['bus--shortage'] if 'bus--shortage' in self.solution else xr.DataArray()
-
     def flow_rate(self, flow_id: str) -> xr.DataArray:
         """Get flow rate time series for a single flow.
 
@@ -88,6 +80,53 @@ class Result:
             storage_id: Storage id.
         """
         return self.storage_levels.sel(storage=storage_id)
+
+    @cached_property
+    def topology(self) -> dict[str, dict[str, dict[str, list[str]]]]:
+        """Carrier and converter connectivity derived from model data.
+
+        Returns a dict with ``carriers`` and ``converters`` keys, each mapping
+        element ids to their ``inputs`` (flows that produce into the element)
+        and ``outputs`` (flows that consume from it).
+        """
+        flow_coeff = self.data.carriers.flow_coeff
+        carrier_ids: list[str] = list(flow_coeff.coords['carrier'].values)
+        flow_ids: list[str] = list(flow_coeff.coords['flow'].values)
+
+        carriers: dict[str, dict[str, list[str]]] = {}
+        for cid in carrier_ids:
+            inputs: list[str] = []
+            outputs: list[str] = []
+            for fid in flow_ids:
+                c = float(flow_coeff.sel(carrier=cid, flow=fid))
+                if np.isnan(c):
+                    continue
+                if c > 0:
+                    inputs.append(fid)
+                else:
+                    outputs.append(fid)
+            carriers[cid] = {'inputs': inputs, 'outputs': outputs}
+
+        converters: dict[str, dict[str, list[str]]] = {}
+        if self.data.converters is not None:
+            conv_data = self.data.converters
+            for i in range(len(conv_data.pair_converter)):
+                conv_id = str(conv_data.pair_converter.values[i])
+                fid = str(conv_data.pair_flow.values[i])
+                if conv_id not in converters:
+                    converters[conv_id] = {'inputs': [], 'outputs': []}
+                # Use carrier flow_coeff: -1 means flow consumes from carrier
+                # (converter input), +1 means flow produces to carrier (converter output)
+                coeffs = flow_coeff.sel(flow=fid)
+                sign = float(coeffs[~np.isnan(coeffs)].values[0])
+                if sign < 0:
+                    if fid not in converters[conv_id]['inputs']:
+                        converters[conv_id]['inputs'].append(fid)
+                else:
+                    if fid not in converters[conv_id]['outputs']:
+                        converters[conv_id]['outputs'].append(fid)
+
+        return {'carriers': carriers, 'converters': converters}
 
     @cached_property
     def stats(self) -> StatsAccessor:
@@ -157,11 +196,6 @@ class Result:
             sol_vars['flow--startup'] = model.flow_startup.solution
         if model.flow_shutdown is not None:
             sol_vars['flow--shutdown'] = model.flow_shutdown.solution
-        if hasattr(model, 'bus_surplus'):
-            sol_vars['bus--surplus'] = model.bus_surplus.solution
-        if hasattr(model, 'bus_shortage'):
-            sol_vars['bus--shortage'] = model.bus_shortage.solution
-
         # Include custom variables added after build()
         for var_name in model.m.variables:
             if var_name not in model._builtin_var_names and var_name not in sol_vars:
@@ -171,4 +205,5 @@ class Result:
         obj_val = float(raw) if raw is not None else 0.0
 
         solution = xr.Dataset(sol_vars, attrs={'objective': obj_val})
-        return cls(solution=solution, data=model.data)
+        duals = model.m.dual
+        return cls(solution=solution, data=model.data, duals=duals)

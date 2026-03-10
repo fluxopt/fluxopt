@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Converter, Effect, Flow, Port
+from fluxopt import Converter, Effect, Flow, Port
 
 from .conftest import ts, waste
 
@@ -20,21 +20,21 @@ class TestFlowConstraints:
         Sensitivity: Without relative_minimum, boiler produces exactly 30 each timestep
         → cost=60. With relative_minimum=0.4, must produce 40 → cost=80.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -43,8 +43,8 @@ class TestFlowConstraints:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100, relative_minimum=0.4),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100, relative_minimum=0.4),
                 ),
             ],
         )
@@ -67,25 +67,24 @@ class TestFlowConstraints:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([60, 60])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([60, 60])),
                     ],
                 ),
                 Port(
                     'CheapSrc',
                     imports=[
-                        Flow(bus='Heat', size=100, relative_maximum=0.5, effects_per_flow_hour={'cost': 1}),
+                        Flow('Heat', size=100, relative_maximum=0.5, effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 Port(
                     'ExpensiveSrc',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 5}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 5}),
                     ],
                 ),
             ],

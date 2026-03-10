@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Converter, Effect, Flow, Port
+from fluxopt import Converter, Effect, Flow, Port
 
 from .conftest import ts
 
@@ -93,25 +93,24 @@ class TestHeatPump:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Elec'), Bus('Env')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30])),
                     ],
                 ),
-                Port('Grid', imports=[Flow(bus='Elec', effects_per_flow_hour={'cost': 1})]),
-                Port('Environment', imports=[Flow(bus='Env', size=1000)]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port('Environment', imports=[Flow('Env', size=1000)]),
             ],
             converters=[
                 Converter.heat_pump(
                     'HP',
                     cop=3.0,
-                    electrical_flow=Flow(bus='Elec'),
-                    source_flow=Flow(bus='Env'),
-                    thermal_flow=Flow(bus='Heat'),
+                    electrical_flow=Flow('Elec'),
+                    source_flow=Flow('Env'),
+                    thermal_flow=Flow('Heat'),
                 ),
             ],
         )
@@ -125,25 +124,24 @@ class TestHeatPump:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Elec'), Bus('Env')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([20, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20])),
                     ],
                 ),
-                Port('Grid', imports=[Flow(bus='Elec', effects_per_flow_hour={'cost': 1})]),
-                Port('Environment', imports=[Flow(bus='Env', size=1000)]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port('Environment', imports=[Flow('Env', size=1000)]),
             ],
             converters=[
                 Converter.heat_pump(
                     'HP',
                     cop=np.array([2.0, 4.0]),
-                    electrical_flow=Flow(bus='Elec'),
-                    source_flow=Flow(bus='Env'),
-                    thermal_flow=Flow(bus='Heat'),
+                    electrical_flow=Flow('Elec'),
+                    source_flow=Flow('Env'),
+                    thermal_flow=Flow('Heat'),
                 ),
             ],
         )

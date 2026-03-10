@@ -12,7 +12,7 @@ import numpy as np
 from conftest import assert_off_blocks, assert_on_blocks, ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Effect, Flow, Port, Sizing, Status, optimize
+from fluxopt import Effect, Flow, Port, Sizing, Status, optimize
 
 
 class TestSemiContinuous:
@@ -31,15 +31,14 @@ class TestSemiContinuous:
         """
         result = optimize(
             ts(3),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[30, 60, 0])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 60, 0])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.5,
                             effects_per_flow_hour={'costs': 1},
@@ -47,7 +46,7 @@ class TestSemiContinuous:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10})]),
                 waste('Heat'),
             ],
         )
@@ -80,15 +79,14 @@ class TestSemiContinuous:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10, 80])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 80])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.4,
                             effects_per_flow_hour={'costs': 1},
@@ -96,7 +94,7 @@ class TestSemiContinuous:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 0.5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 0.5})]),
             ],
         )
         assert_allclose(result.objective, 45.0, rtol=1e-5)
@@ -116,15 +114,14 @@ class TestStartupCosts:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[60, 60])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -151,15 +148,14 @@ class TestStartupCosts:
         """
         result = optimize(
             ts(3),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[80, 0, 80])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[80, 0, 80])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.3,
                             effects_per_flow_hour={'costs': 0.1},
@@ -168,7 +164,7 @@ class TestStartupCosts:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
                 waste('Heat'),
             ],
         )
@@ -194,15 +190,14 @@ class TestPrior:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[50, 50])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             status=Status(effects_per_startup={'costs': 1000}),
@@ -229,15 +224,14 @@ class TestPrior:
         """
         result = optimize(
             ts(3),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[80, 0, 0])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[80, 0, 0])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -246,7 +240,7 @@ class TestPrior:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 0.5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 0.5})]),
                 waste('Heat'),
             ],
         )
@@ -268,15 +262,14 @@ class TestPrior:
         """
         result = optimize(
             ts(3),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[80, 80, 80])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[80, 80, 80])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -285,7 +278,7 @@ class TestPrior:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10})]),
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
@@ -306,15 +299,14 @@ class TestPrior:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[50, 50])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -344,15 +336,14 @@ class TestStatusSizing:
         """
         result = optimize(
             ts(3),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[30, 80, 0])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 80, 0])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=Sizing(20, 200, mandatory=True),
                             relative_minimum=0.5,
                             effects_per_flow_hour={'costs': 1},
@@ -360,7 +351,7 @@ class TestStatusSizing:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10})]),
                 waste('Heat'),
             ],
         )
@@ -399,15 +390,14 @@ class TestStatusSizing:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[5, 50])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 50])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=Sizing(0, 100, mandatory=True, effects_per_size={'costs': 0.5}),
                             relative_minimum=0.5,
                             effects_per_flow_hour={'costs': 1},
@@ -415,7 +405,7 @@ class TestStatusSizing:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10})]),
             ],
         )
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -443,15 +433,14 @@ class TestStatusSizing:
         """
         result = optimize(
             ts(3),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10] * 3)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10] * 3)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=Sizing(50, 100, mandatory=False, effects_fixed={'costs': 1000}),
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -459,7 +448,7 @@ class TestStatusSizing:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 2})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 2})]),
             ],
         )
         indicator = float(result.solution['flow--size_indicator'].sel(flow='Src(Heat)').values)
@@ -486,15 +475,14 @@ class TestStatusSizing:
         """
         result = optimize(
             ts(3),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[50] * 3)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50] * 3)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=Sizing(0, 200, mandatory=True),
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -503,7 +491,7 @@ class TestStatusSizing:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
             ],
         )
         startup = result.solution['flow--startup'].sel(flow='Src(Heat)').values
@@ -530,15 +518,14 @@ class TestStatusSizing:
         """
         result = optimize(
             ts(4),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[80, 0, 0, 80])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[80, 0, 0, 80])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=Sizing(0, 200, mandatory=True),
                             relative_minimum=0.3,
                             effects_per_flow_hour={'costs': 1},
@@ -547,7 +534,7 @@ class TestStatusSizing:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 0.5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 0.5})]),
                 waste('Heat'),
             ],
         )
@@ -582,15 +569,14 @@ class TestMaxUptime:
         """
         result = optimize(
             ts(5),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10] * 5)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10] * 5)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -599,7 +585,7 @@ class TestMaxUptime:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10})]),
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
@@ -627,15 +613,14 @@ class TestMaxDowntime:
         """
         result = optimize(
             ts(4),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10] * 4)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10] * 4)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.5,
                             effects_per_flow_hour={'costs': 10},
@@ -644,7 +629,7 @@ class TestMaxDowntime:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1})]),
                 waste('Heat'),
             ],
         )
@@ -671,15 +656,14 @@ class TestDurationCombinations:
         """
         result = optimize(
             ts(5),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[5, 10, 20, 18, 12])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 10, 20, 18, 12])]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.01,
                             effects_per_flow_hour={'costs': 1},
@@ -688,7 +672,7 @@ class TestDurationCombinations:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
@@ -709,15 +693,14 @@ class TestDurationCombinations:
         """
         result = optimize(
             ts(6),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[20] * 6)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[20] * 6)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -726,7 +709,7 @@ class TestDurationCombinations:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
                 waste('Heat'),
             ],
         )
@@ -754,15 +737,14 @@ class TestDurationCombinations:
         """
         result = optimize(
             ts(5),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10] * 5)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10] * 5)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -771,7 +753,7 @@ class TestDurationCombinations:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10})]),
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
@@ -800,15 +782,14 @@ class TestDurationCombinations:
         """
         result = optimize(
             ts(5),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10] * 5)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10] * 5)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -817,7 +798,7 @@ class TestDurationCombinations:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10})]),
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
@@ -845,15 +826,14 @@ class TestDurationCombinations:
         """
         result = optimize(
             ts(4),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10] * 4)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10] * 4)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.5,
                             effects_per_flow_hour={'costs': 10},
@@ -862,7 +842,7 @@ class TestDurationCombinations:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1})]),
                 waste('Heat'),
             ],
         )
@@ -900,15 +880,14 @@ class TestDurationCombinations:
         half_hour_ts = [datetime(2020, 1, 1, h, m) for h in range(4) for m in (0, 30)]
         result = optimize(
             half_hour_ts,
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[80] * 8)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[80] * 8)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -917,7 +896,7 @@ class TestDurationCombinations:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
@@ -940,15 +919,14 @@ class TestDurationCombinations:
         half_hour_ts = [datetime(2020, 1, 1, h, m) for h in range(3) for m in (0, 30)]
         result = optimize(
             half_hour_ts,
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10] * 6)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10] * 6)]),
                 Port(
                     'Src',
                     imports=[
                         Flow(
-                            bus='Heat',
+                            'Heat',
                             size=100,
                             relative_minimum=0.1,
                             effects_per_flow_hour={'costs': 1},
@@ -957,7 +935,7 @@ class TestDurationCombinations:
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10})]),
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values

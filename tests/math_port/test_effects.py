@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Converter, Effect, Flow, Port, Sizing
+from fluxopt import Converter, Effect, Flow, Port, Sizing
 
 from .conftest import ts, waste
 
@@ -27,7 +27,6 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2'),
@@ -36,13 +35,13 @@ class TestEffects:
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 20])),
                     ],
                 ),
                 Port(
                     'HeatSrc',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 2, 'CO2': 0.5}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 2, 'CO2': 0.5}),
                     ],
                 ),
             ],
@@ -63,7 +62,6 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'CO2': 0.5}),
                 Effect('CO2'),
@@ -71,11 +69,11 @@ class TestEffects:
             ports=[
                 Port(
                     'Demand',
-                    exports=[Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
                 ),
                 Port(
                     'HeatSrc',
-                    imports=[Flow(bus='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 10})],
+                    imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 10})],
                 ),
             ],
         )
@@ -94,7 +92,6 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', maximum_total=15),
@@ -103,19 +100,19 @@ class TestEffects:
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
                     'Dirty',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 Port(
                     'Clean',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 10, 'CO2': 0}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 10, 'CO2': 0}),
                     ],
                 ),
             ],
@@ -137,7 +134,6 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', minimum_total=25),
@@ -146,19 +142,19 @@ class TestEffects:
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
                     'Dirty',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 Port(
                     'Clean',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 0}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 0}),
                     ],
                 ),
                 waste('Heat'),
@@ -182,7 +178,6 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', maximum_per_hour=8),
@@ -191,19 +186,19 @@ class TestEffects:
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([15, 5])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([15, 5])),
                     ],
                 ),
                 Port(
                     'Dirty',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 Port(
                     'Clean',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
                     ],
                 ),
             ],
@@ -224,7 +219,6 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', minimum_per_hour=10),
@@ -233,13 +227,13 @@ class TestEffects:
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([5, 5])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([5, 5])),
                     ],
                 ),
                 Port(
                     'Dirty',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -286,9 +280,9 @@ class TestEffects:
 
         Sensitivity: Without contribution_from, cost=120. With it, cost=170.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'CO2': 10}),
                 Effect('CO2'),
@@ -296,17 +290,17 @@ class TestEffects:
             ports=[
                 Port(
                     'Demand',
-                    exports=[Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
                 ),
-                Port('GasSrc', imports=[Flow(bus='Gas', effects_per_flow_hour={'cost': 1})]),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas'),
+                    fuel_flow=Flow('Gas'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=Sizing(min_size=50, max_size=50, mandatory=False, effects_fixed={'cost': 100, 'CO2': 5}),
                     ),
                 ),

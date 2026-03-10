@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Bus, Effect, Flow, Port, Storage, optimize
+from fluxopt import Effect, Flow, Port, Storage, optimize
 
 
 class TestStorage:
@@ -11,16 +11,15 @@ class TestStorage:
         """Battery charges in cheap hours, discharges in expensive hours."""
         prices = [0.02, 0.08, 0.02, 0.08]
 
-        source_flow = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': prices})
-        demand_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': prices})
+        demand_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
 
-        charge_flow = Flow(bus='elec', size=50)
-        discharge_flow = Flow(bus='elec', size=50)
+        charge_flow = Flow('elec', size=50)
+        discharge_flow = Flow('elec', size=50)
         battery = Storage('battery', charging=charge_flow, discharging=discharge_flow, capacity=100.0)
 
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
@@ -42,11 +41,12 @@ class TestStorage:
 
     def test_level_starts_at_prior(self):
         """Prior level feeds into the balance at t=0."""
-        source_flow = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.04})
-        demand_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
 
-        charge_flow = Flow(bus='elec', size=50)
-        discharge_flow = Flow(bus='elec', size=50)
+        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        demand_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+
+        charge_flow = Flow('elec', size=50)
+        discharge_flow = Flow('elec', size=50)
         battery = Storage(
             'battery',
             charging=charge_flow,
@@ -58,7 +58,6 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
@@ -74,11 +73,12 @@ class TestStorage:
 
     def test_cyclic_storage(self):
         """Cyclic constraint: initial for period 0 equals level at end of last period."""
-        source_flow = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': [0.02, 0.08]})
-        demand_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5])
 
-        charge_flow = Flow(bus='elec', size=100)
-        discharge_flow = Flow(bus='elec', size=100)
+        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': [0.02, 0.08]})
+        demand_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5])
+
+        charge_flow = Flow('elec', size=100)
+        discharge_flow = Flow('elec', size=100)
         battery = Storage(
             'battery',
             charging=charge_flow,
@@ -88,7 +88,6 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
@@ -109,11 +108,12 @@ class TestStorage:
     def test_storage_with_efficiency(self):
         """With eta_charge < 1, more energy is drawn from bus than stored."""
         eta_c = 0.8
-        source_flow = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
-        demand_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
-        charge_flow = Flow(bus='elec', size=100)
-        discharge_flow = Flow(bus='elec', size=100)
+        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
+        demand_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+
+        charge_flow = Flow('elec', size=100)
+        discharge_flow = Flow('elec', size=100)
         battery = Storage(
             'battery',
             charging=charge_flow,
@@ -124,7 +124,6 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],

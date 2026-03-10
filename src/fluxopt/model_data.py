@@ -12,12 +12,12 @@ from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
 
 if TYPE_CHECKING:
     from fluxopt.components import Converter, Port
-    from fluxopt.elements import Bus, Effect, Flow, Sizing, Status, Storage
+    from fluxopt.elements import Effect, Flow, Sizing, Status, Storage
     from fluxopt.types import TimeIndex, Timesteps
 
 _NC_GROUPS = {
     'flows': 'model/flows',
-    'buses': 'model/buses',
+    'carriers': 'model/carriers',
     'converters': 'model/conv',
     'effects': 'model/effects',
     'storages': 'model/stor',
@@ -413,10 +413,25 @@ class FlowsData:
         )
 
 
+def _carrier_dim_id(flow: Flow) -> str:
+    """Return the carrier dimension coordinate value for a flow.
+
+    Single-node carriers use the carrier id directly.
+    Multi-node carriers use ``carrier_id:node``.
+
+    Args:
+        flow: Flow with carrier (and optional node).
+    """
+    from fluxopt.elements import node_id
+
+    if flow.node is not None:
+        return node_id(flow.carrier, flow.node)
+    return flow.carrier
+
+
 @dataclass
-class BusesData:
-    flow_coeff: xr.DataArray  # (bus, flow)
-    imbalance_penalty: xr.DataArray  # (bus,) — NaN = hard balance
+class CarriersData:
+    flow_coeff: xr.DataArray  # (carrier, flow) — +1/-1/NaN
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -429,32 +444,28 @@ class BusesData:
         Args:
             ds: Dataset with ``flow_coeff`` variable.
         """
-        return cls(flow_coeff=ds['flow_coeff'], imbalance_penalty=ds['imbalance_penalty'])
+        return cls(flow_coeff=ds['flow_coeff'])
 
     @classmethod
-    def build(cls, buses: list[Bus], flows: list[Flow], bus_coeff: dict[str, float]) -> Self:
-        """Build BusesData with flow coefficients.
+    def build(cls, flows: list[Flow], carrier_coeff: dict[str, float]) -> Self:
+        """Build CarriersData with flow coefficients.
 
         Args:
-            buses: Bus definitions.
             flows: All collected flows.
-            bus_coeff: Mapping of flow id to +1 (produces) or -1 (consumes).
+            carrier_coeff: Mapping of flow id to +1 (produces) or -1 (consumes).
         """
-        bus_ids = [b.id for b in buses]
         flow_ids = [f.id for f in flows]
+        # Collect unique carrier dim ids preserving order
+        carrier_ids: list[str] = list(dict.fromkeys(_carrier_dim_id(f) for f in flows))
 
-        coeff = np.full((len(bus_ids), len(flow_ids)), np.nan)
+        coeff = np.full((len(carrier_ids), len(flow_ids)), np.nan)
         for f in flows:
-            if f.bus in bus_ids:
-                bi = bus_ids.index(f.bus)
-                fi = flow_ids.index(f.id)
-                coeff[bi, fi] = bus_coeff[f.id]
-
-        penalty_vals = np.array([b.imbalance_penalty if b.imbalance_penalty is not None else np.nan for b in buses])
+            ci = carrier_ids.index(_carrier_dim_id(f))
+            fi = flow_ids.index(f.id)
+            coeff[ci, fi] = carrier_coeff[f.id]
 
         return cls(
-            flow_coeff=xr.DataArray(coeff, dims=['bus', 'flow'], coords={'bus': bus_ids, 'flow': flow_ids}),
-            imbalance_penalty=xr.DataArray(penalty_vals, dims=['bus'], coords={'bus': bus_ids}),
+            flow_coeff=xr.DataArray(coeff, dims=['carrier', 'flow'], coords={'carrier': carrier_ids, 'flow': flow_ids}),
         )
 
 
@@ -862,7 +873,7 @@ class StoragesData:
 @dataclass
 class ModelData:
     flows: FlowsData
-    buses: BusesData
+    carriers: CarriersData
     converters: ConvertersData | None  # None when no converters
     effects: EffectsData
     storages: StoragesData | None  # None when no storages
@@ -878,9 +889,9 @@ class ModelData:
             mode: Write mode ('w' to overwrite, 'a' to append).
         """
         p = Path(path)
-        dataset_fields: dict[str, FlowsData | BusesData | ConvertersData | EffectsData | StoragesData | None] = {
+        dataset_fields: dict[str, FlowsData | CarriersData | ConvertersData | EffectsData | StoragesData | None] = {
             'flows': self.flows,
-            'buses': self.buses,
+            'carriers': self.carriers,
             'converters': self.converters,
             'effects': self.effects,
             'storages': self.storages,
@@ -917,14 +928,14 @@ class ModelData:
         time = pd.Index(dt.coords['time'].values)
 
         flows = FlowsData.from_dataset(datasets['flows'])
-        buses = BusesData.from_dataset(datasets['buses'])
+        carriers = CarriersData.from_dataset(datasets['carriers'])
         converters = ConvertersData.from_dataset(datasets['converters']) if datasets['converters'].data_vars else None
         effects = EffectsData.from_dataset(datasets['effects'])
         storages = StoragesData.from_dataset(datasets['storages']) if datasets['storages'].data_vars else None
 
         return cls(
             flows=flows,
-            buses=buses,
+            carriers=carriers,
             converters=converters,
             effects=effects,
             storages=storages,
@@ -937,7 +948,6 @@ class ModelData:
     def build(
         cls,
         timesteps: Timesteps,
-        buses: list[Bus],
         effects: list[Effect],
         ports: list[Port],
         converters: list[Converter] | None = None,
@@ -948,7 +958,6 @@ class ModelData:
 
         Args:
             timesteps: Time index for the optimization horizon.
-            buses: Energy buses.
             effects: Effects to track.
             ports: System boundary ports.
             converters: Linear converters.
@@ -966,22 +975,22 @@ class ModelData:
         if not any(e.id == PENALTY_EFFECT_ID for e in effects):
             effects = [*effects, Effect(PENALTY_EFFECT_ID)]
 
-        flows, bus_coeff = _collect_flows(ports, converters, stor_list)
-        _validate_system(buses, effects, ports, converters, stor_list, flows)
+        flows, carrier_coeff = _collect_flows(ports, converters, stor_list)
+        _validate_system(effects, ports, converters, stor_list, flows)
 
         weights = xr.DataArray(np.ones(len(time)), dims=['time'], coords={'time': time}, name='weight')
 
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dt_da.values[0])
         flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar)
-        buses_data = BusesData.build(buses, flows, bus_coeff)
+        carriers_data = CarriersData.build(flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
         effects_data = EffectsData.build(effects, time)
         storages_data = StoragesData.build(stor_list, time, dt_da, effects)
 
         return cls(
             flows=flows_data,
-            buses=buses_data,
+            carriers=carriers_data,
             converters=converters_data,
             effects=effects_data,
             storages=storages_data,
@@ -996,7 +1005,7 @@ def _collect_flows(
     converters: list[Converter],
     storages: list[Storage] | None,
 ) -> tuple[list[Flow], dict[str, float]]:
-    """Gather all flows and assign bus-balance coefficients by direction.
+    """Gather all flows and assign carrier-balance coefficients by direction.
 
     Args:
         ports: System boundary ports.
@@ -1004,45 +1013,43 @@ def _collect_flows(
         storages: Storage components.
 
     Returns:
-        Tuple of (flows, bus_coeff) where bus_coeff maps flow id to
-        +1 (produces into bus) or -1 (consumes from bus).
+        Tuple of (flows, carrier_coeff) where carrier_coeff maps flow id to
+        +1 (produces into carrier) or -1 (consumes from carrier).
     """
     flows: list[Flow] = []
-    bus_coeff: dict[str, float] = {}
+    carrier_coeff: dict[str, float] = {}
     for port in ports:
         for f in port.imports:
             flows.append(f)
-            bus_coeff[f.id] = 1.0  # imports add energy to bus
+            carrier_coeff[f.id] = 1.0  # imports add energy to carrier
         for f in port.exports:
             flows.append(f)
-            bus_coeff[f.id] = -1.0  # exports take energy from bus
+            carrier_coeff[f.id] = -1.0  # exports take energy from carrier
     for conv in converters:
         for f in conv.inputs:
             flows.append(f)
-            bus_coeff[f.id] = -1.0  # converter consumes from bus
+            carrier_coeff[f.id] = -1.0  # converter consumes from carrier
         for f in conv.outputs:
             flows.append(f)
-            bus_coeff[f.id] = 1.0  # converter produces to bus
+            carrier_coeff[f.id] = 1.0  # converter produces to carrier
     for s in storages or []:
         flows.append(s.charging)
-        bus_coeff[s.charging.id] = -1.0  # charging takes from bus
+        carrier_coeff[s.charging.id] = -1.0  # charging takes from carrier
         flows.append(s.discharging)
-        bus_coeff[s.discharging.id] = 1.0  # discharging adds to bus
-    return flows, bus_coeff
+        carrier_coeff[s.discharging.id] = 1.0  # discharging adds to carrier
+    return flows, carrier_coeff
 
 
 def _validate_system(
-    buses: list[Bus],
     effects: list[Effect],
     ports: list[Port],
     converters: list[Converter],
     storages: list[Storage],
     flows: list[Flow],
 ) -> None:
-    """Validate unique ids and bus references across all elements.
+    """Validate unique ids and carrier consistency across all elements.
 
     Args:
-        buses: Bus definitions.
         effects: Effect definitions.
         ports: Port components.
         converters: Converter components.
@@ -1050,8 +1057,7 @@ def _validate_system(
         flows: All collected flows.
     """
     # Unique component IDs
-    all_ids: list[str] = [b.id for b in buses]
-    all_ids.extend(e.id for e in effects)
+    all_ids: list[str] = [e.id for e in effects]
     all_ids.extend(p.id for p in ports)
     all_ids.extend(c.id for c in converters)
     all_ids.extend(s.id for s in storages)
@@ -1060,12 +1066,6 @@ def _validate_system(
         if id_ in seen:
             raise ValueError(f'Duplicate id: {id_!r}')
         seen.add(id_)
-
-    # Bus references
-    bus_ids = {b.id for b in buses}
-    for flow in flows:
-        if flow.bus not in bus_ids:
-            raise ValueError(f'Flow {flow.id!r} references unknown bus {flow.bus!r}')
 
     # Unique flow IDs
     flow_seen: set[str] = set()

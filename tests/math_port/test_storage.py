@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Effect, Flow, Port, Sizing, Storage
+from fluxopt import Effect, Flow, Port, Sizing, Storage
 
 from .conftest import ts
 
@@ -18,27 +18,26 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Elec', size=1, fixed_relative_profile=np.array([0, 0, 20])),
+                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 20])),
                     ],
                 ),
                 Port(
                     'Grid',
                     imports=[
-                        Flow(bus='Elec', effects_per_flow_hour={'cost': np.array([10, 1, 10])}),
+                        Flow('Elec', effects_per_flow_hour={'cost': np.array([10, 1, 10])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=100),
-                    discharging=Flow(bus='Elec', size=100),
+                    charging=Flow('Elec', size=100),
+                    discharging=Flow('Elec', size=100),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -58,27 +57,26 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Elec', size=1, fixed_relative_profile=np.array([0, 90])),
+                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 90])),
                     ],
                 ),
                 Port(
                     'Grid',
                     imports=[
-                        Flow(bus='Elec', effects_per_flow_hour={'cost': np.array([1, 1000])}),
+                        Flow('Elec', effects_per_flow_hour={'cost': np.array([1, 1000])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=200,
                     prior_level=0,
                     cyclic=False,
@@ -98,27 +96,26 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Elec', size=1, fixed_relative_profile=np.array([0, 72])),
+                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 72])),
                     ],
                 ),
                 Port(
                     'Grid',
                     imports=[
-                        Flow(bus='Elec', effects_per_flow_hour={'cost': np.array([1, 1000])}),
+                        Flow('Elec', effects_per_flow_hour={'cost': np.array([1, 1000])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=200,
                     prior_level=0,
                     cyclic=False,
@@ -138,27 +135,26 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Elec', size=1, fixed_relative_profile=np.array([0, 60])),
+                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 60])),
                     ],
                 ),
                 Port(
                     'Grid',
                     imports=[
-                        Flow(bus='Elec', effects_per_flow_hour={'cost': np.array([1, 100])}),
+                        Flow('Elec', effects_per_flow_hour={'cost': np.array([1, 100])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -179,27 +175,26 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Elec', size=1, fixed_relative_profile=np.array([0, 50])),
+                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 50])),
                     ],
                 ),
                 Port(
                     'Grid',
                     imports=[
-                        Flow(bus='Elec', effects_per_flow_hour={'cost': np.array([1, 10])}),
+                        Flow('Elec', effects_per_flow_hour={'cost': np.array([1, 10])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=Sizing(min_size=0, max_size=200, mandatory=False, effects_per_size={'cost': 1}),
                     prior_level=0,
                     cyclic=False,

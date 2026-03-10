@@ -1,6 +1,6 @@
 # Flows
 
-A `Flow` represents energy transfer on a bus. Flows are the building blocks —
+A `Flow` represents energy transfer on a carrier. Flows are the building blocks —
 every port, converter, and storage is defined through its flows.
 
 See [Flows (Math)](../math/flows.md) for the formulation.
@@ -10,11 +10,11 @@ See [Flows (Math)](../math/flows.md) for the formulation.
 ```python
 from fluxopt import Flow
 
-# Minimal: just a bus
-f = Flow(bus='heat')
+# Minimal: just a carrier
+f = Flow('heat')
 
 # With capacity
-f = Flow(bus='heat', size=100)  # 100 MW nominal capacity
+f = Flow('heat', size=100)  # 100 MW nominal capacity
 ```
 
 ## Sizing
@@ -24,10 +24,10 @@ parameters are scaled by this value:
 
 ```python
 # Sized: flow rate bounded to [0, 100] MW
-f = Flow(bus='heat', size=100)
+f = Flow('heat', size=100)
 
 # Unsized: flow rate bounded to [0, ∞)
-f = Flow(bus='heat')
+f = Flow('heat')
 ```
 
 ## Bounds
@@ -37,10 +37,10 @@ of `size`:
 
 ```python
 # Minimum load 30%, maximum 100% → [30, 100] MW
-f = Flow(bus='heat', size=100, relative_minimum=0.3)
+f = Flow('heat', size=100, relative_minimum=0.3)
 
 # Time-varying maximum
-f = Flow(bus='heat', size=100, relative_maximum=[1.0, 0.8, 0.6, 1.0])
+f = Flow('heat', size=100, relative_maximum=[1.0, 0.8, 0.6, 1.0])
 ```
 
 ## Fixed Profiles
@@ -49,7 +49,7 @@ f = Flow(bus='heat', size=100, relative_maximum=[1.0, 0.8, 0.6, 1.0])
 
 ```python
 # Demand: 40, 70, 50, 60 MW
-f = Flow(bus='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+f = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
 ```
 
 This sets both lower and upper bounds equal to the profile value.
@@ -61,13 +61,13 @@ Values are in units per flow-hour (e.g., €/MWh):
 
 ```python
 # Constant cost
-f = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': 0.04})
+f = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
 
 # Multiple effects
-f = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': 0.04, 'co2': 0.2})
+f = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04, 'co2': 0.2})
 
 # Time-varying cost
-f = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': [0.02, 0.08, 0.04]})
+f = Flow('gas', size=500, effects_per_flow_hour={'cost': [0.02, 0.08, 0.04]})
 ```
 
 See [Effects](effects.md) for how these coefficients feed into the objective
@@ -81,26 +81,61 @@ Flow ids are auto-qualified by the parent component. You rarely need to set
 ```python
 from fluxopt import Port
 
-f = Flow(bus='elec')
+f = Flow('elec')
 Port('grid', imports=[f])
 # f.id is now 'grid(elec)'
 ```
 
-Set `id` to disambiguate when a component has multiple flows on the same bus:
+Set `id` to disambiguate when a component has multiple flows on the same carrier:
 
 ```python
-f1 = Flow(bus='elec', id='base')
-f2 = Flow(bus='elec', id='peak')
+f1 = Flow('elec', id='base')
+f2 = Flow('elec', id='peak')
 Port('plant', imports=[f1, f2])
 # f1.id = 'plant(base)', f2.id = 'plant(peak)'
 ```
+
+## Multi-Node Carriers
+
+By default, all flows on the same carrier share a single balance equation.
+Use `node` to split a carrier into independent sub-balances — for example,
+separate heat networks in different buildings.
+
+First, declare the carrier with its nodes:
+
+```python
+from fluxopt import Carrier
+
+heat = Carrier('heat', nodes=['A', 'B'], unit='MWh', color='red')
+```
+
+Then assign flows to nodes. The `node` value must match one of the carrier's
+declared nodes:
+
+```python
+# Two independent heat nodes
+supply_a = Flow('heat', node='A', size=100)
+supply_b = Flow('heat', node='B', size=100)
+demand_a = Flow('heat', node='A', size=100, fixed_relative_profile=[0.5, 0.5])
+demand_b = Flow('heat', node='B', size=100, fixed_relative_profile=[0.8, 0.8])
+```
+
+Each node gets its own balance constraint. Node A's supply only serves
+node A's demand — they don't interact.
+
+The flow id auto-includes the node: `Flow('heat', node='A')` gets
+`id='heat:A'`, which qualifies to `port(heat:A)`.
+
+See [Carrier Balance (Math)](../math/carrier-balance.md#multi-node-carriers) for
+the formulation.
 
 ## Parameters Summary
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `bus` | `str` | required | Bus this flow connects to |
+| `carrier` | `str` | required | Carrier this flow connects to |
 | `id` | `str` | `''` | Optional id (auto-qualified by parent) |
+| `node` | `str \| None` | `None` | Sub-node for multi-node balancing |
 | `size` | `float \| Sizing \| None` | `None` | Nominal capacity [MW] or [investment](sizing.md) |
 | `relative_minimum` | `TimeSeries` | `0.0` | Lower bound as fraction of size |
 | `relative_maximum` | `TimeSeries` | `1.0` | Upper bound as fraction of size |

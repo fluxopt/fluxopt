@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Converter, Effect, Flow, Port, Sizing, Status
+from fluxopt import Converter, Effect, Flow, Port, Sizing, Status
 
 from .conftest import ts
 
@@ -18,21 +18,21 @@ class TestFlowInvest:
         would be 10+200=210, total=290 instead of 140. If sized to 0, infeasible.
         Only size=50 (peak demand) minimizes the sum of invest + fuel cost.
         """
+
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 50, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 50, 20])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -40,9 +40,9 @@ class TestFlowInvest:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=Sizing(
                             min_size=0,
                             max_size=200,
@@ -69,21 +69,21 @@ class TestFlowInvest:
         Sensitivity: If investment cost were ignored (free invest), InvestBoiler
         would be built and used → fuel=20 instead of 40.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -91,17 +91,17 @@ class TestFlowInvest:
                 Converter.boiler(
                     'InvestBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=Sizing(min_size=0, max_size=100, mandatory=False, effects_fixed={'cost': 99999}),
                     ),
                 ),
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -118,21 +118,21 @@ class TestFlowInvest:
         Sensitivity: Without min_size, optimal invest=10 → cost=10+20=30.
         With min_size=100, invest cost=100 → cost=120.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -140,9 +140,9 @@ class TestFlowInvest:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=Sizing(min_size=100, max_size=200, mandatory=True, effects_per_size={'cost': 1}),
                     ),
                 ),
@@ -162,21 +162,21 @@ class TestFlowInvest:
 
         Sensitivity: The key assertion is that invested size is exactly 80, not 30.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -184,17 +184,17 @@ class TestFlowInvest:
                 Converter.boiler(
                     'FixedBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=Sizing(min_size=80, max_size=80, mandatory=False, effects_fixed={'cost': 10}),
                     ),
                 ),
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -226,21 +226,21 @@ class TestFlowInvest:
         Without mandatory, CheapBoiler covers all: fuel=40, total=40.
         With mandatory=True, ExpensiveBoiler must be built: invest=1000+10, fuel=20, total=1030.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -248,9 +248,9 @@ class TestFlowInvest:
                 Converter.boiler(
                     'ExpensiveBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=Sizing(
                             min_size=10,
                             max_size=100,
@@ -263,8 +263,8 @@ class TestFlowInvest:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -282,21 +282,21 @@ class TestFlowInvest:
 
         Sensitivity: cost=40 here vs cost=1030 with mandatory=True.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -304,17 +304,17 @@ class TestFlowInvest:
                 Converter.boiler(
                     'ExpensiveBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=Sizing(min_size=10, max_size=100, mandatory=False, effects_fixed={'cost': 1000}),
                     ),
                 ),
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -358,21 +358,21 @@ class TestFlowInvestWithStatus:
         Sensitivity: Without startup_cost, cost = invest + fuel.
         With startup_cost=50 * 2, cost increases by 100.
         """
+
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 20, 0, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 20, 0, 20])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -380,9 +380,9 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         relative_minimum=0.5,
                         size=Sizing(
                             min_size=0,
@@ -409,21 +409,21 @@ class TestFlowInvestWithStatus:
 
         Sensitivity: The cost changes due to min_uptime forcing operation patterns.
         """
+
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([20, 10, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 10, 20])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -431,9 +431,9 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'InvestBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         relative_minimum=0.1,
                         size=Sizing(min_size=0, max_size=100, mandatory=False, effects_per_size={'cost': 1}),
                         status=Status(min_uptime=2),
@@ -442,8 +442,8 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )

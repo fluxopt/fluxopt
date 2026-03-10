@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Bus, Effect, Flow, ModelData, Port, optimize
+from fluxopt import Effect, Flow, ModelData, Port, optimize
 from fluxopt.model import FlowSystem
 
 
@@ -15,11 +15,10 @@ class TestCustomize:
         """Single-bus system: grid source (size=100) feeding a fixed 50 MW demand."""
         return {
             'timesteps': ts(3),
-            'buses': [Bus('elec')],
             'effects': [Effect('cost', is_objective=True)],
             'ports': [
-                Port('grid', imports=[Flow(bus='elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
-                Port('demand', exports=[Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
+                Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
+                Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
             ],
         }
 
@@ -76,7 +75,6 @@ class TestCustomize:
         """Using FlowSystem directly with custom variable works."""
         data = ModelData.build(
             simple_system['timesteps'],
-            simple_system['buses'],
             simple_system['effects'],
             simple_system['ports'],
         )

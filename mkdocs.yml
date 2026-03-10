@@ -16,10 +16,11 @@ nav:
   - Notebooks:
     - Quickstart: notebooks/01-quickstart.ipynb
     - Heat System: notebooks/02-heat-system.ipynb
+    - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
   - Math:
     - Notation: math/notation.md
     - Objective: math/objective.md
-    - Bus Balance: math/bus-balance.md
+    - Carrier Balance: math/carrier-balance.md
     - Flows: math/flows.md
     - Converters: math/converters.md
     - Storage: math/storage.md

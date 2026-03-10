@@ -5,7 +5,7 @@ import pytest
 from conftest import assert_off_blocks, assert_on_blocks
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Converter, Effect, Flow, Port, Status
+from fluxopt import Converter, Effect, Flow, Port, Status
 
 from .conftest import ts, waste
 
@@ -19,21 +19,21 @@ class TestFlowStatus:
         Sensitivity: Without startup costs, objective=40 (fuel only).
         With 100€/startup * 2 startups, objective=240.
         """
+
         result = optimize(
             timesteps=ts(5),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 10, 0, 10, 0])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 10, 0, 10, 0])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -41,9 +41,9 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[0],
@@ -73,21 +73,21 @@ class TestFlowStatus:
 
         Sensitivity: The constraint forces status=[1,1,0,1,1].
         """
+
         result = optimize(
             timesteps=ts(5),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([5, 10, 20, 18, 12])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([5, 10, 20, 18, 12])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -95,9 +95,9 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.01,
                         prior_rates=[0],
@@ -107,8 +107,8 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.2,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -131,21 +131,21 @@ class TestFlowStatus:
         Sensitivity: Without min_downtime, boiler restarts at t=2 → cost=40.
         With min_downtime=3, backup needed at t=2 → cost=60.
         """
+
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([20, 0, 20, 0])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 0, 20, 0])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -153,9 +153,9 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[20],
@@ -165,8 +165,8 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -182,21 +182,21 @@ class TestFlowStatus:
         Sensitivity: Without effects_per_running_hour, cost=20 (fuel only).
         With 50€/h * 2h, cost = 20 + 100 = 120.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -204,9 +204,9 @@ class TestFlowStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         status=Status(effects_per_running_hour={'cost': 50}),
@@ -236,21 +236,21 @@ class TestFlowStatus:
         Sensitivity: Without max_downtime, all from CheapBoiler → cost=40.
         With max_downtime=1, ExpBoiler forced on ≥2 hours → cost > 40.
         """
+
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -258,9 +258,9 @@ class TestFlowStatus:
                 Converter.boiler(
                     'ExpBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=20,
                         relative_minimum=0.5,
                         prior_rates=[10],
@@ -270,8 +270,8 @@ class TestFlowStatus:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -299,21 +299,21 @@ class TestFlowStatus:
         Sensitivity: Without max_uptime, all 5 hours cheap → cost=50.
         With max_uptime=2, backup covers 1 hour → cost=60.
         """
+
         result = optimize(
             timesteps=ts(5),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10, 10, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10, 10, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -321,9 +321,9 @@ class TestFlowStatus:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[0],
@@ -333,8 +333,8 @@ class TestFlowStatus:
                 Converter.boiler(
                     'ExpensiveBackup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -356,21 +356,21 @@ class TestPreviousFlowRate:
         Sensitivity: With prior_rates=[0] (was off), cost=0.
         With prior_rates=[10] (was on), cost=10.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 0])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 0])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -379,9 +379,9 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[10],
@@ -398,21 +398,21 @@ class TestPreviousFlowRate:
 
         Same setup but prior_rates=[0]. Cost=0 here vs cost=10 with prior_rates=[10].
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 0])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 0])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -421,9 +421,9 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[0],
@@ -440,21 +440,21 @@ class TestPreviousFlowRate:
         prior_rates=[10, 20] (2 hours ON), min_uptime=2 → satisfied, can turn off.
         Demand=[0, 0]. With satisfied uptime, can be off entirely (cost=0).
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 0])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 0])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -463,9 +463,9 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[10, 20],
@@ -485,21 +485,21 @@ class TestPreviousFlowRate:
 
         Sensitivity: With prior_rates=[0] (was off), cost=0. With prior_rates=[0, 10], cost=20.
         """
+
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 0, 0])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 0, 0])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -508,9 +508,9 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[0, 10],
@@ -532,21 +532,21 @@ class TestPreviousFlowRate:
 
         Sensitivity: Without carry-over, cost=60. With carry-over, cost=100.
         """
+
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([20, 20, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20, 20])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -554,9 +554,9 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[10, 0],
@@ -566,8 +566,8 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'ExpensiveBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -586,21 +586,21 @@ class TestPreviousFlowRate:
         Sensitivity: With prior_rates=[10, 20, 30, 40] (4 hours on), cost=0.
         With prior_rates=[0, 10, 20, 30] (3 hours on), cost=10.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 0])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 0])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -609,9 +609,9 @@ class TestPreviousFlowRate:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[0, 10, 20, 30],

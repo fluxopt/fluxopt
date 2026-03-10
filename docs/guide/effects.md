@@ -29,10 +29,10 @@ effect-units per flow-hour (e.g., €/MWh):
 from fluxopt import Flow
 
 # Single effect
-gas = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': 0.04})
+gas_flow = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
 
 # Multiple effects
-gas = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': 0.04, 'co2': 0.2})
+gas_flow = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04, 'co2': 0.2})
 ```
 
 At each timestep, the contribution is `coefficient * flow_rate * dt`.
@@ -81,7 +81,7 @@ effects = [
 ]
 ```
 
-Here, every kg of CO₂ adds 50 € to cost — both for temporal emissions
+Here, every kg of CO2 adds 50 to cost — both for temporal emissions
 (from flow operation) and periodic emissions (e.g., from `Sizing.effects_per_size`).
 
 ### Time-Varying (temporal only)
@@ -103,7 +103,7 @@ effects = [
 
 ### Transitive Chains
 
-Contributions chain transitively. A PE → CO₂ → cost chain is modeled as:
+Contributions chain transitively. A PE -> CO2 -> cost chain is modeled as:
 
 ```python
 effects = [
@@ -116,7 +116,7 @@ effects = [
 ### Restrictions
 
 - **No self-references**: an effect cannot reference itself
-- **No cycles**: `cost → co2 → cost` is rejected at build time
+- **No cycles**: `cost -> co2 -> cost` is rejected at build time
 
 See [Effects (Math)](../math/effects.md#cross-effect-contributions) for the
 formulation.
@@ -163,8 +163,8 @@ contrib['total']
 The contributions are validated against the solver totals — if they don't sum
 to `effect_totals`, a `ValueError` is raised.
 
-Cross-effects (e.g., CO₂ → cost) are attributed to the originating contributor.
-If a gas flow emits CO₂ priced at 50 €/kg, its cost contribution includes both
+Cross-effects (e.g., CO2 -> cost) are attributed to the originating contributor.
+If a gas flow emits CO2 priced at 50 EUR/kg, its cost contribution includes both
 the direct cost and the carbon tax portion.
 
 ## Full Example
@@ -173,17 +173,16 @@ Two sources with different cost/CO2 tradeoffs, subject to an emission cap:
 
 ```python
 from datetime import datetime
-from fluxopt import Bus, Effect, Flow, Port, optimize
+from fluxopt import Effect, Flow, Port, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(3)]
 
-demand = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-cheap_dirty = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
-expensive_clean = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
+demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+cheap_dirty = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
+expensive_clean = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
 
 result = optimize(
     timesteps=timesteps,
-    buses=[Bus('elec')],
     effects=[
         Effect('cost', is_objective=True),
         Effect('co2', maximum_total=100),

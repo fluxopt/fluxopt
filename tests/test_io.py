@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import pytest
 import xarray as xr
 
-from fluxopt import Bus, Converter, Effect, Flow, Port, Storage, optimize
+from fluxopt import Converter, Effect, Flow, Port, Storage, optimize
 from fluxopt.results import Result
 
 if TYPE_CHECKING:
@@ -20,11 +20,10 @@ def tmp_nc(tmp_path: Path) -> Path:
 
 def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
     """Simple source -> demand system with cost tracking."""
-    demand = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-    source = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.04})
+    demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+    source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
     return optimize(
         timesteps=timesteps,
-        buses=[Bus('elec')],
         effects=[Effect('cost', is_objective=True)],
         ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
     )
@@ -32,16 +31,15 @@ def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
 
 def _solve_with_storage(timesteps: list[datetime]) -> Result:
     """Boiler + storage system."""
-    demand = Flow(bus='heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-    gas_source = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
-    fuel = Flow(bus='gas', size=300)
-    heat_out = Flow(bus='heat', size=200)
-    charge = Flow(bus='heat', size=100)
-    discharge = Flow(bus='heat', size=100)
+    demand = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+    gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
+    fuel = Flow('gas', size=300)
+    heat_out = Flow('heat', size=200)
+    charge = Flow('heat', size=100)
+    discharge = Flow('heat', size=100)
     storage = Storage('heat_store', charging=charge, discharging=discharge, capacity=200.0)
     return optimize(
         timesteps=timesteps,
-        buses=[Bus('gas'), Bus('heat')],
         effects=[Effect('cost', is_objective=True)],
         ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
@@ -117,12 +115,11 @@ class TestRoundtripContributionFrom:
     def test_roundtrip_with_contribution_from(self, tmp_nc: Path) -> None:
         """ModelData with contribution_from survives NetCDF roundtrip."""
         ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        source = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts,
-            buses=[Bus('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
