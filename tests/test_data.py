@@ -62,6 +62,32 @@ class TestCarriersData:
         assert out_coeff == 1.0  # output to carrier
         assert in_coeff == -1.0  # input from carrier
 
+    def test_metadata(self):
+        data = ModelData.build(
+            ts(2),
+            carriers=[Carrier('elec', unit='kWh', color='blue', description='Electricity')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[Port('src', imports=[Flow('elec', size=100)])],
+        )
+        assert str(data.carriers.unit.sel(carrier='elec').values) == 'kWh'
+        assert str(data.carriers.color.sel(carrier='elec').values) == 'blue'
+        assert str(data.carriers.description.sel(carrier='elec').values) == 'Electricity'
+
+    def test_from_dataset_roundtrip(self):
+        from fluxopt.model_data import CarriersData
+
+        data = ModelData.build(
+            ts(2),
+            carriers=[Carrier('elec', unit='kWh', color='red', description='Power')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[Port('src', imports=[Flow('elec', size=100)])],
+        )
+        ds = data.carriers.to_dataset()
+        loaded = CarriersData.from_dataset(ds)
+        assert str(loaded.unit.sel(carrier='elec').values) == 'kWh'
+        assert str(loaded.color.sel(carrier='elec').values) == 'red'
+        assert str(loaded.description.sel(carrier='elec').values) == 'Power'
+
 
 class TestConvertersTable:
     def test_scalar_factors(self):
