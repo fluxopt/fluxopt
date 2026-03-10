@@ -46,6 +46,12 @@ class StatsAccessor:
         return (self.flow_hours * self._result.data.weights).sum('time')
 
     @cached_property
+    def carrier_balance(self) -> xr.DataArray:
+        """Signed balance per carrier: coeff * P. (carrier, flow, time)."""
+        coeff = self._result.data.carriers.flow_coeff
+        return coeff * self._result.flow_rates
+
+    @cached_property
     def effect_contributions(self) -> xr.Dataset:
         """Per-contributor breakdown of effect contributions.
 

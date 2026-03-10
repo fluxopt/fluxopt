@@ -3,19 +3,19 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Bus, Effect, Flow, Port, Sizing, optimize
+from fluxopt import Effect, Flow, Port, Sizing, optimize
 
 
 class TestEffects:
     def test_single_cost_effect(self):
         """Total cost = sum(rate * coeff * dt)."""
         demand = [50.0, 80.0, 60.0]
-        sink_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-        source_flow = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.04})
+
+        sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -25,20 +25,20 @@ class TestEffects:
 
     def test_multiple_effects(self):
         """Track cost and CO2 simultaneously, minimize cost."""
+
         sink_flow = Flow(
-            bus='elec',
+            'elec',
             size=100,
             fixed_relative_profile=[0.5, 0.8, 0.6],
         )
         source_flow = Flow(
-            bus='elec',
+            'elec',
             size=200,
             effects_per_flow_hour={'cost': 0.04, 'co2': 0.5},
         )
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True), Effect('co2', unit='kg')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -53,15 +53,15 @@ class TestEffects:
 
     def test_effect_maximum_total(self):
         """Effect max_total constraint limits total emissions."""
-        sink_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
         # Two sources with different cost/co2 tradeoffs
-        cheap_dirty = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
-        expensive_clean = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
+        cheap_dirty = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
+        expensive_clean = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
 
         co2_limit = 100.0  # demand_total = 190, so can't use all cheap
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True), Effect('co2', maximum_total=co2_limit)],
             ports=[
                 Port('cheap_src', imports=[cheap_dirty]),
@@ -76,12 +76,12 @@ class TestEffects:
     def test_time_varying_cost(self):
         """Time-varying costs are tracked correctly."""
         prices = [0.02, 0.08, 0.04]
-        sink_flow = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-        source_flow = Flow(bus='elec', size=200, effects_per_flow_hour={'cost': prices})
+
+        sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': prices})
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
@@ -93,26 +93,26 @@ class TestEffects:
 class TestContributionFrom:
     def test_contribution_from_self_reference_raises(self):
         """Self-referencing contribution_from raises ValueError."""
-        source = Flow(bus='elec', size=100, effects_per_flow_hour={'cost': 0.04})
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+
+        source = Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         with pytest.raises(ValueError, match='cannot reference itself'):
             optimize(
                 timesteps=ts(3),
-                buses=[Bus('elec')],
                 effects=[Effect('cost', is_objective=True, contribution_from={'cost': 0.5})],
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             )
 
     def test_contribution_from_circular_raises(self):
         """Circular contribution_from dependency raises ValueError."""
-        source = Flow(bus='elec', size=100, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+
+        source = Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         with pytest.raises(ValueError, match='Circular contribution_from dependency'):
             optimize(
                 timesteps=ts(3),
-                buses=[Bus('elec')],
                 effects=[
                     Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                     Effect('co2', unit='kg', contribution_from={'cost': 0.01}),
@@ -123,16 +123,16 @@ class TestContributionFrom:
     def test_contribution_from_carbon_pricing(self):
         """CO2 at 0.5 kg/MWh, carbon price 50 €/t → cost includes CO2 * 50."""
         demand = [50.0, 80.0, 60.0]
+
         source = Flow(
-            bus='elec',
+            'elec',
             size=200,
             effects_per_flow_hour={'cost': 0.04, 'co2': 0.5},
         )
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
@@ -150,16 +150,16 @@ class TestContributionFrom:
     def test_contribution_from_source_unaffected(self):
         """Source effect total is unchanged by contribution_from on target."""
         demand = [50.0, 80.0, 60.0]
+
         source = Flow(
-            bus='elec',
+            'elec',
             size=200,
             effects_per_flow_hour={'cost': 0.04, 'co2': 0.5},
         )
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
@@ -175,16 +175,16 @@ class TestContributionFrom:
     def test_contribution_from_transitive(self):
         """PE → CO2 → cost chain: transitivity via variable chaining."""
         demand = [50.0, 80.0, 60.0]
+
         source = Flow(
-            bus='elec',
+            'elec',
             size=200,
             effects_per_flow_hour={'pe': 2.0},  # 2 kWh_PE per kWh_el
         )
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),  # 0.3 kg_CO2/kWh_PE
@@ -205,17 +205,17 @@ class TestContributionFrom:
     def test_contribution_from_per_hour(self):
         """Time-varying carbon price overrides scalar for per-timestep."""
         demand = [50.0, 80.0, 60.0]
+
         source = Flow(
-            bus='elec',
+            'elec',
             size=200,
             effects_per_flow_hour={'co2': 0.5},
         )
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         carbon_prices = [40.0, 50.0, 60.0]
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[
                 Effect(
                     'cost',
@@ -237,16 +237,16 @@ class TestContributionFrom:
     def test_contribution_from_investment(self):
         """Sizing CO2 priced into cost via contribution_from."""
         demand = [50.0, 50.0, 50.0]
+
         source = Flow(
-            bus='elec',
+            'elec',
             size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'co2': 10}),
             effects_per_flow_hour={'cost': 0.04, 'co2': 0.5},
         )
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
@@ -270,16 +270,16 @@ class TestContributionFrom:
     def test_contribution_from_investment_transitive(self):
         """PE → CO2 → cost: 3-level chain with investment costs propagates correctly."""
         demand = [50.0, 50.0, 50.0]
+
         source = Flow(
-            bus='elec',
+            'elec',
             size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'pe': 5}),
             effects_per_flow_hour={'pe': 2.0},
         )
-        sink = Flow(bus='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            buses=[Bus('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),

@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 from fluxopt.components import Converter, Port
-from fluxopt.elements import PENALTY_EFFECT_ID, Bus, Effect, Flow, Sizing, Status, Storage
+from fluxopt.elements import PENALTY_EFFECT_ID, Carrier, Effect, Flow, Sizing, Status, Storage
 from fluxopt.model import FlowSystem
 from fluxopt.model_data import ModelData
 from fluxopt.results import Result
@@ -17,7 +17,6 @@ from fluxopt.types import (
 
 def optimize(
     timesteps: Timesteps,
-    buses: list[Bus],
     effects: list[Effect],
     ports: list[Port],
     converters: list[Converter] | None = None,
@@ -31,10 +30,9 @@ def optimize(
 
     Args:
         timesteps: Time index for the optimization horizon.
-        buses: Energy buses in the system.
         effects: Effects to track (costs, emissions, etc.).
         ports: System boundary ports with imports/exports.
-        converters: Linear converters between buses.
+        converters: Linear converters between carriers.
         storages: Energy storages.
         dt: Timestep duration in hours. Auto-derived if None.
         solver: Solver backend name.
@@ -42,14 +40,14 @@ def optimize(
             Receives the built FlowSystem; use ``model.m`` to add variables/constraints.
         **kwargs: Passed through to ``linopy.Model.solve()``.
     """
-    data = ModelData.build(timesteps, buses, effects, ports, converters, storages, dt)
+    data = ModelData.build(timesteps, effects, ports, converters, storages, dt)
     model = FlowSystem(data)
     return model.optimize(customize=customize, solver=solver, **kwargs)
 
 
 __all__ = [
     'PENALTY_EFFECT_ID',
-    'Bus',
+    'Carrier',
     'Converter',
     'Effect',
     'Flow',

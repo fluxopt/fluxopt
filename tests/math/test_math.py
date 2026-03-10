@@ -7,7 +7,7 @@ Sensitivity comments explain what would break if the feature were disabled.
 API mapping (flixopt → fluxopt):
     fx.Source('name', outputs=[...])     → Port('name', imports=[...])
     fx.Sink('name', inputs=[...])        → Port('name', exports=[...])
-    fx.Flow('label', bus=..., ...)       → Flow(bus=..., ...)
+    fx.Flow('label', bus=..., ...)       → Flow(carrier, ...)
     effects_per_flow_hour=<scalar>       → effects_per_flow_hour={'costs': <scalar>}
     capacity_in_flow_hours=X             → capacity=X
     initial_charge_state='equals_final'  → cyclic=True
@@ -19,7 +19,7 @@ from __future__ import annotations
 from conftest import ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Converter, Effect, Flow, Port, Storage, optimize
+from fluxopt import Converter, Effect, Flow, Port, Storage, optimize
 
 # ---------------------------------------------------------------------------
 # Bus balance & dispatch
@@ -36,12 +36,11 @@ class TestBusBalance:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[30, 30])]),
-                Port('Src1', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1}, size=20)]),
-                Port('Src2', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 2}, size=20)]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 30])]),
+                Port('Src1', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1}, size=20)]),
+                Port('Src2', imports=[Flow('Heat', effects_per_flow_hour={'costs': 2}, size=20)]),
             ],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
@@ -62,15 +61,15 @@ class TestConversionEfficiency:
 
         Sensitivity: If eta ignored (1.0), cost=40 instead of 50.
         """
-        fuel = Flow(bus='Gas')
-        thermal = Flow(bus='Heat')
+
+        fuel = Flow('Gas')
+        thermal = Flow('Heat')
         result = optimize(
             ts(3),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10, 20, 10])]),
-                Port('GasSrc', imports=[Flow(bus='Gas', effects_per_flow_hour={'costs': 1})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 20, 10])]),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'costs': 1})]),
             ],
             converters=[Converter.boiler('Boiler', 0.8, fuel, thermal)],
         )
@@ -81,15 +80,15 @@ class TestConversionEfficiency:
 
         Sensitivity: Scalar mean (0.75) → 26.67. Only per-timestep yields 30.
         """
-        fuel = Flow(bus='Gas')
-        thermal = Flow(bus='Heat')
+
+        fuel = Flow('Gas')
+        thermal = Flow('Heat')
         result = optimize(
             ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10, 10])]),
-                Port('GasSrc', imports=[Flow(bus='Gas', effects_per_flow_hour={'costs': 1})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'costs': 1})]),
             ],
             converters=[Converter.boiler('Boiler', [0.5, 1.0], fuel, thermal)],
         )
@@ -101,17 +100,17 @@ class TestConversionEfficiency:
 
         Sensitivity: If eta_el broken, cost=200. If eta_th wrong (1.0), cost=-60.
         """
-        fuel = Flow(bus='Gas')
-        thermal = Flow(bus='Heat')
-        electrical = Flow(bus='Elec')
+
+        fuel = Flow('Gas')
+        thermal = Flow('Heat')
+        electrical = Flow('Elec')
         result = optimize(
             ts(2),
-            buses=[Bus('Heat'), Bus('Elec'), Bus('Gas')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('HeatDemand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[50, 50])]),
-                Port('ElecGrid', exports=[Flow(bus='Elec', effects_per_flow_hour={'costs': -2})]),
-                Port('GasSrc', imports=[Flow(bus='Gas', effects_per_flow_hour={'costs': 1})]),
+                Port('HeatDemand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
+                Port('ElecGrid', exports=[Flow('Elec', effects_per_flow_hour={'costs': -2})]),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'costs': 1})]),
             ],
             converters=[Converter.chp('CHP', 0.4, 0.5, fuel, electrical, thermal)],
         )
@@ -132,11 +131,10 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2')],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10, 20])]),
-                Port('HeatSrc', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 2, 'CO2': 0.5})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 20])]),
+                Port('HeatSrc', imports=[Flow('Heat', effects_per_flow_hour={'costs': 2, 'CO2': 0.5})]),
             ],
         )
         assert_allclose(result.objective, 60.0, rtol=1e-5)
@@ -151,12 +149,11 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_total=15)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10, 10])]),
-                Port('Dirty', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
-                Port('Clean', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 10, 'CO2': 0})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10, 'CO2': 0})]),
             ],
         )
         assert_allclose(result.objective, 65.0, rtol=1e-5)
@@ -171,12 +168,11 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_total=25)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10, 10])]),
-                Port('Dirty', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
-                Port('Clean', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1, 'CO2': 0})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 0})]),
                 waste('Heat'),
             ],
         )
@@ -193,12 +189,11 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_per_hour=8)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[15, 5])]),
-                Port('Dirty', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
-                Port('Clean', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 5, 'CO2': 0})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[15, 5])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5, 'CO2': 0})]),
             ],
         )
         assert_allclose(result.objective, 48.0, rtol=1e-5)
@@ -212,11 +207,10 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_per_hour=10)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[5, 5])]),
-                Port('Dirty', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
                 waste('Heat'),
             ],
         )
@@ -233,12 +227,11 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_total=12)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10, 10])]),
-                Port('Dirty', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
-                Port('Clean', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 5, 'CO2': 0})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5, 'CO2': 0})]),
             ],
         )
         assert_allclose(result.objective, 52.0, rtol=1e-5)
@@ -253,11 +246,10 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_total=25)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[10, 10])]),
-                Port('Dirty', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
                 waste('Heat'),
             ],
         )
@@ -278,15 +270,15 @@ class TestFlowConstraints:
 
         Sensitivity: Without relative_minimum, boiler=30 → cost=60.
         """
-        fuel = Flow(bus='Gas')
-        thermal = Flow(bus='Heat', size=100, relative_minimum=0.4)
+
+        fuel = Flow('Gas')
+        thermal = Flow('Heat', size=100, relative_minimum=0.4)
         result = optimize(
             ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[30, 30])]),
-                Port('GasSrc', imports=[Flow(bus='Gas', effects_per_flow_hour={'costs': 1})]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 30])]),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'costs': 1})]),
                 waste('Heat'),
             ],
             converters=[Converter.boiler('Boiler', 1.0, fuel, thermal)],
@@ -303,15 +295,14 @@ class TestFlowConstraints:
         """
         result = optimize(
             ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Heat', size=1, fixed_relative_profile=[60, 60])]),
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
                 Port(
                     'CheapSrc',
-                    imports=[Flow(bus='Heat', size=100, relative_maximum=0.5, effects_per_flow_hour={'costs': 1})],
+                    imports=[Flow('Heat', size=100, relative_maximum=0.5, effects_per_flow_hour={'costs': 1})],
                 ),
-                Port('ExpensiveSrc', imports=[Flow(bus='Heat', effects_per_flow_hour={'costs': 5})]),
+                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
             ],
         )
         assert_allclose(result.objective, 200.0, rtol=1e-5)
@@ -331,19 +322,19 @@ class TestStorage:
 
         Sensitivity: Without storage, buy at t=2 @10€ → cost=200.
         """
+
         result = optimize(
             ts(3),
-            buses=[Bus('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Elec', size=1, fixed_relative_profile=[0, 0, 20])]),
-                Port('Grid', imports=[Flow(bus='Elec', effects_per_flow_hour={'costs': [10, 1, 10]})]),
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 0, 20])]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [10, 1, 10]})]),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=100),
-                    discharging=Flow(bus='Elec', size=100),
+                    charging=Flow('Elec', size=100),
+                    discharging=Flow('Elec', size=100),
                     capacity=100,
                     prior_level=0.0,
                     cyclic=False,
@@ -361,19 +352,19 @@ class TestStorage:
 
         Sensitivity: Without losses, charge only 90 → cost=90.
         """
+
         result = optimize(
             ts(2),
-            buses=[Bus('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Elec', size=1, fixed_relative_profile=[0, 90])]),
-                Port('Grid', imports=[Flow(bus='Elec', effects_per_flow_hour={'costs': [1, 1000]})]),
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 90])]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 1000]})]),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=200,
                     prior_level=0.0,
                     cyclic=False,
@@ -392,19 +383,19 @@ class TestStorage:
         Sensitivity: eta_c broken → cost=90. eta_d broken → cost=80.
         Both broken → cost=72. Only both correct yields 100.
         """
+
         result = optimize(
             ts(2),
-            buses=[Bus('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Elec', size=1, fixed_relative_profile=[0, 72])]),
-                Port('Grid', imports=[Flow(bus='Elec', effects_per_flow_hour={'costs': [1, 1000]})]),
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 72])]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 1000]})]),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=200,
                     prior_level=0.0,
                     cyclic=False,
@@ -422,19 +413,19 @@ class TestStorage:
 
         Sensitivity: Without SOC bound, store 60 → cost=60.
         """
+
         result = optimize(
             ts(2),
-            buses=[Bus('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Elec', size=1, fixed_relative_profile=[0, 60])]),
-                Port('Grid', imports=[Flow(bus='Elec', effects_per_flow_hour={'costs': [1, 100]})]),
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 60])]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 100]})]),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=100,
                     prior_level=0.0,
                     cyclic=False,
@@ -453,19 +444,19 @@ class TestStorage:
 
         Sensitivity: Without cyclic, start full (free energy) → cost=0.
         """
+
         result = optimize(
             ts(2),
-            buses=[Bus('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Elec', size=1, fixed_relative_profile=[0, 50])]),
-                Port('Grid', imports=[Flow(bus='Elec', effects_per_flow_hour={'costs': [1, 100]})]),
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 50])]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 100]})]),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=100,
                     eta_charge=1,
                     eta_discharge=1,
@@ -483,19 +474,19 @@ class TestStorage:
 
         Sensitivity: Without min level, discharge all → no grid → cost=50 less.
         """
+
         result = optimize(
             ts(3),
-            buses=[Bus('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
-                Port('Demand', exports=[Flow(bus='Elec', size=1, fixed_relative_profile=[0, 80, 0])]),
-                Port('Grid', imports=[Flow(bus='Elec', effects_per_flow_hour={'costs': [1, 100, 1]})]),
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 80, 0])]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 100, 1]})]),
             ],
             storages=[
                 Storage(
                     'Battery',
-                    charging=Flow(bus='Elec', size=200),
-                    discharging=Flow(bus='Elec', size=200),
+                    charging=Flow('Elec', size=200),
+                    discharging=Flow('Elec', size=200),
                     capacity=100,
                     prior_level=50.0,
                     cyclic=False,

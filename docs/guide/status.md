@@ -12,11 +12,13 @@ See [Status (Math)](../math/status.md) for the formulation.
 ## Basic Usage
 
 ```python
-from fluxopt import Flow, Status
+from fluxopt import Carrier, Flow, Status
+
+heat = Carrier('heat')
 
 # Semi-continuous: flow is either 0 or in [30%, 100%] of size
 boiler_heat = Flow(
-    bus='heat',
+    heat,
     size=100,
     relative_minimum=0.3,
     status=Status(),
@@ -35,7 +37,7 @@ A one-time cost charged each time the unit switches from off to on:
 ```python
 # 50 € per startup event
 Flow(
-    bus='heat',
+    heat,
     size=100,
     status=Status(effects_per_startup={'cost': 50}),
 )
@@ -51,7 +53,7 @@ A per-hour cost while the unit is on, independent of the flow rate:
 ```python
 # 5 €/h while running (regardless of load)
 Flow(
-    bus='heat',
+    heat,
     size=100,
     status=Status(effects_per_running_hour={'cost': 5}),
 )
@@ -74,7 +76,7 @@ Once turned on, the unit must stay on for at least this many hours:
 
 ```python
 # Must run for at least 3 hours once started
-Flow(bus='heat', size=100, status=Status(min_uptime=3))
+Flow(heat, size=100, status=Status(min_uptime=3))
 ```
 
 ### Maximum Uptime
@@ -83,7 +85,7 @@ The unit cannot run for more than this many consecutive hours:
 
 ```python
 # Must shut down after 8 hours of continuous operation
-Flow(bus='heat', size=100, status=Status(max_uptime=8))
+Flow(heat, size=100, status=Status(max_uptime=8))
 ```
 
 ### Minimum Downtime
@@ -92,7 +94,7 @@ Once turned off, the unit must stay off for at least this many hours:
 
 ```python
 # Must stay off for at least 2 hours after shutdown
-Flow(bus='heat', size=100, status=Status(min_downtime=2))
+Flow(heat, size=100, status=Status(min_downtime=2))
 ```
 
 ### Maximum Downtime
@@ -101,7 +103,7 @@ The unit cannot stay off for more than this many consecutive hours:
 
 ```python
 # Must restart within 4 hours of being off
-Flow(bus='heat', size=100, status=Status(max_downtime=4))
+Flow(heat, size=100, status=Status(max_downtime=4))
 ```
 
 ### Combining Durations
@@ -123,13 +125,13 @@ unit has been running or idle:
 
 ```python
 # Unit was running at 80 MW in the previous timestep
-Flow(bus='heat', size=100, status=Status(min_uptime=3), prior_rates=[80])
+Flow(heat, size=100, status=Status(min_uptime=3), prior_rates=[80])
 
 # Unit was off in the previous 2 timesteps
-Flow(bus='heat', size=100, status=Status(min_downtime=2), prior_rates=[0, 0])
+Flow(heat, size=100, status=Status(min_downtime=2), prior_rates=[0, 0])
 
 # Unit was running for the last 4 timesteps
-Flow(bus='heat', size=100, status=Status(min_uptime=3), prior_rates=[50, 60, 70, 80])
+Flow(heat, size=100, status=Status(min_uptime=3), prior_rates=[50, 60, 70, 80])
 ```
 
 Without `prior_rates`, the initial state is free (solver decides).
@@ -149,7 +151,7 @@ binary on/off from the continuous size variable:
 from fluxopt import Sizing, Status
 
 Flow(
-    bus='heat',
+    heat,
     size=Sizing(min_size=50, max_size=200, mandatory=True),
     relative_minimum=0.3,
     status=Status(effects_per_startup={'cost': 100}),
@@ -168,15 +170,18 @@ A gas boiler with startup costs and minimum run time:
 
 ```python
 from datetime import datetime
-from fluxopt import Bus, Converter, Effect, Flow, Port, Status, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Status, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(6)]
 
-demand = Flow(bus='heat', size=100, fixed_relative_profile=[0.3, 0.8, 0.2, 0.1, 0.7, 0.4])
+gas = Carrier('gas')
+heat = Carrier('heat')
 
-fuel = Flow(bus='gas', size=200)
+demand = Flow(heat, size=100, fixed_relative_profile=[0.3, 0.8, 0.2, 0.1, 0.7, 0.4])
+
+fuel = Flow(gas, size=200)
 heat_out = Flow(
-    bus='heat',
+    heat,
     size=100,
     relative_minimum=0.3,
     status=Status(
@@ -186,11 +191,10 @@ heat_out = Flow(
         effects_per_running_hour={'cost': 5},
     ),
 )
-gas_source = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': 0.04})
+gas_source = Flow(gas, size=500, effects_per_flow_hour={'cost': 0.04})
 
 result = optimize(
     timesteps=timesteps,
-    buses=[Bus('gas'), Bus('heat')],
     effects=[Effect('cost', is_objective=True)],
     ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
     converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],

@@ -12,12 +12,15 @@ See [Converters (Math)](../math/converters.md) for the formulation.
 Single input (fuel), single output (heat), with thermal efficiency:
 
 ```python
-from fluxopt import Converter, Flow
+from fluxopt import Carrier, Converter, Flow
 
-fuel = Flow(bus='gas', size=300)
-heat = Flow(bus='heat', size=200)
+gas = Carrier('gas')
+heat = Carrier('heat')
 
-boiler = Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat)
+fuel = Flow(gas, size=300)
+heat_out = Flow(heat, size=200)
+
+boiler = Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_out)
 ```
 
 This creates the conversion equation: `0.9 * P_gas - P_heat = 0`,
@@ -28,8 +31,11 @@ so 10 MW gas input produces 9 MW heat.
 Electric resistance heater — single input (electricity), single output (heat):
 
 ```python
-el = Flow(bus='elec', size=50)
-th = Flow(bus='heat', size=50)
+elec = Carrier('elec')
+heat = Carrier('heat')
+
+el = Flow(elec, size=50)
+th = Flow(heat, size=50)
 
 p2h = Converter.power2heat('p2h', efficiency=0.99, electrical_flow=el, thermal_flow=th)
 ```
@@ -41,9 +47,13 @@ Conversion equation: `0.99 * P_el - P_heat = 0`.
 Two inputs (electricity + environmental source), single output (heat), with COP:
 
 ```python
-el = Flow(bus='elec', size=50)
-src = Flow(bus='env', size=200)
-th = Flow(bus='heat', size=200)
+elec = Carrier('elec')
+env = Carrier('env')
+heat = Carrier('heat')
+
+el = Flow(elec, size=50)
+src = Flow(env, size=200)
+th = Flow(heat, size=200)
 
 hp = Converter.heat_pump('hp', cop=3.5, electrical_flow=el, source_flow=src, thermal_flow=th)
 ```
@@ -59,9 +69,13 @@ Single input (fuel), two outputs (electricity + heat). Two conversion
 equations, one per output:
 
 ```python
-fuel = Flow(bus='gas', size=100)
-el = Flow(bus='elec', size=50)
-th = Flow(bus='heat', size=60)
+gas = Carrier('gas')
+elec = Carrier('elec')
+heat = Carrier('heat')
+
+fuel = Flow(gas, size=100)
+el = Flow(elec, size=50)
+th = Flow(heat, size=60)
 
 chp = Converter.chp('chp', eta_el=0.4, eta_th=0.5,
                      fuel_flow=fuel, electrical_flow=el, thermal_flow=th)
@@ -81,9 +95,13 @@ Each dict in the list is one conversion equation, mapping flows to their
 coefficients:
 
 ```python
-in1 = Flow(bus='a', size=100)
-in2 = Flow(bus='b', size=100)
-out = Flow(bus='c', size=100)
+a = Carrier('a')
+b = Carrier('b')
+c = Carrier('c')
+
+in1 = Flow(a, size=100)
+in2 = Flow(b, size=100)
+out = Flow(c, size=100)
 
 conv = Converter(
     id='custom',
@@ -111,22 +129,24 @@ Gas boiler serving a heat demand:
 
 ```python
 from datetime import datetime
-from fluxopt import Bus, Converter, Effect, Flow, Port, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(4)]
 demand = [40.0, 70.0, 50.0, 60.0]
 
-gas_source = Flow(bus='gas', size=500, effects_per_flow_hour={'cost': 0.04})
-fuel = Flow(bus='gas', size=300)
-heat = Flow(bus='heat', size=200)
-demand_flow = Flow(bus='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+gas = Carrier('gas')
+heat = Carrier('heat')
+
+gas_source = Flow(gas, size=500, effects_per_flow_hour={'cost': 0.04})
+fuel = Flow(gas, size=300)
+heat_out = Flow(heat, size=200)
+demand_flow = Flow(heat, size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
 
 result = optimize(
     timesteps=timesteps,
-    buses=[Bus('gas'), Bus('heat')],
     effects=[Effect('cost', is_objective=True)],
     ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand_flow])],
-    converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat)],
+    converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_out)],
 )
 
 # Gas consumed = heat / efficiency

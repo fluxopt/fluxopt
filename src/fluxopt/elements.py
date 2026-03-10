@@ -8,6 +8,38 @@ if TYPE_CHECKING:
 
 PENALTY_EFFECT_ID = 'penalty'
 
+NODE_SEP = ':'
+QUAL_FMT = '{component}({flow})'
+
+
+def qualified_id(component: str, flow: str) -> str:
+    """Format a qualified flow id: ``component(flow)``."""
+    return QUAL_FMT.format(component=component, flow=flow)
+
+
+def node_id(carrier: str, node: str) -> str:
+    """Format a carrier-node id: ``carrier:node``."""
+    return f'{carrier}{NODE_SEP}{node}'
+
+
+@dataclass
+class Carrier:
+    """Physical energy medium (electricity, heat, gas, …).
+
+    Args:
+        id: Unique identifier used as xarray coordinate.
+        nodes: Sub-nodes for multi-node balancing. Empty means single-node.
+        unit: Energy unit label.
+        color: Optional color for plotting.
+        description: Human-readable description.
+    """
+
+    id: str
+    nodes: list[str] = field(default_factory=list)
+    unit: str = 'MWh'
+    color: str | None = None
+    description: str = ''
+
 
 @dataclass
 class Sizing:
@@ -45,20 +77,21 @@ class Status:
 
 @dataclass(eq=False)
 class Flow:
-    """A single energy flow on a bus.
+    """A single energy flow on a carrier.
 
-    ``id`` is optional: defaults to the bus name. Set explicitly to
-    disambiguate multiple flows on the same bus::
+    ``id`` is optional: defaults to the carrier name. Set explicitly to
+    disambiguate multiple flows on the same carrier::
 
-        Flow(bus='elec')  # id → 'elec' → boiler(elec)
-        Flow(bus='elec', id='base')  # id → 'base' → chp(base)
+        Flow('elec')  # id → 'elec' → boiler(elec)
+        Flow('elec', id='base')  # id → 'base' → chp(base)
 
     After ``__post_init__`` of the parent component, ``id`` is expanded
     to the qualified form ``component(id)``.
     """
 
-    bus: str
+    carrier: str
     id: str = ''
+    node: str | None = None
     size: float | Sizing | None = None  # P̄_f  [MW]
     relative_minimum: TimeSeries = 0.0  # p̲_f  [-]
     relative_maximum: TimeSeries = 1.0  # p̄_f  [-]
@@ -68,22 +101,15 @@ class Flow:
     prior_rates: list[float] | None = None  # flow rates before horizon [MW]
 
     def __post_init__(self) -> None:
-        """Default id to bus name if not set."""
+        """Default id to carrier name, including node if set."""
         if not self.id:
-            self.id = self.bus
+            self.id = node_id(self.carrier, self.node) if self.node else self.carrier
         if self.status is not None and isinstance(self.relative_minimum, (int, float)) and self.relative_minimum <= 0:
             msg = (
                 f'Flow {self.id!r}: relative_minimum must be > 0 when status is set, '
                 f'otherwise on/off is indistinguishable (got {self.relative_minimum})'
             )
             raise ValueError(msg)
-
-
-@dataclass
-class Bus:
-    id: str
-    carrier: str | None = None
-    imbalance_penalty: float | None = None
 
 
 @dataclass
@@ -104,10 +130,10 @@ class Storage:
     """Energy storage with level dynamics.
 
     Flow ids are qualified as ``storage(flow)``. When both flows connect
-    to the same bus, they are renamed to ``charge`` / ``discharge``::
+    to the same carrier, they are renamed to ``charge`` / ``discharge``::
 
-        Storage('bat', Flow(bus='elec'), Flow(bus='elec'))  # bat(charge), bat(discharge)
-        Storage('bat', Flow(bus='elec'), Flow(bus='heat'))  # bat(elec), bat(heat)
+        Storage('bat', Flow('elec'), Flow('elec'))  # bat(charge), bat(discharge)
+        Storage('bat', Flow('elec'), Flow('heat'))  # bat(elec), bat(heat)
 
     Level balance::
 
@@ -127,9 +153,15 @@ class Storage:
     relative_maximum_level: TimeSeries = 1.0  # ē_s  [-]
 
     def __post_init__(self) -> None:
-        """Rename colliding flow ids and qualify with storage id."""
+        """Validate carrier match, rename colliding flow ids, and qualify."""
+        if self.charging.carrier != self.discharging.carrier:
+            msg = (
+                f'Storage {self.id!r}: charging carrier {self.charging.carrier!r} '
+                f'!= discharging carrier {self.discharging.carrier!r}'
+            )
+            raise ValueError(msg)
         if self.charging.id == self.discharging.id:
             self.charging.id = 'charge'
             self.discharging.id = 'discharge'
-        self.charging.id = f'{self.id}({self.charging.id})'
-        self.discharging.id = f'{self.id}({self.discharging.id})'
+        self.charging.id = qualified_id(self.id, self.charging.id)
+        self.discharging.id = qualified_id(self.id, self.discharging.id)

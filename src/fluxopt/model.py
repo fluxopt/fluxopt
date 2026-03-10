@@ -9,7 +9,6 @@ from linopy import Model, Variable
 from fluxopt.constraints.sparse import sparse_weighted_sum
 from fluxopt.constraints.status import add_duration_tracking, add_switch_transitions
 from fluxopt.constraints.storage import add_accumulation_constraints
-from fluxopt.elements import PENALTY_EFFECT_ID
 from fluxopt.results import Result
 from fluxopt.types import as_dataarray
 
@@ -85,7 +84,7 @@ class FlowSystem:
         self._constrain_sizing()
         self._constrain_status()
         # Phase 4: System
-        self._create_bus_balance()
+        self._create_balance()
         self._create_converter_constraints()
         self._create_storage()
         self._create_effects()
@@ -474,43 +473,17 @@ class FlowSystem:
                 previous=prev_down,
             )
 
-    def _create_bus_balance(self) -> None:
-        """Create bus balance: ``sum_f(coeff * P) = 0`` for all buses and timesteps.
-
-        Buses with ``imbalance_penalty`` get slack variables (surplus, shortage)
-        instead of a hard balance constraint.
-        """
+    def _create_balance(self) -> None:
+        """Create carrier balance: ``sum_f(coeff * P) = 0`` for all carriers and timesteps."""
         d = self.data
-        coeff = d.buses.flow_coeff  # (bus, flow) — NaN for unconnected
+        coeff = d.carriers.flow_coeff  # (carrier, flow) — NaN for unconnected
 
         # Replace NaN with 0 for summation (unconnected flows contribute nothing)
         coeff_filled = coeff.fillna(0)
 
-        # Bus balance: sum over flow dim of (coeff * flow_rate) == 0
-        lhs = sparse_weighted_sum(self.flow_rate, coeff_filled, sum_dim='flow', group_dim='bus')
-
-        penalty = d.buses.imbalance_penalty  # (bus,) — NaN = hard
-        has_penalty = penalty.notnull()
-
-        if has_penalty.any():
-            bus_ids = d.buses.flow_coeff.coords['bus']
-            time = d.dt.coords['time']
-
-            # Slack variables: surplus[bus, time] >= 0, shortage[bus, time] >= 0
-            self.bus_surplus = self.m.add_variables(lower=0, coords=[bus_ids, time], name='bus--surplus')
-            self.bus_shortage = self.m.add_variables(lower=0, coords=[bus_ids, time], name='bus--shortage')
-
-            # Soft balance: lhs + shortage - surplus == 0  (for penalized buses)
-            soft_lhs = lhs + self.bus_shortage - self.bus_surplus
-            self.m.add_constraints(soft_lhs == 0, name='bus_balance', mask=has_penalty)
-
-            # Hard balance: lhs == 0  (for non-penalized buses)
-            hard_mask = ~has_penalty
-            if hard_mask.any():
-                self.m.add_constraints(lhs == 0, name='bus_balance_hard', mask=hard_mask)
-        else:
-            # All buses hard-balanced (current behavior)
-            self.m.add_constraints(lhs == 0, name='bus_balance')
+        # Carrier balance: sum over flow dim of (coeff * flow_rate) == 0
+        lhs = sparse_weighted_sum(self.flow_rate, coeff_filled, sum_dim='flow', group_dim='carrier')
+        self.m.add_constraints(lhs == 0, name='carrier_balance')
 
     def _create_converter_constraints(self) -> None:
         """Create conversion constraints: ``sum_f(a_f * P) = 0`` per converter and equation."""
@@ -580,19 +553,6 @@ class FlowSystem:
         if ds.cf_temporal is not None:
             source_t = self.effect_temporal.rename({'effect': 'source_effect'})
             temporal_rhs = temporal_rhs + (ds.cf_temporal * source_t).sum('source_effect')
-
-        # Bus imbalance penalty contribution to penalty effect
-        penalty_vals = d.buses.imbalance_penalty  # (bus,)
-        has_penalty = penalty_vals.notnull()
-        if has_penalty.any() and hasattr(self, 'bus_surplus'):
-            penalty_filled = penalty_vals.fillna(0)
-            # penalty_cost[bus, time] = penalty * (surplus + shortage) * dt
-            penalty_cost = penalty_filled * (self.bus_surplus + self.bus_shortage) * d.dt
-            # Sum over buses → (time,)
-            penalty_total = penalty_cost.sum('bus')
-            # Broadcast to (effect, time): 1 for penalty effect, 0 for others
-            penalty_mask = (effect_ids == PENALTY_EFFECT_ID).astype(float)  # (effect,)
-            temporal_rhs = temporal_rhs + penalty_mask * penalty_total
 
         self.m.add_constraints(self.effect_temporal == temporal_rhs, name='effect_temporal_eq')
 
@@ -824,12 +784,7 @@ class FlowSystem:
             )
 
     def _set_objective(self) -> None:
-        """Set objective: minimize the objective effect total + penalty total."""
+        """Set objective: minimize the objective effect total."""
         obj_effect = self.data.effects.objective_effect
         obj = self.effect_total.sel(effect=obj_effect).sum()
-
-        effect_ids = list(self.data.effects.min_total.coords['effect'].values)
-        if PENALTY_EFFECT_ID in effect_ids and obj_effect != PENALTY_EFFECT_ID:
-            obj = obj + self.effect_total.sel(effect=PENALTY_EFFECT_ID).sum()
-
         self.m.add_objective(obj)

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Effect, Flow, Port
+from fluxopt import Effect, Flow, Port
 
 from .conftest import ts
 
@@ -23,25 +23,24 @@ class TestBusBalance:
         """
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30])),
                     ],
                 ),
                 Port(
                     'Src1',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 1}, size=20),
+                        Flow('Heat', effects_per_flow_hour={'cost': 1}, size=20),
                     ],
                 ),
                 Port(
                     'Src2',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 2}, size=20),
+                        Flow('Heat', effects_per_flow_hour={'cost': 2}, size=20),
                     ],
                 ),
             ],
@@ -54,46 +53,6 @@ class TestBusBalance:
         src2 = result.flow_rate('Src2(Heat)').values
         assert_allclose(src1, [20, 20], rtol=1e-5)
         assert_allclose(src2, [10, 10], rtol=1e-5)
-
-    def test_imbalance_penalty(self, optimize):
-        """Proves: imbalance_penalty creates slack variables penalized through
-        the 'penalty' effect for any mismatch between supply and demand on a bus.
-
-        Source fixed at 20, demand=10 → 10 surplus per timestep, penalty=100€/MWh.
-
-        Sensitivity: Without penalty, this would be infeasible (hard balance).
-        With penalty=100, surplus=10*2h=20 MWh, penalty cost=2000, fuel cost=40,
-        objective=2040.
-        """
-        result = optimize(
-            timesteps=ts(2),
-            buses=[Bus('Heat', imbalance_penalty=100)],
-            effects=[Effect('cost', is_objective=True)],
-            ports=[
-                Port(
-                    'Demand',
-                    exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
-                    ],
-                ),
-                Port(
-                    'Src',
-                    imports=[
-                        Flow(
-                            bus='Heat',
-                            size=1,
-                            fixed_relative_profile=np.array([20, 20]),
-                            effects_per_flow_hour={'cost': 1},
-                        ),
-                    ],
-                ),
-            ],
-        )
-        # fuel = 20*2*1 = 40, penalty = 10*2*100 = 2000
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
-        assert_allclose(result.objective, 2040.0, rtol=1e-5)
-        # Verify surplus slack variable
-        assert_allclose(result.bus_surplus.sel(bus='Heat').values, [10, 10], rtol=1e-5)
 
     @pytest.mark.skip(reason='prevent_simultaneous not supported in fluxopt')
     def test_prevent_simultaneous_flow_rates(self, optimize):

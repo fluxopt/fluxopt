@@ -17,13 +17,13 @@ def ts(n: int) -> list[datetime]:
     return [start + timedelta(hours=i) for i in range(n)]
 
 
-def waste(bus: str) -> Port:
-    """Free-disposal port that absorbs excess on *bus* at zero cost.
+def waste(carrier: str) -> Port:
+    """Free-disposal port that absorbs excess on *carrier* at zero cost.
 
     Args:
-        bus: Name of the bus to attach the waste port to.
+        carrier: Carrier id string.
     """
-    return Port(f'_waste_{bus}', exports=[Flow(bus=bus)])
+    return Port(f'_waste_{carrier}', exports=[Flow(carrier)])
 
 
 def _block_lengths(on: np.ndarray, *, active: bool) -> list[tuple[int, int]]:

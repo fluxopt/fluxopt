@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from fluxopt.elements import qualified_id
 from fluxopt.types import IdList
 
 if TYPE_CHECKING:
@@ -18,7 +19,7 @@ def _qualify_flows(component_id: str, flows: list[Flow]) -> IdList[Flow]:
         flows: Flows to qualify.
     """
     for f in flows:
-        f.id = f'{component_id}({f.id})'
+        f.id = qualified_id(component_id, f.id)
     return IdList(flows)
 
 

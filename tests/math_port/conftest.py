@@ -40,7 +40,6 @@ def optimize(request, tmp_path):
         if request.param == 'save->reload->optimize':
             data = ModelData.build(
                 kwargs['timesteps'],
-                kwargs['buses'],
                 kwargs['effects'],
                 kwargs['ports'],
                 kwargs.get('converters'),

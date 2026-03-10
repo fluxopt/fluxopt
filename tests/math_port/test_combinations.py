@@ -10,7 +10,7 @@ import pytest
 from conftest import assert_off_blocks, assert_on_blocks
 from numpy.testing import assert_allclose
 
-from fluxopt import Bus, Converter, Effect, Flow, Port, Sizing, Status
+from fluxopt import Converter, Effect, Flow, Port, Sizing, Status
 
 from .conftest import ts, waste
 
@@ -76,9 +76,9 @@ class TestStatusWithEffects:
 
         Sensitivity: Without CO2 cap, 2 startups optimal. With cap=60, forced to 1 startup.
         """
+
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', maximum_total=60),
@@ -87,13 +87,13 @@ class TestStatusWithEffects:
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 20, 0, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 20, 0, 20])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -102,9 +102,9 @@ class TestStatusWithEffects:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[0],
@@ -128,9 +128,9 @@ class TestStatusWithEffects:
         Sensitivity: Without effects_per_running_hour, costs=40, CO2=0.
         With it, costs = 40 + 2*10 = 60, CO2 = 2*5 = 10.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2'),
@@ -139,13 +139,13 @@ class TestStatusWithEffects:
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([20, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -153,9 +153,9 @@ class TestStatusWithEffects:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         status=Status(effects_per_running_hour={'cost': 10, 'CO2': 5}),
@@ -177,27 +177,27 @@ class TestInvestWithRelativeMinimum:
         Sensitivity: Without relative_minimum: size=50, ON both hours, fuel=55, total=80.
         With it: size=50, OFF at t=0, backup=5*10=50, total=125.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([5, 50])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([5, 50])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 Port(
                     'Backup',
                     imports=[
-                        Flow(bus='Heat', effects_per_flow_hour={'cost': 10}),
+                        Flow('Heat', effects_per_flow_hour={'cost': 10}),
                     ],
                 ),
             ],
@@ -205,9 +205,9 @@ class TestInvestWithRelativeMinimum:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         relative_minimum=0.5,
                         size=Sizing(
                             min_size=0,
@@ -238,21 +238,21 @@ class TestConversionWithTimeVaryingEffects:
 
         Sensitivity: If mean(2) were used: cost=120. Only per-timestep gives 100.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([20, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': np.array([1, 3])}),
+                        Flow('Gas', effects_per_flow_hour={'cost': np.array([1, 3])}),
                     ],
                 ),
             ],
@@ -260,8 +260,8 @@ class TestConversionWithTimeVaryingEffects:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat'),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat'),
                 ),
             ],
         )
@@ -277,9 +277,9 @@ class TestConversionWithTimeVaryingEffects:
 
         Sensitivity: Total uniquely determined by conversion factors + effects.
         """
+
         result = optimize(
             timesteps=ts(2),
-            buses=[Bus('Heat'), Bus('Elec'), Bus('Gas')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2'),
@@ -288,19 +288,19 @@ class TestConversionWithTimeVaryingEffects:
                 Port(
                     'HeatDemand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([50, 50])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([50, 50])),
                     ],
                 ),
                 Port(
                     'ElecGrid',
                     exports=[
-                        Flow(bus='Elec', effects_per_flow_hour={'cost': -2, 'CO2': -0.3}),
+                        Flow('Elec', effects_per_flow_hour={'cost': -2, 'CO2': -0.3}),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1, 'CO2': 0.5}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1, 'CO2': 0.5}),
                     ],
                 ),
             ],
@@ -309,9 +309,9 @@ class TestConversionWithTimeVaryingEffects:
                     'CHP',
                     eta_th=0.5,
                     eta_el=0.4,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat'),
-                    electrical_flow=Flow(bus='Elec'),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat'),
+                    electrical_flow=Flow('Elec'),
                 ),
             ],
         )
@@ -344,21 +344,21 @@ class TestStatusWithMultipleConstraints:
         Sensitivity: Without these constraints, boiler could run all 6 hours.
         With constraints, forced into block pattern → backup needed for off blocks.
         """
+
         result = optimize(
             timesteps=ts(6),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([20, 20, 20, 20, 20, 20])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20, 20, 20, 20, 20])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -366,9 +366,9 @@ class TestStatusWithMultipleConstraints:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[0],
@@ -378,8 +378,8 @@ class TestStatusWithMultipleConstraints:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
-                    thermal_flow=Flow(bus='Heat', size=100),
+                    fuel_flow=Flow('Gas', id='fuel'),
+                    thermal_flow=Flow('Heat', size=100),
                 ),
             ],
         )
@@ -412,9 +412,9 @@ class TestEffectsWithConversion:
 
         Sensitivity: Without CO2 cap, 2 startups → CO2=30+fuel. With cap=20, ≤1 startup.
         """
+
         result = optimize(
             timesteps=ts(4),
-            buses=[Bus('Heat'), Bus('Gas')],
             effects=[
                 Effect('cost', is_objective=True),
                 Effect('CO2', maximum_total=20),
@@ -423,13 +423,13 @@ class TestEffectsWithConversion:
                 Port(
                     'Demand',
                     exports=[
-                        Flow(bus='Heat', size=1, fixed_relative_profile=np.array([0, 10, 0, 10])),
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 10, 0, 10])),
                     ],
                 ),
                 Port(
                     'GasSrc',
                     imports=[
-                        Flow(bus='Gas', effects_per_flow_hour={'cost': 1, 'CO2': 0.1}),
+                        Flow('Gas', effects_per_flow_hour={'cost': 1, 'CO2': 0.1}),
                     ],
                 ),
                 waste('Heat'),
@@ -438,9 +438,9 @@ class TestEffectsWithConversion:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow(bus='Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', id='fuel'),
                     thermal_flow=Flow(
-                        bus='Heat',
+                        'Heat',
                         size=100,
                         relative_minimum=0.1,
                         prior_rates=[0],
