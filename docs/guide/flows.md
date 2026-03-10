@@ -126,7 +126,7 @@ node A's demand — they don't interact.
 The flow id auto-includes the node: `Flow('heat', node='A')` gets
 `id='heat:A'`, which qualifies to `port(heat:A)`.
 
-See [Carrier Balance (Math)](../math/bus-balance.md#multi-node-carriers) for
+See [Carrier Balance (Math)](../math/carrier-balance.md#multi-node-carriers) for
 the formulation.
 
 ## Parameters Summary
