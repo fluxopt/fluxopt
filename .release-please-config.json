@@ -7,7 +7,9 @@
       "release-type": "simple",
       "package-name": "fluxopt",
       "bump-patch-for-minor-pre-major": true,
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "prerelease": true,
+      "prerelease-type": "alpha"
     }
   }
 }
