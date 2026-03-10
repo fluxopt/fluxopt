@@ -85,6 +85,7 @@ result = optimize(
     timesteps=timesteps,
     effects=effects,
     ports=ports,
+    carriers=[gas, heat],
     converters=converters,
 )
 ```

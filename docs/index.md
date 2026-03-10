@@ -31,6 +31,7 @@ result = optimize(
     timesteps=timesteps,
     effects=[Effect('cost', is_objective=True)],
     ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
+    carriers=[gas, heat],
     converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_out)],
 )
 

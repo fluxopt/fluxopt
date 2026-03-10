@@ -173,13 +173,15 @@ Two sources with different cost/CO2 tradeoffs, subject to an emission cap:
 
 ```python
 from datetime import datetime
-from fluxopt import Effect, Flow, Port, optimize
+from fluxopt import Carrier, Effect, Flow, Port, optimize
 
 timesteps = [datetime(2024, 1, 1, h) for h in range(3)]
 
 demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 cheap_dirty = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
 expensive_clean = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
+
+elec = Carrier('elec')
 
 result = optimize(
     timesteps=timesteps,
@@ -192,6 +194,7 @@ result = optimize(
         Port('clean', imports=[expensive_clean]),
         Port('demand', exports=[demand]),
     ],
+    carriers=[elec],
 )
 
 print(f"Total cost: {result.objective:.2f}")
