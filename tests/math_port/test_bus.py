@@ -1,7 +1,6 @@
 """Mathematical correctness tests for carrier balance & dispatch."""
 
 import numpy as np
-import pytest
 from numpy.testing import assert_allclose
 
 from fluxopt import Effect, Flow, Port
@@ -53,20 +52,6 @@ class TestCarrierBalance:
         src2 = result.flow_rate('Src2(Heat)').values
         assert_allclose(src1, [20, 20], rtol=1e-5)
         assert_allclose(src2, [10, 10], rtol=1e-5)
-
-    @pytest.mark.skip(reason='prevent_simultaneous not supported in fluxopt')
-    def test_prevent_simultaneous_flow_rates(self, optimize):
-        """Proves: prevent_simultaneous_flow_rates on a Source prevents multiple outputs
-        from being active at the same time, forcing sequential operation.
-
-        Source with 2 outputs to 2 buses. Both buses have demand=10 each timestep.
-        Output1: 1€/kWh, Output2: 1€/kWh. Without exclusion, both active → cost=40.
-        With exclusion, only one output per timestep → must use expensive backup (5€/kWh)
-        for the other bus.
-
-        Sensitivity: Without prevent_simultaneous, cost=40. With it, cost=2*(10+50)=120.
-        """
-        raise NotImplementedError  # TODO: implement prevent_simultaneous_flow_rates
 
 
 class TestMultiNodeBalance:
