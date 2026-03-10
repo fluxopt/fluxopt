@@ -3,9 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-import numpy as np
 import xarray as xr
 
 try:
@@ -82,49 +81,40 @@ class Result:
         return self.storage_levels.sel(storage=storage_id)
 
     @cached_property
-    def topology(self) -> dict[str, dict[str, dict[str, list[str]]]]:
+    def topology(self) -> dict[Literal['carriers', 'converters'], dict[str, dict[str, list[str]]]]:
         """Carrier and converter connectivity derived from model data.
 
         Returns a dict with ``carriers`` and ``converters`` keys, each mapping
         element ids to their ``inputs`` (flows that produce into the element)
         and ``outputs`` (flows that consume from it).
         """
-        flow_coeff = self.data.carriers.flow_coeff
-        carrier_ids: list[str] = list(flow_coeff.coords['carrier'].values)
-        flow_ids: list[str] = list(flow_coeff.coords['flow'].values)
+        fc = self.data.carriers.flow_coeff  # (carrier, flow), +1/-1/NaN
+
+        # Per-flow sign lookup: nanmax collapses carrier dim (each flow has exactly one)
+        flow_ids = [str(f) for f in fc.coords['flow'].values]
+        signs = fc.max('carrier').values  # (flow,) — +1 or -1
 
         carriers: dict[str, dict[str, list[str]]] = {}
-        for cid in carrier_ids:
-            inputs: list[str] = []
-            outputs: list[str] = []
-            for fid in flow_ids:
-                c = float(flow_coeff.sel(carrier=cid, flow=fid))
-                if np.isnan(c):
-                    continue
-                if c > 0:
-                    inputs.append(fid)
-                else:
-                    outputs.append(fid)
-            carriers[cid] = {'inputs': inputs, 'outputs': outputs}
+        for cid in fc.coords['carrier'].values:
+            row = fc.sel(carrier=cid).dropna('flow')
+            carriers[str(cid)] = {
+                'inputs': list(row.coords['flow'].values[row.values > 0]),
+                'outputs': list(row.coords['flow'].values[row.values < 0]),
+            }
+
+        flow_sign = dict(zip(flow_ids, signs, strict=True))
 
         converters: dict[str, dict[str, list[str]]] = {}
         if self.data.converters is not None:
-            conv_data = self.data.converters
-            for i in range(len(conv_data.pair_converter)):
-                conv_id = str(conv_data.pair_converter.values[i])
-                fid = str(conv_data.pair_flow.values[i])
+            cd = self.data.converters
+            # Deduplicate pairs (pair dim may repeat per equation index)
+            pairs = dict.fromkeys(zip(cd.pair_converter.values, cd.pair_flow.values, strict=True))
+            for conv_id, fid in pairs:
+                conv_id, fid = str(conv_id), str(fid)
                 if conv_id not in converters:
                     converters[conv_id] = {'inputs': [], 'outputs': []}
-                # Use carrier flow_coeff: -1 means flow consumes from carrier
-                # (converter input), +1 means flow produces to carrier (converter output)
-                coeffs = flow_coeff.sel(flow=fid)
-                sign = float(coeffs[~np.isnan(coeffs)].values[0])
-                if sign < 0:
-                    if fid not in converters[conv_id]['inputs']:
-                        converters[conv_id]['inputs'].append(fid)
-                else:
-                    if fid not in converters[conv_id]['outputs']:
-                        converters[conv_id]['outputs'].append(fid)
+                target = 'inputs' if flow_sign[fid] < 0 else 'outputs'
+                converters[conv_id][target].append(fid)
 
         return {'carriers': carriers, 'converters': converters}
 
