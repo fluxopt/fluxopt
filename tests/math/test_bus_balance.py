@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Effect, Flow, Port, optimize
+from fluxopt import Carrier, Effect, Flow, Port, optimize
 
 
 class TestBusBalance:
@@ -18,6 +18,7 @@ class TestBusBalance:
             timesteps=ts(3),
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
+            carriers=[Carrier('elec')],
         )
 
         source_rates = result.flow_rate('grid(elec)').values
@@ -34,6 +35,7 @@ class TestBusBalance:
             timesteps=ts(3),
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
+            carriers=[Carrier('elec')],
         )
 
         expected_cost = (50 + 80 + 60) * 0.04
@@ -54,6 +56,7 @@ class TestBusBalance:
                 Port('exp_src', imports=[expensive_flow]),
                 Port('demand', exports=[demand_flow]),
             ],
+            carriers=[Carrier('elec')],
         )
 
         cheap_rates = result.flow_rate('cheap_src(elec)').values

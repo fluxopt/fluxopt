@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Effect, Flow, Port, optimize
+from fluxopt import Carrier, Effect, Flow, Port, optimize
+
+_elec = [Carrier('elec')]
 
 
 class TestFlowHours:
@@ -16,6 +18,7 @@ class TestFlowHours:
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
+            carriers=_elec,
         )
         assert (result.stats.flow_hours >= 0).all()
 
@@ -29,6 +32,7 @@ class TestFlowHours:
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
+            carriers=_elec,
         )
         grid_total = float(result.stats.total_flow_hours.sel(flow='grid(elec)').values)
         assert grid_total == pytest.approx(sum(demand), abs=1e-6)
@@ -44,6 +48,7 @@ class TestCaching:
                 Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
+            carriers=_elec,
         )
         assert result.stats is result.stats
         assert result.stats.flow_hours is result.stats.flow_hours

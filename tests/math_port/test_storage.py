@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Effect, Flow, Port, Sizing, Storage
+from fluxopt import Carrier, Effect, Flow, Port, Sizing, Storage
 
 from .conftest import ts
 
@@ -46,6 +46,7 @@ class TestStorage:
                     relative_loss_per_hour=0,
                 ),
             ],
+            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
 
@@ -85,6 +86,7 @@ class TestStorage:
                     relative_loss_per_hour=0.1,
                 ),
             ],
+            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 
@@ -124,6 +126,7 @@ class TestStorage:
                     relative_loss_per_hour=0,
                 ),
             ],
+            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 
@@ -164,6 +167,7 @@ class TestStorage:
                     relative_loss_per_hour=0,
                 ),
             ],
+            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 1050.0, rtol=1e-5)
 
@@ -203,6 +207,7 @@ class TestStorage:
                     relative_loss_per_hour=0,
                 ),
             ],
+            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.storage_capacities.sel(storage='Battery').item(), 50.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)

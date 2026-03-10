@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import pytest
 import xarray as xr
 
-from fluxopt import Converter, Effect, Flow, Port, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Storage, optimize
 from fluxopt.results import Result
 
 if TYPE_CHECKING:
@@ -26,6 +26,7 @@ def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
         timesteps=timesteps,
         effects=[Effect('cost', is_objective=True)],
         ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
+        carriers=[Carrier('elec')],
     )
 
 
@@ -44,6 +45,7 @@ def _solve_with_storage(timesteps: list[datetime]) -> Result:
         ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
+        carriers=[Carrier('gas'), Carrier('heat')],
     )
 
 
@@ -125,6 +127,7 @@ class TestRoundtripContributionFrom:
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            carriers=[Carrier('elec')],
         )
         assert result.data is not None
         assert result.data.effects.cf_periodic is not None

@@ -4,6 +4,7 @@ import pytest
 from conftest import ts
 
 from fluxopt import (
+    Carrier,
     Converter,
     Effect,
     Flow,
@@ -34,6 +35,7 @@ class TestEndToEnd:
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
             ],
+            carriers=[Carrier('gas'), Carrier('heat')],
             converters=[Converter.boiler('boiler', eta, fuel, heat_flow)],
         )
 
@@ -69,6 +71,7 @@ class TestEndToEnd:
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
             ],
+            carriers=[Carrier('gas'), Carrier('heat')],
             converters=[Converter.boiler('boiler', eta, fuel, heat_out)],
             storages=[storage],
         )
@@ -87,6 +90,7 @@ class TestEndToEnd:
             ts(3),
             [Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
+            carriers=[Carrier('elec')],
         )
 
         # Change demand from 0.5 to 0.7 (relative); absolute = 0.7 * 100 = 70
@@ -110,6 +114,7 @@ class TestEndToEnd:
             timesteps=ts(3),
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
+            carriers=[Carrier('elec')],
         )
 
         # flow_rate accessor
@@ -144,6 +149,7 @@ class TestEndToEnd:
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
             ],
+            carriers=[Carrier('gas'), Carrier('heat')],
             converters=[Converter.boiler('boiler', 0.9, fuel, heat_flow)],
         )
 

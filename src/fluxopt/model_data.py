@@ -12,7 +12,7 @@ from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
 
 if TYPE_CHECKING:
     from fluxopt.components import Converter, Port
-    from fluxopt.elements import Effect, Flow, Sizing, Status, Storage
+    from fluxopt.elements import Carrier, Effect, Flow, Sizing, Status, Storage
     from fluxopt.types import TimeIndex, Timesteps
 
 _NC_GROUPS = {
@@ -952,6 +952,7 @@ class ModelData:
         timesteps: Timesteps,
         effects: list[Effect],
         ports: list[Port],
+        carriers: list[Carrier],
         converters: list[Converter] | None = None,
         storages: list[Storage] | None = None,
         dt: float | list[float] | None = None,
@@ -962,6 +963,7 @@ class ModelData:
             timesteps: Time index for the optimization horizon.
             effects: Effects to track.
             ports: System boundary ports.
+            carriers: Carrier declarations.
             converters: Linear converters.
             storages: Energy storages.
             dt: Timestep duration in hours. Auto-derived if None.
@@ -978,7 +980,7 @@ class ModelData:
             effects = [*effects, Effect(PENALTY_EFFECT_ID)]
 
         flows, carrier_coeff = _collect_flows(ports, converters, stor_list)
-        _validate_system(effects, ports, converters, stor_list, flows)
+        _validate_system(effects, ports, converters, stor_list, flows, carriers)
 
         weights = xr.DataArray(np.ones(len(time)), dims=['time'], coords={'time': time}, name='weight')
 
@@ -1048,6 +1050,7 @@ def _validate_system(
     converters: list[Converter],
     storages: list[Storage],
     flows: list[Flow],
+    carriers: list[Carrier],
 ) -> None:
     """Validate unique ids and carrier consistency across all elements.
 
@@ -1057,6 +1060,7 @@ def _validate_system(
         converters: Converter components.
         storages: Storage components.
         flows: All collected flows.
+        carriers: Declared carriers.
     """
     # Unique component IDs
     all_ids: list[str] = [e.id for e in effects]
@@ -1075,3 +1079,12 @@ def _validate_system(
         if flow.id in flow_seen:
             raise ValueError(f'Duplicate flow id: {flow.id!r}')
         flow_seen.add(flow.id)
+
+    # Every flow carrier must match a declared carrier
+    carrier_ids = {c.id for c in carriers}
+    for flow in flows:
+        if flow.carrier not in carrier_ids:
+            raise ValueError(
+                f'Flow {flow.id!r} references carrier {flow.carrier!r} '
+                f'which is not in the declared carriers: {sorted(carrier_ids)}'
+            )

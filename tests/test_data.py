@@ -3,13 +3,15 @@ from __future__ import annotations
 import pytest
 from conftest import ts
 
-from fluxopt import Converter, Effect, Flow, ModelData, Port, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, ModelData, Port, Storage, optimize
 
 
 class TestFlowsTable:
     def test_bounds_with_size(self):
         flow = Flow('b', size=100, relative_minimum=0.2, relative_maximum=0.8)
-        data = ModelData.build(ts(3), [Effect('cost', is_objective=True)], ports=[Port('src', imports=[flow])])
+        data = ModelData.build(
+            ts(3), [Effect('cost', is_objective=True)], ports=[Port('src', imports=[flow])], carriers=[Carrier('b')]
+        )
         ds = data.flows
         lb = ds.rel_lb.sel(flow='src(b)').values
         ub = ds.rel_ub.sel(flow='src(b)').values
@@ -24,6 +26,7 @@ class TestFlowsTable:
             ts(3),
             [Effect('cost', is_objective=True)],
             ports=[Port('sink', exports=[flow])],
+            carriers=[Carrier('b')],
         )
         fixed = data.flows.fixed_profile.sel(flow='sink(b)').values
         assert list(fixed) == [0.5, 0.8, 0.6]
@@ -35,6 +38,7 @@ class TestFlowsTable:
             ts(3),
             [Effect('cost', is_objective=True)],
             ports=[Port('src', imports=[flow])],
+            carriers=[Carrier('b')],
         )
         assert str(data.flows.bound_type.sel(flow='src(b)').values) == 'unsized'
 
@@ -47,6 +51,7 @@ class TestCarriersData:
             ts(3),
             [Effect('cost', is_objective=True)],
             ports=[Port('src', imports=[out_flow]), Port('sink', exports=[in_flow])],
+            carriers=[Carrier('b')],
         )
         coeffs = data.carriers.flow_coeff
         out_coeff = float(coeffs.sel(carrier='b', flow='src(b)').values)
@@ -64,6 +69,7 @@ class TestConvertersTable:
             ts(3),
             [Effect('cost', is_objective=True)],
             ports=[Port('src', imports=[Flow('gas', size=200)])],
+            carriers=[Carrier('gas'), Carrier('heat')],
             converters=[boiler],
         )
         ds = data.converters
@@ -85,6 +91,7 @@ class TestEffectsTable:
             ts(3),
             [Effect('cost', is_objective=True)],
             ports=[Port('src', imports=[flow])],
+            carriers=[Carrier('b')],
         )
         coeff = data.flows.effect_coeff.sel(flow='src(b)', effect='cost')
         assert all(v == 0.04 for v in coeff.values)
@@ -94,6 +101,7 @@ class TestEffectsTable:
             ts(3),
             [Effect('cost', is_objective=True), Effect('co2')],
             ports=[Port('src', imports=[Flow('b', size=100)])],
+            carriers=[Carrier('b')],
         )
         assert data.effects.objective_effect == 'cost'
 
@@ -141,6 +149,7 @@ class TestCarrierBalance:
                 Port('src', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('sink', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
+            carriers=[Carrier('elec')],
         )
         balance = result.stats.carrier_balance
         assert 'carrier' in balance.dims
@@ -163,6 +172,7 @@ class TestMultiNodeCarrier:
                 Port('sink_a', exports=[Flow('heat', node='A', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
                 Port('sink_b', exports=[Flow('heat', node='B', size=100, fixed_relative_profile=[0.8, 0.8, 0.8])]),
             ],
+            carriers=[Carrier('heat')],
         )
         # Source A matches sink A demand (50 MW)
         rate_a = result.flow_rate('src_a(heat:A)').values
@@ -185,6 +195,7 @@ class TestMultiNodeCarrier:
                 Port('sink_a', exports=[Flow('heat', node='A', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
                 Port('sink_b', exports=[Flow('heat', node='B', size=100, fixed_relative_profile=[0.8, 0.8, 0.8])]),
             ],
+            carriers=[Carrier('heat')],
         )
         carrier_ids = list(data.carriers.flow_coeff.coords['carrier'].values)
         assert 'heat:A' in carrier_ids

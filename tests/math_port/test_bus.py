@@ -3,7 +3,7 @@
 import numpy as np
 from numpy.testing import assert_allclose
 
-from fluxopt import Effect, Flow, Port
+from fluxopt import Carrier, Effect, Flow, Port
 
 from .conftest import ts
 
@@ -34,6 +34,7 @@ class TestCarrierBalance:
                     ],
                 ),
             ],
+            carriers=[Carrier('Heat')],
         )
         # Src1 at max 20 @1€, Src2 covers remaining 10 @2€
         # cost = 2*(20*1 + 10*2) = 80
@@ -59,6 +60,7 @@ class TestMultiNodeBalance:
                 Port('demand_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[50, 50])]),
                 Port('demand_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[80, 80])]),
             ],
+            carriers=[Carrier('heat')],
         )
         # Each node dispatches its own cheap source, expensive unused
         assert_allclose(result.flow_rate('cheap_a(heat:A)').values, [50, 50], rtol=1e-5)
@@ -77,6 +79,7 @@ class TestMultiNodeBalance:
                 Port('demand_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[50, 50])]),
                 Port('demand_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[50, 50])]),
             ],
+            carriers=[Carrier('heat')],
         )
         # Node B must use expensive source — can't tap into node A's cheap source
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 1100.0, rtol=1e-5)
@@ -98,6 +101,7 @@ class TestMultiNodeBalance:
                 Port('bldg_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[40, 40])]),
                 Port('bldg_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[60, 60])]),
             ],
+            carriers=[Carrier('elec'), Carrier('heat')],
         )
         # Electricity balance: grid serves 30 per timestep
         assert_allclose(result.flow_rate('grid(elec)').values, [30, 30], rtol=1e-5)

@@ -10,7 +10,7 @@ import pytest
 from conftest import assert_off_blocks, assert_on_blocks
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port, Sizing, Status
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Status
 
 from .conftest import ts, waste
 
@@ -112,6 +112,7 @@ class TestStatusWithEffects:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert result.effect_totals.sel(effect='CO2').item() <= 60.0 + 1e-5
         # Verify only 1 startup (continuous operation)
@@ -162,6 +163,7 @@ class TestStatusWithEffects:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 10.0, rtol=1e-5)
@@ -219,6 +221,7 @@ class TestInvestWithRelativeMinimum:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 50.0, rtol=1e-4)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 125.0, rtol=1e-4)
@@ -264,6 +267,7 @@ class TestConversionWithTimeVaryingEffects:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 
@@ -314,6 +318,7 @@ class TestConversionWithTimeVaryingEffects:
                     electrical_flow=Flow('Elec'),
                 ),
             ],
+            carriers=[Carrier('Elec'), Carrier('Gas'), Carrier('Heat')],
         )
         # Per ts: fuel=100, elec=40. costs: 100-80=20. CO2: 50-12=38. Total: costs=40, CO2=76.
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
@@ -382,6 +387,7 @@ class TestStatusWithMultipleConstraints:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         on = result.solution['flow--on'].sel(flow='CheapBoiler(Heat)').values
 
@@ -448,6 +454,7 @@ class TestEffectsWithConversion:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert result.effect_totals.sel(effect='CO2').item() <= 20.0 + 1e-5
 

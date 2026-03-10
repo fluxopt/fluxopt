@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port
+from fluxopt import Carrier, Converter, Effect, Flow, Port
 
 from .conftest import ts, waste
 
@@ -47,6 +47,7 @@ class TestFlowConstraints:
                     thermal_flow=Flow('Heat', size=100, relative_minimum=0.4),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # Must produce at least 40 (relative_minimum=0.4 * size=100)
         # cost = 2 * 40 = 80 (vs 60 without the constraint)
@@ -88,6 +89,7 @@ class TestFlowConstraints:
                     ],
                 ),
             ],
+            carriers=[Carrier('Heat')],
         )
         # CheapSrc capped at 50 (relative_maximum=0.5 * size=100): 2 * 50 * 1 = 100
         # ExpensiveSrc covers remaining 10 each timestep: 2 * 10 * 5 = 100

@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port
+from fluxopt import Carrier, Converter, Effect, Flow, Port
 
 from .conftest import ts
 
@@ -113,6 +113,7 @@ class TestHeatPump:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
+            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
 
@@ -144,6 +145,7 @@ class TestHeatPump:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
+            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 15.0, rtol=1e-5)
 

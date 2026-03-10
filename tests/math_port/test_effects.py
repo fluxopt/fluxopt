@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port, Sizing
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing
 
 from .conftest import ts, waste
 
@@ -45,6 +45,7 @@ class TestEffects:
                     ],
                 ),
             ],
+            carriers=[Carrier('Heat')],
         )
         # costs = (10+20)*2 = 60, CO2 = (10+20)*0.5 = 15
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
@@ -76,6 +77,7 @@ class TestEffects:
                     imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 10})],
                 ),
             ],
+            carriers=[Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 200.0, rtol=1e-5)
@@ -116,6 +118,7 @@ class TestEffects:
                     ],
                 ),
             ],
+            carriers=[Carrier('Heat')],
         )
         # Without CO2 limit: all from Dirty = 20€
         # With CO2 max=15: 15 from Dirty (15€), 5 from Clean (50€) → total 65€
@@ -159,6 +162,7 @@ class TestEffects:
                 ),
                 waste('Heat'),
             ],
+            carriers=[Carrier('Heat')],
         )
         # Must produce ≥25 CO2. Only Dirty emits CO2 at 1kg/kWh → Dirty ≥ 25 kWh.
         # Demand only 20, so 5 excess absorbed by dump. cost = 25
@@ -202,6 +206,7 @@ class TestEffects:
                     ],
                 ),
             ],
+            carriers=[Carrier('Heat')],
         )
         # t=0: Dirty=8 (capped), Clean=7. t=1: Dirty=5, Clean=0.
         # cost = (8+5)*1 + 7*5 = 13 + 35 = 48
@@ -238,6 +243,7 @@ class TestEffects:
                 ),
                 waste('Heat'),
             ],
+            carriers=[Carrier('Heat')],
         )
         # Must emit ≥10 CO2 each ts → Dirty ≥ 10 each ts → cost = 20
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
@@ -305,6 +311,7 @@ class TestEffects:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 170.0, rtol=1e-5)
 

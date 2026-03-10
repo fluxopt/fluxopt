@@ -16,6 +16,8 @@ each verifying a different pipeline:
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from conftest import ts, waste  # noqa: F401 — re-exported for test imports
 
@@ -34,7 +36,7 @@ from fluxopt.results import Result
 def optimize(request, tmp_path):
     """Callable fixture: each test runs 3 pipelines to verify IO roundtrip."""
 
-    def _optimize(**kwargs) -> Result:
+    def _optimize(**kwargs: Any) -> Result:
         if request.param == 'optimize':
             return fluxopt_optimize(**kwargs)
         if request.param == 'save->reload->optimize':
@@ -42,6 +44,7 @@ def optimize(request, tmp_path):
                 kwargs['timesteps'],
                 kwargs['effects'],
                 kwargs['ports'],
+                kwargs['carriers'],
                 kwargs.get('converters'),
                 kwargs.get('storages'),
                 kwargs.get('dt'),

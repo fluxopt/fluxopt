@@ -5,7 +5,7 @@ import pytest
 from conftest import assert_off_blocks, assert_on_blocks
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port, Status
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Status
 
 from .conftest import ts, waste
 
@@ -51,6 +51,7 @@ class TestFlowStatus:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # fuel = (10+10)/0.5 = 40, startups = 2, cost = 40 + 200 = 240
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 240.0, rtol=1e-5)
@@ -111,6 +112,7 @@ class TestFlowStatus:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # Boiler on t=0,1 and t=3,4. Off at t=2 → backup.
         # Boiler fuel: (5+10+18+12)/0.5 = 90. Backup fuel: 20/0.2 = 100. Total = 190.
@@ -169,6 +171,7 @@ class TestFlowStatus:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
         # Verify boiler off at t=2
@@ -213,6 +216,7 @@ class TestFlowStatus:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # fuel=20, active_hour_cost=2*50=100, total=120
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
@@ -274,6 +278,7 @@ class TestFlowStatus:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # Verify max_downtime: no two consecutive off-hours
         status = result.solution['flow--on'].sel(flow='ExpBoiler(Heat)').values
@@ -337,6 +342,7 @@ class TestFlowStatus:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # Verify no more than 2 consecutive on-hours
         status = result.solution['flow--on'].sel(flow='CheapBoiler(Heat)').values
@@ -389,6 +395,7 @@ class TestPreviousFlowRate:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # Forced ON at t=0 (relative_min=10), cost=10.
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
@@ -431,6 +438,7 @@ class TestPreviousFlowRate:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 0.0, rtol=1e-5)
 
@@ -473,6 +481,7 @@ class TestPreviousFlowRate:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # With 2h uptime history, min_uptime=2 is satisfied → can be off at t=0 → cost=0
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 0.0, rtol=1e-5)
@@ -518,6 +527,7 @@ class TestPreviousFlowRate:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # prior_rates=[0, 10]: consecutive uptime = 1 hour
         # min_uptime=3: needs 2 more hours → forced on at t=0, t=1 with relative_min=10
@@ -570,6 +580,7 @@ class TestPreviousFlowRate:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # prior_rates=[10, 0]: last is OFF, consecutive downtime = 1 hour
         # min_downtime=3: needs 2 more off hours → CheapBoiler off t=0,t=1
@@ -619,6 +630,7 @@ class TestPreviousFlowRate:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # prior_rates=[0, 10, 20, 30]: consecutive uptime from end = 3 hours
         # min_uptime=4: needs 1 more → forced on at t=0 with relative_min=10

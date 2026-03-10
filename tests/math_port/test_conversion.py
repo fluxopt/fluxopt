@@ -3,7 +3,7 @@
 import numpy as np
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port
+from fluxopt import Carrier, Converter, Effect, Flow, Port
 
 from .conftest import ts
 
@@ -40,6 +40,7 @@ class TestConversionEfficiency:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # fuel = (10+20+10)/0.8 = 50, cost@1€/kWh = 50
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 50.0, rtol=1e-5)
@@ -76,6 +77,7 @@ class TestConversionEfficiency:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # fuel = 10/0.5 + 10/1.0 = 30
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 30.0, rtol=1e-5)
@@ -121,6 +123,7 @@ class TestConversionEfficiency:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
+            carriers=[Carrier('Elec'), Carrier('Gas'), Carrier('Heat')],
         )
         # Per timestep: fuel = 50/0.5 = 100, elec = 100*0.4 = 40
         # Per timestep cost = 100*1 - 40*2 = 20, total = 2*20 = 40

@@ -9,7 +9,10 @@ from __future__ import annotations
 from conftest import ts
 from numpy.testing import assert_allclose
 
-from fluxopt import Effect, Flow, Port, Sizing, Storage, optimize
+from fluxopt import Carrier, Effect, Flow, Port, Sizing, Storage, optimize
+
+_heat = [Carrier('Heat')]
+_elec = [Carrier('Elec')]
 
 
 class TestFlowSizing:
@@ -35,6 +38,7 @@ class TestFlowSizing:
                     ],
                 ),
             ],
+            carriers=_heat,
         )
         assert_allclose(result.objective, 100.0, rtol=1e-5)
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -67,6 +71,7 @@ class TestFlowSizing:
                 ),
                 Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
             ],
+            carriers=_heat,
         )
         assert_allclose(result.objective, 300.0, rtol=1e-5)
         indicator = float(result.solution['flow--size_indicator'].sel(flow='Src(Heat)').values)
@@ -97,6 +102,7 @@ class TestFlowSizing:
                 ),
                 Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 2})]),
             ],
+            carriers=_heat,
         )
         assert_allclose(result.objective, 110.0, rtol=1e-5)
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -126,6 +132,7 @@ class TestFlowSizing:
                     ],
                 ),
             ],
+            carriers=_heat,
         )
         assert_allclose(result.objective, 350.0, rtol=1e-5)
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -154,6 +161,7 @@ class TestFlowSizing:
                     ],
                 ),
             ],
+            carriers=_heat,
         )
         assert_allclose(result.objective, 75.0, rtol=1e-5)
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -193,6 +201,7 @@ class TestFlowSizing:
                     ],
                 ),
             ],
+            carriers=_heat,
         )
         assert_allclose(result.objective, 120.6, rtol=1e-4)
         cheap_size = float(result.sizes.sel(flow='Cheap(Heat)').values)
@@ -229,6 +238,7 @@ class TestStorageSizing:
                     relative_loss_per_hour=0,
                 ),
             ],
+            carriers=_elec,
         )
         assert_allclose(result.objective, 50.0, rtol=1e-5)
         cap = float(result.storage_capacities.sel(storage='Battery').values)

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Converter, Effect, Flow, Port, Sizing, Status
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Status
 
 from .conftest import ts
 
@@ -53,6 +53,7 @@ class TestFlowInvest:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # size = 50 (peak), invest cost = 10 + 50*1 = 60, fuel = 80
         # total = 140
@@ -104,6 +105,7 @@ class TestFlowInvest:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert_allclose(result.solution['flow--size_indicator'].sel(flow='InvestBoiler(Heat)').item(), 0.0, atol=1e-5)
         # All demand served by CheapBoiler: fuel = 20/0.5 = 40
@@ -147,6 +149,7 @@ class TestFlowInvest:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # Must invest at least 100, cost_per_size=1 → invest=100
         assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 100.0, rtol=1e-5)
@@ -197,6 +200,7 @@ class TestFlowInvest:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # size must be exactly 80 (not optimized to 30)
         assert_allclose(result.sizes.sel(flow='FixedBoiler(Heat)').item(), 80.0, rtol=1e-5)
@@ -267,6 +271,7 @@ class TestFlowInvest:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # mandatory=True forces ExpensiveBoiler to be built, size=10 (minimum needed)
         assert_allclose(result.sizes.sel(flow='ExpensiveBoiler(Heat)').item(), 10.0, rtol=1e-5)
@@ -317,6 +322,7 @@ class TestFlowInvest:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # mandatory=False allows skipping uneconomical investment
         assert_allclose(
@@ -395,6 +401,7 @@ class TestFlowInvestWithStatus:
                     ),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # size=20 (peak), invest=10+20=30, fuel=40, 2 startups=100
         # total = 30 + 40 + 100 = 170
@@ -446,6 +453,7 @@ class TestFlowInvestWithStatus:
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
+            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # InvestBoiler is built (cheaper fuel @eta=1.0 vs Backup @eta=0.5)
         # size=20 (peak demand), invest=20
