@@ -540,7 +540,7 @@ class ConvertersData:
                 mask_row[eq_i] = True
             eq_mask_rows.append(mask_row)
 
-            qid_to_short = {v: k for k, v in conv._flow_id.items()}
+            qid_to_short = {v: k for k, v in conv._short_to_id.items()}
             for flow in (*conv.inputs, *conv.outputs):
                 short = qid_to_short[flow.id]
                 eq_coeffs = np.zeros((max_eq, n_time))
