@@ -1118,9 +1118,18 @@ def _validate_system(
         carrier_ids.add(cid)
 
     # Every flow carrier must match a declared carrier
+    carrier_by_id = {c.id: c for c in carriers}
     for flow in flows:
-        if flow.carrier not in carrier_ids:
+        if flow.carrier not in carrier_by_id:
             raise ValueError(
                 f'Flow {flow.id!r} references carrier {flow.carrier!r} '
-                f'which is not in the declared carriers: {sorted(carrier_ids)}'
+                f'which is not in the declared carriers: {sorted(carrier_by_id)}'
+            )
+        carrier = carrier_by_id[flow.carrier]
+        if flow.node and not carrier.nodes:
+            raise ValueError(f'Flow {flow.id!r} specifies node={flow.node!r} but carrier {carrier.id!r} has no nodes')
+        if flow.node and flow.node not in carrier.nodes:
+            raise ValueError(
+                f'Flow {flow.id!r} specifies node={flow.node!r} but carrier '
+                f'{carrier.id!r} only has nodes {carrier.nodes}'
             )

@@ -199,6 +199,26 @@ class TestCarrierValidation:
                 ports=[Port('grid', imports=[Flow('elec', size=100)])],
             )
 
+    def test_flow_node_on_nodeless_carrier_raises(self):
+        """Flow with node on a carrier without nodes raises ValueError."""
+        with pytest.raises(ValueError, match='has no nodes'):
+            ModelData.build(
+                ts(2),
+                carriers=[Carrier('heat')],
+                effects=[Effect('cost', is_objective=True)],
+                ports=[Port('src', imports=[Flow('heat', node='A', size=100)])],
+            )
+
+    def test_flow_node_not_in_carrier_nodes_raises(self):
+        """Flow with node not declared on carrier raises ValueError."""
+        with pytest.raises(ValueError, match="node='C'"):
+            ModelData.build(
+                ts(2),
+                carriers=[Carrier('heat', nodes=['A', 'B'])],
+                effects=[Effect('cost', is_objective=True)],
+                ports=[Port('src', imports=[Flow('heat', node='C', size=100)])],
+            )
+
 
 class TestCarrierBalance:
     def test_carrier_balance_property(self):
