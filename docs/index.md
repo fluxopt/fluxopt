@@ -39,6 +39,11 @@ print(f"Total cost: {result.objective:.2f}")
 print(result.flow_rates)
 ```
 
+## Companion Packages
+
+- **[fluxopt-plot](https://fbumann.github.io/fluxopt-plot/latest/)** — interactive plotly visualization for optimization results
+- **[fluxopt-yaml](https://fbumann.github.io/fluxopt-yaml/latest/)** — declarative model definition via YAML + CSV
+
 ## Next Steps
 
 - **[Guide](guide/getting-started.md)** — walkthrough of the full API, from flows to storage

@@ -66,8 +66,8 @@ Companion packages depend on core — core has no knowledge of companions.
 |-----------|-------------|--------|-------|
 | `Result.stats` accessor | Cached xarray properties for post-processing | Planned | [#49](https://github.com/FBumann/fluxopt/issues/49) |
 | `.plot` stub on `Result` | Discoverable property, helpful error if plot package absent | Planned | [#50](https://github.com/FBumann/fluxopt/issues/50) |
-| `fluxopt-plot` package | Interactive plotly visualization as companion package | Planned | [#51](https://github.com/FBumann/fluxopt/issues/51) |
-| `fluxopt-yaml` package | Declarative model definition via YAML + CSV | Planned | [#52](https://github.com/FBumann/fluxopt/issues/52) |
+| `fluxopt-plot` package | Interactive plotly visualization as companion package | [Scaffolded](https://fbumann.github.io/fluxopt-plot/latest/) | [#51](https://github.com/FBumann/fluxopt/issues/51) |
+| `fluxopt-yaml` package | Declarative model definition via YAML + CSV | [Scaffolded](https://fbumann.github.io/fluxopt-yaml/latest/) | [#52](https://github.com/FBumann/fluxopt/issues/52) |
 | `fluxopt-tsam` package | Time series aggregation preprocessing | Planned | — |
 | ReadTheDocs migration | Automatic versioned docs from git tags | Planned | [#53](https://github.com/FBumann/fluxopt/issues/53) |
 | Remove plotly from core | Keep core lean — plotting deps in `fluxopt-plot` only | Planned | [#54](https://github.com/FBumann/fluxopt/issues/54) |
