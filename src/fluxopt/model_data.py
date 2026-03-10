@@ -1109,8 +1109,15 @@ def _validate_system(
             raise ValueError(f'Duplicate flow id: {flow.id!r}')
         flow_seen.add(flow.id)
 
+    # Unique carrier IDs
+    carrier_id_list = [c.id for c in carriers]
+    carrier_ids = set[str]()
+    for cid in carrier_id_list:
+        if cid in carrier_ids:
+            raise ValueError(f'Duplicate carrier id: {cid!r}')
+        carrier_ids.add(cid)
+
     # Every flow carrier must match a declared carrier
-    carrier_ids = {c.id for c in carriers}
     for flow in flows:
         if flow.carrier not in carrier_ids:
             raise ValueError(

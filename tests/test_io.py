@@ -113,6 +113,29 @@ class TestRoundtrip:
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 
 
+class TestCarrierMetadataRoundtrip:
+    def test_carrier_metadata_preserved(self, tmp_nc: Path) -> None:
+        """Carrier unit, color, and description survive a NetCDF roundtrip."""
+        ts = [datetime(2024, 1, 1, h) for h in range(3)]
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        result = optimize(
+            timesteps=ts,
+            carriers=[Carrier('elec', unit='kWh', color='#ff0000', description='Electrical energy')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
+        )
+        assert result.data is not None
+
+        result.to_netcdf(tmp_nc)
+        loaded = Result.from_netcdf(tmp_nc)
+
+        assert loaded.data is not None
+        assert str(loaded.data.carriers.unit.sel(carrier='elec').values) == 'kWh'
+        assert str(loaded.data.carriers.color.sel(carrier='elec').values) == '#ff0000'
+        assert str(loaded.data.carriers.description.sel(carrier='elec').values) == 'Electrical energy'
+
+
 class TestRoundtripContributionFrom:
     def test_roundtrip_with_contribution_from(self, tmp_nc: Path) -> None:
         """ModelData with contribution_from survives NetCDF roundtrip."""

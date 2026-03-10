@@ -127,7 +127,7 @@ class TestContributionFrom:
             )
 
     def test_contribution_from_carbon_pricing(self):
-        """CO2 at 0.5 kg/MWh, carbon price 50 €/t → cost includes CO2 * 50."""
+        """CO2 at 0.5 kg/MWh, carbon price 50 €/kg → cost includes CO2 * 50."""
         demand = [50.0, 80.0, 60.0]
 
         source = Flow(

@@ -153,6 +153,26 @@ class TestCarrierValidation:
                 ports=[Port('grid', imports=[Flow('elec', size=100)])],
             )
 
+    def test_undeclared_carrier_in_model_data_build(self):
+        """ModelData.build rejects flows with undeclared carriers."""
+        with pytest.raises(ValueError, match="carrier 'elec'"):
+            ModelData.build(
+                ts(2),
+                carriers=[Carrier('gas')],
+                effects=[Effect('cost', is_objective=True)],
+                ports=[Port('grid', imports=[Flow('elec', size=100)])],
+            )
+
+    def test_duplicate_carrier_raises(self):
+        """Duplicate carrier declarations raise ValueError."""
+        with pytest.raises(ValueError, match='Duplicate carrier id'):
+            ModelData.build(
+                ts(2),
+                carriers=[Carrier('elec'), Carrier('elec')],
+                effects=[Effect('cost', is_objective=True)],
+                ports=[Port('grid', imports=[Flow('elec', size=100)])],
+            )
+
 
 class TestCarrierBalance:
     def test_carrier_balance_property(self):
