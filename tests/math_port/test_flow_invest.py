@@ -123,6 +123,7 @@ class TestFlowInvest:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -149,7 +150,6 @@ class TestFlowInvest:
                     ),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # Must invest at least 100, cost_per_size=1 → invest=100
         assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 100.0, rtol=1e-5)

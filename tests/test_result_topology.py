@@ -19,11 +19,11 @@ def _solve_with_converter() -> Result:
     storage = Storage('heat_store', charging=charge, discharging=discharge, capacity=200.0)
     return optimize(
         timesteps=[datetime(2024, 1, 1, h) for h in range(3)],
+        carriers=[Carrier('gas'), Carrier('heat')],
         effects=[Effect('cost', is_objective=True)],
         ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
-        carriers=[Carrier('gas'), Carrier('heat')],
     )
 
 
@@ -75,9 +75,9 @@ class TestTopology:
         source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
         result = optimize(
             timesteps=[datetime(2024, 1, 1, h) for h in range(3)],
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
-            carriers=[Carrier('elec')],
         )
         topo = result.topology
         assert topo['converters'] == {}

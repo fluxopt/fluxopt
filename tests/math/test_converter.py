@@ -19,12 +19,12 @@ class TestBoiler:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_flow]),
                 Port('demand', exports=[demand_flow]),
             ],
-            carriers=[Carrier('gas'), Carrier('heat')],
             converters=[Converter.boiler('boiler', eta, fuel, heat_flow)],
         )
 
@@ -43,12 +43,12 @@ class TestBoiler:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_flow]),
                 Port('demand', exports=[demand_flow]),
             ],
-            carriers=[Carrier('gas'), Carrier('heat')],
             converters=[Converter.boiler('boiler', eta, fuel, heat_flow)],
         )
 
@@ -71,13 +71,13 @@ class TestCHP:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('gas'), Carrier('elec'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('elec_demand', exports=[elec_demand]),
                 Port('heat_demand', exports=[heat_demand]),
             ],
-            carriers=[Carrier('gas'), Carrier('elec'), Carrier('heat')],
             converters=[Converter.chp('chp', eta_el, eta_th, fuel_flow, elec_flow, heat_flow)],
         )
 

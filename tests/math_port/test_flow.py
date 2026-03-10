@@ -23,6 +23,7 @@ class TestFlowConstraints:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -47,7 +48,6 @@ class TestFlowConstraints:
                     thermal_flow=Flow('Heat', size=100, relative_minimum=0.4),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # Must produce at least 40 (relative_minimum=0.4 * size=100)
         # cost = 2 * 40 = 80 (vs 60 without the constraint)
@@ -68,6 +68,7 @@ class TestFlowConstraints:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -89,7 +90,6 @@ class TestFlowConstraints:
                     ],
                 ),
             ],
-            carriers=[Carrier('Heat')],
         )
         # CheapSrc capped at 50 (relative_maximum=0.5 * size=100): 2 * 50 * 1 = 100
         # ExpensiveSrc covers remaining 10 each timestep: 2 * 10 * 5 = 100

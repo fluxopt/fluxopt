@@ -244,6 +244,7 @@ class TestConversionWithTimeVaryingEffects:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -267,7 +268,6 @@ class TestConversionWithTimeVaryingEffects:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 

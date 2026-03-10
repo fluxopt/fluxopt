@@ -17,6 +17,7 @@ class TestConversionEfficiency:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -40,7 +41,6 @@ class TestConversionEfficiency:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # fuel = (10+20+10)/0.8 = 50, cost@1€/kWh = 50
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 50.0, rtol=1e-5)
@@ -54,6 +54,7 @@ class TestConversionEfficiency:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -77,7 +78,6 @@ class TestConversionEfficiency:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # fuel = 10/0.5 + 10/1.0 = 30
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 30.0, rtol=1e-5)

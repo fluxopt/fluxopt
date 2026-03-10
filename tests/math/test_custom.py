@@ -15,12 +15,12 @@ class TestCustomize:
         """Single-bus system: grid source (size=100) feeding a fixed 50 MW demand."""
         return {
             'timesteps': ts(3),
+            'carriers': [Carrier('elec')],
             'effects': [Effect('cost', is_objective=True)],
             'ports': [
                 Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
             ],
-            'carriers': [Carrier('elec')],
         }
 
     def test_customize_adds_constraint(self, simple_system):
@@ -76,9 +76,9 @@ class TestCustomize:
         """Using FlowSystem directly with custom variable works."""
         data = ModelData.build(
             simple_system['timesteps'],
+            simple_system['carriers'],
             simple_system['effects'],
             simple_system['ports'],
-            simple_system['carriers'],
         )
         model = FlowSystem(data)
         model.build()

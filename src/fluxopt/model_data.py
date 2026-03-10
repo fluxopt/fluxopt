@@ -432,6 +432,9 @@ def _carrier_dim_id(flow: Flow) -> str:
 @dataclass
 class CarriersData:
     flow_coeff: xr.DataArray  # (carrier, flow) — +1/-1/NaN
+    unit: xr.DataArray  # (carrier,) — energy unit label
+    color: xr.DataArray  # (carrier,) — plot color ('' if unset)
+    description: xr.DataArray  # (carrier,) — human-readable description
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -442,21 +445,34 @@ class CarriersData:
         """Deserialize from xr.Dataset.
 
         Args:
-            ds: Dataset with ``flow_coeff`` variable.
+            ds: Dataset with ``flow_coeff``, ``unit``, ``color``, ``description``.
         """
-        return cls(flow_coeff=ds['flow_coeff'])
+        return cls(
+            flow_coeff=ds['flow_coeff'],
+            unit=ds['unit'],
+            color=ds['color'],
+            description=ds['description'],
+        )
 
     @classmethod
-    def build(cls, flows: list[Flow], carrier_coeff: dict[str, float]) -> Self:
-        """Build CarriersData with flow coefficients.
+    def build(cls, carriers: list[Carrier], flows: list[Flow], carrier_coeff: dict[str, float]) -> Self:
+        """Build CarriersData from explicit carrier declarations.
 
         Args:
+            carriers: Declared carriers.
             flows: All collected flows.
             carrier_coeff: Mapping of flow id to +1 (produces) or -1 (consumes).
         """
+        from fluxopt.elements import node_id
+
         flow_ids = [f.id for f in flows]
-        # Collect unique carrier dim ids preserving order
-        carrier_ids: list[str] = list(dict.fromkeys(_carrier_dim_id(f) for f in flows))
+        # Build carrier dim ids from explicit declarations
+        carrier_ids: list[str] = []
+        for c in carriers:
+            if c.nodes:
+                carrier_ids.extend(node_id(c.id, node) for node in c.nodes)
+            else:
+                carrier_ids.append(c.id)
 
         coeff = np.full((len(carrier_ids), len(flow_ids)), np.nan)
         for f in flows:
@@ -464,8 +480,21 @@ class CarriersData:
             fi = flow_ids.index(f.id)
             coeff[ci, fi] = carrier_coeff[f.id]
 
+        # Expand carrier metadata to match carrier dim (one entry per node)
+        units: list[str] = []
+        colors: list[str] = []
+        descriptions: list[str] = []
+        for c in carriers:
+            n = max(len(c.nodes), 1)
+            units.extend([c.unit] * n)
+            colors.extend([c.color or ''] * n)
+            descriptions.extend([c.description] * n)
+
         return cls(
             flow_coeff=xr.DataArray(coeff, dims=['carrier', 'flow'], coords={'carrier': carrier_ids, 'flow': flow_ids}),
+            unit=xr.DataArray(units, dims=['carrier'], coords={'carrier': carrier_ids}),
+            color=xr.DataArray(colors, dims=['carrier'], coords={'carrier': carrier_ids}),
+            description=xr.DataArray(descriptions, dims=['carrier'], coords={'carrier': carrier_ids}),
         )
 
 
@@ -950,9 +979,9 @@ class ModelData:
     def build(
         cls,
         timesteps: Timesteps,
+        carriers: list[Carrier],
         effects: list[Effect],
         ports: list[Port],
-        carriers: list[Carrier],
         converters: list[Converter] | None = None,
         storages: list[Storage] | None = None,
         dt: float | list[float] | None = None,
@@ -961,9 +990,9 @@ class ModelData:
 
         Args:
             timesteps: Time index for the optimization horizon.
+            carriers: Carrier declarations.
             effects: Effects to track.
             ports: System boundary ports.
-            carriers: Carrier declarations.
             converters: Linear converters.
             storages: Energy storages.
             dt: Timestep duration in hours. Auto-derived if None.
@@ -987,7 +1016,7 @@ class ModelData:
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dt_da.values[0])
         flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar)
-        carriers_data = CarriersData.build(flows, carrier_coeff)
+        carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
         effects_data = EffectsData.build(effects, time)
         storages_data = StoragesData.build(stor_list, time, dt_da, effects)

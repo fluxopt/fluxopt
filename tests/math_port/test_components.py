@@ -93,6 +93,7 @@ class TestHeatPump:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -113,7 +114,6 @@ class TestHeatPump:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
-            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
 
@@ -125,6 +125,7 @@ class TestHeatPump:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -145,7 +146,6 @@ class TestHeatPump:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
-            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 15.0, rtol=1e-5)
 

@@ -16,9 +16,9 @@ class TestEffects:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
-            carriers=[Carrier('elec')],
         )
 
         expected = sum(d * 0.04 for d in demand)
@@ -40,9 +40,9 @@ class TestEffects:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True), Effect('co2', unit='kg')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
-            carriers=[Carrier('elec')],
         )
 
         demand_total = 50 + 80 + 60
@@ -64,13 +64,13 @@ class TestEffects:
         co2_limit = 100.0  # demand_total = 190, so can't use all cheap
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True), Effect('co2', maximum_total=co2_limit)],
             ports=[
                 Port('cheap_src', imports=[cheap_dirty]),
                 Port('clean_src', imports=[expensive_clean]),
                 Port('demand', exports=[sink_flow]),
             ],
-            carriers=[Carrier('elec')],
         )
 
         co2_total = float(result.effect_totals.sel(effect='co2').values)
@@ -85,9 +85,9 @@ class TestEffects:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
-            carriers=[Carrier('elec')],
         )
 
         expected = 50 * 0.02 + 50 * 0.08 + 50 * 0.04
@@ -104,9 +104,9 @@ class TestContributionFrom:
         with pytest.raises(ValueError, match='cannot reference itself'):
             optimize(
                 timesteps=ts(3),
+                carriers=[Carrier('elec')],
                 effects=[Effect('cost', is_objective=True, contribution_from={'cost': 0.5})],
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-                carriers=[Carrier('elec')],
             )
 
     def test_contribution_from_circular_raises(self):
@@ -118,16 +118,16 @@ class TestContributionFrom:
         with pytest.raises(ValueError, match='Circular contribution_from dependency'):
             optimize(
                 timesteps=ts(3),
+                carriers=[Carrier('elec')],
                 effects=[
                     Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                     Effect('co2', unit='kg', contribution_from={'cost': 0.01}),
                 ],
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-                carriers=[Carrier('elec')],
             )
 
     def test_contribution_from_carbon_pricing(self):
-        """CO2 at 0.5 kg/MWh, carbon price 50 EUR/t -> cost includes CO2 * 50."""
+        """CO2 at 0.5 kg/MWh, carbon price 50 €/t → cost includes CO2 * 50."""
         demand = [50.0, 80.0, 60.0]
 
         source = Flow(
@@ -139,12 +139,12 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         total_energy = sum(demand)  # 190 MWh
@@ -167,12 +167,12 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         total_energy = sum(demand)
@@ -181,7 +181,7 @@ class TestContributionFrom:
         assert co2_total == pytest.approx(expected_co2, abs=1e-6)
 
     def test_contribution_from_transitive(self):
-        """PE -> CO2 -> cost chain: transitivity via variable chaining."""
+        """PE → CO2 → cost chain: transitivity via variable chaining."""
         demand = [50.0, 80.0, 60.0]
 
         source = Flow(
@@ -193,13 +193,13 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),  # 0.3 kg_CO2/kWh_PE
                 Effect('pe', unit='kWh'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         total_energy = sum(demand)  # 190 MWh
@@ -225,6 +225,7 @@ class TestContributionFrom:
         carbon_prices = [40.0, 50.0, 60.0]
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect(
                     'cost',
@@ -235,7 +236,6 @@ class TestContributionFrom:
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         # per_ts[co2, t] = demand[t] * 0.5 (dt=1)
@@ -257,12 +257,12 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         total_energy = sum(demand)  # 150 MWh
@@ -279,7 +279,7 @@ class TestContributionFrom:
         assert result.objective == pytest.approx(cost_total, abs=1e-6)
 
     def test_contribution_from_investment_transitive(self):
-        """PE -> CO2 -> cost: 3-level chain with investment costs propagates correctly."""
+        """PE → CO2 → cost: 3-level chain with investment costs propagates correctly."""
         demand = [50.0, 50.0, 50.0]
 
         source = Flow(
@@ -291,13 +291,13 @@ class TestContributionFrom:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
                 Effect('pe', unit='kWh'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         total_energy = sum(demand)  # 150 MWh

@@ -30,8 +30,8 @@ timesteps = [datetime(2024, 1, 1) + timedelta(hours=i) for i in range(4)]
 
 result = fx.optimize(
     timesteps=timesteps,
-    effects=[fx.Effect('cost', is_objective=True)],
     carriers=[fx.Carrier('electricity')],
+    effects=[fx.Effect('cost', is_objective=True)],
     ports=[
         fx.Port('grid', imports=[
             fx.Flow('electricity', size=200, effects_per_flow_hour={'cost': 0.04}),

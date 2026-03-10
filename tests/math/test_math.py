@@ -36,13 +36,13 @@ class TestBusBalance:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 30])]),
                 Port('Src1', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1}, size=20)]),
                 Port('Src2', imports=[Flow('Heat', effects_per_flow_hour={'costs': 2}, size=20)]),
             ],
-            carriers=[Carrier('Heat')],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
         src1 = result.flow_rate('Src1(Heat)').values
@@ -67,12 +67,12 @@ class TestConversionEfficiency:
         thermal = Flow('Heat')
         result = optimize(
             ts(3),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 20, 10])]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'costs': 1})]),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
             converters=[Converter.boiler('Boiler', 0.8, fuel, thermal)],
         )
         assert_allclose(result.objective, 50.0, rtol=1e-5)
@@ -87,12 +87,12 @@ class TestConversionEfficiency:
         thermal = Flow('Heat')
         result = optimize(
             ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'costs': 1})]),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
             converters=[Converter.boiler('Boiler', [0.5, 1.0], fuel, thermal)],
         )
         assert_allclose(result.objective, 30.0, rtol=1e-5)
@@ -109,13 +109,13 @@ class TestConversionEfficiency:
         electrical = Flow('Elec')
         result = optimize(
             ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat'), Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('HeatDemand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port('ElecGrid', exports=[Flow('Elec', effects_per_flow_hour={'costs': -2})]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'costs': 1})]),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat'), Carrier('Elec')],
             converters=[Converter.chp('CHP', 0.4, 0.5, fuel, electrical, thermal)],
         )
         assert_allclose(result.objective, 40.0, rtol=1e-5)
@@ -135,12 +135,12 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2')],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 20])]),
                 Port('HeatSrc', imports=[Flow('Heat', effects_per_flow_hour={'costs': 2, 'CO2': 0.5})]),
             ],
-            carriers=[Carrier('Heat')],
         )
         assert_allclose(result.objective, 60.0, rtol=1e-5)
         co2 = float(result.effect_totals.sel(effect='CO2').values)
@@ -154,13 +154,13 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_total=15)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
                 Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'costs': 10, 'CO2': 0})]),
             ],
-            carriers=[Carrier('Heat')],
         )
         assert_allclose(result.objective, 65.0, rtol=1e-5)
         co2 = float(result.effect_totals.sel(effect='CO2').values)
@@ -174,6 +174,7 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_total=25)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -181,7 +182,6 @@ class TestEffects:
                 Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 0})]),
                 waste('Heat'),
             ],
-            carriers=[Carrier('Heat')],
         )
         co2 = float(result.effect_totals.sel(effect='CO2').values)
         assert_allclose(co2, 25.0, rtol=1e-5)
@@ -196,13 +196,13 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_per_hour=8)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[15, 5])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
                 Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5, 'CO2': 0})]),
             ],
-            carriers=[Carrier('Heat')],
         )
         assert_allclose(result.objective, 48.0, rtol=1e-5)
 
@@ -215,13 +215,13 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_per_hour=10)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
                 waste('Heat'),
             ],
-            carriers=[Carrier('Heat')],
         )
         assert_allclose(result.objective, 20.0, rtol=1e-5)
         co2 = float(result.effect_totals.sel(effect='CO2').values)
@@ -236,13 +236,13 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_total=12)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
                 Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5, 'CO2': 0})]),
             ],
-            carriers=[Carrier('Heat')],
         )
         assert_allclose(result.objective, 52.0, rtol=1e-5)
         co2 = float(result.effect_totals.sel(effect='CO2').values)
@@ -256,13 +256,13 @@ class TestEffects:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_total=25)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
                 waste('Heat'),
             ],
-            carriers=[Carrier('Heat')],
         )
         co2 = float(result.effect_totals.sel(effect='CO2').values)
         assert_allclose(co2, 25.0, rtol=1e-5)
@@ -286,13 +286,13 @@ class TestFlowConstraints:
         thermal = Flow('Heat', size=100, relative_minimum=0.4)
         result = optimize(
             ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 30])]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'costs': 1})]),
                 waste('Heat'),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
             converters=[Converter.boiler('Boiler', 1.0, fuel, thermal)],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
@@ -307,6 +307,7 @@ class TestFlowConstraints:
         """
         result = optimize(
             ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
@@ -316,7 +317,6 @@ class TestFlowConstraints:
                 ),
                 Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
             ],
-            carriers=[Carrier('Heat')],
         )
         assert_allclose(result.objective, 200.0, rtol=1e-5)
         flow = result.flow_rate('CheapSrc(Heat)').values
@@ -338,12 +338,12 @@ class TestStorage:
 
         result = optimize(
             ts(3),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 0, 20])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [10, 1, 10]})]),
             ],
-            carriers=[Carrier('Elec')],
             storages=[
                 Storage(
                     'Battery',
@@ -369,12 +369,12 @@ class TestStorage:
 
         result = optimize(
             ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 90])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 1000]})]),
             ],
-            carriers=[Carrier('Elec')],
             storages=[
                 Storage(
                     'Battery',
@@ -401,12 +401,12 @@ class TestStorage:
 
         result = optimize(
             ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 72])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 1000]})]),
             ],
-            carriers=[Carrier('Elec')],
             storages=[
                 Storage(
                     'Battery',
@@ -432,12 +432,12 @@ class TestStorage:
 
         result = optimize(
             ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 60])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 100]})]),
             ],
-            carriers=[Carrier('Elec')],
             storages=[
                 Storage(
                     'Battery',
@@ -464,12 +464,12 @@ class TestStorage:
 
         result = optimize(
             ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 50])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 100]})]),
             ],
-            carriers=[Carrier('Elec')],
             storages=[
                 Storage(
                     'Battery',
@@ -495,12 +495,12 @@ class TestStorage:
 
         result = optimize(
             ts(3),
+            carriers=[Carrier('Elec')],
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 80, 0])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 100, 1]})]),
             ],
-            carriers=[Carrier('Elec')],
             storages=[
                 Storage(
                     'Battery',

@@ -13,6 +13,7 @@ class TestCarrierBalance:
         """Verify merit-order dispatch yields Src1=20, Src2=10 for demand=30."""
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -34,7 +35,6 @@ class TestCarrierBalance:
                     ],
                 ),
             ],
-            carriers=[Carrier('Heat')],
         )
         # Src1 at max 20 @1€, Src2 covers remaining 10 @2€
         # cost = 2*(20*1 + 10*2) = 80
@@ -51,6 +51,7 @@ class TestMultiNodeBalance:
         """Verify two nodes on the same carrier balance independently (no cross-node dispatch)."""
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('heat', nodes=['A', 'B'])],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('cheap_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 1})]),
@@ -60,7 +61,6 @@ class TestMultiNodeBalance:
                 Port('demand_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[50, 50])]),
                 Port('demand_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[80, 80])]),
             ],
-            carriers=[Carrier('heat')],
         )
         # Each node dispatches its own cheap source, expensive unused
         assert_allclose(result.flow_rate('cheap_a(heat:A)').values, [50, 50], rtol=1e-5)
@@ -72,6 +72,7 @@ class TestMultiNodeBalance:
         """Verify a cheap source on node A cannot serve demand on node B."""
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('heat', nodes=['A', 'B'])],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('cheap_a', imports=[Flow('heat', node='A', size=200, effects_per_flow_hour={'cost': 1})]),
@@ -79,7 +80,6 @@ class TestMultiNodeBalance:
                 Port('demand_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[50, 50])]),
                 Port('demand_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[50, 50])]),
             ],
-            carriers=[Carrier('heat')],
         )
         # Node B must use expensive source — can't tap into node A's cheap source
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 1100.0, rtol=1e-5)
@@ -90,6 +90,7 @@ class TestMultiNodeBalance:
         """Verify single-node and multi-node carriers coexist in one optimization."""
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('elec'), Carrier('heat', nodes=['A', 'B'])],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 # Electricity: single-node
@@ -101,7 +102,6 @@ class TestMultiNodeBalance:
                 Port('bldg_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[40, 40])]),
                 Port('bldg_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[60, 60])]),
             ],
-            carriers=[Carrier('elec'), Carrier('heat')],
         )
         # Electricity balance: grid serves 30 per timestep
         assert_allclose(result.flow_rate('grid(elec)').values, [30, 30], rtol=1e-5)

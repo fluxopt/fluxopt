@@ -24,6 +24,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -38,7 +39,6 @@ class TestFlowSizing:
                     ],
                 ),
             ],
-            carriers=_heat,
         )
         assert_allclose(result.objective, 100.0, rtol=1e-5)
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -56,6 +56,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -71,7 +72,6 @@ class TestFlowSizing:
                 ),
                 Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
             ],
-            carriers=_heat,
         )
         assert_allclose(result.objective, 300.0, rtol=1e-5)
         indicator = float(result.solution['flow--size_indicator'].sel(flow='Src(Heat)').values)
@@ -87,6 +87,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -102,7 +103,6 @@ class TestFlowSizing:
                 ),
                 Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 2})]),
             ],
-            carriers=_heat,
         )
         assert_allclose(result.objective, 110.0, rtol=1e-5)
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -118,6 +118,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
@@ -132,7 +133,6 @@ class TestFlowSizing:
                     ],
                 ),
             ],
-            carriers=_heat,
         )
         assert_allclose(result.objective, 350.0, rtol=1e-5)
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -146,6 +146,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[25, 50])]),
@@ -161,7 +162,6 @@ class TestFlowSizing:
                     ],
                 ),
             ],
-            carriers=_heat,
         )
         assert_allclose(result.objective, 75.0, rtol=1e-5)
         size = float(result.sizes.sel(flow='Src(Heat)').values)
@@ -177,6 +177,7 @@ class TestFlowSizing:
         """
         result = optimize(
             ts(2),
+            carriers=_heat,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
@@ -201,7 +202,6 @@ class TestFlowSizing:
                     ],
                 ),
             ],
-            carriers=_heat,
         )
         assert_allclose(result.objective, 120.6, rtol=1e-4)
         cheap_size = float(result.sizes.sel(flow='Cheap(Heat)').values)
@@ -220,6 +220,7 @@ class TestStorageSizing:
         """
         result = optimize(
             ts(3),
+            carriers=_elec,
             effects=[Effect('costs', is_objective=True)],
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 50, 0])]),
@@ -238,7 +239,6 @@ class TestStorageSizing:
                     relative_loss_per_hour=0,
                 ),
             ],
-            carriers=_elec,
         )
         assert_allclose(result.objective, 50.0, rtol=1e-5)
         cap = float(result.storage_capacities.sel(storage='Battery').values)

@@ -185,6 +185,7 @@ elec = Carrier('elec')
 
 result = optimize(
     timesteps=timesteps,
+    carriers=[elec],
     effects=[
         Effect('cost', is_objective=True),
         Effect('co2', maximum_total=100),
@@ -194,7 +195,6 @@ result = optimize(
         Port('clean', imports=[expensive_clean]),
         Port('demand', exports=[demand]),
     ],
-    carriers=[elec],
 )
 
 print(f"Total cost: {result.objective:.2f}")

@@ -13,12 +13,12 @@ class TestFlowHours:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
-            carriers=_elec,
         )
         assert (result.stats.flow_hours >= 0).all()
 
@@ -27,12 +27,12 @@ class TestFlowHours:
         demand = [50.0, 80.0, 60.0]
         result = optimize(
             timesteps=ts(3),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
-            carriers=_elec,
         )
         grid_total = float(result.stats.total_flow_hours.sel(flow='grid(elec)').values)
         assert grid_total == pytest.approx(sum(demand), abs=1e-6)
@@ -43,12 +43,12 @@ class TestCaching:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=_elec,
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
-            carriers=_elec,
         )
         assert result.stats is result.stats
         assert result.stats.flow_hours is result.stats.flow_hours

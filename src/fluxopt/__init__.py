@@ -17,9 +17,9 @@ from fluxopt.types import (
 
 def optimize(
     timesteps: Timesteps,
+    carriers: list[Carrier],
     effects: list[Effect],
     ports: list[Port],
-    carriers: list[Carrier],
     converters: list[Converter] | None = None,
     storages: list[Storage] | None = None,
     dt: float | list[float] | None = None,
@@ -31,9 +31,9 @@ def optimize(
 
     Args:
         timesteps: Time index for the optimization horizon.
+        carriers: Carrier declarations.
         effects: Effects to track (costs, emissions, etc.).
         ports: System boundary ports with imports/exports.
-        carriers: Carrier declarations.
         converters: Linear converters between carriers.
         storages: Energy storages.
         dt: Timestep duration in hours. Auto-derived if None.
@@ -42,7 +42,7 @@ def optimize(
             Receives the built FlowSystem; use ``model.m`` to add variables/constraints.
         **kwargs: Passed through to ``linopy.Model.solve()``.
     """
-    data = ModelData.build(timesteps, effects, ports, carriers, converters, storages, dt)
+    data = ModelData.build(timesteps, carriers, effects, ports, converters, storages, dt)
     model = FlowSystem(data)
     return model.optimize(customize=customize, solver=solver, **kwargs)
 

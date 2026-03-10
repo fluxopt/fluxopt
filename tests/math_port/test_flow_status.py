@@ -22,6 +22,7 @@ class TestFlowStatus:
 
         result = optimize(
             timesteps=ts(5),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -51,7 +52,6 @@ class TestFlowStatus:
                     ),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # fuel = (10+10)/0.5 = 40, startups = 2, cost = 40 + 200 = 240
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 240.0, rtol=1e-5)
@@ -188,6 +188,7 @@ class TestFlowStatus:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -216,7 +217,6 @@ class TestFlowStatus:
                     ),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
         )
         # fuel=20, active_hour_cost=2*50=100, total=120
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)

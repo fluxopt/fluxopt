@@ -17,9 +17,9 @@ class TestSumToTotal:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -36,13 +36,13 @@ class TestSumToTotal:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('cheap_src', imports=[cheap]),
                 Port('exp_src', imports=[expensive]),
                 Port('demand', exports=[sink]),
             ],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -58,9 +58,9 @@ class TestSumToTotal:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -79,13 +79,13 @@ class TestProportionalSplit:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port('cheap_src', imports=[cheap]),
                 Port('exp_src', imports=[expensive]),
                 Port('demand', exports=[sink]),
             ],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -106,12 +106,12 @@ class TestCrossEffects:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -138,6 +138,7 @@ class TestCrossEffects:
         co2_limit = 100.0
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', maximum_total=co2_limit),
@@ -147,7 +148,6 @@ class TestCrossEffects:
                 Port('clean_src', imports=[clean]),
                 Port('demand', exports=[sink]),
             ],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -168,13 +168,13 @@ class TestCrossEffects:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
                 Effect('pe', unit='kWh'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -200,9 +200,9 @@ class TestSizing:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -229,9 +229,9 @@ class TestSizing:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -254,12 +254,12 @@ class TestSizing:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -289,9 +289,9 @@ class TestStatus:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -319,9 +319,9 @@ class TestConverter:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('gas_grid', imports=[gas_supply]), Port('demand', exports=[heat_sink])],
-            carriers=[Carrier('gas'), Carrier('heat')],
             converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_flow)],
         )
 
@@ -349,9 +349,9 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(4),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
             storages=[
                 Storage(
                     'battery',
@@ -383,12 +383,12 @@ class TestStorage:
 
         result = optimize(
             timesteps=ts(4),
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
             storages=[
                 Storage(
                     'battery',
@@ -421,9 +421,9 @@ class TestEdgeCases:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -437,9 +437,9 @@ class TestEdgeCases:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True), Effect('co2', unit='kg')],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         contrib = result.stats.effect_contributions
@@ -456,9 +456,9 @@ class TestEdgeCases:
 
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
 
         assert result.stats is result.stats

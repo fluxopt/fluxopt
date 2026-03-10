@@ -18,6 +18,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(3),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -46,7 +47,6 @@ class TestStorage:
                     relative_loss_per_hour=0,
                 ),
             ],
-            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
 
@@ -58,6 +58,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -86,7 +87,6 @@ class TestStorage:
                     relative_loss_per_hour=0.1,
                 ),
             ],
-            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 
@@ -98,6 +98,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -126,7 +127,6 @@ class TestStorage:
                     relative_loss_per_hour=0,
                 ),
             ],
-            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 
@@ -138,6 +138,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -167,7 +168,6 @@ class TestStorage:
                     relative_loss_per_hour=0,
                 ),
             ],
-            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 1050.0, rtol=1e-5)
 
@@ -179,6 +179,7 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -207,7 +208,6 @@ class TestStorage:
                     relative_loss_per_hour=0,
                 ),
             ],
-            carriers=[Carrier('Elec')],
         )
         assert_allclose(result.storage_capacities.sel(storage='Battery').item(), 50.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)

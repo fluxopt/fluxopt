@@ -42,9 +42,9 @@ def optimize(request, tmp_path):
         if request.param == 'save->reload->optimize':
             data = ModelData.build(
                 kwargs['timesteps'],
+                kwargs['carriers'],
                 kwargs['effects'],
                 kwargs['ports'],
-                kwargs['carriers'],
                 kwargs.get('converters'),
                 kwargs.get('storages'),
                 kwargs.get('dt'),

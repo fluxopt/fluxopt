@@ -24,9 +24,9 @@ def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
     source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
     return optimize(
         timesteps=timesteps,
+        carriers=[Carrier('elec')],
         effects=[Effect('cost', is_objective=True)],
         ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
-        carriers=[Carrier('elec')],
     )
 
 
@@ -41,11 +41,11 @@ def _solve_with_storage(timesteps: list[datetime]) -> Result:
     storage = Storage('heat_store', charging=charge, discharging=discharge, capacity=200.0)
     return optimize(
         timesteps=timesteps,
+        carriers=[Carrier('gas'), Carrier('heat')],
         effects=[Effect('cost', is_objective=True)],
         ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
-        carriers=[Carrier('gas'), Carrier('heat')],
     )
 
 
@@ -122,12 +122,12 @@ class TestRoundtripContributionFrom:
 
         result = optimize(
             timesteps=ts,
+            carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
-            carriers=[Carrier('elec')],
         )
         assert result.data is not None
         assert result.data.effects.cf_periodic is not None
