@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import pytest
 from conftest import ts
 
-from fluxopt import Converter, Effect, Flow, ModelData, Port
+from fluxopt import Converter, Effect, Flow, ModelData, Port, Storage, optimize
 
 
 class TestFlowsTable:
@@ -95,3 +96,42 @@ class TestEffectsTable:
             ports=[Port('src', imports=[Flow('b', size=100)])],
         )
         assert data.effects.objective_effect == 'cost'
+
+
+class TestFlowNodeId:
+    def test_node_included_in_default_id(self):
+        """Flow with node set auto-generates carrier:node id."""
+        f = Flow('heat', node='A')
+        assert f.id == 'heat:A'
+
+    def test_node_without_node_uses_carrier(self):
+        """Flow without node uses carrier as id."""
+        f = Flow('heat')
+        assert f.id == 'heat'
+
+
+class TestStorageValidation:
+    def test_mismatched_carriers_raises(self):
+        """Storage with different charging/discharging carriers raises ValueError."""
+        with pytest.raises(ValueError, match='charging carrier'):
+            Storage('bat', Flow('elec'), Flow('heat'))
+
+
+class TestCarrierBalance:
+    def test_carrier_balance_property(self):
+        """StatsAccessor.carrier_balance returns signed balance per carrier."""
+        result = optimize(
+            timesteps=ts(3),
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port('src', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
+                Port('sink', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
+            ],
+        )
+        balance = result.stats.carrier_balance
+        assert 'carrier' in balance.dims
+        assert 'flow' in balance.dims
+        # Source has positive coeff, sink negative — balance should sum to ~0
+        total = balance.sum('flow')
+        for val in total.sel(carrier='elec').values:
+            assert val == pytest.approx(0.0, abs=1e-6)
