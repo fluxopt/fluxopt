@@ -117,12 +117,12 @@ class TestStorageValidation:
             Storage('bat', Flow('elec'), Flow('heat'))
 
     def test_same_short_id_renamed_to_charge_discharge(self):
-        """Storage with same short_id renames qualified ids but preserves short_id."""
+        """Storage with same short_id renames both short_id and id."""
         s = Storage('bat', Flow('elec'), Flow('elec'))
+        assert s.charging.short_id == 'charge'
+        assert s.discharging.short_id == 'discharge'
         assert s.charging.id == 'bat(charge)'
         assert s.discharging.id == 'bat(discharge)'
-        assert s.charging.short_id == 'elec'
-        assert s.discharging.short_id == 'elec'
 
     def test_distinct_short_ids_preserved(self):
         """Storage with explicit different short_ids keeps them in qualified id."""
