@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import xarray as xr
 
@@ -81,7 +81,7 @@ class Result:
         return self.storage_levels.sel(storage=storage_id)
 
     @cached_property
-    def topology(self) -> dict[str, dict[str, dict[str, list[str]]]]:
+    def topology(self) -> dict[Literal['carriers', 'converters'], dict[str, dict[str, list[str]]]]:
         """Carrier and converter connectivity derived from model data.
 
         Returns a dict with ``carriers`` and ``converters`` keys, each mapping
