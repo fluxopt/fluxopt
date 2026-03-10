@@ -77,8 +77,8 @@ So 10 MW fuel input produces 4 MW electrical + 5 MW thermal.
 ## Custom Conversion Factors
 
 For devices not covered by factory methods, pass `conversion_factors` directly.
-Each dict in the list is one conversion equation, mapping flows to their
-coefficients:
+Each dict in the list is one conversion equation, mapping flow short ids to
+their coefficients:
 
 ```python
 in1 = Flow('a', size=100)
@@ -89,7 +89,7 @@ conv = Converter(
     id='custom',
     inputs=[in1, in2],
     outputs=[out],
-    conversion_factors=[{in1: 0.5, in2: 0.3, out: -1}],
+    conversion_factors=[{'a': 0.5, 'b': 0.3, 'c': -1}],
 )
 ```
 

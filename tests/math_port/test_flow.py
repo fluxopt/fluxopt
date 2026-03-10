@@ -43,7 +43,7 @@ class TestFlowConstraints:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100, relative_minimum=0.4),
                 ),
             ],

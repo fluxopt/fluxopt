@@ -116,6 +116,20 @@ class TestStorageValidation:
         with pytest.raises(ValueError, match='charging carrier'):
             Storage('bat', Flow('elec'), Flow('heat'))
 
+    def test_same_short_id_renamed_to_charge_discharge(self):
+        """Storage with same short_id renames both short_id and id."""
+        s = Storage('bat', Flow('elec'), Flow('elec'))
+        assert s.charging.short_id == 'charge'
+        assert s.discharging.short_id == 'discharge'
+        assert s.charging.id == 'bat(charge)'
+        assert s.discharging.id == 'bat(discharge)'
+
+    def test_distinct_short_ids_preserved(self):
+        """Storage with explicit different short_ids keeps them in qualified id."""
+        s = Storage('bat', Flow('elec', short_id='in'), Flow('elec', short_id='out'))
+        assert s.charging.id == 'bat(in)'
+        assert s.discharging.id == 'bat(out)'
+
 
 class TestCarrierBalance:
     def test_carrier_balance_property(self):

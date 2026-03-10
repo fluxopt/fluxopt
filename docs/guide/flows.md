@@ -76,21 +76,21 @@ and constraints.
 ## Id Qualification
 
 Flow ids are auto-qualified by the parent component. You rarely need to set
-`id` explicitly:
+`short_id` explicitly:
 
 ```python
 from fluxopt import Port
 
 f = Flow('elec')
 Port('grid', imports=[f])
-# f.id is now 'grid(elec)'
+# f.id is now 'grid(elec)', f.short_id is still 'elec'
 ```
 
-Set `id` to disambiguate when a component has multiple flows on the same carrier:
+Set `short_id` to disambiguate when a component has multiple flows on the same carrier:
 
 ```python
-f1 = Flow('elec', id='base')
-f2 = Flow('elec', id='peak')
+f1 = Flow('elec', short_id='base')
+f2 = Flow('elec', short_id='peak')
 Port('plant', imports=[f1, f2])
 # f1.id = 'plant(base)', f2.id = 'plant(peak)'
 ```
@@ -134,7 +134,7 @@ the formulation.
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `carrier` | `str` | required | Carrier this flow connects to |
-| `id` | `str` | `''` | Optional id (auto-qualified by parent) |
+| `short_id` | `str` | `''` | Defaults to `carrier` (or `carrier:node` when `node` is set); `id` is the qualified form `component(short_id)` |
 | `node` | `str \| None` | `None` | Sub-node for multi-node balancing |
 | `size` | `float \| Sizing \| None` | `None` | Nominal capacity [MW] or [investment](sizing.md) |
 | `relative_minimum` | `TimeSeries` | `0.0` | Lower bound as fraction of size |

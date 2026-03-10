@@ -40,7 +40,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=Sizing(
@@ -91,7 +91,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'InvestBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=Sizing(min_size=0, max_size=100, mandatory=False, effects_fixed={'cost': 99999}),
@@ -100,7 +100,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -140,7 +140,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=Sizing(min_size=100, max_size=200, mandatory=True, effects_per_size={'cost': 1}),
@@ -184,7 +184,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'FixedBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=Sizing(min_size=80, max_size=80, mandatory=False, effects_fixed={'cost': 10}),
@@ -193,7 +193,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -248,7 +248,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'ExpensiveBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=Sizing(
@@ -263,7 +263,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -304,7 +304,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'ExpensiveBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=Sizing(min_size=10, max_size=100, mandatory=False, effects_fixed={'cost': 1000}),
@@ -313,7 +313,7 @@ class TestFlowInvest:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -380,7 +380,7 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         relative_minimum=0.5,
@@ -431,7 +431,7 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'InvestBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         relative_minimum=0.1,
@@ -442,7 +442,7 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],

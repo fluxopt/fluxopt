@@ -102,7 +102,7 @@ class TestStatusWithEffects:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -153,7 +153,7 @@ class TestStatusWithEffects:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -205,7 +205,7 @@ class TestInvestWithRelativeMinimum:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         relative_minimum=0.5,
@@ -260,7 +260,7 @@ class TestConversionWithTimeVaryingEffects:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat'),
                 ),
             ],
@@ -309,7 +309,7 @@ class TestConversionWithTimeVaryingEffects:
                     'CHP',
                     eta_th=0.5,
                     eta_el=0.4,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat'),
                     electrical_flow=Flow('Elec'),
                 ),
@@ -366,7 +366,7 @@ class TestStatusWithMultipleConstraints:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
@@ -378,7 +378,7 @@ class TestStatusWithMultipleConstraints:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow('Heat', size=100),
                 ),
             ],
@@ -438,7 +438,7 @@ class TestEffectsWithConversion:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', id='fuel'),
+                    fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
                         size=100,

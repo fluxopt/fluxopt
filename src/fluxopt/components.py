@@ -49,12 +49,14 @@ class Converter:
     id: str
     inputs: list[Flow] | IdList[Flow]
     outputs: list[Flow] | IdList[Flow]
-    conversion_factors: list[dict[Flow, TimeSeries]] = field(default_factory=list)  # a_f
+    conversion_factors: list[dict[str, TimeSeries]] = field(default_factory=list)  # a_f
+    _short_to_id: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Qualify flow ids with the converter id."""
+        """Qualify flow ids and build short→qualified mapping."""
         self.inputs = _qualify_flows(self.id, list(self.inputs))
         self.outputs = _qualify_flows(self.id, list(self.outputs))
+        self._short_to_id = {f.short_id: f.id for f in (*self.inputs, *self.outputs)}
 
     @classmethod
     def _single_io(cls, id: str, coefficient: TimeSeries, input_flow: Flow, output_flow: Flow) -> Converter:
@@ -63,7 +65,7 @@ class Converter:
             id,
             inputs=[input_flow],
             outputs=[output_flow],
-            conversion_factors=[{input_flow: coefficient, output_flow: -1}],
+            conversion_factors=[{input_flow.short_id: coefficient, output_flow.short_id: -1}],
         )
 
     @classmethod
@@ -105,8 +107,8 @@ class Converter:
             inputs=[electrical_flow, source_flow],
             outputs=[thermal_flow],
             conversion_factors=[
-                {electrical_flow: cop, thermal_flow: -1},
-                {electrical_flow: 1, source_flow: 1, thermal_flow: -1},
+                {electrical_flow.short_id: cop, thermal_flow.short_id: -1},
+                {electrical_flow.short_id: 1, source_flow.short_id: 1, thermal_flow.short_id: -1},
             ],
         )
 
@@ -147,7 +149,7 @@ class Converter:
             inputs=[fuel_flow],
             outputs=[electrical_flow, thermal_flow],
             conversion_factors=[
-                {fuel_flow: eta_el, electrical_flow: -1},
-                {fuel_flow: eta_th, thermal_flow: -1},
+                {fuel_flow.short_id: eta_el, electrical_flow.short_id: -1},
+                {fuel_flow.short_id: eta_th, thermal_flow.short_id: -1},
             ],
         )
