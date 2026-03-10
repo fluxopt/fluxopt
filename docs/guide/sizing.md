@@ -65,7 +65,7 @@ Sizing can contribute to tracked effects (cost, CO2, etc.) via two mechanisms:
 
 ### Per-Size Effects
 
-Cost proportional to the invested size (e.g., EUR/MW or kg_CO2/MWh):
+Cost proportional to the invested size (e.g., EUR/MW or kg_CO2/MW):
 
 ```python
 # 500 €/MW investment cost

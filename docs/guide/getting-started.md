@@ -11,7 +11,7 @@ A gas boiler supplies heat to meet a demand profile. We minimize fuel cost.
 gas ──▶ [boiler η=0.9] ──▶ heat ──▶ demand
  ▲
  │
-grid (gas source, 0.04 €/kWh)
+grid (gas source, 0.04 €/MWh)
 ```
 
 ## Step by Step
@@ -51,7 +51,7 @@ Flows carry energy on a carrier. Each flow has a `size` (nominal capacity) and
 optional parameters like `fixed_relative_profile` or `effects_per_flow_hour`.
 
 ```python
-# Gas source: up to 500 MW, costs 0.04 €/kWh
+# Gas source: up to 500 MW, costs 0.04 €/MWh
 gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
 
 # Boiler fuel input and heat output

@@ -99,7 +99,18 @@ Port('plant', imports=[f1, f2])
 
 By default, all flows on the same carrier share a single balance equation.
 Use `node` to split a carrier into independent sub-balances — for example,
-separate heat networks in different buildings:
+separate heat networks in different buildings.
+
+First, declare the carrier with its nodes:
+
+```python
+from fluxopt import Carrier
+
+heat = Carrier('heat', nodes=['A', 'B'], unit='MWh', color='red')
+```
+
+Then assign flows to nodes. The `node` value must match one of the carrier's
+declared nodes:
 
 ```python
 # Two independent heat nodes
@@ -114,15 +125,6 @@ node A's demand — they don't interact.
 
 The flow id auto-includes the node: `Flow('heat', node='A')` gets
 `id='heat:A'`, which qualifies to `port(heat:A)`.
-
-Define carrier metadata (unit, color) separately with the `Carrier` class
-if needed:
-
-```python
-from fluxopt import Carrier
-
-heat = Carrier('heat', nodes=['A', 'B'], unit='MWh', color='red')
-```
 
 See [Carrier Balance (Math)](../math/bus-balance.md#multi-node-carriers) for
 the formulation.

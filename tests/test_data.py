@@ -51,8 +51,8 @@ class TestCarriersData:
         coeffs = data.carriers.flow_coeff
         out_coeff = float(coeffs.sel(carrier='b', flow='src(b)').values)
         in_coeff = float(coeffs.sel(carrier='b', flow='sink(b)').values)
-        assert out_coeff == 1.0  # output to bus
-        assert in_coeff == -1.0  # input from bus
+        assert out_coeff == 1.0  # output to carrier
+        assert in_coeff == -1.0  # input from carrier
 
 
 class TestConvertersTable:
