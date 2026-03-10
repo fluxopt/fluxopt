@@ -25,7 +25,7 @@
     
     
       
-        <title>Bus Balance - fluxopt</title>
+        <title>Carrier Balance - fluxopt</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#bus-balance" class="md-skip">
+        <a href="#carrier-balance" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Bus Balance
+              Carrier Balance
             
           </span>
         </div>
@@ -762,6 +762,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notebooks/03-multi-node-heat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Node Heat Network
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -903,7 +931,7 @@
   <span class="md-ellipsis">
     
   
-    Bus Balance
+    Carrier Balance
   
 
     
@@ -921,7 +949,7 @@
   <span class="md-ellipsis">
     
   
-    Bus Balance
+    Carrier Balance
   
 
     
@@ -976,6 +1004,56 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-node-carriers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Node Carriers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Multi-Node Carriers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formulation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formulation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1249,6 +1327,56 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#multi-node-carriers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Node Carriers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Multi-Node Carriers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formulation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formulation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1269,19 +1397,19 @@
   
 
 
-<h1 id="bus-balance">Bus Balance<a class="headerlink" href="#bus-balance" title="Permanent link">&para;</a></h1>
+<h1 id="carrier-balance">Carrier Balance<a class="headerlink" href="#carrier-balance" title="Permanent link">&para;</a></h1>
 <h2 id="formulation">Formulation<a class="headerlink" href="#formulation" title="Permanent link">&para;</a></h2>
-<p>Every bus <span class="arithmatex">\(b\)</span> must be balanced at every timestep — total outflow equals total inflow:</p>
+<p>Every carrier <span class="arithmatex">\(b\)</span> must be balanced at every timestep — total outflow equals total inflow:</p>
 <div class="arithmatex">\[
 \sum_{f \in \mathcal{F}_b^{\text{out}}} P_{f,t} - \sum_{f \in \mathcal{F}_b^{\text{in}}} P_{f,t} = 0 \quad \forall \, b \in \mathcal{B}, \; t \in \mathcal{T}
 \]</div>
 <p>where:</p>
 <ul>
-<li><span class="arithmatex">\(\mathcal{F}_b^{\text{out}}\)</span> — flows that produce into bus <span class="arithmatex">\(b\)</span> (imports of ports and outputs of converters)</li>
-<li><span class="arithmatex">\(\mathcal{F}_b^{\text{in}}\)</span> — flows that consume from bus <span class="arithmatex">\(b\)</span> (exports of ports and inputs of converters)</li>
+<li><span class="arithmatex">\(\mathcal{F}_b^{\text{out}}\)</span> — flows that produce into carrier <span class="arithmatex">\(b\)</span> (imports of ports and outputs of converters)</li>
+<li><span class="arithmatex">\(\mathcal{F}_b^{\text{in}}\)</span> — flows that consume from carrier <span class="arithmatex">\(b\)</span> (exports of ports and inputs of converters)</li>
 </ul>
-<p>The sign convention uses coefficients: <span class="arithmatex">\(+1\)</span> for flows producing into the bus and
-<span class="arithmatex">\(-1\)</span> for flows consuming from the bus. The constraint is then:</p>
+<p>The sign convention uses coefficients: <span class="arithmatex">\(+1\)</span> for flows producing into the carrier and
+<span class="arithmatex">\(-1\)</span> for flows consuming from the carrier. The constraint is then:</p>
 <div class="arithmatex">\[
 \sum_{f \in \mathcal{F}_b} \text{coeff}_{b,f} \cdot P_{f,t} = 0 \quad \forall \, b, t
 \]</div>
@@ -1297,27 +1425,75 @@
 <tbody>
 <tr>
 <td><span class="arithmatex">\(\mathcal{F}_b^{\text{out}}\)</span></td>
-<td>Flows producing into bus <span class="arithmatex">\(b\)</span></td>
-<td><code>bus_coeff[f.id] = +1</code> (port imports, converter outputs, storage discharging)</td>
+<td>Flows producing into carrier <span class="arithmatex">\(b\)</span></td>
+<td><code>carrier_coeff[f.id] = +1</code> (port imports, converter outputs, storage discharging)</td>
 </tr>
 <tr>
 <td><span class="arithmatex">\(\mathcal{F}_b^{\text{in}}\)</span></td>
-<td>Flows consuming from bus <span class="arithmatex">\(b\)</span></td>
-<td><code>bus_coeff[f.id] = -1</code> (port exports, converter inputs, storage charging)</td>
+<td>Flows consuming from carrier <span class="arithmatex">\(b\)</span></td>
+<td><code>carrier_coeff[f.id] = -1</code> (port exports, converter inputs, storage charging)</td>
 </tr>
 <tr>
 <td><span class="arithmatex">\(P_{f,t}\)</span></td>
 <td>Flow rate variable</td>
 <td><code>flow_rate[flow, time]</code></td>
 </tr>
+<tr>
+<td><span class="arithmatex">\((b\!:\!n)\)</span></td>
+<td>Compound carrier-node coordinate</td>
+<td>e.g., <code>heat:A</code>, <code>heat:B</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\mathcal{F}_{b:n}\)</span></td>
+<td>Flows assigned to node <span class="arithmatex">\(n\)</span> of carrier <span class="arithmatex">\(b\)</span></td>
+<td>Subset of <span class="arithmatex">\(\mathcal{F}_b\)</span> with matching <code>node</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\text{coeff}_{b:n,f}\)</span></td>
+<td>Coefficient of flow <span class="arithmatex">\(f\)</span> in node <span class="arithmatex">\(n\)</span>'s balance</td>
+<td><code>+1</code> or <code>-1</code>, same convention as single-node</td>
+</tr>
 </tbody>
 </table>
 <p>See <a href="../notation/">Notation</a> for the full symbol table.</p>
 <h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
-<p>A thermal bus with a boiler output (3 MW) and a demand input (3 MW):</p>
+<p>A thermal carrier with a boiler output (3 MW) and a demand input (3 MW):</p>
 <div class="arithmatex">\[
 \underbrace{P_{\text{boiler\_th},t}}_{+1 \times 3} + \underbrace{(-1) \cdot P_{\text{demand},t}}_{-1 \times 3} = 0 \quad \checkmark
 \]</div>
+<h2 id="multi-node-carriers">Multi-Node Carriers<a class="headerlink" href="#multi-node-carriers" title="Permanent link">&para;</a></h2>
+<p>A carrier can be split into independent <strong>nodes</strong>, each with its own balance
+equation. This models spatially separated subsystems on the same physical
+medium — e.g., separate heat networks in different buildings.</p>
+<h3 id="formulation_1">Formulation<a class="headerlink" href="#formulation_1" title="Permanent link">&para;</a></h3>
+<p>Each node <span class="arithmatex">\(n\)</span> of carrier <span class="arithmatex">\(b\)</span> gets its own balance constraint:</p>
+<div class="arithmatex">\[
+\sum_{f \in \mathcal{F}_{b:n}} \text{coeff}_{b:n,f} \cdot P_{f,t} = 0 \quad \forall \, (b, n), \; t \in \mathcal{T}
+\]</div>
+<p>The compound coordinate <span class="arithmatex">\(b\!:\!n\)</span> (e.g., <code>heat:A</code>, <code>heat:B</code>) identifies each
+node in the carrier dimension. Flows on different nodes never interact — their
+balance equations are fully independent.</p>
+<h3 id="example_1">Example<a class="headerlink" href="#example_1" title="Permanent link">&para;</a></h3>
+<p>Two independent heat nodes A and B, each with its own supply and demand:</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\text{Node A:}\quad &amp; P_{\text{src\_a(heat:A)},t} - P_{\text{sink\_a(heat:A)},t} = 0 \\
+\text{Node B:}\quad &amp; P_{\text{src\_b(heat:B)},t} - P_{\text{sink\_b(heat:B)},t} = 0
+\end{aligned}
+\]</div>
+<p>Node A's supply serves only node A's demand. Node B is balanced independently.</p>
+<h3 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fluxopt</span><span class="w"> </span><span class="kn">import</span> <span class="n">Flow</span><span class="p">,</span> <span class="n">Port</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Flows declare their node</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">supply_a</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">demand_a</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">fixed_relative_profile</span><span class="o">=</span><span class="p">[</span><span class="mf">0.5</span><span class="p">])</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">supply_b</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">demand_b</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">fixed_relative_profile</span><span class="o">=</span><span class="p">[</span><span class="mf">0.8</span><span class="p">])</span>
+</code></pre></div>
+<p>The flow id auto-includes the node: <code>Flow('heat', node='A')</code> gets <code>id='heat:A'</code>,
+which qualifies to <code>src_a(heat:A)</code> after component qualification.</p>
 
 
 

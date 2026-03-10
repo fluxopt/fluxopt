@@ -836,6 +836,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-multi-node-heat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Node Heat Network
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -956,14 +984,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../math/bus-balance/" class="md-nav__link">
+      <a href="../../math/carrier-balance/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Bus Balance
+    Carrier Balance
   
 
     
@@ -1975,7 +2003,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h1 id="quickstart">Quickstart<a class="anchor-link" href="#quickstart">¶</a></h1><p>Heat a workshop with a gas boiler — the simplest possible system.</p>
-<p><strong>Concepts</strong>: Bus (balance node) · Flow (energy transfer) · Effect (cost tracking) · Port (source/sink) · Converter (efficiency coupling)</p>
+<p><strong>Concepts</strong>: Carrier: energy type/medium (e.g. electricity, heat) · Node: optional balance/location where flows are summed · Flow (energy transfer) · Effect (cost tracking) · Port (source/sink) · Converter (efficiency coupling)</p>
 </div>
 </div>
 </div>
@@ -2004,7 +2032,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <span class="kn">import</span><span class="w"> </span><span class="nn">plotly.io</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pio</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">plotly.subplots</span><span class="w"> </span><span class="kn">import</span> <span class="n">make_subplots</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">fluxopt</span><span class="w"> </span><span class="kn">import</span> <span class="n">Bus</span><span class="p">,</span> <span class="n">Converter</span><span class="p">,</span> <span class="n">Effect</span><span class="p">,</span> <span class="n">Flow</span><span class="p">,</span> <span class="n">Port</span><span class="p">,</span> <span class="n">optimize</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fluxopt</span><span class="w"> </span><span class="kn">import</span> <span class="n">Converter</span><span class="p">,</span> <span class="n">Effect</span><span class="p">,</span> <span class="n">Flow</span><span class="p">,</span> <span class="n">Port</span><span class="p">,</span> <span class="n">optimize</span>
 
 <span class="n">pio</span><span class="o">.</span><span class="n">renderers</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="s1">'notebook_connected'</span>
 </pre></div>
@@ -2014,7 +2042,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from plotly.subplots import make_subplots
 
-from fluxopt import Bus, Converter, Effect, Flow, Port, optimize
+from fluxopt import Converter, Effect, Flow, Port, optimize
 
 pio.renderers.default = 'notebook_connected'</div>
 </div>
@@ -2058,19 +2086,18 @@ pio.renderers.default = 'notebook_connected'</div>
 
 <span class="n">result</span> <span class="o">=</span> <span class="n">optimize</span><span class="p">(</span>
     <span class="n">timesteps</span><span class="o">=</span><span class="n">timesteps</span><span class="p">,</span>
-    <span class="n">buses</span><span class="o">=</span><span class="p">[</span><span class="n">Bus</span><span class="p">(</span><span class="s1">'gas'</span><span class="p">),</span> <span class="n">Bus</span><span class="p">(</span><span class="s1">'heat'</span><span class="p">)],</span>
     <span class="n">effects</span><span class="o">=</span><span class="p">[</span><span class="n">Effect</span><span class="p">(</span><span class="s1">'cost'</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">'EUR'</span><span class="p">,</span> <span class="n">is_objective</span><span class="o">=</span><span class="kc">True</span><span class="p">)],</span>
     <span class="n">ports</span><span class="o">=</span><span class="p">[</span>
         <span class="n">Port</span><span class="p">(</span>
             <span class="s1">'gas_grid'</span><span class="p">,</span>
             <span class="n">imports</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">Flow</span><span class="p">(</span><span class="n">bus</span><span class="o">=</span><span class="s1">'gas'</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">effects_per_flow_hour</span><span class="o">=</span><span class="p">{</span><span class="s1">'cost'</span><span class="p">:</span> <span class="mf">0.08</span><span class="p">}),</span>
+                <span class="n">Flow</span><span class="p">(</span><span class="s1">'gas'</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">effects_per_flow_hour</span><span class="o">=</span><span class="p">{</span><span class="s1">'cost'</span><span class="p">:</span> <span class="mf">0.08</span><span class="p">}),</span>
             <span class="p">],</span>
         <span class="p">),</span>
         <span class="n">Port</span><span class="p">(</span>
             <span class="s1">'workshop'</span><span class="p">,</span>
             <span class="n">exports</span><span class="o">=</span><span class="p">[</span>
-                <span class="n">Flow</span><span class="p">(</span><span class="n">bus</span><span class="o">=</span><span class="s1">'heat'</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">fixed_relative_profile</span><span class="o">=</span><span class="p">[</span><span class="mf">0.6</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]),</span>
+                <span class="n">Flow</span><span class="p">(</span><span class="s1">'heat'</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">fixed_relative_profile</span><span class="o">=</span><span class="p">[</span><span class="mf">0.6</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]),</span>
             <span class="p">],</span>
         <span class="p">),</span>
     <span class="p">],</span>
@@ -2078,8 +2105,8 @@ pio.renderers.default = 'notebook_connected'</div>
         <span class="n">Converter</span><span class="o">.</span><span class="n">boiler</span><span class="p">(</span>
             <span class="s1">'boiler'</span><span class="p">,</span>
             <span class="n">thermal_efficiency</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>
-            <span class="n">fuel_flow</span><span class="o">=</span><span class="n">Flow</span><span class="p">(</span><span class="n">bus</span><span class="o">=</span><span class="s1">'gas'</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">200</span><span class="p">),</span>
-            <span class="n">thermal_flow</span><span class="o">=</span><span class="n">Flow</span><span class="p">(</span><span class="n">bus</span><span class="o">=</span><span class="s1">'heat'</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">),</span>
+            <span class="n">fuel_flow</span><span class="o">=</span><span class="n">Flow</span><span class="p">(</span><span class="s1">'gas'</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">200</span><span class="p">),</span>
+            <span class="n">thermal_flow</span><span class="o">=</span><span class="n">Flow</span><span class="p">(</span><span class="s1">'heat'</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">),</span>
         <span class="p">),</span>
     <span class="p">],</span>
 <span class="p">)</span>
@@ -2088,19 +2115,18 @@ pio.renderers.default = 'notebook_connected'</div>
 
 result = optimize(
     timesteps=timesteps,
-    buses=[Bus('gas'), Bus('heat')],
     effects=[Effect('cost', unit='EUR', is_objective=True)],
     ports=[
         Port(
             'gas_grid',
             imports=[
-                Flow(bus='gas', size=1000, effects_per_flow_hour={'cost': 0.08}),
+                Flow('gas', size=1000, effects_per_flow_hour={'cost': 0.08}),
             ],
         ),
         Port(
             'workshop',
             exports=[
-                Flow(bus='heat', size=50, fixed_relative_profile=[0.6, 1.0, 0.9, 0.5]),
+                Flow('heat', size=50, fixed_relative_profile=[0.6, 1.0, 0.9, 0.5]),
             ],
         ),
     ],
@@ -2108,8 +2134,8 @@ result = optimize(
         Converter.boiler(
             'boiler',
             thermal_efficiency=0.9,
-            fuel_flow=Flow(bus='gas', size=200),
-            thermal_flow=Flow(bus='heat', size=100),
+            fuel_flow=Flow('gas', size=200),
+            thermal_flow=Flow('heat', size=100),
         ),
     ],
 )</div>
@@ -2125,7 +2151,7 @@ result = optimize(
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
 <pre>Running HiGHS 1.13.1 (git hash: 1d267d9): Copyright (c) 2026 under MIT licence terms
-LP linopy-problem-rwnizvbp has 52 rows; 28 cols; 78 nonzeros
+LP linopy-problem-dwvc20_r has 52 rows; 28 cols; 78 nonzeros
 Coefficient ranges:
   Matrix  [8e-02, 1e+00]
   Cost    [1e+00, 1e+00]
@@ -2138,7 +2164,7 @@ Presolve reductions: rows 0(-52); columns 0(-28); nonzeros 0(-78) - Reduced to e
 Performed postsolve
 Solving the original LP from the solution after postsolve
 
-Model name          : linopy-problem-rwnizvbp
+Model name          : linopy-problem-dwvc20_r
 Model status        : Optimal
 Objective value     :  1.3333333333e+01
 P-D objective error :  1.2841133779e-16
@@ -2782,7 +2808,7 @@ dl.xr-attrs {
 </style><pre class="xr-text-repr-fallback">&lt;xarray.DataArray 'effect--total' (effect: 2)&gt; Size: 16B
 array([13.33333333, -0.        ])
 Coordinates:
-  * effect   (effect) &lt;U7 56B 'cost' 'penalty'</pre><div class="xr-wrap" style="display:none"><div class="xr-header"><div class="xr-obj-type">xarray.DataArray</div><div class="xr-obj-name">'effect--total'</div><ul class="xr-dim-list"><li><span class="xr-has-index">effect</span>: 2</li></ul></div><ul class="xr-sections"><li class="xr-section-item"><div class="xr-array-wrap"><input checked="" class="xr-array-in" id="section-84a64c00-1aad-46fb-8a6c-8a2962101124" type="checkbox"/><label for="section-84a64c00-1aad-46fb-8a6c-8a2962101124" title="Show/hide data repr"><svg class="icon xr-icon-database"><use xlink:href="#icon-database"></use></svg></label><div class="xr-array-preview xr-preview"><span>13.33 -0.0</span></div><div class="xr-array-data"><pre>array([13.33333333, -0.        ])</pre></div></div></li><li class="xr-section-item"><input checked="" class="xr-section-summary-in" id="section-6d28b06f-be47-4bca-8c72-cc7288a5cba8" type="checkbox"><label class="xr-section-summary" for="section-6d28b06f-be47-4bca-8c72-cc7288a5cba8" title="Expand/collapse section">Coordinates: <span>(1)</span></label><div class="xr-section-inline-details"></div><div class="xr-section-details"><ul class="xr-var-list"><li class="xr-var-item"><div class="xr-var-name"><span class="xr-has-index">effect</span></div><div class="xr-var-dims">(effect)</div><div class="xr-var-dtype">&lt;U7</div><div class="xr-var-preview xr-preview">'cost' 'penalty'</div><input class="xr-var-attrs-in" disabled="" id="attrs-82dc7b96-47d1-4d3a-8ab4-a9743d31c914" type="checkbox"/><label for="attrs-82dc7b96-47d1-4d3a-8ab4-a9743d31c914" title="Show/Hide attributes"><svg class="icon xr-icon-file-text2"><use xlink:href="#icon-file-text2"></use></svg></label><input class="xr-var-data-in" id="data-cc1126ff-d6f2-4963-b266-f506e8bc42d3" type="checkbox"/><label for="data-cc1126ff-d6f2-4963-b266-f506e8bc42d3" title="Show/Hide data repr"><svg class="icon xr-icon-database"><use xlink:href="#icon-database"></use></svg></label><div class="xr-var-attrs"><dl class="xr-attrs"></dl></div><div class="xr-var-data"><pre>array(['cost', 'penalty'], dtype='&lt;U7')</pre></div></li></ul></div></input></li></ul></div></div>
+  * effect   (effect) &lt;U7 56B 'cost' 'penalty'</pre><div class="xr-wrap" style="display:none"><div class="xr-header"><div class="xr-obj-type">xarray.DataArray</div><div class="xr-obj-name">'effect--total'</div><ul class="xr-dim-list"><li><span class="xr-has-index">effect</span>: 2</li></ul></div><ul class="xr-sections"><li class="xr-section-item"><div class="xr-array-wrap"><input checked="" class="xr-array-in" id="section-d0ac6361-5bfa-4a9e-9cdd-4ee809775b2d" type="checkbox"/><label for="section-d0ac6361-5bfa-4a9e-9cdd-4ee809775b2d" title="Show/hide data repr"><svg class="icon xr-icon-database"><use xlink:href="#icon-database"></use></svg></label><div class="xr-array-preview xr-preview"><span>13.33 -0.0</span></div><div class="xr-array-data"><pre>array([13.33333333, -0.        ])</pre></div></div></li><li class="xr-section-item"><input checked="" class="xr-section-summary-in" id="section-69ae63cd-e393-4372-b2eb-db79aeb404a1" type="checkbox"><label class="xr-section-summary" for="section-69ae63cd-e393-4372-b2eb-db79aeb404a1" title="Expand/collapse section">Coordinates: <span>(1)</span></label><div class="xr-section-inline-details"></div><div class="xr-section-details"><ul class="xr-var-list"><li class="xr-var-item"><div class="xr-var-name"><span class="xr-has-index">effect</span></div><div class="xr-var-dims">(effect)</div><div class="xr-var-dtype">&lt;U7</div><div class="xr-var-preview xr-preview">'cost' 'penalty'</div><input class="xr-var-attrs-in" disabled="" id="attrs-7f6a34c8-685b-433a-8f32-47820cbff8f3" type="checkbox"/><label for="attrs-7f6a34c8-685b-433a-8f32-47820cbff8f3" title="Show/Hide attributes"><svg class="icon xr-icon-file-text2"><use xlink:href="#icon-file-text2"></use></svg></label><input class="xr-var-data-in" id="data-3516be2e-0133-40f9-8651-4b1ed747a357" type="checkbox"/><label for="data-3516be2e-0133-40f9-8651-4b1ed747a357" title="Show/Hide data repr"><svg class="icon xr-icon-database"><use xlink:href="#icon-database"></use></svg></label><div class="xr-var-attrs"><dl class="xr-attrs"></dl></div><div class="xr-var-data"><pre>array(['cost', 'penalty'], dtype='&lt;U7')</pre></div></li></ul></div></input></li></ul></div></div>
 </div>
 </div>
 </div>
@@ -2876,9 +2902,9 @@ fig</div>
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output" data-mime-type="text/html" tabindex="0">
 <div> <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-AMS-MML_SVG"></script><script>if (window.MathJax && window.MathJax.Hub && window.MathJax.Hub.Config) {window.MathJax.Hub.Config({SVG: {font: "STIX-Web"}});}</script> <script>window.PlotlyConfig = {MathJaxConfig: 'local'};</script>
-<script charset="utf-8" crossorigin="anonymous" integrity="sha256-KEmPoupLpFyGMyGAiOsiNDbKDKAvxXAn/W+oQa0ZAfk=" src="https://cdn.plot.ly/plotly-3.4.0.min.js"></script> <div class="plotly-graph-div" id="348c61a2-68dd-4b68-a92a-18864844ec9c" style="height:450px; width:100%;"></div> <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("348c61a2-68dd-4b68-a92a-18864844ec9c")) {                    Plotly.newPlot(                        "348c61a2-68dd-4b68-a92a-18864844ec9c",                        [{"line":{"shape":"hv"},"name":"gas_grid(gas)","x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"q6qqqqqqQEByHMdxHMdLQAAAAAAAAElAchzHcRzHO0A="},"type":"scatter","xaxis":"x","yaxis":"y"},{"line":{"shape":"hv"},"name":"workshop(heat)","x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"AAAAAAAAPkAAAAAAAABJQAAAAAAAgEZAAAAAAAAAOUA="},"type":"scatter","xaxis":"x","yaxis":"y"},{"line":{"shape":"hv"},"name":"boiler(gas)","x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"q6qqqqqqQEByHMdxHMdLQAAAAAAAAElAchzHcRzHO0A="},"type":"scatter","xaxis":"x","yaxis":"y"},{"line":{"shape":"hv"},"name":"boiler(heat)","x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"AAAAAAAAPkAAAAAAAABJQAAAAAAAgEZAAAAAAAAAOUA="},"type":"scatter","xaxis":"x","yaxis":"y"},{"name":"cost","showlegend":false,"x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"VlVVVVVVBUByHMdxHMcRQAAAAAAAABBAchzHcRzHAUA="},"type":"bar","xaxis":"x2","yaxis":"y2"}],                        {"template":{"data":{"barpolar":[{"marker":{"line":{"color":"white","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"white","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"#C8D4E3","linecolor":"#C8D4E3","minorgridcolor":"#C8D4E3","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"#C8D4E3","linecolor":"#C8D4E3","minorgridcolor":"#C8D4E3","startlinecolor":"#2a3f5f"},"type":"carpet"}],"choropleth":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"choropleth"}],"contourcarpet":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"contourcarpet"}],"contour":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"contour"}],"heatmap":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"heatmap"}],"histogram2dcontour":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"histogram2dcontour"}],"histogram2d":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"histogram2d"}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"mesh3d":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"mesh3d"}],"parcoords":[{"line":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"parcoords"}],"pie":[{"automargin":true,"type":"pie"}],"scatter3d":[{"line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatter3d"}],"scattercarpet":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattercarpet"}],"scattergeo":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattergeo"}],"scattergl":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattergl"}],"scattermapbox":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattermapbox"}],"scattermap":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattermap"}],"scatterpolargl":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterpolargl"}],"scatterpolar":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterpolar"}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"scatterternary":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterternary"}],"surface":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"surface"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}]},"layout":{"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"autotypenumbers":"strict","coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]],"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]},"colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"geo":{"bgcolor":"white","lakecolor":"white","landcolor":"white","showlakes":true,"showland":true,"subunitcolor":"#C8D4E3"},"hoverlabel":{"align":"left"},"hovermode":"closest","mapbox":{"style":"light"},"paper_bgcolor":"white","plot_bgcolor":"white","polar":{"angularaxis":{"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":""},"bgcolor":"white","radialaxis":{"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":""}},"scene":{"xaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"},"yaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"},"zaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"ternary":{"aaxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""},"baxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""},"bgcolor":"white","caxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""}},"title":{"x":0.05},"xaxis":{"automargin":true,"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":"","title":{"standoff":15},"zerolinecolor":"#EBF0F8","zerolinewidth":2},"yaxis":{"automargin":true,"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":"","title":{"standoff":15},"zerolinecolor":"#EBF0F8","zerolinewidth":2}}},"xaxis":{"anchor":"y","domain":[0.0,1.0],"matches":"x2","showticklabels":false},"yaxis":{"anchor":"x","domain":[0.575,1.0],"title":{"text":"kW"}},"xaxis2":{"anchor":"y2","domain":[0.0,1.0]},"yaxis2":{"anchor":"x2","domain":[0.0,0.425],"title":{"text":"EUR"}},"annotations":[{"font":{"size":16},"showarrow":false,"text":"Flow Rates","x":0.5,"xanchor":"center","xref":"paper","y":1.0,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"Cost per Timestep","x":0.5,"xanchor":"center","xref":"paper","y":0.425,"yanchor":"bottom","yref":"paper"}],"margin":{"l":50,"r":20,"t":30,"b":20},"height":450},                        {"responsive": true}                    ).then(function(){
+<script charset="utf-8" crossorigin="anonymous" integrity="sha256-KEmPoupLpFyGMyGAiOsiNDbKDKAvxXAn/W+oQa0ZAfk=" src="https://cdn.plot.ly/plotly-3.4.0.min.js"></script> <div class="plotly-graph-div" id="bd7d6423-3036-4d65-af9e-87b058516f24" style="height:450px; width:100%;"></div> <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("bd7d6423-3036-4d65-af9e-87b058516f24")) {                    Plotly.newPlot(                        "bd7d6423-3036-4d65-af9e-87b058516f24",                        [{"line":{"shape":"hv"},"name":"gas_grid(gas)","x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"q6qqqqqqQEByHMdxHMdLQAAAAAAAAElAchzHcRzHO0A="},"type":"scatter","xaxis":"x","yaxis":"y"},{"line":{"shape":"hv"},"name":"workshop(heat)","x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"AAAAAAAAPkAAAAAAAABJQAAAAAAAgEZAAAAAAAAAOUA="},"type":"scatter","xaxis":"x","yaxis":"y"},{"line":{"shape":"hv"},"name":"boiler(gas)","x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"q6qqqqqqQEByHMdxHMdLQAAAAAAAAElAchzHcRzHO0A="},"type":"scatter","xaxis":"x","yaxis":"y"},{"line":{"shape":"hv"},"name":"boiler(heat)","x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"AAAAAAAAPkAAAAAAAABJQAAAAAAAgEZAAAAAAAAAOUA="},"type":"scatter","xaxis":"x","yaxis":"y"},{"name":"cost","showlegend":false,"x":["2024-01-15T08:00:00.000000","2024-01-15T09:00:00.000000","2024-01-15T10:00:00.000000","2024-01-15T11:00:00.000000"],"y":{"dtype":"f8","bdata":"VlVVVVVVBUByHMdxHMcRQAAAAAAAABBAchzHcRzHAUA="},"type":"bar","xaxis":"x2","yaxis":"y2"}],                        {"template":{"data":{"barpolar":[{"marker":{"line":{"color":"white","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"white","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"#C8D4E3","linecolor":"#C8D4E3","minorgridcolor":"#C8D4E3","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"#C8D4E3","linecolor":"#C8D4E3","minorgridcolor":"#C8D4E3","startlinecolor":"#2a3f5f"},"type":"carpet"}],"choropleth":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"choropleth"}],"contourcarpet":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"contourcarpet"}],"contour":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"contour"}],"heatmap":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"heatmap"}],"histogram2dcontour":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"histogram2dcontour"}],"histogram2d":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"histogram2d"}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"mesh3d":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"mesh3d"}],"parcoords":[{"line":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"parcoords"}],"pie":[{"automargin":true,"type":"pie"}],"scatter3d":[{"line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatter3d"}],"scattercarpet":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattercarpet"}],"scattergeo":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattergeo"}],"scattergl":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattergl"}],"scattermapbox":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattermapbox"}],"scattermap":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattermap"}],"scatterpolargl":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterpolargl"}],"scatterpolar":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterpolar"}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"scatterternary":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterternary"}],"surface":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"surface"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}]},"layout":{"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"autotypenumbers":"strict","coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]],"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]},"colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"geo":{"bgcolor":"white","lakecolor":"white","landcolor":"white","showlakes":true,"showland":true,"subunitcolor":"#C8D4E3"},"hoverlabel":{"align":"left"},"hovermode":"closest","mapbox":{"style":"light"},"paper_bgcolor":"white","plot_bgcolor":"white","polar":{"angularaxis":{"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":""},"bgcolor":"white","radialaxis":{"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":""}},"scene":{"xaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"},"yaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"},"zaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"ternary":{"aaxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""},"baxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""},"bgcolor":"white","caxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""}},"title":{"x":0.05},"xaxis":{"automargin":true,"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":"","title":{"standoff":15},"zerolinecolor":"#EBF0F8","zerolinewidth":2},"yaxis":{"automargin":true,"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":"","title":{"standoff":15},"zerolinecolor":"#EBF0F8","zerolinewidth":2}}},"xaxis":{"anchor":"y","domain":[0.0,1.0],"matches":"x2","showticklabels":false},"yaxis":{"anchor":"x","domain":[0.575,1.0],"title":{"text":"kW"}},"xaxis2":{"anchor":"y2","domain":[0.0,1.0]},"yaxis2":{"anchor":"x2","domain":[0.0,0.425],"title":{"text":"EUR"}},"annotations":[{"font":{"size":16},"showarrow":false,"text":"Flow Rates","x":0.5,"xanchor":"center","xref":"paper","y":1.0,"yanchor":"bottom","yref":"paper"},{"font":{"size":16},"showarrow":false,"text":"Cost per Timestep","x":0.5,"xanchor":"center","xref":"paper","y":0.425,"yanchor":"bottom","yref":"paper"}],"margin":{"l":50,"r":20,"t":30,"b":20},"height":450},                        {"responsive": true}                    ).then(function(){
                             
-var gd = document.getElementById('348c61a2-68dd-4b68-a92a-18864844ec9c');
+var gd = document.getElementById('bd7d6423-3036-4d65-af9e-87b058516f24');
 var x = new MutationObserver(function (mutations, observer) {{
         var display = window.getComputedStyle(gd).display;
         if (!display || display === 'none') {{
@@ -2914,7 +2940,10 @@ if (outputEl) {{
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <p><strong>Workflow</strong>: define flows → group into ports &amp; converters → <code>optimize()</code> → inspect results</p>
-<p>Flow ids are qualified as <code>component(bus)</code> — e.g. <code>boiler(gas)</code>, <code>workshop(heat)</code>.</p>
+<p>By default, flow ids are qualified as <code>component(carrier)</code> — e.g. <code>boiler(gas)</code>, <code>workshop(heat)</code>.
+This applies when a Flow is created without an explicit <code>id</code> and without a <code>node</code>.
+Setting <code>Flow(id=...)</code> uses that id instead of the carrier name, and providing
+<code>node='X'</code> produces <code>component(carrier:X)</code>.</p>
 <p><strong>Next</strong>: <a href="02-heat-system.ipynb">Heat System with Storage</a> — time-varying prices and load shifting</p>
 </div>
 </div>

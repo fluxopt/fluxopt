@@ -559,10 +559,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-define-buses" class="md-nav__link">
+  <a href="#2-define-carriers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Define Buses
+        2. Define Carriers
       
     </span>
   </a>
@@ -930,6 +930,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notebooks/03-multi-node-heat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Node Heat Network
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1050,14 +1078,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../math/bus-balance/" class="md-nav__link">
+      <a href="../../math/carrier-balance/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Bus Balance
+    Carrier Balance
   
 
     
@@ -1334,10 +1362,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-define-buses" class="md-nav__link">
+  <a href="#2-define-carriers" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Define Buses
+        2. Define Carriers
       
     </span>
   </a>
@@ -1440,40 +1468,41 @@
 optimize, and inspect results.</p>
 <h2 id="the-system">The System<a class="headerlink" href="#the-system" title="Permanent link">&para;</a></h2>
 <p>A gas boiler supplies heat to meet a demand profile. We minimize fuel cost.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>gas bus ──▶ [boiler η=0.9] ──▶ heat bus ──▶ demand
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>   ▲
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>   │
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> grid (gas source, 0.04 €/kWh)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>gas ──▶ [boiler η=0.9] ──▶ heat ──▶ demand
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a> ▲
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a> │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>grid (gas source, 0.04 €/MWh)
 </code></pre></div>
 <h2 id="step-by-step">Step by Step<a class="headerlink" href="#step-by-step" title="Permanent link">&para;</a></h2>
 <h3 id="1-imports-and-timesteps">1. Imports and Timesteps<a class="headerlink" href="#1-imports-and-timesteps" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fluxopt</span><span class="w"> </span><span class="kn">import</span> <span class="n">Bus</span><span class="p">,</span> <span class="n">Converter</span><span class="p">,</span> <span class="n">Effect</span><span class="p">,</span> <span class="n">Flow</span><span class="p">,</span> <span class="n">Port</span><span class="p">,</span> <span class="n">optimize</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fluxopt</span><span class="w"> </span><span class="kn">import</span> <span class="n">Carrier</span><span class="p">,</span> <span class="n">Converter</span><span class="p">,</span> <span class="n">Effect</span><span class="p">,</span> <span class="n">Flow</span><span class="p">,</span> <span class="n">Port</span><span class="p">,</span> <span class="n">optimize</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">timesteps</span> <span class="o">=</span> <span class="p">[</span><span class="n">datetime</span><span class="p">(</span><span class="mi">2024</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span> <span class="k">for</span> <span class="n">h</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span>
 </code></pre></div>
 <p>Timesteps can be <code>datetime</code> objects or plain integers. The duration <code>dt</code> is
 inferred from consecutive timestamps (here 1 h each).</p>
-<h3 id="2-define-buses">2. Define Buses<a class="headerlink" href="#2-define-buses" title="Permanent link">&para;</a></h3>
-<p>Buses are energy carriers — nodes where flows must balance.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">buses</span> <span class="o">=</span> <span class="p">[</span><span class="n">Bus</span><span class="p">(</span><span class="s1">&#39;gas&#39;</span><span class="p">),</span> <span class="n">Bus</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">)]</span>
+<h3 id="2-define-carriers">2. Define Carriers<a class="headerlink" href="#2-define-carriers" title="Permanent link">&para;</a></h3>
+<p>Carriers are energy types — nodes where flows must balance.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">gas</span> <span class="o">=</span> <span class="n">Carrier</span><span class="p">(</span><span class="s1">&#39;gas&#39;</span><span class="p">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">heat</span> <span class="o">=</span> <span class="n">Carrier</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="3-define-effects">3. Define Effects<a class="headerlink" href="#3-define-effects" title="Permanent link">&para;</a></h3>
 <p>Effects track quantities across the horizon. Mark one as the objective.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">effects</span> <span class="o">=</span> <span class="p">[</span><span class="n">Effect</span><span class="p">(</span><span class="s1">&#39;cost&#39;</span><span class="p">,</span> <span class="n">is_objective</span><span class="o">=</span><span class="kc">True</span><span class="p">)]</span>
 </code></pre></div>
 <h3 id="4-define-flows">4. Define Flows<a class="headerlink" href="#4-define-flows" title="Permanent link">&para;</a></h3>
-<p>Flows carry energy on a bus. Each flow has a <code>size</code> (nominal capacity) and
+<p>Flows carry energy on a carrier. Each flow has a <code>size</code> (nominal capacity) and
 optional parameters like <code>fixed_relative_profile</code> or <code>effects_per_flow_hour</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Gas source: up to 500 MW, costs 0.04 €/kWh</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">gas_source</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="n">bus</span><span class="o">=</span><span class="s1">&#39;gas&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">effects_per_flow_hour</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;cost&#39;</span><span class="p">:</span> <span class="mf">0.04</span><span class="p">})</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Gas source: up to 500 MW, costs 0.04 €/MWh</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">gas_source</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;gas&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">effects_per_flow_hour</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;cost&#39;</span><span class="p">:</span> <span class="mf">0.04</span><span class="p">})</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Boiler fuel input and heat output</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">fuel</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="n">bus</span><span class="o">=</span><span class="s1">&#39;gas&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">heat</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="n">bus</span><span class="o">=</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">fuel</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;gas&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">heat_out</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="c1"># Heat demand: 100 MW capacity, profile sets actual demand per timestep</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">demand</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="n">bus</span><span class="o">=</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">fixed_relative_profile</span><span class="o">=</span><span class="p">[</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">])</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">demand</span> <span class="o">=</span> <span class="n">Flow</span><span class="p">(</span><span class="s1">&#39;heat&#39;</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">fixed_relative_profile</span><span class="o">=</span><span class="p">[</span><span class="mf">0.4</span><span class="p">,</span> <span class="mf">0.7</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">])</span>
 </code></pre></div>
 <h3 id="5-define-ports-and-converters">5. Define Ports and Converters<a class="headerlink" href="#5-define-ports-and-converters" title="Permanent link">&para;</a></h3>
 <p><strong>Ports</strong> connect flows to the outside world (sources and sinks).
@@ -1484,17 +1513,16 @@ optional parameters like <code>fixed_relative_profile</code> or <code>effects_pe
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">]</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">converters</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">Converter</span><span class="o">.</span><span class="n">boiler</span><span class="p">(</span><span class="s1">&#39;boiler&#39;</span><span class="p">,</span> <span class="n">thermal_efficiency</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span> <span class="n">fuel_flow</span><span class="o">=</span><span class="n">fuel</span><span class="p">,</span> <span class="n">thermal_flow</span><span class="o">=</span><span class="n">heat</span><span class="p">),</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">Converter</span><span class="o">.</span><span class="n">boiler</span><span class="p">(</span><span class="s1">&#39;boiler&#39;</span><span class="p">,</span> <span class="n">thermal_efficiency</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span> <span class="n">fuel_flow</span><span class="o">=</span><span class="n">fuel</span><span class="p">,</span> <span class="n">thermal_flow</span><span class="o">=</span><span class="n">heat_out</span><span class="p">),</span>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">]</span>
 </code></pre></div>
 <h3 id="6-optimize">6. Optimize<a class="headerlink" href="#6-optimize" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">optimize</span><span class="p">(</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="n">timesteps</span><span class="o">=</span><span class="n">timesteps</span><span class="p">,</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">buses</span><span class="o">=</span><span class="n">buses</span><span class="p">,</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">effects</span><span class="o">=</span><span class="n">effects</span><span class="p">,</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">ports</span><span class="o">=</span><span class="n">ports</span><span class="p">,</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">converters</span><span class="o">=</span><span class="n">converters</span><span class="p">,</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="n">effects</span><span class="o">=</span><span class="n">effects</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">ports</span><span class="o">=</span><span class="n">ports</span><span class="p">,</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">converters</span><span class="o">=</span><span class="n">converters</span><span class="p">,</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">)</span>
 </code></pre></div>
 <h3 id="7-inspect-results">7. Inspect Results<a class="headerlink" href="#7-inspect-results" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Objective value (total cost)</span>
@@ -1512,7 +1540,7 @@ optional parameters like <code>fixed_relative_profile</code> or <code>effects_pe
 <a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># Per-timestep effects</span>
 <a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">effects_temporal</span><span class="p">)</span>
 </code></pre></div>
-<p>Flow ids are qualified as <code>{component}({bus_or_id})</code> — e.g., <code>boiler(gas)</code>,
+<p>Flow ids are qualified as <code>{component}({carrier_or_id})</code> — e.g., <code>boiler(gas)</code>,
 <code>grid(gas)</code>, <code>demand(heat)</code>.</p>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <ul>
