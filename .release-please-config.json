@@ -10,7 +10,8 @@
       "bump-patch-for-minor-pre-major": true,
       "changelog-path": "CHANGELOG.md",
       "prerelease": true,
-      "prerelease-type": "alpha"
+      "prerelease-type": "alpha",
+      "initial-version": "0.0.1-alpha.0"
     }
   }
 }
