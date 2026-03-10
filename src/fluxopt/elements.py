@@ -79,14 +79,17 @@ class Status:
 class Flow:
     """A single energy flow on a carrier.
 
-    ``short_id`` defaults to the carrier name. Set explicitly to
-    disambiguate multiple flows on the same carrier::
+    ``short_id`` defaults to ``carrier`` (or ``carrier:node`` when ``node``
+    is set).  Set explicitly to disambiguate multiple flows on the same
+    carrier::
 
         Flow('elec')  # short_id='elec'
+        Flow('heat', node='A')  # short_id='heat:A'
         Flow('elec', short_id='base')  # short_id='base'
 
     ``short_id`` is never mutated.  ``id`` is the qualified form set by
-    the parent component: ``component(short_id)``.
+    the parent component (Port, Converter, or Storage):
+    ``component(short_id)``.
     """
 
     carrier: str
@@ -163,7 +166,10 @@ class Storage:
             )
             raise ValueError(msg)
         if self.charging.short_id == self.discharging.short_id:
-            self.charging.short_id = 'charge'
-            self.discharging.short_id = 'discharge'
-        self.charging.id = qualified_id(self.id, self.charging.short_id)
-        self.discharging.id = qualified_id(self.id, self.discharging.short_id)
+            charge_name = 'charge'
+            discharge_name = 'discharge'
+        else:
+            charge_name = self.charging.short_id
+            discharge_name = self.discharging.short_id
+        self.charging.id = qualified_id(self.id, charge_name)
+        self.discharging.id = qualified_id(self.id, discharge_name)

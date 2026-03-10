@@ -50,12 +50,13 @@ class Converter:
     inputs: list[Flow] | IdList[Flow]
     outputs: list[Flow] | IdList[Flow]
     conversion_factors: list[dict[str, TimeSeries]] = field(default_factory=list)  # a_f
+    _flow_id: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
         """Qualify flow ids and build short→qualified mapping."""
         self.inputs = _qualify_flows(self.id, list(self.inputs))
         self.outputs = _qualify_flows(self.id, list(self.outputs))
-        self._flow_id: dict[str, str] = {f.short_id: f.id for f in (*self.inputs, *self.outputs)}
+        self._flow_id = {f.short_id: f.id for f in (*self.inputs, *self.outputs)}
 
     @classmethod
     def _single_io(cls, id: str, coefficient: TimeSeries, input_flow: Flow, output_flow: Flow) -> Converter:

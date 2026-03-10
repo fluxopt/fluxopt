@@ -134,7 +134,7 @@ the formulation.
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `carrier` | `str` | required | Carrier this flow connects to |
-| `short_id` | `str` | `''` | Optional id (defaults to carrier; `id` is the qualified form) |
+| `short_id` | `str` | `''` | Defaults to `carrier` (or `carrier:node` when `node` is set); `id` is the qualified form `component(short_id)` |
 | `node` | `str \| None` | `None` | Sub-node for multi-node balancing |
 | `size` | `float \| Sizing \| None` | `None` | Nominal capacity [MW] or [investment](sizing.md) |
 | `relative_minimum` | `TimeSeries` | `0.0` | Lower bound as fraction of size |
