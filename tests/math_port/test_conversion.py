@@ -92,6 +92,7 @@ class TestConversionEfficiency:
 
         result = optimize(
             timesteps=ts(2),
+            carriers=[Carrier('Elec'), Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost', is_objective=True)],
             ports=[
                 Port(
@@ -123,7 +124,6 @@ class TestConversionEfficiency:
                     thermal_flow=Flow('Heat'),
                 ),
             ],
-            carriers=[Carrier('Elec'), Carrier('Gas'), Carrier('Heat')],
         )
         # Per timestep: fuel = 50/0.5 = 100, elec = 100*0.4 = 40
         # Per timestep cost = 100*1 - 40*2 = 20, total = 2*20 = 40
