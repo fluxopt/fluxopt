@@ -78,6 +78,7 @@ Companion packages depend on core — core has no knowledge of companions.
 |-----------|------|--------|
 | Core modeling API | **Stable** | Semver. Deprecation warnings before removal. |
 | Stats accessor | **Semi-stable** | Breaking changes allowed between minor versions with changelog entry. |
+| `fluxopt-yaml` | **Experimental** | Own versioning. YAML schema may change. |
 | `fluxopt-plot` | **Experimental** | Own versioning. Method signatures may change. |
 | `fluxopt-tsam` | **Independent** | Fully independent semver. |
 
