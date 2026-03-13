@@ -40,6 +40,7 @@ jobs:
       url: https://pypi.org/project/fluxopt
     permissions:
       id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v6
         with:
