@@ -27,7 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "highspy>=1.13.1",
-    "linopy>=0.6",
+    "linopy @ git+https://github.com/PyPSA/linopy.git@f53d1968e53d70962eb208b01c3f938f693f0083",
     "netcdf4>=1.6.0",
     "numpy>=1.26",
     "pandas>=2.1",
@@ -36,6 +36,9 @@ dependencies = [
 
 [project.urls]
 repository = "https://github.com/FBumann/fluxopt"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.version]
 source = "vcs"

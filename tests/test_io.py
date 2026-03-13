@@ -92,8 +92,10 @@ class TestRoundtrip:
         assert list(loaded.data.storages.capacity.coords['storage'].values) == list(
             result.data.storages.capacity.coords['storage'].values
         )
-        # dt preserved
-        assert loaded.data.dt.values == pytest.approx(result.data.dt.values)
+        # Dims roundtrip: dt, time, and weights preserved with coordinates
+        xr.testing.assert_equal(loaded.data.dims.dt, result.data.dims.dt)
+        xr.testing.assert_equal(loaded.data.dims.time, result.data.dims.time)
+        xr.testing.assert_equal(loaded.data.dims.weights, result.data.dims.weights)
 
     def test_model_data_resolve(self, tmp_nc: Path) -> None:
         """Loaded ModelData can build and solve a new model."""

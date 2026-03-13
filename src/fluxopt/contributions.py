@@ -132,7 +132,7 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
     all_ids = flow_ids + stor_ids
 
     rate = solution['flow--rate']  # (flow, time)
-    dt = data.dt  # (time,)
+    dt = data.dims.dt  # (time,)
 
     # --- Temporal: per-flow contributions (flow, effect, time) ---
     temporal_flow = data.flows.effect_coeff * rate * dt
@@ -191,7 +191,7 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         periodic = _apply_leontief(_leontief(data.effects.cf_periodic), periodic)
 
     # --- Total: temporal (weighted sum over time) + periodic ---
-    total = (temporal * data.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + periodic.reindex(
+    total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + periodic.reindex(
         contributor=all_ids, fill_value=0.0
     )
 
