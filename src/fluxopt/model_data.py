@@ -912,6 +912,13 @@ class Dims:
     dt: xr.DataArray  # (time,) — timestep durations [h]
     weights: xr.DataArray  # (time,) — timestep weights
 
+    def __post_init__(self) -> None:
+        for name, arr in [('dt', self.dt), ('weights', self.weights)]:
+            if 'time' not in arr.dims:
+                raise ValueError(f'Dims.{name} must have a "time" dimension, got {arr.dims}')
+            if not arr.coords['time'].equals(self.time):
+                raise ValueError(f'Dims.{name} time coordinate does not match Dims.time')
+
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
         return xr.Dataset({'dt': self.dt, 'weights': self.weights})
@@ -1045,12 +1052,12 @@ class ModelData:
         dims = Dims.build(time, dt_da)
 
         # Scalar dt for prior duration computation (use first timestep)
-        dt_scalar = float(dt_da.values[0])
+        dt_scalar = float(dims.dt.values[0])
         flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar)
         carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
         effects_data = EffectsData.build(effects, time)
-        storages_data = StoragesData.build(stor_list, time, dt_da, effects)
+        storages_data = StoragesData.build(stor_list, time, dims.dt, effects)
 
         return cls(
             flows=flows_data,
