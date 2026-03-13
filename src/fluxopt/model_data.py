@@ -901,16 +901,50 @@ class StoragesData:
         )
 
 
+def _compute_period_weights(
+    periods: list[int] | pd.Index,
+    weight_of_last_period: int | float | None = None,
+) -> tuple[pd.Index, xr.DataArray]:
+    """Compute period weights from a period index.
+
+    Weights are the duration of each period, i.e. the gap to the next period.
+    For the last period, ``weight_of_last_period`` is used (inferred from the
+    last interval when omitted).
+
+    Args:
+        periods: Integer period labels (e.g. [2020, 2025, 2030]).
+        weight_of_last_period: Duration of the last period. Required when
+            only one period is given; otherwise inferred from the last gap.
+
+    Returns:
+        Tuple of (period_index, period_weights DataArray).
+    """
+    idx = pd.Index(periods, name='period')
+    if not np.issubdtype(idx.dtype, np.integer):  # type: ignore[arg-type]
+        raise TypeError(f'periods must be integer, got {idx.dtype}')
+    if not idx.is_monotonic_increasing or not idx.is_unique:
+        raise ValueError('periods must be monotonically increasing and unique')
+    if weight_of_last_period is None:
+        if len(idx) < 2:
+            raise ValueError('weight_of_last_period is required when only one period is given')
+        weight_of_last_period = int(idx[-1]) - int(idx[-2])
+    extra = idx.append(pd.Index([int(idx[-1]) + weight_of_last_period], name='period'))
+    weights = np.diff(extra.to_numpy().astype(int))
+    return idx, xr.DataArray(weights, dims=['period'], coords={'period': idx}, name='period_weight')
+
+
 @dataclass
 class Dims:
     """Shared model coordinates and temporal metadata.
 
-    Owns the time dimension, timestep durations, and weights.
+    Owns the time and period dimensions, timestep durations, and weights.
     """
 
     time: xr.DataArray  # (time,) — coordinate labels
     dt: xr.DataArray  # (time,) — timestep durations [h]
     weights: xr.DataArray  # (time,) — timestep weights
+    period: xr.DataArray | None = None  # (period,) — coordinate labels
+    period_weights: xr.DataArray | None = None  # (period,) — duration weights
 
     def __post_init__(self) -> None:
         for name, arr in [('dt', self.dt), ('weights', self.weights)]:
@@ -919,43 +953,78 @@ class Dims:
             if not arr.coords['time'].equals(self.time):
                 raise ValueError(f'Dims.{name} time coordinate does not match Dims.time')
 
-    def coords(self, *, time: bool = False) -> dict[str, xr.DataArray]:
+    def coords(self, *, time: bool = False, period: bool = False) -> dict[str, xr.DataArray]:
         """Return shared coordinates for variable/DataArray creation.
 
         Args:
             time: Include the time coordinate.
+            period: Include the period coordinate (no-op in single-period mode).
         """
         result: dict[str, xr.DataArray] = {}
         if time:
             result['time'] = self.time
+        if period and self.period is not None:
+            result['period'] = self.period
         return result
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
-        return xr.Dataset({'dt': self.dt, 'weights': self.weights})
+        data_vars: dict[str, xr.DataArray] = {'dt': self.dt, 'weights': self.weights}
+        if self.period is not None:
+            data_vars['period'] = self.period
+        if self.period_weights is not None:
+            data_vars['period_weights'] = self.period_weights
+        return xr.Dataset(data_vars)
 
     @classmethod
     def from_dataset(cls, ds: xr.Dataset) -> Self:
         """Deserialize from xr.Dataset.
 
         Args:
-            ds: Dataset with dt and weights.
+            ds: Dataset with dt, weights, and optional period fields.
         """
         dt = ds['dt']
         time_idx = dt.coords['time']
-        return cls(time=time_idx, dt=dt, weights=ds['weights'])
+        return cls(
+            time=time_idx,
+            dt=dt,
+            weights=ds['weights'],
+            period=ds.get('period', None),
+            period_weights=ds.get('period_weights', None),
+        )
 
     @classmethod
-    def build(cls, time: TimeIndex, dt: xr.DataArray) -> Self:
-        """Build Dims from a time index.
+    def build(
+        cls,
+        time: TimeIndex,
+        dt: xr.DataArray,
+        periods: list[int] | pd.Index | None = None,
+        weight_of_last_period: int | float | None = None,
+    ) -> Self:
+        """Build Dims from a time index and optional periods.
 
         Args:
             time: Normalized time index.
             dt: Timestep durations.
+            periods: Integer period labels for multi-period optimization.
+            weight_of_last_period: Duration of the last period.
         """
         time_coord = xr.DataArray(time, dims=['time'], coords={'time': time})
         weights = xr.DataArray(np.ones(len(time)), dims=['time'], coords={'time': time}, name='weight')
-        return cls(time=time_coord, dt=dt, weights=weights)
+
+        period_da: xr.DataArray | None = None
+        period_weights_da: xr.DataArray | None = None
+        if periods is not None:
+            period_idx, period_weights_da = _compute_period_weights(periods, weight_of_last_period)
+            period_da = xr.DataArray(period_idx.values, dims=['period'], coords={'period': period_idx})
+
+        return cls(
+            time=time_coord,
+            dt=dt,
+            weights=weights,
+            period=period_da,
+            period_weights=period_weights_da,
+        )
 
 
 @dataclass
@@ -1034,6 +1103,8 @@ class ModelData:
         converters: list[Converter] | None = None,
         storages: list[Storage] | None = None,
         dt: float | list[float] | None = None,
+        periods: list[int] | pd.Index | None = None,
+        weight_of_last_period: int | float | None = None,
     ) -> Self:
         """Build ModelData from element objects.
 
@@ -1045,6 +1116,9 @@ class ModelData:
             converters: Linear converters.
             storages: Energy storages.
             dt: Timestep duration in hours. Auto-derived if None.
+            periods: Integer period labels for multi-period optimization.
+            weight_of_last_period: Duration of the last period. Required when
+                only one period is given; otherwise inferred from the last gap.
         """
         from fluxopt.elements import PENALTY_EFFECT_ID, Effect
         from fluxopt.types import compute_dt as _compute_dt
@@ -1060,7 +1134,7 @@ class ModelData:
         flows, carrier_coeff = _collect_flows(ports, converters, stor_list)
         _validate_system(effects, ports, converters, stor_list, flows, carriers)
 
-        dims = Dims.build(time, dt_da)
+        dims = Dims.build(time, dt_da, periods=periods, weight_of_last_period=weight_of_last_period)
 
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dims.dt.values[0])

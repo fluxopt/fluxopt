@@ -23,6 +23,8 @@ def optimize(
     converters: list[Converter] | None = None,
     storages: list[Storage] | None = None,
     dt: float | list[float] | None = None,
+    periods: list[int] | None = None,
+    weight_of_last_period: int | float | None = None,
     solver: str = 'highs',
     customize: Callable[[FlowSystem], None] | None = None,
     **kwargs: Any,
@@ -37,12 +39,25 @@ def optimize(
         converters: Linear converters between carriers.
         storages: Energy storages.
         dt: Timestep duration in hours. Auto-derived if None.
+        periods: Integer period labels for multi-period optimization.
+        weight_of_last_period: Duration of the last period. Required when
+            only one period is given; otherwise inferred from the last gap.
         solver: Solver backend name.
         customize: Optional callback to modify the linopy model between build and solve.
             Receives the built FlowSystem; use ``model.m`` to add variables/constraints.
         **kwargs: Passed through to ``linopy.Model.solve()``.
     """
-    data = ModelData.build(timesteps, carriers, effects, ports, converters, storages, dt)
+    data = ModelData.build(
+        timesteps,
+        carriers,
+        effects,
+        ports,
+        converters,
+        storages,
+        dt,
+        periods=periods,
+        weight_of_last_period=weight_of_last_period,
+    )
     model = FlowSystem(data)
     return model.optimize(customize=customize, solver=solver, **kwargs)
 

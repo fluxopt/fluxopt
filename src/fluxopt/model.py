@@ -29,6 +29,9 @@ class FlowSystem:
     storage_level: Variable | None = None
     prior_storage_level: Variable | None = None
 
+    # Effect variables — set during build
+    effect_once: Variable | None = None
+
     # Status variables — None when no status is configured
     flow_on: Variable | None = None
     flow_startup: Variable | None = None
@@ -126,7 +129,9 @@ class FlowSystem:
         """Create flow rate decision variables P_{f,t} >= 0."""
         ds = self.data.flows
         self.flow_rate = self.m.add_variables(
-            lower=0, coords={'flow': ds.rel_lb.coords['flow'], **self.data.dims.coords(time=True)}, name='flow--rate'
+            lower=0,
+            coords={'flow': ds.rel_lb.coords['flow'], **self.data.dims.coords(time=True, period=True)},
+            name='flow--rate',
         )
 
     def _create_sizing_variables(self) -> None:
@@ -139,13 +144,16 @@ class FlowSystem:
             sizing_ids = fds.sizing_min.coords['sizing_flow'].values
             flow_coord = xr.DataArray(sizing_ids, dims=['flow'])
             upper = fds.sizing_max.rename({'sizing_flow': 'flow'})
-            self.flow_size = self._add_variables(lower=0, upper=upper, coords={'flow': flow_coord}, name='flow--size')
+            pc = self.data.dims.coords(period=True)
+            self.flow_size = self._add_variables(
+                lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name='flow--size'
+            )
             mandatory = fds.sizing_mandatory
             optional_ids = sizing_ids[~mandatory.values]
             if len(optional_ids):
                 self.flow_size_indicator = self._add_variables(
                     binary=True,
-                    coords={'flow': xr.DataArray(optional_ids, dims=['flow'])},
+                    coords={'flow': xr.DataArray(optional_ids, dims=['flow']), **pc},
                     name='flow--size_indicator',
                 )
 
@@ -157,15 +165,16 @@ class FlowSystem:
             sizing_ids = sds.sizing_min.coords['sizing_storage'].values
             stor_coord = xr.DataArray(sizing_ids, dims=['storage'])
             upper = sds.sizing_max.rename({'sizing_storage': 'storage'})
+            pc = self.data.dims.coords(period=True)
             self.storage_capacity = self._add_variables(
-                lower=0, upper=upper, coords={'storage': stor_coord}, name='storage--capacity'
+                lower=0, upper=upper, coords={'storage': stor_coord, **pc}, name='storage--capacity'
             )
             mandatory = sds.sizing_mandatory
             optional_ids = sizing_ids[~mandatory.values]
             if len(optional_ids):
                 self.storage_capacity_indicator = self._add_variables(
                     binary=True,
-                    coords={'storage': xr.DataArray(optional_ids, dims=['storage'])},
+                    coords={'storage': xr.DataArray(optional_ids, dims=['storage']), **pc},
                     name='storage--size_indicator',
                 )
 
@@ -177,7 +186,7 @@ class FlowSystem:
 
         status_ids = ds.status_min_uptime.coords['status_flow'].values
         flow_coord = xr.DataArray(status_ids, dims=['flow'])
-        tp = {'flow': flow_coord, **self.data.dims.coords(time=True)}
+        tp = {'flow': flow_coord, **self.data.dims.coords(time=True, period=True)}
 
         self.flow_on = self._add_variables(binary=True, coords=tp, name='flow--on')
         self.flow_startup = self._add_variables(binary=True, coords=tp, name='flow--startup')
@@ -513,7 +522,7 @@ class FlowSystem:
         self.m.add_constraints(lhs == 0, name='conversion', mask=mask_3d)
 
     def _create_effects(self) -> None:
-        """Effect tracking: temporal (per-timestep) and periodic (investment) domains."""
+        """Effect tracking: temporal, periodic, and one-time domains."""
         d = self.data
         ds = d.effects
 
@@ -522,9 +531,10 @@ class FlowSystem:
         if len(effect_ids) == 0:
             return
 
-        # --- Temporal domain: effect_temporal[effect, time] ---
+        # --- Temporal domain: effect_temporal[effect, time(, period)] ---
         self.effect_temporal = self.m.add_variables(
-            coords={'effect': effect_ids, **self.data.dims.coords(time=True)}, name='effect--temporal'
+            coords={'effect': effect_ids, **self.data.dims.coords(time=True, period=True)},
+            name='effect--temporal',
         )
 
         # Flow contributions: sum_f(coeff_{f,k,t} * P_{f,t} * dt_t)
@@ -568,8 +578,9 @@ class FlowSystem:
         if has_max_ph.any():
             self.m.add_constraints(self.effect_temporal <= max_ph, name='effect_max_ph', mask=has_max_ph)
 
-        # --- Periodic domain: effect_periodic[effect] ---
-        self.effect_periodic = self.m.add_variables(coords={'effect': effect_ids}, name='effect--periodic')
+        # --- Periodic domain: effect_periodic[effect(, period)] ---
+        pc = self.data.dims.coords(period=True)
+        self.effect_periodic = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--periodic')
 
         # Accumulate direct investment contributions per effect
         periodic_direct: Any = 0
@@ -642,12 +653,19 @@ class FlowSystem:
 
         self.m.add_constraints(self.effect_periodic == periodic_rhs, name='effect_periodic_eq')
 
-        # --- Total: effect_total[effect] = sum_t(temporal * w) + periodic ---
-        self.effect_total = self.m.add_variables(coords={'effect': effect_ids}, name='effect--total')
-        rhs = (self.effect_temporal * d.dims.weights).sum('time') + self.effect_periodic
+        # --- One-time domain: effect_once[effect(, period)] ---
+        # Costs that occur once per period, not scaled by period_weight.
+        # Currently no inputs — placeholder for future investment costs.
+        self.effect_once = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--once')
+        self.m.add_constraints(self.effect_once == 0, name='effect_once_eq')
+
+        # --- Total: effect_total[effect(, period)] ---
+        self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--total')
+        temporal_sum = (self.effect_temporal * d.dims.weights).sum('time')
+        rhs = temporal_sum + self.effect_periodic + self.effect_once
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
-        # Bounds on effect_total
+        # Bounds on effect_total (per-period when multi-period)
         min_total = ds.min_total  # (effect,) — NaN = unbounded
         max_total = ds.max_total
 
@@ -668,9 +686,11 @@ class FlowSystem:
 
         stor_ids = ds.capacity.coords['storage']
 
-        # storage_level[storage, time] >= 0  (end-of-period convention)
+        # storage_level[storage, time(, period)] >= 0  (end-of-period convention)
         self.storage_level = self.m.add_variables(
-            lower=0, coords={'storage': stor_ids, **self.data.dims.coords(time=True)}, name='storage--level'
+            lower=0,
+            coords={'storage': stor_ids, **self.data.dims.coords(time=True, period=True)},
+            name='storage--level',
         )
 
         # --- Capacity bounds on storage_level ---
@@ -755,7 +775,9 @@ class FlowSystem:
         # --- Prior variable + single balance for ALL storages ---
         # prior[storage] is a free variable representing the state before period 0.
         # Cyclic and fixed-prior constraints pin it; otherwise it's free.
-        self.prior_storage_level = self.m.add_variables(lower=0, coords={'storage': stor_ids}, name='storage--prior')
+        self.prior_storage_level = self.m.add_variables(
+            lower=0, coords={'storage': stor_ids, **self.data.dims.coords(period=True)}, name='storage--prior'
+        )
 
         add_accumulation_constraints(
             self.m,
@@ -786,7 +808,9 @@ class FlowSystem:
             )
 
     def _set_objective(self) -> None:
-        """Set objective: minimize the objective effect total."""
+        """Set objective: minimize the (period-weighted) objective effect total."""
         obj_effect = self.data.effects.objective_effect
-        obj = self.effect_total.sel(effect=obj_effect).sum()
+        obj_total = self.effect_total.sel(effect=obj_effect)
+        pw = self.data.dims.period_weights
+        obj = (obj_total * pw).sum() if pw is not None else obj_total.sum()
         self.m.add_objective(obj)
