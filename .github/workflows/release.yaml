@@ -34,7 +34,7 @@ jobs:
   publish:
     name: Build & publish to PyPI
     needs: [release-please]
-    if: needs.release-please.outputs.release_created || startsWith(github.ref, 'refs/tags/v')
+    if: always() && !cancelled() && (needs.release-please.outputs.release_created || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment:
@@ -64,10 +64,10 @@ jobs:
   deploy-docs:
     name: Deploy docs
     needs: [release-please, publish]
-    if: needs.release-please.outputs.release_created || startsWith(github.ref, 'refs/tags/v')
+    if: always() && !cancelled() && (needs.release-please.outputs.release_created || startsWith(github.ref, 'refs/tags/v'))
     permissions:
       contents: write
     uses: ./.github/workflows/docs.yaml
     with:
       deploy: true
-      version: ${{ needs.release-please.outputs.tag_name }}
+      version: ${{ needs.release-please.outputs.tag_name || github.ref_name }}
