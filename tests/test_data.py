@@ -288,10 +288,10 @@ class TestMultiNodeCarrier:
 
 class TestDimsValidation:
     def test_mismatched_dim_raises(self):
-        """Dims rejects arrays without a 'time' dimension."""
+        """Dims rejects arrays that are not 1D with dims=('time',)."""
         time = xr.DataArray([0, 1], dims=['time'], coords={'time': [0, 1]})
         bad_dt = xr.DataArray([1.0, 1.0], dims=['other'])
-        with pytest.raises(ValueError, match='must have a "time" dimension'):
+        with pytest.raises(ValueError, match='must be 1D'):
             Dims(time=time, dt=bad_dt, weights=time)
 
     def test_mismatched_coords_raises(self):

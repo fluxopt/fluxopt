@@ -914,8 +914,8 @@ class Dims:
 
     def __post_init__(self) -> None:
         for name, arr in [('dt', self.dt), ('weights', self.weights)]:
-            if 'time' not in arr.dims:
-                raise ValueError(f'Dims.{name} must have a "time" dimension, got {arr.dims}')
+            if arr.dims != ('time',):
+                raise ValueError(f"Dims.{name} must be 1D with dims=('time',), got {arr.dims}")
             if not arr.coords['time'].equals(self.time):
                 raise ValueError(f'Dims.{name} time coordinate does not match Dims.time')
 
