@@ -3,16 +3,39 @@
 ## Formulation
 
 The model minimizes the total value of the designated objective effect \(k^*\)
-(the one with `is_objective=True`):
+(the one with `is_objective=True`).
+
+### Single-period
+
+Without periods, the objective is simply:
 
 \[
 \min \; \Phi_{k^*}
 \]
 
-The total effect combines the temporal and periodic domains:
+### Multi-period
+
+With periods \(p \in \mathcal{P}\), the objective separates recurring and one-time
+domains with independent per-effect weights:
 
 \[
-\Phi_k = \sum_{t \in \mathcal{T}} \Phi_{k,t}^{\text{temporal}} \cdot w_t + \Phi_k^{\text{periodic}}
+\min \; \sum_{p \in \mathcal{P}} \omega^{\text{periodic}}_{k^*,p} \cdot \left(\sum_t \Phi_{k^*,t,p}^{\text{temporal}} \cdot w_t + \Phi_{k^*,p}^{\text{periodic}}\right) + \omega^{\text{once}}_{k^*,p} \cdot \Phi_{k^*,p}^{\text{once}}
+\]
+
+- \(\omega^{\text{periodic}}_{k,p}\) defaults to the global `period_weights` (inferred from
+  gaps between period labels, or explicit). Override per effect via `Effect.period_weights_periodic`.
+- \(\omega^{\text{once}}_{k,p}\) defaults to 1 (no scaling). Override per effect via
+  `Effect.period_weights_once`.
+
+This allows different weighting strategies per effect (e.g., NPV discounting for costs,
+flat weights for emissions).
+
+### Total effect
+
+The total effect per period combines all three domains:
+
+\[
+\Phi_{k(,p)} = \sum_{t \in \mathcal{T}} \Phi_{k,t(,p)}^{\text{temporal}} \cdot w_t + \Phi_{k(,p)}^{\text{periodic}} + \Phi_{k(,p)}^{\text{once}}
 \]
 
 The **temporal** domain accumulates flow contributions, running costs,
@@ -22,11 +45,14 @@ startup costs, and cross-effect contributions per timestep:
 \Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f} c_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{flow}} + \underbrace{\sum_{f} r_{f,k,t} \cdot \sigma_{f,t} \cdot \Delta t_t}_{\text{running}} + \underbrace{\sum_{f} u_{f,k,t} \cdot \tau^+_{f,t}}_{\text{startup}} + \underbrace{\sum_{j} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect}}
 \]
 
-The **periodic** domain accumulates sizing costs, fixed costs, and cross-effect contributions:
+The **periodic** domain accumulates recurring sizing costs, fixed costs, and cross-effect contributions:
 
 \[
 \Phi_k^{\text{periodic}} = \underbrace{\sum_{f} \gamma_{f,k} \cdot S_f + \sum_{f} \phi_{f,k} \cdot y_f + \sum_{s} \gamma_{s,k} \cdot S_s + \sum_{s} \phi_{s,k} \cdot y_s}_{\text{direct sizing costs}} + \underbrace{\sum_{j} \alpha_{k,j} \cdot \Phi_j^{\text{periodic}}}_{\text{cross-effect}}
 \]
+
+The **once** domain is reserved for one-time costs (e.g., investment CAPEX)
+that should not be scaled by period weights. Currently constrained to zero.
 
 See [Sizing](sizing.md), [Status](status.md), and [Effects](effects.md) for
 full formulations of each term.
@@ -40,13 +66,18 @@ full formulations of each term.
 | \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(w_t\) | Timestep weight | weights |
-| \(\Phi_{k,t}^{\text{temporal}}\) | Temporal (per-timestep) effect variable | `effect--temporal[effect, time]` |
-| \(\Phi_k^{\text{periodic}}\) | Periodic effect variable (sizing, fixed costs) | `effect--periodic[effect]` |
-| \(\Phi_k\) | Total effect variable | `effect--total[effect]` |
+| \(\omega^{\text{periodic}}_{k,p}\) | Period weight for recurring domain | `Effect.period_weights_periodic` (fallback: `Dims.period_weights`) |
+| \(\omega^{\text{once}}_{k,p}\) | Period weight for one-time domain | `Effect.period_weights_once` (default: 1) |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Temporal (per-timestep) effect variable | `effect--temporal[effect, time(, period)]` |
+| \(\Phi_{k(,p)}^{\text{periodic}}\) | Periodic effect variable (recurring costs) | `effect--periodic[effect(, period)]` |
+| \(\Phi_{k(,p)}^{\text{once}}\) | One-time effect variable | `effect--once[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
 
 See [Notation](notation.md) for the full symbol table.
 
-## Example
+## Examples
+
+### Single-period
 
 Consider a gas boiler over 3 timesteps (\(\Delta t = 1\,\text{h}\), \(w = 1\)):
 
@@ -58,5 +89,15 @@ Consider a gas boiler over 3 timesteps (\(\Delta t = 1\,\text{h}\), \(w = 1\)):
 
 Total cost: \(\Phi_{\text{cost}} = \sum_t \Phi_{\text{cost},t}^{\text{temporal}} = 60 + 90 + 45 = 195\,\text{€}\)
 
-The optimizer finds the \(P_{f,t}\) values that minimize \(\Phi_{k^*}\) subject to all
-constraints (bus balance, flow bounds, conversion, storage dynamics).
+### Multi-period
+
+Same system with `periods=[2020, 2025]`, `period_weights=[5, 5]`.
+
+Each period has the same 3 timesteps with per-period cost = 30 €. The objective becomes:
+
+\[
+\sum_p \omega_p \cdot \Phi_{\text{cost},p} = 5 \times 30 + 5 \times 30 = 300\,\text{€}
+\]
+
+The optimizer finds the \(P_{f,t(,p)}\) values that minimize the (period-weighted)
+\(\Phi_{k^*}\) subject to all constraints.

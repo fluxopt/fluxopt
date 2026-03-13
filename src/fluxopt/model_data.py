@@ -639,6 +639,8 @@ class EffectsData:
     objective_effect: str
     cf_periodic: xr.DataArray | None = None  # (effect, source_effect)
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time)
+    period_weights_periodic: xr.DataArray | None = None  # (effect, period)
+    period_weights_once: xr.DataArray | None = None  # (effect, period)
 
     def __post_init__(self) -> None:
         """Validate exactly one objective effect exists."""
@@ -649,6 +651,35 @@ class EffectsData:
             raise ValueError(
                 f'Multiple objective effects: {list(self.is_objective.coords["effect"][self.is_objective].values)}. Only one is allowed.'
             )
+
+    def objective_weights(
+        self,
+        global_period_weights: xr.DataArray | None,
+    ) -> tuple[xr.DataArray | int, xr.DataArray | int]:
+        """Resolve period weights for the objective effect's two domains.
+
+        Args:
+            global_period_weights: Default period weights from Dims (or None).
+
+        Returns:
+            (w_periodic, w_once) — weights for recurring and one-time domains.
+            Falls back to global_period_weights / 1 when no per-effect override.
+        """
+        k = self.objective_effect
+
+        if self.period_weights_periodic is not None and not self.period_weights_periodic.sel(effect=k).isnull().all():
+            w_periodic: xr.DataArray | int = self.period_weights_periodic.sel(effect=k)
+        elif global_period_weights is not None:
+            w_periodic = global_period_weights
+        else:
+            w_periodic = 1
+
+        if self.period_weights_once is not None and not self.period_weights_once.sel(effect=k).isnull().all():
+            w_once: xr.DataArray | int = self.period_weights_once.sel(effect=k)
+        else:
+            w_once = 1
+
+        return w_periodic, w_once
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -671,12 +702,18 @@ class EffectsData:
         return cls(**kwargs)  # type: ignore[arg-type]
 
     @classmethod
-    def build(cls, effects: list[Effect], time: TimeIndex) -> Self:
+    def build(
+        cls,
+        effects: list[Effect],
+        time: TimeIndex,
+        period: pd.Index | None = None,
+    ) -> Self:
         """Build EffectsData from element objects.
 
         Args:
             effects: Effect definitions.
             time: Time index.
+            period: Period index (multi-period only).
         """
         effect_ids = [e.id for e in effects]
         effect_set = set(effect_ids)
@@ -761,6 +798,42 @@ class EffectsData:
 
         effect_idx = pd.Index(effect_ids, name='effect')
 
+        # Per-effect period weights
+        pw_periodic: xr.DataArray | None = None
+        pw_once: xr.DataArray | None = None
+        if period is not None:
+            has_pw_periodic = any(e.period_weights_periodic is not None for e in effects)
+            has_pw_once = any(e.period_weights_once is not None for e in effects)
+            n_periods = len(period)
+            if has_pw_periodic:
+                mat = np.full((n, n_periods), np.nan)
+                for i, e in enumerate(effects):
+                    if e.period_weights_periodic is not None:
+                        if len(e.period_weights_periodic) != n_periods:
+                            msg = f'Effect {e.id!r}: period_weights_periodic has {len(e.period_weights_periodic)} entries, expected {n_periods}'
+                            raise ValueError(msg)
+                        vals = np.asarray(e.period_weights_periodic, dtype=float)
+                        if not np.all(np.isfinite(vals)) or not np.all(vals > 0):
+                            msg = f'Effect {e.id!r}: period_weights_periodic must be positive and finite, got {vals}'
+                            raise ValueError(msg)
+                        mat[i] = vals
+                pw_periodic = xr.DataArray(
+                    mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period}
+                )
+            if has_pw_once:
+                mat = np.full((n, n_periods), np.nan)
+                for i, e in enumerate(effects):
+                    if e.period_weights_once is not None:
+                        if len(e.period_weights_once) != n_periods:
+                            msg = f'Effect {e.id!r}: period_weights_once has {len(e.period_weights_once)} entries, expected {n_periods}'
+                            raise ValueError(msg)
+                        vals = np.asarray(e.period_weights_once, dtype=float)
+                        if not np.all(np.isfinite(vals)) or not np.all(vals > 0):
+                            msg = f'Effect {e.id!r}: period_weights_once must be positive and finite, got {vals}'
+                            raise ValueError(msg)
+                        mat[i] = vals
+                pw_once = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
+
         return cls(
             min_total=xr.DataArray(min_total, dims=['effect'], coords={'effect': effect_ids}),
             max_total=xr.DataArray(max_total, dims=['effect'], coords={'effect': effect_ids}),
@@ -770,6 +843,8 @@ class EffectsData:
             objective_effect=objective_effect,
             cf_periodic=cf_periodic,
             cf_temporal=cf_temporal,
+            period_weights_periodic=pw_periodic,
+            period_weights_once=pw_once,
         )
 
 
@@ -901,16 +976,55 @@ class StoragesData:
         )
 
 
+def _compute_period_weights(
+    periods: list[int] | pd.Index,
+    period_weights: list[float] | None = None,
+) -> tuple[pd.Index, xr.DataArray]:
+    """Compute period weights from a period index.
+
+    Args:
+        periods: Integer period labels (e.g. [2020, 2025, 2030]).
+        period_weights: Explicit weights per period. If None, inferred from
+            ``np.diff(periods)`` with the last gap repeated.
+
+    Returns:
+        Tuple of (period_index, period_weights DataArray).
+    """
+    idx = pd.Index(periods, name='period')
+    if not np.issubdtype(idx.dtype, np.integer):  # type: ignore[arg-type]
+        raise TypeError(f'periods must be integer, got {idx.dtype}')
+    if not idx.is_monotonic_increasing or not idx.is_unique:
+        raise ValueError('periods must be monotonically increasing and unique')
+
+    if period_weights is not None:
+        if len(period_weights) != len(idx):
+            msg = f'period_weights has {len(period_weights)} entries, expected {len(idx)}'
+            raise ValueError(msg)
+        w = np.asarray(period_weights, dtype=float)
+    elif len(idx) < 2:
+        raise ValueError('period_weights is required when only one period is given')
+    else:
+        gaps = np.diff(idx.to_numpy().astype(int))
+        w = np.append(gaps, gaps[-1])
+
+    if not np.all(np.isfinite(w)) or not np.all(w > 0):
+        raise ValueError(f'period_weights must be positive and finite, got {w}')
+
+    return idx, xr.DataArray(w, dims=['period'], coords={'period': idx}, name='period_weight')
+
+
 @dataclass
 class Dims:
     """Shared model coordinates and temporal metadata.
 
-    Owns the time dimension, timestep durations, and weights.
+    Owns the time and period dimensions, timestep durations, and weights.
     """
 
     time: xr.DataArray  # (time,) — coordinate labels
     dt: xr.DataArray  # (time,) — timestep durations [h]
     weights: xr.DataArray  # (time,) — timestep weights
+    period: xr.DataArray | None = None  # (period,) — coordinate labels
+    period_weights: xr.DataArray | None = None  # (period,) — duration weights
 
     def __post_init__(self) -> None:
         for name, arr in [('dt', self.dt), ('weights', self.weights)]:
@@ -919,43 +1033,78 @@ class Dims:
             if not arr.coords['time'].equals(self.time):
                 raise ValueError(f'Dims.{name} time coordinate does not match Dims.time')
 
-    def coords(self, *, time: bool = False) -> dict[str, xr.DataArray]:
+    def coords(self, *, time: bool = False, period: bool = False) -> dict[str, xr.DataArray]:
         """Return shared coordinates for variable/DataArray creation.
 
         Args:
             time: Include the time coordinate.
+            period: Include the period coordinate (no-op in single-period mode).
         """
         result: dict[str, xr.DataArray] = {}
         if time:
             result['time'] = self.time
+        if period and self.period is not None:
+            result['period'] = self.period
         return result
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
-        return xr.Dataset({'dt': self.dt, 'weights': self.weights})
+        data_vars: dict[str, xr.DataArray] = {'dt': self.dt, 'weights': self.weights}
+        if self.period is not None:
+            data_vars['period'] = self.period
+        if self.period_weights is not None:
+            data_vars['period_weights'] = self.period_weights
+        return xr.Dataset(data_vars)
 
     @classmethod
     def from_dataset(cls, ds: xr.Dataset) -> Self:
         """Deserialize from xr.Dataset.
 
         Args:
-            ds: Dataset with dt and weights.
+            ds: Dataset with dt, weights, and optional period fields.
         """
         dt = ds['dt']
         time_idx = dt.coords['time']
-        return cls(time=time_idx, dt=dt, weights=ds['weights'])
+        return cls(
+            time=time_idx,
+            dt=dt,
+            weights=ds['weights'],
+            period=ds.get('period', None),
+            period_weights=ds.get('period_weights', None),
+        )
 
     @classmethod
-    def build(cls, time: TimeIndex, dt: xr.DataArray) -> Self:
-        """Build Dims from a time index.
+    def build(
+        cls,
+        time: TimeIndex,
+        dt: xr.DataArray,
+        periods: list[int] | pd.Index | None = None,
+        period_weights: list[float] | None = None,
+    ) -> Self:
+        """Build Dims from a time index and optional periods.
 
         Args:
             time: Normalized time index.
             dt: Timestep durations.
+            periods: Integer period labels for multi-period optimization.
+            period_weights: Explicit weights per period. Inferred from gaps if None.
         """
         time_coord = xr.DataArray(time, dims=['time'], coords={'time': time})
         weights = xr.DataArray(np.ones(len(time)), dims=['time'], coords={'time': time}, name='weight')
-        return cls(time=time_coord, dt=dt, weights=weights)
+
+        period_da: xr.DataArray | None = None
+        period_weights_da: xr.DataArray | None = None
+        if periods is not None:
+            period_idx, period_weights_da = _compute_period_weights(periods, period_weights)
+            period_da = xr.DataArray(period_idx.values, dims=['period'], coords={'period': period_idx})
+
+        return cls(
+            time=time_coord,
+            dt=dt,
+            weights=weights,
+            period=period_da,
+            period_weights=period_weights_da,
+        )
 
 
 @dataclass
@@ -1034,6 +1183,8 @@ class ModelData:
         converters: list[Converter] | None = None,
         storages: list[Storage] | None = None,
         dt: float | list[float] | None = None,
+        periods: list[int] | pd.Index | None = None,
+        period_weights: list[float] | None = None,
     ) -> Self:
         """Build ModelData from element objects.
 
@@ -1045,6 +1196,8 @@ class ModelData:
             converters: Linear converters.
             storages: Energy storages.
             dt: Timestep duration in hours. Auto-derived if None.
+            periods: Integer period labels for multi-period optimization.
+            period_weights: Explicit weights per period. Inferred from gaps if None.
         """
         from fluxopt.elements import PENALTY_EFFECT_ID, Effect
         from fluxopt.types import compute_dt as _compute_dt
@@ -1060,14 +1213,15 @@ class ModelData:
         flows, carrier_coeff = _collect_flows(ports, converters, stor_list)
         _validate_system(effects, ports, converters, stor_list, flows, carriers)
 
-        dims = Dims.build(time, dt_da)
+        dims = Dims.build(time, dt_da, periods=periods, period_weights=period_weights)
 
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dims.dt.values[0])
         flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar)
         carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
-        effects_data = EffectsData.build(effects, time)
+        period_idx = pd.Index(dims.period.values) if dims.period is not None else None
+        effects_data = EffectsData.build(effects, time, period=period_idx)
         storages_data = StoragesData.build(stor_list, time, dims.dt, effects)
 
         return cls(

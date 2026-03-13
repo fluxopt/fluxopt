@@ -6,12 +6,25 @@ Effects represent quantities that are tracked across the optimization horizon (e
 cost, CO₂ emissions, primary energy). One effect is designated as the objective to
 minimize.
 
-Effects are split into two **domains**:
+Effects are split into three **domains** based on how they vary over time and
+how they are weighted in multi-period optimization:
 
-- **Temporal** (with time dimension): per-timestep flow contributions, status costs
-- **Periodic** (without time dimension): sizing costs, fixed yearly costs
+| Domain | Dims | What goes here | Multi-period weighting |
+|---|---|---|---|
+| **Temporal** | `(effect, time)` | Flow costs, running costs, startup costs — anything that varies per timestep | Summed over time (× \(w_t\)), then weighted like periodic |
+| **Periodic** | `(effect,)` | Recurring costs that repeat each period — sizing costs, fixed annual O&M | Weighted by \(\omega^{\text{periodic}}_{k,p}\) (defaults to global `period_weights`) |
+| **Once** | `(effect,)` | One-time costs at a point in time — CAPEX, decommissioning | Weighted by \(\omega^{\text{once}}_{k,p}\) (defaults to 1, no scaling) |
 
-Both domains support cross-effect chains via `contribution_from`.
+The key distinction: **periodic** costs are assumed to recur across the gap between
+periods (e.g., annual O&M for 5 years), while **once** costs happen at a specific point
+(e.g., an investment decision in 2025). This matters because their period weights
+differ — recurring costs scale with duration, one-time costs typically don't
+(or use discount factors instead).
+
+All domains support cross-effect chains via `contribution_from`.
+
+In multi-period mode, all variables gain an optional `period` dimension.
+See [Objective](objective.md) for how the domains are weighted in the objective.
 
 ## Temporal Domain
 
@@ -63,12 +76,22 @@ temporal factor only.
 Self-references (\(\alpha_{k,k}\)) and circular dependencies
 (\(k \to j \to \cdots \to k\)) are rejected at build time to prevent singular systems.
 
-## Total Aggregation
+## Once Domain
 
-The total effect combines both domains:
+One-time costs that should not be scaled by period weights (e.g., investment CAPEX,
+decommissioning costs). Currently constrained to zero — a placeholder for future
+investment modelling:
 
 \[
-\Phi_k = \sum_{t \in \mathcal{T}} \Phi_{k,t}^{\text{temporal}} \cdot w_t + \Phi_k^{\text{periodic}} \quad \forall \, k \in \mathcal{K}
+\Phi_{k(,p)}^{\text{once}} = 0 \quad \forall \, k
+\]
+
+## Total Aggregation
+
+The total effect combines all three domains:
+
+\[
+\Phi_{k(,p)} = \sum_{t \in \mathcal{T}} \Phi_{k,t(,p)}^{\text{temporal}} \cdot w_t + \Phi_{k(,p)}^{\text{periodic}} + \Phi_{k(,p)}^{\text{once}} \quad \forall \, k \in \mathcal{K}
 \]
 
 Weights \(w_t\) allow scaling timesteps (e.g., a representative week scaled to a year).
@@ -97,9 +120,10 @@ This enforces per-hour limits (e.g., maximum hourly emissions).
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\Phi_{k,t}^{\text{temporal}}\) | Per-timestep effect variable | `effect_temporal[effect, time]` |
-| \(\Phi_k^{\text{periodic}}\) | Periodic effect variable (sizing, fixed costs) | `effect_periodic[effect]` |
-| \(\Phi_k\) | Total effect variable | `effect_total[effect]` |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect_temporal[effect, time(, period)]` |
+| \(\Phi_{k(,p)}^{\text{periodic}}\) | Periodic effect variable (recurring costs) | `effect_periodic[effect(, period)]` |
+| \(\Phi_{k(,p)}^{\text{once}}\) | One-time effect variable | `effect_once[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
 | \(c_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
 | \(\alpha_{k,j,t}\) | Cross-effect contribution factor (per hour) | `Effect.contribution_from_per_hour` |
 | \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | `Effect.contribution_from` |

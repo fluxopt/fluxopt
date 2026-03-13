@@ -64,6 +64,11 @@ class Result:
         """Per-period (investment) effect values as (effect,) DataArray."""
         return self.solution['effect--periodic']
 
+    @property
+    def effects_once(self) -> xr.DataArray:
+        """One-time effect values as (effect,) DataArray."""
+        return self.solution['effect--once']
+
     def flow_rate(self, flow_id: str) -> xr.DataArray:
         """Get flow rate time series for a single flow.
 
@@ -169,6 +174,8 @@ class Result:
             'effect--temporal': model.effect_temporal.solution,
             'effect--periodic': model.effect_periodic.solution,
         }
+        if model.effect_once is not None:
+            sol_vars['effect--once'] = model.effect_once.solution
 
         if model.storage_level is not None:
             sol_vars['storage--level'] = model.storage_level.solution

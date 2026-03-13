@@ -129,6 +129,8 @@ class Effect:
     minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit]
     contribution_from: dict[str, float] = field(default_factory=dict)
     contribution_from_per_hour: dict[str, TimeSeries] = field(default_factory=dict)
+    period_weights_periodic: list[float] | None = None  # ω_periodic[p] — scales temporal+periodic
+    period_weights_once: list[float] | None = None  # ω_once[p] — scales once
 
 
 @dataclass

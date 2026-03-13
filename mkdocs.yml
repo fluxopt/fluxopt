@@ -17,6 +17,7 @@ nav:
     - Quickstart: notebooks/01-quickstart.ipynb
     - Heat System: notebooks/02-heat-system.ipynb
     - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
+    - Multi-Period: notebooks/04-multi-period.ipynb
   - Math:
     - Notation: math/notation.md
     - Objective: math/objective.md
