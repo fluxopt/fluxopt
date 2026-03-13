@@ -935,7 +935,7 @@ class Dims:
         return xr.Dataset({'dt': self.dt, 'weights': self.weights})
 
     @classmethod
-    def from_dataset(cls, ds: xr.Dataset) -> Dims:
+    def from_dataset(cls, ds: xr.Dataset) -> Self:
         """Deserialize from xr.Dataset.
 
         Args:
@@ -946,7 +946,7 @@ class Dims:
         return cls(time=time_idx, dt=dt, weights=ds['weights'])
 
     @classmethod
-    def build(cls, time: TimeIndex, dt: xr.DataArray) -> Dims:
+    def build(cls, time: TimeIndex, dt: xr.DataArray) -> Self:
         """Build Dims from a time index.
 
         Args:
