@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.4-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.3-alpha.0...v0.0.4-alpha.0) (2026-03-13)
+
+
+### Features
+
+* add multi-period optimization ([#81](https://github.com/FBumann/fluxopt/issues/81)) ([2df9100](https://github.com/FBumann/fluxopt/commit/2df9100f226db05e4a5530262dce184ce7de55bf))
+
 ## [0.0.3-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.2-alpha.0...v0.0.3-alpha.0) (2026-03-11)
 
 
