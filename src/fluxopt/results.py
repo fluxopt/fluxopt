@@ -187,6 +187,14 @@ class Result:
             sol_vars['storage--capacity'] = model.storage_capacity.solution
         if model.storage_capacity_indicator is not None:
             sol_vars['storage--size_indicator'] = model.storage_capacity_indicator.solution
+        if model.invest_size is not None:
+            sol_vars['invest--size'] = model.invest_size.solution
+        if model.invest_build is not None:
+            sol_vars['invest--build'] = model.invest_build.solution
+        if model.invest_active is not None:
+            sol_vars['invest--active'] = model.invest_active.solution
+        if model.invest_size_at_build is not None:
+            sol_vars['invest--size_at_build'] = model.invest_size_at_build.solution
         if model.flow_on is not None:
             sol_vars['flow--on'] = model.flow_on.solution
         if model.flow_startup is not None:
