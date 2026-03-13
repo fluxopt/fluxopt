@@ -68,7 +68,11 @@ jobs:
 
       - name: Deploy dev docs
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.deploy
-        run: uv run mike deploy --push dev
+        run: |
+          uv run mike deploy --push dev
+          if ! uv run mike get-default 2>/dev/null; then
+            uv run mike set-default --push dev
+          fi
 
       - name: Deploy versioned docs
         if: inputs.deploy && inputs.version != ''
