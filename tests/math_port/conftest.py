@@ -49,7 +49,7 @@ def optimize(request, tmp_path):
                 kwargs.get('storages'),
                 kwargs.get('dt'),
                 periods=kwargs.get('periods'),
-                weight_of_last_period=kwargs.get('weight_of_last_period'),
+                period_weights=kwargs.get('period_weights'),
             )
             path = tmp_path / 'data.nc'
             data.to_netcdf(path, mode='w')

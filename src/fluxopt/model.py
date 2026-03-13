@@ -808,9 +808,22 @@ class FlowSystem:
             )
 
     def _set_objective(self) -> None:
-        """Set objective: minimize the (period-weighted) objective effect total."""
-        obj_effect = self.data.effects.objective_effect
-        obj_total = self.effect_total.sel(effect=obj_effect)
-        pw = self.data.dims.period_weights
-        obj = (obj_total * pw).sum() if pw is not None else obj_total.sum()
-        self.m.add_objective(obj)
+        """Set objective: minimize the (period-weighted) objective effect total.
+
+        Objective = sum_p( ω_periodic[k*,p] * (temporal_sum + periodic) + ω_once[k*,p] * once )
+
+        ω_periodic defaults to global period_weights (or 1 in single-period).
+        ω_once defaults to 1.
+        """
+        k = self.data.effects.objective_effect
+        w_periodic, w_once = self.data.effects.objective_weights(self.data.dims.period_weights)
+
+        assert self.effect_temporal is not None
+        assert self.effect_periodic is not None
+        assert self.effect_once is not None
+
+        temporal_sum = (self.effect_temporal.sel(effect=k) * self.data.dims.weights).sum('time')
+        recurring = temporal_sum + self.effect_periodic.sel(effect=k)
+        once = self.effect_once.sel(effect=k)
+
+        self.m.add_objective((w_periodic * recurring + w_once * once).sum())

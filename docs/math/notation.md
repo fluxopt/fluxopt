@@ -8,6 +8,7 @@ Each symbol maps to a specific field or variable in the code.
 | Symbol | Description | Code |
 |---|---|---|
 | \(t \in \mathcal{T}\) | Timesteps | `time` dimension |
+| \(p \in \mathcal{P}\) | Periods (multi-period only) | `period` dimension |
 | \(f \in \mathcal{F}\) | Flows | `flow` dimension |
 | \(b \in \mathcal{B}\) | Buses | `bus` dimension |
 | \(s \in \mathcal{S}\) | Storages | `storage` dimension |
@@ -18,20 +19,21 @@ Each symbol maps to a specific field or variable in the code.
 
 | Symbol | Code | Domain | Unit | Description |
 |---|---|---|---|---|
-| \(P_{f,t}\) | `flow--rate[flow, time]` | \(\geq 0\) | MW | Flow rate |
-| \(E_{s,t}\) | `storage--level[storage, time]` | \(\geq 0\) | MWh | Stored energy |
-| \(\Phi_{k,t}^{\text{temporal}}\) | `effect--temporal[effect, time]` | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
-| \(\Phi_k^{\text{periodic}}\) | `effect--periodic[effect]` | \(\mathbb{R}\) | varies | Periodic (investment) effect |
-| \(\Phi_k\) | `effect--total[effect]` | \(\mathbb{R}\) | varies | Total effect over horizon |
-| \(S_f\) | `flow--size[flow]` | \(\geq 0\) | MW | Invested flow capacity |
-| \(y_f\) | `flow--size_indicator[flow]` | \(\{0, 1\}\) | — | Binary invest indicator (flow) |
-| \(S_s\) | `storage--capacity[storage]` | \(\geq 0\) | MWh | Invested storage capacity |
-| \(y_s\) | `storage--size_indicator[storage]` | \(\{0, 1\}\) | — | Binary invest indicator (storage) |
-| \(\sigma_{f,t}\) | `flow--on[flow, time]` | \(\{0, 1\}\) | — | On/off indicator |
-| \(\tau^+_{f,t}\) | `flow--startup[flow, time]` | \(\{0, 1\}\) | — | Startup event indicator |
-| \(\tau^-_{f,t}\) | `flow--shutdown[flow, time]` | \(\{0, 1\}\) | — | Shutdown event indicator |
-| \(D^{\text{up}}_{f,t}\) | `uptime[flow, time]` | \(\geq 0\) | h | Consecutive uptime |
-| \(D^{\text{down}}_{f,t}\) | `downtime[flow, time]` | \(\geq 0\) | h | Consecutive downtime |
+| \(P_{f,t(,p)}\) | `flow--rate[flow, time(, period)]` | \(\geq 0\) | MW | Flow rate |
+| \(E_{s,t(,p)}\) | `storage--level[storage, time(, period)]` | \(\geq 0\) | MWh | Stored energy |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | `effect--temporal[effect, time(, period)]` | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
+| \(\Phi_{k(,p)}^{\text{periodic}}\) | `effect--periodic[effect(, period)]` | \(\mathbb{R}\) | varies | Periodic (recurring) effect |
+| \(\Phi_{k(,p)}^{\text{once}}\) | `effect--once[effect(, period)]` | \(\mathbb{R}\) | varies | One-time effect |
+| \(\Phi_{k(,p)}\) | `effect--total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
+| \(S_{f(,p)}\) | `flow--size[flow(, period)]` | \(\geq 0\) | MW | Flow capacity |
+| \(y_{f(,p)}\) | `flow--size_indicator[flow(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (flow) |
+| \(S_{s(,p)}\) | `storage--capacity[storage(, period)]` | \(\geq 0\) | MWh | Storage capacity |
+| \(y_{s(,p)}\) | `storage--size_indicator[storage(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (storage) |
+| \(\sigma_{f,t(,p)}\) | `flow--on[flow, time(, period)]` | \(\{0, 1\}\) | — | On/off indicator |
+| \(\tau^+_{f,t(,p)}\) | `flow--startup[flow, time(, period)]` | \(\{0, 1\}\) | — | Startup event indicator |
+| \(\tau^-_{f,t(,p)}\) | `flow--shutdown[flow, time(, period)]` | \(\{0, 1\}\) | — | Shutdown event indicator |
+| \(D^{\text{up}}_{f,t(,p)}\) | `uptime[flow, time(, period)]` | \(\geq 0\) | h | Consecutive uptime |
+| \(D^{\text{down}}_{f,t(,p)}\) | `downtime[flow, time(, period)]` | \(\geq 0\) | h | Consecutive downtime |
 
 ## Parameters
 
@@ -63,6 +65,9 @@ Each symbol maps to a specific field or variable in the code.
 | \(u_{f,k,t}\) | `Status.effects_per_startup` | \(\mathbb{R}\) | varies | Startup cost coefficient |
 | \(w_t\) | weights | \(> 0\) | — | Timestep weight |
 | \(\Delta t_t\) | dt | \(> 0\) | h | Timestep duration |
+| \(\omega_p\) | `Dims.period_weights` | \(> 0\) | — | Global period weight (multi-period only) |
+| \(\omega^{\text{periodic}}_{k,p}\) | `Effect.period_weights_periodic` | \(> 0\) | — | Per-effect weight for recurring domain |
+| \(\omega^{\text{once}}_{k,p}\) | `Effect.period_weights_once` | \(> 0\) | — | Per-effect weight for one-time domain |
 
 ## Naming Conventions
 

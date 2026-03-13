@@ -6,12 +6,16 @@ Effects represent quantities that are tracked across the optimization horizon (e
 cost, CO₂ emissions, primary energy). One effect is designated as the objective to
 minimize.
 
-Effects are split into two **domains**:
+Effects are split into three **domains**:
 
 - **Temporal** (with time dimension): per-timestep flow contributions, status costs
-- **Periodic** (without time dimension): sizing costs, fixed yearly costs
+- **Periodic** (without time dimension): recurring costs like sizing, fixed yearly costs
+- **Once** (without time dimension): one-time costs that are not scaled by period weights
 
-Both domains support cross-effect chains via `contribution_from`.
+All domains support cross-effect chains via `contribution_from`.
+
+In multi-period mode, all variables gain an optional `period` dimension. Period
+weights \(\omega_p\) scale the total effect in the objective (see [Objective](objective.md)).
 
 ## Temporal Domain
 
@@ -63,12 +67,22 @@ temporal factor only.
 Self-references (\(\alpha_{k,k}\)) and circular dependencies
 (\(k \to j \to \cdots \to k\)) are rejected at build time to prevent singular systems.
 
-## Total Aggregation
+## Once Domain
 
-The total effect combines both domains:
+One-time costs that should not be scaled by period weights (e.g., investment CAPEX,
+decommissioning costs). Currently constrained to zero — a placeholder for future
+investment modelling:
 
 \[
-\Phi_k = \sum_{t \in \mathcal{T}} \Phi_{k,t}^{\text{temporal}} \cdot w_t + \Phi_k^{\text{periodic}} \quad \forall \, k \in \mathcal{K}
+\Phi_{k(,p)}^{\text{once}} = 0 \quad \forall \, k
+\]
+
+## Total Aggregation
+
+The total effect combines all three domains:
+
+\[
+\Phi_{k(,p)} = \sum_{t \in \mathcal{T}} \Phi_{k,t(,p)}^{\text{temporal}} \cdot w_t + \Phi_{k(,p)}^{\text{periodic}} + \Phi_{k(,p)}^{\text{once}} \quad \forall \, k \in \mathcal{K}
 \]
 
 Weights \(w_t\) allow scaling timesteps (e.g., a representative week scaled to a year).
@@ -97,9 +111,10 @@ This enforces per-hour limits (e.g., maximum hourly emissions).
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\Phi_{k,t}^{\text{temporal}}\) | Per-timestep effect variable | `effect_temporal[effect, time]` |
-| \(\Phi_k^{\text{periodic}}\) | Periodic effect variable (sizing, fixed costs) | `effect_periodic[effect]` |
-| \(\Phi_k\) | Total effect variable | `effect_total[effect]` |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect_temporal[effect, time(, period)]` |
+| \(\Phi_{k(,p)}^{\text{periodic}}\) | Periodic effect variable (recurring costs) | `effect_periodic[effect(, period)]` |
+| \(\Phi_{k(,p)}^{\text{once}}\) | One-time effect variable | `effect_once[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
 | \(c_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
 | \(\alpha_{k,j,t}\) | Cross-effect contribution factor (per hour) | `Effect.contribution_from_per_hour` |
 | \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | `Effect.contribution_from` |

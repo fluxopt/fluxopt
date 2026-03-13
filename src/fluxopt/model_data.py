@@ -639,6 +639,8 @@ class EffectsData:
     objective_effect: str
     cf_periodic: xr.DataArray | None = None  # (effect, source_effect)
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time)
+    period_weights_periodic: xr.DataArray | None = None  # (effect, period)
+    period_weights_once: xr.DataArray | None = None  # (effect, period)
 
     def __post_init__(self) -> None:
         """Validate exactly one objective effect exists."""
@@ -649,6 +651,35 @@ class EffectsData:
             raise ValueError(
                 f'Multiple objective effects: {list(self.is_objective.coords["effect"][self.is_objective].values)}. Only one is allowed.'
             )
+
+    def objective_weights(
+        self,
+        global_period_weights: xr.DataArray | None,
+    ) -> tuple[xr.DataArray | int, xr.DataArray | int]:
+        """Resolve period weights for the objective effect's two domains.
+
+        Args:
+            global_period_weights: Default period weights from Dims (or None).
+
+        Returns:
+            (w_periodic, w_once) — weights for recurring and one-time domains.
+            Falls back to global_period_weights / 1 when no per-effect override.
+        """
+        k = self.objective_effect
+
+        if self.period_weights_periodic is not None and not self.period_weights_periodic.sel(effect=k).isnull().all():
+            w_periodic: xr.DataArray | int = self.period_weights_periodic.sel(effect=k)
+        elif global_period_weights is not None:
+            w_periodic = global_period_weights
+        else:
+            w_periodic = 1
+
+        if self.period_weights_once is not None and not self.period_weights_once.sel(effect=k).isnull().all():
+            w_once: xr.DataArray | int = self.period_weights_once.sel(effect=k)
+        else:
+            w_once = 1
+
+        return w_periodic, w_once
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -671,12 +702,18 @@ class EffectsData:
         return cls(**kwargs)  # type: ignore[arg-type]
 
     @classmethod
-    def build(cls, effects: list[Effect], time: TimeIndex) -> Self:
+    def build(
+        cls,
+        effects: list[Effect],
+        time: TimeIndex,
+        period: pd.Index | None = None,
+    ) -> Self:
         """Build EffectsData from element objects.
 
         Args:
             effects: Effect definitions.
             time: Time index.
+            period: Period index (multi-period only).
         """
         effect_ids = [e.id for e in effects]
         effect_set = set(effect_ids)
@@ -761,6 +798,34 @@ class EffectsData:
 
         effect_idx = pd.Index(effect_ids, name='effect')
 
+        # Per-effect period weights
+        pw_periodic: xr.DataArray | None = None
+        pw_once: xr.DataArray | None = None
+        if period is not None:
+            has_pw_periodic = any(e.period_weights_periodic is not None for e in effects)
+            has_pw_once = any(e.period_weights_once is not None for e in effects)
+            n_periods = len(period)
+            if has_pw_periodic:
+                mat = np.full((n, n_periods), np.nan)
+                for i, e in enumerate(effects):
+                    if e.period_weights_periodic is not None:
+                        if len(e.period_weights_periodic) != n_periods:
+                            msg = f'Effect {e.id!r}: period_weights_periodic has {len(e.period_weights_periodic)} entries, expected {n_periods}'
+                            raise ValueError(msg)
+                        mat[i] = e.period_weights_periodic
+                pw_periodic = xr.DataArray(
+                    mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period}
+                )
+            if has_pw_once:
+                mat = np.full((n, n_periods), np.nan)
+                for i, e in enumerate(effects):
+                    if e.period_weights_once is not None:
+                        if len(e.period_weights_once) != n_periods:
+                            msg = f'Effect {e.id!r}: period_weights_once has {len(e.period_weights_once)} entries, expected {n_periods}'
+                            raise ValueError(msg)
+                        mat[i] = e.period_weights_once
+                pw_once = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
+
         return cls(
             min_total=xr.DataArray(min_total, dims=['effect'], coords={'effect': effect_ids}),
             max_total=xr.DataArray(max_total, dims=['effect'], coords={'effect': effect_ids}),
@@ -770,6 +835,8 @@ class EffectsData:
             objective_effect=objective_effect,
             cf_periodic=cf_periodic,
             cf_temporal=cf_temporal,
+            period_weights_periodic=pw_periodic,
+            period_weights_once=pw_once,
         )
 
 
@@ -903,18 +970,14 @@ class StoragesData:
 
 def _compute_period_weights(
     periods: list[int] | pd.Index,
-    weight_of_last_period: int | float | None = None,
+    period_weights: list[float] | None = None,
 ) -> tuple[pd.Index, xr.DataArray]:
     """Compute period weights from a period index.
 
-    Weights are the duration of each period, i.e. the gap to the next period.
-    For the last period, ``weight_of_last_period`` is used (inferred from the
-    last interval when omitted).
-
     Args:
         periods: Integer period labels (e.g. [2020, 2025, 2030]).
-        weight_of_last_period: Duration of the last period. Required when
-            only one period is given; otherwise inferred from the last gap.
+        period_weights: Explicit weights per period. If None, inferred from
+            ``np.diff(periods)`` with the last gap repeated.
 
     Returns:
         Tuple of (period_index, period_weights DataArray).
@@ -924,13 +987,19 @@ def _compute_period_weights(
         raise TypeError(f'periods must be integer, got {idx.dtype}')
     if not idx.is_monotonic_increasing or not idx.is_unique:
         raise ValueError('periods must be monotonically increasing and unique')
-    if weight_of_last_period is None:
-        if len(idx) < 2:
-            raise ValueError('weight_of_last_period is required when only one period is given')
-        weight_of_last_period = int(idx[-1]) - int(idx[-2])
-    extra = idx.append(pd.Index([int(idx[-1]) + weight_of_last_period], name='period'))
-    weights = np.diff(extra.to_numpy().astype(int))
-    return idx, xr.DataArray(weights, dims=['period'], coords={'period': idx}, name='period_weight')
+
+    if period_weights is not None:
+        if len(period_weights) != len(idx):
+            msg = f'period_weights has {len(period_weights)} entries, expected {len(idx)}'
+            raise ValueError(msg)
+        w = np.asarray(period_weights, dtype=float)
+    elif len(idx) < 2:
+        raise ValueError('period_weights is required when only one period is given')
+    else:
+        gaps = np.diff(idx.to_numpy().astype(int))
+        w = np.append(gaps, gaps[-1])
+
+    return idx, xr.DataArray(w, dims=['period'], coords={'period': idx}, name='period_weight')
 
 
 @dataclass
@@ -999,7 +1068,7 @@ class Dims:
         time: TimeIndex,
         dt: xr.DataArray,
         periods: list[int] | pd.Index | None = None,
-        weight_of_last_period: int | float | None = None,
+        period_weights: list[float] | None = None,
     ) -> Self:
         """Build Dims from a time index and optional periods.
 
@@ -1007,7 +1076,7 @@ class Dims:
             time: Normalized time index.
             dt: Timestep durations.
             periods: Integer period labels for multi-period optimization.
-            weight_of_last_period: Duration of the last period.
+            period_weights: Explicit weights per period. Inferred from gaps if None.
         """
         time_coord = xr.DataArray(time, dims=['time'], coords={'time': time})
         weights = xr.DataArray(np.ones(len(time)), dims=['time'], coords={'time': time}, name='weight')
@@ -1015,7 +1084,7 @@ class Dims:
         period_da: xr.DataArray | None = None
         period_weights_da: xr.DataArray | None = None
         if periods is not None:
-            period_idx, period_weights_da = _compute_period_weights(periods, weight_of_last_period)
+            period_idx, period_weights_da = _compute_period_weights(periods, period_weights)
             period_da = xr.DataArray(period_idx.values, dims=['period'], coords={'period': period_idx})
 
         return cls(
@@ -1104,7 +1173,7 @@ class ModelData:
         storages: list[Storage] | None = None,
         dt: float | list[float] | None = None,
         periods: list[int] | pd.Index | None = None,
-        weight_of_last_period: int | float | None = None,
+        period_weights: list[float] | None = None,
     ) -> Self:
         """Build ModelData from element objects.
 
@@ -1117,8 +1186,7 @@ class ModelData:
             storages: Energy storages.
             dt: Timestep duration in hours. Auto-derived if None.
             periods: Integer period labels for multi-period optimization.
-            weight_of_last_period: Duration of the last period. Required when
-                only one period is given; otherwise inferred from the last gap.
+            period_weights: Explicit weights per period. Inferred from gaps if None.
         """
         from fluxopt.elements import PENALTY_EFFECT_ID, Effect
         from fluxopt.types import compute_dt as _compute_dt
@@ -1134,14 +1202,15 @@ class ModelData:
         flows, carrier_coeff = _collect_flows(ports, converters, stor_list)
         _validate_system(effects, ports, converters, stor_list, flows, carriers)
 
-        dims = Dims.build(time, dt_da, periods=periods, weight_of_last_period=weight_of_last_period)
+        dims = Dims.build(time, dt_da, periods=periods, period_weights=period_weights)
 
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dims.dt.values[0])
         flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar)
         carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
-        effects_data = EffectsData.build(effects, time)
+        period_idx = pd.Index(dims.period.values) if dims.period is not None else None
+        effects_data = EffectsData.build(effects, time, period=period_idx)
         storages_data = StoragesData.build(stor_list, time, dims.dt, effects)
 
         return cls(
