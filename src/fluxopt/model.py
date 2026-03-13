@@ -48,7 +48,7 @@ class FlowSystem:
         *,
         lower: Any = None,
         upper: Any = None,
-        coords: list[xr.DataArray],
+        coords: dict[str, xr.DataArray],
         name: str,
         binary: bool = False,
     ) -> Variable:
@@ -57,11 +57,11 @@ class FlowSystem:
         Args:
             lower: Lower bound (scalar, array, or DataArray).
             upper: Upper bound (scalar, array, or DataArray).
-            coords: Coordinate arrays defining the variable dimensions.
+            coords: Coordinate dict mapping dim names to DataArrays.
             name: Variable name.
             binary: Create a binary variable instead.
         """
-        coord_dict = {str(c.dims[0]): c.values for c in coords}
+        coord_dict = {k: v.values for k, v in coords.items()}
         kwargs: dict[str, Any] = {'coords': coords, 'name': name, 'binary': binary}
         if not binary:
             if lower is not None:
@@ -126,7 +126,7 @@ class FlowSystem:
         """Create flow rate decision variables P_{f,t} >= 0."""
         ds = self.data.flows
         self.flow_rate = self.m.add_variables(
-            lower=0, coords=[ds.rel_lb.coords['flow'], ds.rel_lb.coords['time']], name='flow--rate'
+            lower=0, coords={'flow': ds.rel_lb.coords['flow'], **self.data.dims.coords(time=True)}, name='flow--rate'
         )
 
     def _create_sizing_variables(self) -> None:
@@ -139,13 +139,13 @@ class FlowSystem:
             sizing_ids = fds.sizing_min.coords['sizing_flow'].values
             flow_coord = xr.DataArray(sizing_ids, dims=['flow'])
             upper = fds.sizing_max.rename({'sizing_flow': 'flow'})
-            self.flow_size = self._add_variables(lower=0, upper=upper, coords=[flow_coord], name='flow--size')
+            self.flow_size = self._add_variables(lower=0, upper=upper, coords={'flow': flow_coord}, name='flow--size')
             mandatory = fds.sizing_mandatory
             optional_ids = sizing_ids[~mandatory.values]
             if len(optional_ids):
                 self.flow_size_indicator = self._add_variables(
                     binary=True,
-                    coords=[xr.DataArray(optional_ids, dims=['flow'])],
+                    coords={'flow': xr.DataArray(optional_ids, dims=['flow'])},
                     name='flow--size_indicator',
                 )
 
@@ -158,14 +158,14 @@ class FlowSystem:
             stor_coord = xr.DataArray(sizing_ids, dims=['storage'])
             upper = sds.sizing_max.rename({'sizing_storage': 'storage'})
             self.storage_capacity = self._add_variables(
-                lower=0, upper=upper, coords=[stor_coord], name='storage--capacity'
+                lower=0, upper=upper, coords={'storage': stor_coord}, name='storage--capacity'
             )
             mandatory = sds.sizing_mandatory
             optional_ids = sizing_ids[~mandatory.values]
             if len(optional_ids):
                 self.storage_capacity_indicator = self._add_variables(
                     binary=True,
-                    coords=[xr.DataArray(optional_ids, dims=['storage'])],
+                    coords={'storage': xr.DataArray(optional_ids, dims=['storage'])},
                     name='storage--size_indicator',
                 )
 
@@ -177,11 +177,11 @@ class FlowSystem:
 
         status_ids = ds.status_min_uptime.coords['status_flow'].values
         flow_coord = xr.DataArray(status_ids, dims=['flow'])
-        time_coord = ds.rel_lb.coords['time']
+        tp = {'flow': flow_coord, **self.data.dims.coords(time=True)}
 
-        self.flow_on = self._add_variables(binary=True, coords=[flow_coord, time_coord], name='flow--on')
-        self.flow_startup = self._add_variables(binary=True, coords=[flow_coord, time_coord], name='flow--startup')
-        self.flow_shutdown = self._add_variables(binary=True, coords=[flow_coord, time_coord], name='flow--shutdown')
+        self.flow_on = self._add_variables(binary=True, coords=tp, name='flow--on')
+        self.flow_startup = self._add_variables(binary=True, coords=tp, name='flow--startup')
+        self.flow_shutdown = self._add_variables(binary=True, coords=tp, name='flow--shutdown')
 
     def _status_flow_ids(self) -> set[str]:
         """Return ids of flows with Status, or empty set."""
@@ -518,13 +518,14 @@ class FlowSystem:
         ds = d.effects
 
         effect_ids = ds.min_total.coords['effect']
-        time = ds.min_per_hour.coords['time']
 
         if len(effect_ids) == 0:
             return
 
         # --- Temporal domain: effect_temporal[effect, time] ---
-        self.effect_temporal = self.m.add_variables(coords=[effect_ids, time], name='effect--temporal')
+        self.effect_temporal = self.m.add_variables(
+            coords={'effect': effect_ids, **self.data.dims.coords(time=True)}, name='effect--temporal'
+        )
 
         # Flow contributions: sum_f(coeff_{f,k,t} * P_{f,t} * dt_t)
         effect_coeff = d.flows.effect_coeff  # (flow, effect, time)
@@ -568,7 +569,7 @@ class FlowSystem:
             self.m.add_constraints(self.effect_temporal <= max_ph, name='effect_max_ph', mask=has_max_ph)
 
         # --- Periodic domain: effect_periodic[effect] ---
-        self.effect_periodic = self.m.add_variables(coords=[effect_ids], name='effect--periodic')
+        self.effect_periodic = self.m.add_variables(coords={'effect': effect_ids}, name='effect--periodic')
 
         # Accumulate direct investment contributions per effect
         periodic_direct: Any = 0
@@ -642,7 +643,7 @@ class FlowSystem:
         self.m.add_constraints(self.effect_periodic == periodic_rhs, name='effect_periodic_eq')
 
         # --- Total: effect_total[effect] = sum_t(temporal * w) + periodic ---
-        self.effect_total = self.m.add_variables(coords=[effect_ids], name='effect--total')
+        self.effect_total = self.m.add_variables(coords={'effect': effect_ids}, name='effect--total')
         rhs = (self.effect_temporal * d.dims.weights).sum('time') + self.effect_periodic
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
@@ -666,10 +667,11 @@ class FlowSystem:
         ds = d.storages
 
         stor_ids = ds.capacity.coords['storage']
-        time = d.dims.dt.coords['time']
 
         # storage_level[storage, time] >= 0  (end-of-period convention)
-        self.storage_level = self.m.add_variables(lower=0, coords=[stor_ids, time], name='storage--level')
+        self.storage_level = self.m.add_variables(
+            lower=0, coords={'storage': stor_ids, **self.data.dims.coords(time=True)}, name='storage--level'
+        )
 
         # --- Capacity bounds on storage_level ---
         cap = ds.capacity  # (storage,) — NaN for uncapped/investable
@@ -678,7 +680,7 @@ class FlowSystem:
 
         # Fixed-capacity storages: level <= capacity (parameter)
         if has_fixed_cap.any():
-            cap_2d = cap.broadcast_like(xr.DataArray(np.nan, dims=['storage', 'time'], coords=[stor_ids, time]))
+            cap_2d = cap.broadcast_like(xr.DataArray(np.nan, dims=['storage', 'time'], coords=[stor_ids, d.dims.time]))
             mask_cap = has_fixed_cap.broadcast_like(cap_2d)
             self.m.add_constraints(self.storage_level <= cap_2d, name='level_cap', mask=mask_cap)
 
@@ -753,7 +755,7 @@ class FlowSystem:
         # --- Prior variable + single balance for ALL storages ---
         # prior[storage] is a free variable representing the state before period 0.
         # Cyclic and fixed-prior constraints pin it; otherwise it's free.
-        self.prior_storage_level = self.m.add_variables(lower=0, coords=[stor_ids], name='storage--prior')
+        self.prior_storage_level = self.m.add_variables(lower=0, coords={'storage': stor_ids}, name='storage--prior')
 
         add_accumulation_constraints(
             self.m,

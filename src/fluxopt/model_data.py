@@ -919,6 +919,17 @@ class Dims:
             if not arr.coords['time'].equals(self.time):
                 raise ValueError(f'Dims.{name} time coordinate does not match Dims.time')
 
+    def coords(self, *, time: bool = False) -> dict[str, xr.DataArray]:
+        """Return shared coordinates for variable/DataArray creation.
+
+        Args:
+            time: Include the time coordinate.
+        """
+        result: dict[str, xr.DataArray] = {}
+        if time:
+            result['time'] = self.time
+        return result
+
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
         return xr.Dataset({'dt': self.dt, 'weights': self.weights})
