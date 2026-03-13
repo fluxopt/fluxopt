@@ -812,7 +812,11 @@ class EffectsData:
                         if len(e.period_weights_periodic) != n_periods:
                             msg = f'Effect {e.id!r}: period_weights_periodic has {len(e.period_weights_periodic)} entries, expected {n_periods}'
                             raise ValueError(msg)
-                        mat[i] = e.period_weights_periodic
+                        vals = np.asarray(e.period_weights_periodic, dtype=float)
+                        if not np.all(np.isfinite(vals)) or not np.all(vals > 0):
+                            msg = f'Effect {e.id!r}: period_weights_periodic must be positive and finite, got {vals}'
+                            raise ValueError(msg)
+                        mat[i] = vals
                 pw_periodic = xr.DataArray(
                     mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period}
                 )
@@ -823,7 +827,11 @@ class EffectsData:
                         if len(e.period_weights_once) != n_periods:
                             msg = f'Effect {e.id!r}: period_weights_once has {len(e.period_weights_once)} entries, expected {n_periods}'
                             raise ValueError(msg)
-                        mat[i] = e.period_weights_once
+                        vals = np.asarray(e.period_weights_once, dtype=float)
+                        if not np.all(np.isfinite(vals)) or not np.all(vals > 0):
+                            msg = f'Effect {e.id!r}: period_weights_once must be positive and finite, got {vals}'
+                            raise ValueError(msg)
+                        mat[i] = vals
                 pw_once = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
 
         return cls(
@@ -998,6 +1006,9 @@ def _compute_period_weights(
     else:
         gaps = np.diff(idx.to_numpy().astype(int))
         w = np.append(gaps, gaps[-1])
+
+    if not np.all(np.isfinite(w)) or not np.all(w > 0):
+        raise ValueError(f'period_weights must be positive and finite, got {w}')
 
     return idx, xr.DataArray(w, dims=['period'], coords={'period': idx}, name='period_weight')
 
