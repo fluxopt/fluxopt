@@ -93,7 +93,7 @@ class TestRoundtrip:
             result.data.storages.capacity.coords['storage'].values
         )
         # dt preserved
-        assert loaded.data.dt.values == pytest.approx(result.data.dt.values)
+        assert loaded.data.dims.dt.values == pytest.approx(result.data.dims.dt.values)
 
     def test_model_data_resolve(self, tmp_nc: Path) -> None:
         """Loaded ModelData can build and solve a new model."""

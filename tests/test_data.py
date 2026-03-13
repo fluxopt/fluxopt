@@ -104,10 +104,10 @@ class TestConvertersTable:
         ds = data.converters
         assert ds is not None
         fuel_coeff = float(
-            ds.flow_coeff.sel(converter='boiler', eq_idx=0, flow='boiler(gas)', time=data.time[0]).values
+            ds.flow_coeff.sel(converter='boiler', eq_idx=0, flow='boiler(gas)', time=data.dims.time[0]).values
         )
         heat_coeff = float(
-            ds.flow_coeff.sel(converter='boiler', eq_idx=0, flow='boiler(heat)', time=data.time[0]).values
+            ds.flow_coeff.sel(converter='boiler', eq_idx=0, flow='boiler(heat)', time=data.dims.time[0]).values
         )
         assert fuel_coeff == 0.9
         assert heat_coeff == -1.0

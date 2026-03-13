@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Self
 
@@ -902,15 +902,52 @@ class StoragesData:
 
 
 @dataclass
+class Dims:
+    """Shared model coordinates and temporal metadata.
+
+    Owns the time dimension, timestep durations, and weights.
+    """
+
+    time: xr.DataArray  # (time,) — coordinate labels
+    dt: xr.DataArray  # (time,) — timestep durations [h]
+    weights: xr.DataArray  # (time,) — timestep weights
+
+    def to_dataset(self) -> xr.Dataset:
+        """Serialize to xr.Dataset."""
+        return xr.Dataset({'dt': self.dt, 'weights': self.weights})
+
+    @classmethod
+    def from_dataset(cls, ds: xr.Dataset) -> Dims:
+        """Deserialize from xr.Dataset.
+
+        Args:
+            ds: Dataset with dt and weights.
+        """
+        dt = ds['dt']
+        time_idx = dt.coords['time']
+        return cls(time=time_idx, dt=dt, weights=ds['weights'])
+
+    @classmethod
+    def build(cls, time: TimeIndex, dt: xr.DataArray) -> Dims:
+        """Build Dims from a time index.
+
+        Args:
+            time: Normalized time index.
+            dt: Timestep durations.
+        """
+        time_coord = xr.DataArray(time, dims=['time'], coords={'time': time})
+        weights = xr.DataArray(np.ones(len(time)), dims=['time'], coords={'time': time}, name='weight')
+        return cls(time=time_coord, dt=dt, weights=weights)
+
+
+@dataclass
 class ModelData:
     flows: FlowsData
     carriers: CarriersData
     converters: ConvertersData | None  # None when no converters
     effects: EffectsData
     storages: StoragesData | None  # None when no storages
-    dt: xr.DataArray  # (time,)
-    weights: xr.DataArray  # (time,)
-    time: TimeIndex = field(repr=False)
+    dims: Dims
 
     def to_netcdf(self, path: str | Path, *, mode: Literal['w', 'a'] = 'a') -> None:
         """Write model data as NetCDF groups under ``/model/``.
@@ -932,8 +969,7 @@ class ModelData:
             if obj is not None:
                 obj.to_dataset().to_netcdf(p, mode=current_mode, group=_NC_GROUPS[name], engine='netcdf4')
                 current_mode = 'a'
-        meta = xr.Dataset({'dt': self.dt, 'weights': self.weights})
-        meta.to_netcdf(p, mode=current_mode, group='model/meta', engine='netcdf4')
+        self.dims.to_dataset().to_netcdf(p, mode=current_mode, group='model/meta', engine='netcdf4')
 
     @classmethod
     def from_netcdf(cls, path: str | Path) -> ModelData:
@@ -955,9 +991,6 @@ class ModelData:
             except OSError:
                 datasets[name] = xr.Dataset()
 
-        dt = meta['dt']
-        time = pd.Index(dt.coords['time'].values)
-
         flows = FlowsData.from_dataset(datasets['flows'])
         carriers = CarriersData.from_dataset(datasets['carriers'])
         converters = ConvertersData.from_dataset(datasets['converters']) if datasets['converters'].data_vars else None
@@ -970,9 +1003,7 @@ class ModelData:
             converters=converters,
             effects=effects,
             storages=storages,
-            dt=dt,
-            weights=meta['weights'],
-            time=time,
+            dims=Dims.from_dataset(meta),
         )
 
     @classmethod
@@ -1011,7 +1042,7 @@ class ModelData:
         flows, carrier_coeff = _collect_flows(ports, converters, stor_list)
         _validate_system(effects, ports, converters, stor_list, flows, carriers)
 
-        weights = xr.DataArray(np.ones(len(time)), dims=['time'], coords={'time': time}, name='weight')
+        dims = Dims.build(time, dt_da)
 
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dt_da.values[0])
@@ -1027,9 +1058,7 @@ class ModelData:
             converters=converters_data,
             effects=effects_data,
             storages=storages_data,
-            dt=dt_da,
-            weights=weights,
-            time=time,
+            dims=dims,
         )
 
 

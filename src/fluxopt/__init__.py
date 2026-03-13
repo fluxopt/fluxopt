@@ -4,7 +4,7 @@ from typing import Any
 from fluxopt.components import Converter, Port
 from fluxopt.elements import PENALTY_EFFECT_ID, Carrier, Effect, Flow, Sizing, Status, Storage
 from fluxopt.model import FlowSystem
-from fluxopt.model_data import ModelData
+from fluxopt.model_data import Dims, ModelData
 from fluxopt.results import Result
 from fluxopt.types import (
     IdList,
@@ -51,6 +51,7 @@ __all__ = [
     'PENALTY_EFFECT_ID',
     'Carrier',
     'Converter',
+    'Dims',
     'Effect',
     'Flow',
     'FlowSystem',

@@ -445,7 +445,7 @@ class FlowSystem:
             previous_state=previous_state,
         )
 
-        dt = self.data.dt
+        dt = self.data.dims.dt
 
         # Uptime tracking
         has_any_up = min_up.notnull().any() | max_up.notnull().any()
@@ -532,7 +532,7 @@ class FlowSystem:
 
         temporal_rhs: Any = 0
         if has_any_coeff:
-            coeff_dt = effect_coeff * d.dt
+            coeff_dt = effect_coeff * d.dims.dt
             temporal_rhs = sparse_weighted_sum(self.flow_rate, coeff_dt, sum_dim='flow', group_dim='effect')
 
         # Status running costs: sum_f(running_coeff[f,k,t] * on[f,t] * dt[t])
@@ -540,7 +540,7 @@ class FlowSystem:
             assert self.flow_on is not None
             er = d.flows.status_effects_running.rename({'status_flow': 'flow'})
             if (er != 0).any():
-                temporal_rhs = temporal_rhs + (er * self.flow_on * d.dt).sum('flow')
+                temporal_rhs = temporal_rhs + (er * self.flow_on * d.dims.dt).sum('flow')
 
         # Status startup costs: sum_f(startup_coeff[f,k,t] * startup[f,t]) — per event, no dt
         if d.flows.status_effects_startup is not None:
@@ -643,7 +643,7 @@ class FlowSystem:
 
         # --- Total: effect_total[effect] = sum_t(temporal * w) + periodic ---
         self.effect_total = self.m.add_variables(coords=[effect_ids], name='effect--total')
-        rhs = (self.effect_temporal * d.weights).sum('time') + self.effect_periodic
+        rhs = (self.effect_temporal * d.dims.weights).sum('time') + self.effect_periodic
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
         # Bounds on effect_total
@@ -666,7 +666,7 @@ class FlowSystem:
         ds = d.storages
 
         stor_ids = ds.capacity.coords['storage']
-        time = d.dt.coords['time']
+        time = d.dims.dt.coords['time']
 
         # storage_level[storage, time] >= 0  (end-of-period convention)
         self.storage_level = self.m.add_variables(lower=0, coords=[stor_ids, time], name='storage--level')
@@ -743,9 +743,9 @@ class FlowSystem:
         discharge_rates = discharge_rates.assign_coords({'storage': stor_vals})
 
         # Precompute pure-xarray coefficients (no linopy overhead)
-        loss_factor = (1 - ds.loss) ** d.dt  # (storage, time)
-        charge_factor = ds.eta_c * d.dt  # (storage, time)
-        discharge_factor = d.dt / ds.eta_d  # (storage, time)
+        loss_factor = (1 - ds.loss) ** d.dims.dt  # (storage, time)
+        charge_factor = ds.eta_c * d.dims.dt  # (storage, time)
+        discharge_factor = d.dims.dt / ds.eta_d  # (storage, time)
 
         inflow = charge_rates * charge_factor
         outflow = discharge_rates * discharge_factor

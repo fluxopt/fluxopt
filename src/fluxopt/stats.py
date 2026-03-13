@@ -34,7 +34,7 @@ class StatsAccessor:
         Returns:
             DataArray (flow, time) in energy units (e.g. MWh).
         """
-        return self._result.flow_rates * self._result.data.dt
+        return self._result.flow_rates * self._result.data.dims.dt
 
     @cached_property
     def total_flow_hours(self) -> xr.DataArray:
@@ -43,7 +43,7 @@ class StatsAccessor:
         Returns:
             DataArray (flow,) — weighted sum of flow_hours over time.
         """
-        return (self.flow_hours * self._result.data.weights).sum('time')
+        return (self.flow_hours * self._result.data.dims.weights).sum('time')
 
     @cached_property
     def carrier_balance(self) -> xr.DataArray:
