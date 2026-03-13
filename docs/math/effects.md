@@ -6,16 +6,25 @@ Effects represent quantities that are tracked across the optimization horizon (e
 cost, CO₂ emissions, primary energy). One effect is designated as the objective to
 minimize.
 
-Effects are split into three **domains**:
+Effects are split into three **domains** based on how they vary over time and
+how they are weighted in multi-period optimization:
 
-- **Temporal** (with time dimension): per-timestep flow contributions, status costs
-- **Periodic** (without time dimension): recurring costs like sizing, fixed yearly costs
-- **Once** (without time dimension): one-time costs that are not scaled by period weights
+| Domain | Dims | What goes here | Multi-period weighting |
+|---|---|---|---|
+| **Temporal** | `(effect, time)` | Flow costs, running costs, startup costs — anything that varies per timestep | Summed over time (× \(w_t\)), then weighted like periodic |
+| **Periodic** | `(effect,)` | Recurring costs that repeat each period — sizing costs, fixed annual O&M | Weighted by \(\omega^{\text{periodic}}_{k,p}\) (defaults to global `period_weights`) |
+| **Once** | `(effect,)` | One-time costs at a point in time — CAPEX, decommissioning | Weighted by \(\omega^{\text{once}}_{k,p}\) (defaults to 1, no scaling) |
+
+The key distinction: **periodic** costs are assumed to recur across the gap between
+periods (e.g., annual O&M for 5 years), while **once** costs happen at a specific point
+(e.g., an investment decision in 2025). This matters because their period weights
+differ — recurring costs scale with duration, one-time costs typically don't
+(or use discount factors instead).
 
 All domains support cross-effect chains via `contribution_from`.
 
-In multi-period mode, all variables gain an optional `period` dimension. Period
-weights \(\omega_p\) scale the total effect in the objective (see [Objective](objective.md)).
+In multi-period mode, all variables gain an optional `period` dimension.
+See [Objective](objective.md) for how the domains are weighted in the objective.
 
 ## Temporal Domain
 
