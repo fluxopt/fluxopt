@@ -25,6 +25,12 @@ class FlowSystem:
     storage_capacity: Variable | None = None
     storage_capacity_indicator: Variable | None = None
 
+    # Investment variables — None when no Investment is configured
+    invest_size: Variable | None = None
+    invest_build: Variable | None = None
+    invest_active: Variable | None = None
+    invest_size_at_build: Variable | None = None
+
     # Storage variables — None when no storages
     storage_level: Variable | None = None
     prior_storage_level: Variable | None = None
@@ -78,6 +84,7 @@ class FlowSystem:
         # Phase 1: Decision variables
         self._create_flow_variables()
         self._create_sizing_variables()
+        self._create_investment_variables()
         self._create_status_variables()
         # Phase 2: Flow rate constraints
         self._constrain_flow_rates_plain()
@@ -85,6 +92,7 @@ class FlowSystem:
         self._constrain_flow_rates_status()
         # Phase 3: Feature constraints
         self._constrain_sizing()
+        self._constrain_investment()
         self._constrain_status()
         # Phase 4: System
         self._create_balance()
@@ -135,27 +143,50 @@ class FlowSystem:
         )
 
     def _create_sizing_variables(self) -> None:
-        """Create sizing decision variables for flows and storages."""
-        # --- Flow sizing ---
+        """Create sizing decision variables for flows and storages.
+
+        Both Sizing and Investment flows get entries in ``flow_size``.
+        Investment adds extra variables (invest_size, invest_build, etc.)
+        with constraints linking flow_size to invest_size * active.
+        """
         fds = self.data.flows
+        pc = self.data.dims.coords(period=True)
+
+        # Collect all flow ids and upper bounds that need a flow_size variable
+        all_ids: list[str] = []
+        upper_parts: list[xr.DataArray] = []
+
+        # --- Sizing flows ---
         if fds.sizing_min is not None:
             assert fds.sizing_max is not None
             assert fds.sizing_mandatory is not None
-            sizing_ids = fds.sizing_min.coords['sizing_flow'].values
-            flow_coord = xr.DataArray(sizing_ids, dims=['flow'])
-            upper = fds.sizing_max.rename({'sizing_flow': 'flow'})
-            pc = self.data.dims.coords(period=True)
-            self.flow_size = self._add_variables(
-                lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name='flow--size'
-            )
+            sizing_ids = list(fds.sizing_min.coords['sizing_flow'].values)
+            all_ids.extend(sizing_ids)
+            upper_parts.append(fds.sizing_max.rename({'sizing_flow': 'flow'}))
+
             mandatory = fds.sizing_mandatory
-            optional_ids = sizing_ids[~mandatory.values]
+            optional_ids = np.array(sizing_ids)[~mandatory.values]
             if len(optional_ids):
                 self.flow_size_indicator = self._add_variables(
                     binary=True,
                     coords={'flow': xr.DataArray(optional_ids, dims=['flow']), **pc},
                     name='flow--size_indicator',
                 )
+
+        # --- Investment flows ---
+        if fds.invest_min is not None:
+            assert fds.invest_max is not None
+            invest_ids = list(fds.invest_min.coords['invest_flow'].values)
+            all_ids.extend(invest_ids)
+            upper_parts.append(fds.invest_max.rename({'invest_flow': 'flow'}))
+
+        # Create unified flow_size variable
+        if all_ids:
+            upper = xr.concat(upper_parts, dim='flow') if len(upper_parts) > 1 else upper_parts[0]
+            flow_coord = xr.DataArray(all_ids, dims=['flow'])
+            self.flow_size = self._add_variables(
+                lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name='flow--size'
+            )
 
         # --- Storage capacity sizing ---
         sds = self.data.storages
@@ -177,6 +208,45 @@ class FlowSystem:
                     coords={'storage': xr.DataArray(optional_ids, dims=['storage']), **pc},
                     name='storage--size_indicator',
                 )
+
+    def _create_investment_variables(self) -> None:
+        """Create investment-specific decision variables.
+
+        Investment flows already have entries in ``flow_size`` (created by
+        ``_create_sizing_variables``).  This method adds the extra variables:
+        - invest_size[flow]: chosen capacity (period-independent)
+        - invest_build[flow, period]: binary, build in this period?
+        - invest_active[flow, period]: binary, operational in this period?
+        - invest_size_at_build[flow, period]: invest_size * build (big-M linked)
+        """
+        fds = self.data.flows
+        if fds.invest_min is None:
+            return
+        assert fds.invest_max is not None
+
+        invest_ids = list(fds.invest_min.coords['invest_flow'].values)
+        pc = self.data.dims.coords(period=True)
+
+        if not pc:
+            msg = 'Investment requires multi-period optimization (periods must be specified)'
+            raise ValueError(msg)
+
+        flow_coord = xr.DataArray(invest_ids, dims=['flow'])
+        upper = fds.invest_max.rename({'invest_flow': 'flow'})
+
+        # invest_size[flow]: single capacity decision (no period dim)
+        self.invest_size = self._add_variables(lower=0, upper=upper, coords={'flow': flow_coord}, name='invest--size')
+
+        # invest_build[flow, period]: binary build indicator
+        self.invest_build = self._add_variables(binary=True, coords={'flow': flow_coord, **pc}, name='invest--build')
+
+        # invest_active[flow, period]: binary active indicator
+        self.invest_active = self._add_variables(binary=True, coords={'flow': flow_coord, **pc}, name='invest--active')
+
+        # invest_size_at_build[flow, period]: invest_size * build (big-M)
+        self.invest_size_at_build = self._add_variables(
+            lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name='invest--size_at_build'
+        )
 
     def _create_status_variables(self) -> None:
         """Create binary on/off variables for flows with Status."""
@@ -200,7 +270,7 @@ class FlowSystem:
         return set(ds.status_min_uptime.coords['status_flow'].values)
 
     def _sizing_flow_ids(self) -> set[str]:
-        """Return ids of investable flows, or empty set."""
+        """Return ids of sizing flows, or empty set."""
         if self.flow_size is None:
             return set()
         return set(self.flow_size.coords['flow'].values)
@@ -269,12 +339,12 @@ class FlowSystem:
 
         var_mask = inv_bounded.broadcast_like(rl)
         if var_mask.any():
-            self.m.add_constraints(fr >= rl * fs, name='flow_lb_invest', mask=var_mask)
-            self.m.add_constraints(fr <= ru * fs, name='flow_ub_invest', mask=var_mask)
+            self.m.add_constraints(fr >= rl * fs, name='flow_lb_sizing', mask=var_mask)
+            self.m.add_constraints(fr <= ru * fs, name='flow_ub_sizing', mask=var_mask)
 
         if inv_profile.any():
             fix_mask = inv_profile.broadcast_like(fp) & fp.notnull()
-            self.m.add_constraints(fr == fp * fs, name='flow_fix_invest', mask=fix_mask)
+            self.m.add_constraints(fr == fp * fs, name='flow_fix_sizing', mask=fix_mask)
 
     def _constrain_flow_rates_status(self) -> None:
         """Apply semi-continuous flow rate bounds for flows with Status.
@@ -358,23 +428,24 @@ class FlowSystem:
 
     def _constrain_sizing(self) -> None:
         """Constrain sizing variables: S in [min, max] gated by indicator."""
-        # --- Flow sizing ---
-        if self.flow_size is not None:
-            fds = self.data.flows
-            assert fds.sizing_min is not None
+        # --- Flow sizing (Sizing only, not Investment) ---
+        fds = self.data.flows
+        if fds.sizing_min is not None:
             assert fds.sizing_max is not None
             assert fds.sizing_mandatory is not None
+            assert self.flow_size is not None
+            sizing_ids = fds.sizing_min.coords['sizing_flow'].values
             smin = fds.sizing_min.rename({'sizing_flow': 'flow'})
-            mandatory = fds.sizing_mandatory.rename({'sizing_flow': 'flow'})
+            mandatory = fds.sizing_mandatory
 
-            mand_ids = self.flow_size.coords['flow'].values[mandatory.values]
+            mand_ids = sizing_ids[mandatory.values]
             if len(mand_ids):
                 self.m.add_constraints(
                     self.flow_size.sel(flow=mand_ids) >= smin.sel(flow=mand_ids),
                     name='invest_mand_lb',
                 )
 
-            opt_ids = self.flow_size.coords['flow'].values[~mandatory.values]
+            opt_ids = sizing_ids[~mandatory.values]
             if len(opt_ids):
                 assert self.flow_size_indicator is not None
                 smax = fds.sizing_max.rename({'sizing_flow': 'flow'})
@@ -410,6 +481,112 @@ class FlowSystem:
                 self.m.add_constraints(
                     sc <= smax.sel(storage=opt_ids) * self.storage_capacity_indicator, name='stor_invest_ub'
                 )
+
+    def _constrain_investment(self) -> None:
+        """Constrain investment variables: build-once, active logic, size linking."""
+        if self.invest_size is None:
+            return
+
+        fds = self.data.flows
+        assert fds.invest_min is not None
+        assert fds.invest_max is not None
+        assert fds.invest_mandatory is not None
+        assert fds.invest_lifetime is not None
+        assert fds.invest_prior_size is not None
+        assert self.invest_build is not None
+        assert self.invest_active is not None
+        assert self.invest_size_at_build is not None
+
+        invest_ids = list(fds.invest_min.coords['invest_flow'].values)
+        smin = fds.invest_min.rename({'invest_flow': 'flow'})
+        smax = fds.invest_max.rename({'invest_flow': 'flow'})
+        mandatory = fds.invest_mandatory.rename({'invest_flow': 'flow'})
+        lifetime = fds.invest_lifetime.rename({'invest_flow': 'flow'})
+        prior_size = fds.invest_prior_size.rename({'invest_flow': 'flow'})
+
+        build = self.invest_build
+        active = self.invest_active
+        inv_size = self.invest_size
+        assert self.flow_size is not None
+        fs = self.flow_size.sel(flow=invest_ids)
+        sab = self.invest_size_at_build
+
+        periods = self.data.dims.period
+        assert periods is not None
+        period_vals = list(periods.values)
+        n_periods = len(period_vals)
+
+        # --- Build-once constraints ---
+        build_sum = build.sum('period')
+        mand_ids = [fid for fid, m in zip(invest_ids, mandatory.values, strict=True) if m]
+        opt_ids = [fid for fid, m in zip(invest_ids, mandatory.values, strict=True) if not m]
+
+        if mand_ids:
+            self.m.add_constraints(build_sum.sel(flow=mand_ids) == 1, name='invest_build_once_mand')
+        if opt_ids:
+            self.m.add_constraints(build_sum.sel(flow=opt_ids) <= 1, name='invest_build_once_opt')
+
+        # --- Active logic per flow ---
+        for f_idx, fid in enumerate(invest_ids):
+            lt = lifetime.values[f_idx]
+            has_prior = prior_size.values[f_idx] > 0
+            lt_int = int(lt) if not np.isnan(lt) else None
+
+            for p_idx, p in enumerate(period_vals):
+                b_sel = build.sel(flow=fid)
+                a_sel = active.sel(flow=fid, period=p)
+
+                if lt_int is None:
+                    # No lifetime: once built, active forever
+                    # active[p] = sum_{tau <= p} build[tau] + (1 if prior)
+                    contributing = [period_vals[t] for t in range(p_idx + 1)]
+                    rhs = b_sel.sel(period=contributing).sum('period')
+                    if has_prior:
+                        self.m.add_constraints(a_sel == rhs + 1, name=f'invest_active_{fid}_p{p}')
+                    else:
+                        self.m.add_constraints(a_sel == rhs, name=f'invest_active_{fid}_p{p}')
+                else:
+                    # With lifetime: active for lt_int periods after build
+                    # active[p] = sum_{tau: p in [tau, tau+lt)} build[tau] + (1 if prior and p < lt)
+                    contributing = []
+                    for t_idx in range(n_periods):
+                        if t_idx <= p_idx < t_idx + lt_int:
+                            contributing.append(period_vals[t_idx])
+                    rhs = b_sel.sel(period=contributing).sum('period') if contributing else 0
+                    if has_prior and p_idx < lt_int:
+                        self.m.add_constraints(a_sel == rhs + 1, name=f'invest_active_{fid}_p{p}')
+                    else:
+                        self.m.add_constraints(a_sel == rhs, name=f'invest_active_{fid}_p{p}')
+
+            # --- Prevent build when prior is active and no lifetime (can't build twice) ---
+            if has_prior:
+                self.m.add_constraints(build.sel(flow=fid).sum('period') == 0, name=f'invest_no_build_prior_{fid}')
+
+        # --- Size bounds ---
+        # invest_size >= min_size (if mandatory or built)
+        if mand_ids:
+            self.m.add_constraints(
+                inv_size.sel(flow=mand_ids) >= smin.sel(flow=mand_ids),
+                name='invest_size_lb_mand',
+            )
+        if opt_ids:
+            # invest_size >= min_size * sum(build) — only if built
+            self.m.add_constraints(
+                inv_size.sel(flow=opt_ids) >= smin.sel(flow=opt_ids) * build_sum.sel(flow=opt_ids),
+                name='invest_size_lb_opt',
+            )
+
+        # invest_size <= max_size (already via variable upper bound)
+
+        # --- Size ↔ active linking (big-M: flow_size = invest_size when active, 0 when not) ---
+        self.m.add_constraints(fs <= smax * active, name='invest_fs_ub_active')
+        self.m.add_constraints(fs <= inv_size, name='invest_fs_ub_size')
+        self.m.add_constraints(fs >= inv_size - smax * (1 - active), name='invest_fs_lb')
+
+        # --- size_at_build: linearization of invest_size * build ---
+        self.m.add_constraints(sab <= smax * build, name='invest_sab_ub_build')
+        self.m.add_constraints(sab <= inv_size, name='invest_sab_ub_size')
+        self.m.add_constraints(sab >= inv_size - smax * (1 - build), name='invest_sab_lb')
 
     def _constrain_status(self) -> None:
         """Add switch transition and duration tracking constraints for status flows."""
@@ -585,12 +762,13 @@ class FlowSystem:
         # Accumulate direct investment contributions per effect
         periodic_direct: Any = 0
 
-        # Flow sizing: per-size costs
-        if self.flow_size is not None:
-            assert d.flows.sizing_effects_per_size is not None
+        # Flow sizing: per-size costs (Sizing only, not Investment)
+        if d.flows.sizing_effects_per_size is not None:
+            sizing_ids = list(d.flows.sizing_effects_per_size.coords['sizing_flow'].values)
             eps = d.flows.sizing_effects_per_size.rename({'sizing_flow': 'flow'})
             if (eps != 0).any():
-                periodic_direct = periodic_direct + (eps * self.flow_size).sum('flow')
+                assert self.flow_size is not None
+                periodic_direct = periodic_direct + (eps * self.flow_size.sel(flow=sizing_ids)).sum('flow')
 
         # Flow sizing: fixed costs — optional (binary * cost), mandatory (constant)
         if self.flow_size_indicator is not None:
@@ -644,6 +822,20 @@ class FlowSystem:
                 if (ef_mand != 0).any():
                     periodic_direct = periodic_direct + ef_mand.sum('sizing_storage')
 
+        # Investment: recurring per-size costs → effect_periodic
+        if self.invest_active is not None and d.flows.invest_effects_per_size_periodic is not None:
+            eps_p = d.flows.invest_effects_per_size_periodic.rename({'invest_flow': 'flow'})
+            if (eps_p != 0).any():
+                assert self.flow_size is not None
+                invest_ids = list(d.flows.invest_effects_per_size_periodic.coords['invest_flow'].values)
+                periodic_direct = periodic_direct + (eps_p * self.flow_size.sel(flow=invest_ids)).sum('flow')
+
+        # Investment: recurring fixed costs → effect_periodic
+        if self.invest_active is not None and d.flows.invest_effects_fixed_periodic is not None:
+            ef_p = d.flows.invest_effects_fixed_periodic.rename({'invest_flow': 'flow'})
+            if (ef_p != 0).any():
+                periodic_direct = periodic_direct + (ef_p * self.invest_active).sum('flow')
+
         # Cross-effect periodic: cf_periodic[k,j] * effect_periodic[j]
         periodic_rhs: Any = periodic_direct
         if ds.cf_periodic is not None:
@@ -654,10 +846,23 @@ class FlowSystem:
         self.m.add_constraints(self.effect_periodic == periodic_rhs, name='effect_periodic_eq')
 
         # --- One-time domain: effect_once[effect(, period)] ---
-        # Costs that occur once per period, not scaled by period_weight.
-        # Currently no inputs — placeholder for future investment costs.
         self.effect_once = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--once')
-        self.m.add_constraints(self.effect_once == 0, name='effect_once_eq')
+
+        once_direct: Any = 0
+
+        # Investment: one-time per-size costs (charged in build period)
+        if self.invest_size_at_build is not None and d.flows.invest_effects_per_size is not None:
+            eps_once = d.flows.invest_effects_per_size.rename({'invest_flow': 'flow'})
+            if (eps_once != 0).any():
+                once_direct = once_direct + (eps_once * self.invest_size_at_build).sum('flow')
+
+        # Investment: one-time fixed costs (charged in build period)
+        if self.invest_build is not None and d.flows.invest_effects_fixed is not None:
+            ef_once = d.flows.invest_effects_fixed.rename({'invest_flow': 'flow'})
+            if (ef_once != 0).any():
+                once_direct = once_direct + (ef_once * self.invest_build).sum('flow')
+
+        self.m.add_constraints(self.effect_once == once_direct, name='effect_once_eq')
 
         # --- Total: effect_total[effect(, period)] ---
         self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--total')
