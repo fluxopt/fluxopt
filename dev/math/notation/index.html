@@ -11,7 +11,7 @@
       
       
       
-        <link rel="prev" href="../../notebooks/03-multi-node-heat/">
+        <link rel="prev" href="../../notebooks/04-multi-period/">
       
       
         <link rel="next" href="../objective/">
@@ -790,6 +790,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notebooks/04-multi-period/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Period Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1338,6 +1366,11 @@ Each symbol maps to a specific field or variable in the code.</p>
 <td><code>time</code> dimension</td>
 </tr>
 <tr>
+<td><span class="arithmatex">\(p \in \mathcal{P}\)</span></td>
+<td>Periods (multi-period only)</td>
+<td><code>period</code> dimension</td>
+</tr>
+<tr>
 <td><span class="arithmatex">\(f \in \mathcal{F}\)</span></td>
 <td>Flows</td>
 <td><code>flow</code> dimension</td>
@@ -1377,99 +1410,106 @@ Each symbol maps to a specific field or variable in the code.</p>
 </thead>
 <tbody>
 <tr>
-<td><span class="arithmatex">\(P_{f,t}\)</span></td>
-<td><code>flow--rate[flow, time]</code></td>
+<td><span class="arithmatex">\(P_{f,t(,p)}\)</span></td>
+<td><code>flow--rate[flow, time(, period)]</code></td>
 <td><span class="arithmatex">\(\geq 0\)</span></td>
 <td>MW</td>
 <td>Flow rate</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(E_{s,t}\)</span></td>
-<td><code>storage--level[storage, time]</code></td>
+<td><span class="arithmatex">\(E_{s,t(,p)}\)</span></td>
+<td><code>storage--level[storage, time(, period)]</code></td>
 <td><span class="arithmatex">\(\geq 0\)</span></td>
 <td>MWh</td>
 <td>Stored energy</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\Phi_{k,t}^{\text{temporal}}\)</span></td>
-<td><code>effect--temporal[effect, time]</code></td>
+<td><span class="arithmatex">\(\Phi_{k,t(,p)}^{\text{temporal}}\)</span></td>
+<td><code>effect--temporal[effect, time(, period)]</code></td>
 <td><span class="arithmatex">\(\mathbb{R}\)</span></td>
 <td>varies</td>
 <td>Temporal (per-timestep) effect</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\Phi_k^{\text{periodic}}\)</span></td>
-<td><code>effect--periodic[effect]</code></td>
+<td><span class="arithmatex">\(\Phi_{k(,p)}^{\text{periodic}}\)</span></td>
+<td><code>effect--periodic[effect(, period)]</code></td>
 <td><span class="arithmatex">\(\mathbb{R}\)</span></td>
 <td>varies</td>
-<td>Periodic (investment) effect</td>
+<td>Periodic (recurring) effect</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\Phi_k\)</span></td>
-<td><code>effect--total[effect]</code></td>
+<td><span class="arithmatex">\(\Phi_{k(,p)}^{\text{once}}\)</span></td>
+<td><code>effect--once[effect(, period)]</code></td>
 <td><span class="arithmatex">\(\mathbb{R}\)</span></td>
 <td>varies</td>
-<td>Total effect over horizon</td>
+<td>One-time effect</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(S_f\)</span></td>
-<td><code>flow--size[flow]</code></td>
+<td><span class="arithmatex">\(\Phi_{k(,p)}\)</span></td>
+<td><code>effect--total[effect(, period)]</code></td>
+<td><span class="arithmatex">\(\mathbb{R}\)</span></td>
+<td>varies</td>
+<td>Total effect per period</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(S_{f(,p)}\)</span></td>
+<td><code>flow--size[flow(, period)]</code></td>
 <td><span class="arithmatex">\(\geq 0\)</span></td>
 <td>MW</td>
-<td>Invested flow capacity</td>
+<td>Flow capacity</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(y_f\)</span></td>
-<td><code>flow--size_indicator[flow]</code></td>
+<td><span class="arithmatex">\(y_{f(,p)}\)</span></td>
+<td><code>flow--size_indicator[flow(, period)]</code></td>
 <td><span class="arithmatex">\(\{0, 1\}\)</span></td>
 <td>—</td>
 <td>Binary invest indicator (flow)</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(S_s\)</span></td>
-<td><code>storage--capacity[storage]</code></td>
+<td><span class="arithmatex">\(S_{s(,p)}\)</span></td>
+<td><code>storage--capacity[storage(, period)]</code></td>
 <td><span class="arithmatex">\(\geq 0\)</span></td>
 <td>MWh</td>
-<td>Invested storage capacity</td>
+<td>Storage capacity</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(y_s\)</span></td>
-<td><code>storage--size_indicator[storage]</code></td>
+<td><span class="arithmatex">\(y_{s(,p)}\)</span></td>
+<td><code>storage--size_indicator[storage(, period)]</code></td>
 <td><span class="arithmatex">\(\{0, 1\}\)</span></td>
 <td>—</td>
 <td>Binary invest indicator (storage)</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\sigma_{f,t}\)</span></td>
-<td><code>flow--on[flow, time]</code></td>
+<td><span class="arithmatex">\(\sigma_{f,t(,p)}\)</span></td>
+<td><code>flow--on[flow, time(, period)]</code></td>
 <td><span class="arithmatex">\(\{0, 1\}\)</span></td>
 <td>—</td>
 <td>On/off indicator</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\tau^+_{f,t}\)</span></td>
-<td><code>flow--startup[flow, time]</code></td>
+<td><span class="arithmatex">\(\tau^+_{f,t(,p)}\)</span></td>
+<td><code>flow--startup[flow, time(, period)]</code></td>
 <td><span class="arithmatex">\(\{0, 1\}\)</span></td>
 <td>—</td>
 <td>Startup event indicator</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\tau^-_{f,t}\)</span></td>
-<td><code>flow--shutdown[flow, time]</code></td>
+<td><span class="arithmatex">\(\tau^-_{f,t(,p)}\)</span></td>
+<td><code>flow--shutdown[flow, time(, period)]</code></td>
 <td><span class="arithmatex">\(\{0, 1\}\)</span></td>
 <td>—</td>
 <td>Shutdown event indicator</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(D^{\text{up}}_{f,t}\)</span></td>
-<td><code>uptime[flow, time]</code></td>
+<td><span class="arithmatex">\(D^{\text{up}}_{f,t(,p)}\)</span></td>
+<td><code>uptime[flow, time(, period)]</code></td>
 <td><span class="arithmatex">\(\geq 0\)</span></td>
 <td>h</td>
 <td>Consecutive uptime</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(D^{\text{down}}_{f,t}\)</span></td>
-<td><code>downtime[flow, time]</code></td>
+<td><span class="arithmatex">\(D^{\text{down}}_{f,t(,p)}\)</span></td>
+<td><code>downtime[flow, time(, period)]</code></td>
 <td><span class="arithmatex">\(\geq 0\)</span></td>
 <td>h</td>
 <td>Consecutive downtime</td>
@@ -1670,6 +1710,27 @@ Each symbol maps to a specific field or variable in the code.</p>
 <td>h</td>
 <td>Timestep duration</td>
 </tr>
+<tr>
+<td><span class="arithmatex">\(\omega_p\)</span></td>
+<td><code>Dims.period_weights</code></td>
+<td><span class="arithmatex">\(&gt; 0\)</span></td>
+<td>—</td>
+<td>Global period weight (multi-period only)</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\omega^{\text{periodic}}_{k,p}\)</span></td>
+<td><code>Effect.period_weights_periodic</code></td>
+<td><span class="arithmatex">\(&gt; 0\)</span></td>
+<td>—</td>
+<td>Per-effect weight for recurring domain</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\omega^{\text{once}}_{k,p}\)</span></td>
+<td><code>Effect.period_weights_once</code></td>
+<td><span class="arithmatex">\(&gt; 0\)</span></td>
+<td>—</td>
+<td>Per-effect weight for one-time domain</td>
+</tr>
 </tbody>
 </table>
 <h2 id="naming-conventions">Naming Conventions<a class="headerlink" href="#naming-conventions" title="Permanent link">&para;</a></h2>
@@ -1749,7 +1810,7 @@ Each symbol maps to a specific field or variable in the code.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../../notebooks/03-multi-node-heat/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Multi-Node Heat Network">
+          <a href="../../notebooks/04-multi-period/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Multi-Period Optimization">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1759,7 +1820,7 @@ Each symbol maps to a specific field or variable in the code.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Multi-Node Heat Network
+                Multi-Period Optimization
               </div>
             </div>
           </a>

@@ -790,6 +790,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notebooks/04-multi-period/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Period Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1148,6 +1176,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#once-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Once Domain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#total-aggregation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1417,6 +1456,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#once-domain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Once Domain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#total-aggregation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1524,12 +1574,46 @@
 <p>Effects represent quantities that are tracked across the optimization horizon (e.g.,
 cost, CO₂ emissions, primary energy). One effect is designated as the objective to
 minimize.</p>
-<p>Effects are split into two <strong>domains</strong>:</p>
-<ul>
-<li><strong>Temporal</strong> (with time dimension): per-timestep flow contributions, status costs</li>
-<li><strong>Periodic</strong> (without time dimension): sizing costs, fixed yearly costs</li>
-</ul>
-<p>Both domains support cross-effect chains via <code>contribution_from</code>.</p>
+<p>Effects are split into three <strong>domains</strong> based on how they vary over time and
+how they are weighted in multi-period optimization:</p>
+<table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>Dims</th>
+<th>What goes here</th>
+<th>Multi-period weighting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Temporal</strong></td>
+<td><code>(effect, time)</code></td>
+<td>Flow costs, running costs, startup costs — anything that varies per timestep</td>
+<td>Summed over time (× <span class="arithmatex">\(w_t\)</span>), then weighted like periodic</td>
+</tr>
+<tr>
+<td><strong>Periodic</strong></td>
+<td><code>(effect,)</code></td>
+<td>Recurring costs that repeat each period — sizing costs, fixed annual O&amp;M</td>
+<td>Weighted by <span class="arithmatex">\(\omega^{\text{periodic}}_{k,p}\)</span> (defaults to global <code>period_weights</code>)</td>
+</tr>
+<tr>
+<td><strong>Once</strong></td>
+<td><code>(effect,)</code></td>
+<td>One-time costs at a point in time — CAPEX, decommissioning</td>
+<td>Weighted by <span class="arithmatex">\(\omega^{\text{once}}_{k,p}\)</span> (defaults to 1, no scaling)</td>
+</tr>
+</tbody>
+</table>
+<p>The key distinction: <strong>periodic</strong> costs are assumed to recur across the gap between
+periods (e.g., annual O&amp;M for 5 years), while <strong>once</strong> costs happen at a specific point
+(e.g., an investment decision in 2025). This matters because their period weights
+differ — recurring costs scale with duration, one-time costs typically don't
+(or use discount factors instead).</p>
+<p>All domains support cross-effect chains via <code>contribution_from</code>.</p>
+<p>In multi-period mode, all variables gain an optional <code>period</code> dimension.
+See <a href="../objective/">Objective</a> for how the domains are weighted in the objective.</p>
 <h2 id="temporal-domain">Temporal Domain<a class="headerlink" href="#temporal-domain" title="Permanent link">&para;</a></h2>
 <p>Each effect accumulates contributions from all flows at each timestep:</p>
 <div class="arithmatex">\[
@@ -1564,10 +1648,17 @@ temporal factor only.</p>
 <h3 id="validation">Validation<a class="headerlink" href="#validation" title="Permanent link">&para;</a></h3>
 <p>Self-references (<span class="arithmatex">\(\alpha_{k,k}\)</span>) and circular dependencies
 (<span class="arithmatex">\(k \to j \to \cdots \to k\)</span>) are rejected at build time to prevent singular systems.</p>
-<h2 id="total-aggregation">Total Aggregation<a class="headerlink" href="#total-aggregation" title="Permanent link">&para;</a></h2>
-<p>The total effect combines both domains:</p>
+<h2 id="once-domain">Once Domain<a class="headerlink" href="#once-domain" title="Permanent link">&para;</a></h2>
+<p>One-time costs that should not be scaled by period weights (e.g., investment CAPEX,
+decommissioning costs). Currently constrained to zero — a placeholder for future
+investment modelling:</p>
 <div class="arithmatex">\[
-\Phi_k = \sum_{t \in \mathcal{T}} \Phi_{k,t}^{\text{temporal}} \cdot w_t + \Phi_k^{\text{periodic}} \quad \forall \, k \in \mathcal{K}
+\Phi_{k(,p)}^{\text{once}} = 0 \quad \forall \, k
+\]</div>
+<h2 id="total-aggregation">Total Aggregation<a class="headerlink" href="#total-aggregation" title="Permanent link">&para;</a></h2>
+<p>The total effect combines all three domains:</p>
+<div class="arithmatex">\[
+\Phi_{k(,p)} = \sum_{t \in \mathcal{T}} \Phi_{k,t(,p)}^{\text{temporal}} \cdot w_t + \Phi_{k(,p)}^{\text{periodic}} + \Phi_{k(,p)}^{\text{once}} \quad \forall \, k \in \mathcal{K}
 \]</div>
 <p>Weights <span class="arithmatex">\(w_t\)</span> allow scaling timesteps (e.g., a representative week scaled to a year).</p>
 <h2 id="total-bounds">Total Bounds<a class="headerlink" href="#total-bounds" title="Permanent link">&para;</a></h2>
@@ -1593,19 +1684,24 @@ temporal factor only.</p>
 </thead>
 <tbody>
 <tr>
-<td><span class="arithmatex">\(\Phi_{k,t}^{\text{temporal}}\)</span></td>
+<td><span class="arithmatex">\(\Phi_{k,t(,p)}^{\text{temporal}}\)</span></td>
 <td>Per-timestep effect variable</td>
-<td><code>effect_temporal[effect, time]</code></td>
+<td><code>effect_temporal[effect, time(, period)]</code></td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\Phi_k^{\text{periodic}}\)</span></td>
-<td>Periodic effect variable (sizing, fixed costs)</td>
-<td><code>effect_periodic[effect]</code></td>
+<td><span class="arithmatex">\(\Phi_{k(,p)}^{\text{periodic}}\)</span></td>
+<td>Periodic effect variable (recurring costs)</td>
+<td><code>effect_periodic[effect(, period)]</code></td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\Phi_k\)</span></td>
+<td><span class="arithmatex">\(\Phi_{k(,p)}^{\text{once}}\)</span></td>
+<td>One-time effect variable</td>
+<td><code>effect_once[effect(, period)]</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\Phi_{k(,p)}\)</span></td>
 <td>Total effect variable</td>
-<td><code>effect_total[effect]</code></td>
+<td><code>effect_total[effect(, period)]</code></td>
 </tr>
 <tr>
 <td><span class="arithmatex">\(c_{f,k,t}\)</span></td>

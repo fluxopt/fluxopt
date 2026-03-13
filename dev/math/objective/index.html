@@ -790,6 +790,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notebooks/04-multi-period/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Period Optimization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -955,6 +983,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Formulation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-period" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-period
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-period" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-period
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#total-effect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Total effect
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -969,13 +1036,41 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#examples" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        Examples
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-period_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-period
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-period_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-period
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1253,6 +1348,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Formulation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-period" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-period
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-period" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-period
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#total-effect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Total effect
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1267,13 +1401,41 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#examples" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        Examples
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-period_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-period
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multi-period_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-period
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1300,23 +1462,42 @@
 <h1 id="objective-function">Objective Function<a class="headerlink" href="#objective-function" title="Permanent link">&para;</a></h1>
 <h2 id="formulation">Formulation<a class="headerlink" href="#formulation" title="Permanent link">&para;</a></h2>
 <p>The model minimizes the total value of the designated objective effect <span class="arithmatex">\(k^*\)</span>
-(the one with <code>is_objective=True</code>):</p>
+(the one with <code>is_objective=True</code>).</p>
+<h3 id="single-period">Single-period<a class="headerlink" href="#single-period" title="Permanent link">&para;</a></h3>
+<p>Without periods, the objective is simply:</p>
 <div class="arithmatex">\[
 \min \; \Phi_{k^*}
 \]</div>
-<p>The total effect combines the temporal and periodic domains:</p>
+<h3 id="multi-period">Multi-period<a class="headerlink" href="#multi-period" title="Permanent link">&para;</a></h3>
+<p>With periods <span class="arithmatex">\(p \in \mathcal{P}\)</span>, the objective separates recurring and one-time
+domains with independent per-effect weights:</p>
 <div class="arithmatex">\[
-\Phi_k = \sum_{t \in \mathcal{T}} \Phi_{k,t}^{\text{temporal}} \cdot w_t + \Phi_k^{\text{periodic}}
+\min \; \sum_{p \in \mathcal{P}} \omega^{\text{periodic}}_{k^*,p} \cdot \left(\sum_t \Phi_{k^*,t,p}^{\text{temporal}} \cdot w_t + \Phi_{k^*,p}^{\text{periodic}}\right) + \omega^{\text{once}}_{k^*,p} \cdot \Phi_{k^*,p}^{\text{once}}
+\]</div>
+<ul>
+<li><span class="arithmatex">\(\omega^{\text{periodic}}_{k,p}\)</span> defaults to the global <code>period_weights</code> (inferred from
+  gaps between period labels, or explicit). Override per effect via <code>Effect.period_weights_periodic</code>.</li>
+<li><span class="arithmatex">\(\omega^{\text{once}}_{k,p}\)</span> defaults to 1 (no scaling). Override per effect via
+  <code>Effect.period_weights_once</code>.</li>
+</ul>
+<p>This allows different weighting strategies per effect (e.g., NPV discounting for costs,
+flat weights for emissions).</p>
+<h3 id="total-effect">Total effect<a class="headerlink" href="#total-effect" title="Permanent link">&para;</a></h3>
+<p>The total effect per period combines all three domains:</p>
+<div class="arithmatex">\[
+\Phi_{k(,p)} = \sum_{t \in \mathcal{T}} \Phi_{k,t(,p)}^{\text{temporal}} \cdot w_t + \Phi_{k(,p)}^{\text{periodic}} + \Phi_{k(,p)}^{\text{once}}
 \]</div>
 <p>The <strong>temporal</strong> domain accumulates flow contributions, running costs,
 startup costs, and cross-effect contributions per timestep:</p>
 <div class="arithmatex">\[
 \Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f} c_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{flow}} + \underbrace{\sum_{f} r_{f,k,t} \cdot \sigma_{f,t} \cdot \Delta t_t}_{\text{running}} + \underbrace{\sum_{f} u_{f,k,t} \cdot \tau^+_{f,t}}_{\text{startup}} + \underbrace{\sum_{j} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect}}
 \]</div>
-<p>The <strong>periodic</strong> domain accumulates sizing costs, fixed costs, and cross-effect contributions:</p>
+<p>The <strong>periodic</strong> domain accumulates recurring sizing costs, fixed costs, and cross-effect contributions:</p>
 <div class="arithmatex">\[
 \Phi_k^{\text{periodic}} = \underbrace{\sum_{f} \gamma_{f,k} \cdot S_f + \sum_{f} \phi_{f,k} \cdot y_f + \sum_{s} \gamma_{s,k} \cdot S_s + \sum_{s} \phi_{s,k} \cdot y_s}_{\text{direct sizing costs}} + \underbrace{\sum_{j} \alpha_{k,j} \cdot \Phi_j^{\text{periodic}}}_{\text{cross-effect}}
 \]</div>
+<p>The <strong>once</strong> domain is reserved for one-time costs (e.g., investment CAPEX)
+that should not be scaled by period weights. Currently constrained to zero.</p>
 <p>See <a href="../sizing/">Sizing</a>, <a href="../status/">Status</a>, and <a href="../effects/">Effects</a> for
 full formulations of each term.</p>
 <h2 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Permanent link">&para;</a></h2>
@@ -1355,24 +1536,40 @@ full formulations of each term.</p>
 <td>weights</td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\Phi_{k,t}^{\text{temporal}}\)</span></td>
+<td><span class="arithmatex">\(\omega^{\text{periodic}}_{k,p}\)</span></td>
+<td>Period weight for recurring domain</td>
+<td><code>Effect.period_weights_periodic</code> (fallback: <code>Dims.period_weights</code>)</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\omega^{\text{once}}_{k,p}\)</span></td>
+<td>Period weight for one-time domain</td>
+<td><code>Effect.period_weights_once</code> (default: 1)</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\Phi_{k,t(,p)}^{\text{temporal}}\)</span></td>
 <td>Temporal (per-timestep) effect variable</td>
-<td><code>effect--temporal[effect, time]</code></td>
+<td><code>effect--temporal[effect, time(, period)]</code></td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\Phi_k^{\text{periodic}}\)</span></td>
-<td>Periodic effect variable (sizing, fixed costs)</td>
-<td><code>effect--periodic[effect]</code></td>
+<td><span class="arithmatex">\(\Phi_{k(,p)}^{\text{periodic}}\)</span></td>
+<td>Periodic effect variable (recurring costs)</td>
+<td><code>effect--periodic[effect(, period)]</code></td>
 </tr>
 <tr>
-<td><span class="arithmatex">\(\Phi_k\)</span></td>
+<td><span class="arithmatex">\(\Phi_{k(,p)}^{\text{once}}\)</span></td>
+<td>One-time effect variable</td>
+<td><code>effect--once[effect(, period)]</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\Phi_{k(,p)}\)</span></td>
 <td>Total effect variable</td>
-<td><code>effect--total[effect]</code></td>
+<td><code>effect--total[effect(, period)]</code></td>
 </tr>
 </tbody>
 </table>
 <p>See <a href="../notation/">Notation</a> for the full symbol table.</p>
-<h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h2>
+<h3 id="single-period_1">Single-period<a class="headerlink" href="#single-period_1" title="Permanent link">&para;</a></h3>
 <p>Consider a gas boiler over 3 timesteps (<span class="arithmatex">\(\Delta t = 1\,\text{h}\)</span>, <span class="arithmatex">\(w = 1\)</span>):</p>
 <table>
 <thead>
@@ -1405,8 +1602,14 @@ full formulations of each term.</p>
 </tbody>
 </table>
 <p>Total cost: <span class="arithmatex">\(\Phi_{\text{cost}} = \sum_t \Phi_{\text{cost},t}^{\text{temporal}} = 60 + 90 + 45 = 195\,\text{€}\)</span></p>
-<p>The optimizer finds the <span class="arithmatex">\(P_{f,t}\)</span> values that minimize <span class="arithmatex">\(\Phi_{k^*}\)</span> subject to all
-constraints (bus balance, flow bounds, conversion, storage dynamics).</p>
+<h3 id="multi-period_1">Multi-period<a class="headerlink" href="#multi-period_1" title="Permanent link">&para;</a></h3>
+<p>Same system with <code>periods=[2020, 2025]</code>, <code>period_weights=[5, 5]</code>.</p>
+<p>Each period has the same 3 timesteps with per-period cost = 30 €. The objective becomes:</p>
+<div class="arithmatex">\[
+\sum_p \omega_p \cdot \Phi_{\text{cost},p} = 5 \times 30 + 5 \times 30 = 300\,\text{€}
+\]</div>
+<p>The optimizer finds the <span class="arithmatex">\(P_{f,t(,p)}\)</span> values that minimize the (period-weighted)
+<span class="arithmatex">\(\Phi_{k^*}\)</span> subject to all constraints.</p>
 
 
 
