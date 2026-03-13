@@ -1,0 +1,54 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v0.0.4-alpha.0)'
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Build & publish to PyPI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/fluxopt
+    permissions:
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: uv build
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  deploy-docs:
+    name: Deploy docs
+    needs: [publish]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/docs.yaml
+    with:
+      deploy: true
+      version: ${{ inputs.tag }}
