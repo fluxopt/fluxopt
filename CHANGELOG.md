@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.4-alpha.0...v0.0.5-alpha.0) (2026-03-14)
+
+
+### Features
+
+* add Investment for multi-period build-timing optimization ([#85](https://github.com/FBumann/fluxopt/issues/85)) ([fe70bf8](https://github.com/FBumann/fluxopt/commit/fe70bf87133def20288484e9ea658bea43a9e770))
+
 ## [0.0.4-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.3-alpha.0...v0.0.4-alpha.0) (2026-03-13)
 
 
