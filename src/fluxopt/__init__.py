@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 from fluxopt.components import Converter, Port
-from fluxopt.elements import PENALTY_EFFECT_ID, Carrier, Effect, Flow, Sizing, Status, Storage
+from fluxopt.elements import PENALTY_EFFECT_ID, Carrier, Effect, Flow, Investment, Sizing, Status, Storage
 from fluxopt.model import FlowSystem
 from fluxopt.model_data import Dims, ModelData
 from fluxopt.results import Result
@@ -70,6 +70,7 @@ __all__ = [
     'Flow',
     'FlowSystem',
     'IdList',
+    'Investment',
     'ModelData',
     'Port',
     'Result',

@@ -60,6 +60,37 @@ class Sizing:
 
 
 @dataclass
+class Investment:
+    """Singular discrete build-timing optimization.
+
+    The solver decides WHEN to build (which period) and at what size.
+    Once built, capacity is available for ``lifetime`` periods.
+    Size is decided once — no growth or partial retirement.
+
+    Args:
+        min_size: Minimum capacity if built.
+        max_size: Maximum capacity.
+        mandatory: If True, must build exactly once; if False, may build at most once.
+        lifetime: Periods active after build; None = forever.
+        prior_size: Pre-existing capacity available from period 0.
+        effects_per_size: One-time per-MW costs charged in the build period.
+        effects_fixed: One-time fixed costs charged in the build period.
+        effects_per_size_periodic: Recurring per-MW costs charged every active period.
+        effects_fixed_periodic: Recurring fixed costs charged every active period.
+    """
+
+    min_size: float
+    max_size: float
+    mandatory: bool = True
+    lifetime: int | None = None
+    prior_size: float = 0.0
+    effects_per_size: dict[str, float] = field(default_factory=dict)
+    effects_fixed: dict[str, float] = field(default_factory=dict)
+    effects_per_size_periodic: dict[str, float] = field(default_factory=dict)
+    effects_fixed_periodic: dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
 class Status:
     """Binary on/off behavior parameters.
 
@@ -97,7 +128,7 @@ class Flow:
     short_id: str = ''
     id: str = field(init=False, default='')
     node: str | None = None
-    size: float | Sizing | None = None  # P̄_f  [MW]
+    size: float | Sizing | Investment | None = None  # P̄_f  [MW]
     relative_minimum: TimeSeries = 0.0  # p̲_f  [-]
     relative_maximum: TimeSeries = 1.0  # p̄_f  [-]
     fixed_relative_profile: TimeSeries | None = None  # π_f  [-]
@@ -151,7 +182,7 @@ class Storage:
     id: str
     charging: Flow
     discharging: Flow
-    capacity: float | Sizing | None = None  # Ē_s  [MWh]
+    capacity: float | Sizing | Investment | None = None  # Ē_s  [MWh]
     eta_charge: TimeSeries = 1.0  # η^c_s  [-]
     eta_discharge: TimeSeries = 1.0  # η^d_s  [-]
     relative_loss_per_hour: TimeSeries = 0.0  # δ_s  [1/h]
