@@ -6,7 +6,16 @@ import xarray as xr
 from conftest import ts
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Effect, Flow, Investment, Port, Sizing
+from fluxopt import Carrier, Effect, Flow, Investment, Port, Sizing, Status, Storage
+
+_VALIDATE = 'optimize->save->reload->validate'
+_XFAIL_REASON = 'effect_contributions does not yet support investment/period decomposition (#84)'
+
+
+def _xfail_if_validate(optimize: object) -> None:
+    """Mark expected failure for the validate pipeline."""
+    if getattr(optimize, 'pipeline', None) == _VALIDATE:
+        pytest.xfail(_XFAIL_REASON)
 
 
 class TestMultiPeriod:
@@ -134,14 +143,7 @@ class TestMultiPeriod:
         """Proves: scalar relative_maximum_final_level works in multi-period."""
 
 
-_xfail_contributions = pytest.mark.xfail(
-    reason='effect_contributions does not yet support investment/period decomposition (#84)',
-    strict=False,
-)
-
-
 class TestInvestment:
-    @_xfail_contributions
     def test_investment_mandatory_builds_once(self, optimize):
         """Proves: mandatory Investment builds exactly once across periods.
 
@@ -151,6 +153,7 @@ class TestInvestment:
         Operational cost per period: 10*3*1=30, weighted=5*30=150.
         Total recurring: 3*150=450. Total once: 100. Objective=450+100=550.
         """
+        _xfail_if_validate(optimize)
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
@@ -296,7 +299,6 @@ class TestInvestment:
         # Cost = 2 * 5 * 30 = 300 (operational only, no CAPEX)
         assert_allclose(result.objective, 300.0, rtol=1e-4)
 
-    @_xfail_contributions
     def test_investment_capex_charged_once(self, optimize):
         """Proves: effects_per_size goes to effect_once domain, not periodic.
 
@@ -304,6 +306,7 @@ class TestInvestment:
         No operational costs. 2 periods, weights=[5, 5].
         Objective = 5*0 + 5*0 + 1*100 = 100  (once costs have ω_once=1 by default).
         """
+        _xfail_if_validate(optimize)
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
@@ -333,13 +336,13 @@ class TestInvestment:
         # No flow costs. Objective = 100.
         assert_allclose(result.objective, 100.0, rtol=1e-4)
 
-    @_xfail_contributions
     def test_investment_periodic_costs_weighted(self, optimize):
         """Proves: effects_per_size_periodic goes to effect_periodic, scaled by period weights.
 
         Recurring O&M = 2/MW/period, size=10 MW. 2 periods, weights=[5, 5].
         Periodic cost per period = 2*10 = 20. Weighted: 5*20 + 5*20 = 200.
         """
+        _xfail_if_validate(optimize)
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
@@ -408,7 +411,41 @@ class TestPeriodVaryingEffects:
         )
         assert_allclose(result.objective, 40.0, rtol=1e-4)
 
-    @_xfail_contributions
+    def test_sizing_effects_fixed_vary_by_period(self, optimize):
+        """Proves: Sizing.effects_fixed can vary across periods.
+
+        Grid with Sizing(10, 10), effects_fixed varies: 5 in 2020, 15 in 2025.
+        Fixed cost is independent of size. Weights=[1, 1].
+        Objective = 5 + 15 = 20.
+        """
+        periods = [2020, 2025]
+        cost_by_period = xr.DataArray([5.0, 15.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Sizing(10, 10, effects_fixed={'cost': cost_by_period}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 20.0, rtol=1e-4)
+
     def test_investment_periodic_costs_vary_by_period(self, optimize):
         """Proves: Investment.effects_per_size_periodic can vary across periods.
 
@@ -416,6 +453,7 @@ class TestPeriodVaryingEffects:
         Active in both periods. Periodic cost = O&M * size.
         2020: 1*10=10, 2025: 3*10=30. Weights=[1, 1]. Objective = 10 + 30 = 40.
         """
+        _xfail_if_validate(optimize)
         periods = [2020, 2025]
         om_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
         result = optimize(
@@ -444,7 +482,188 @@ class TestPeriodVaryingEffects:
         )
         assert_allclose(result.objective, 40.0, rtol=1e-4)
 
-    @_xfail_contributions
+    def test_investment_fixed_periodic_costs_vary_by_period(self, optimize):
+        """Proves: Investment.effects_fixed_periodic can vary across periods.
+
+        Investment(10, 10), fixed periodic cost varies: 5 in 2020, 15 in 2025.
+        Active in both periods. Weights=[1, 1]. Objective = 5 + 15 = 20.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        cost_by_period = xr.DataArray([5.0, 15.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(10, 10, effects_fixed_periodic={'cost': cost_by_period}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 20.0, rtol=1e-4)
+
+    def test_investment_capex_per_size_varies_by_period(self, optimize):
+        """Proves: Investment.effects_per_size (once) can vary across periods.
+
+        Investment(10, 10), CAPEX varies: 10 in 2020, 20 in 2025.
+        Mandatory build → builds in cheapest period (2020). Once cost = 10*10 = 100.
+        Weights=[1, 1]. Objective = 100.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        capex_by_period = xr.DataArray([10.0, 20.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(10, 10, effects_per_size={'cost': capex_by_period}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 100.0, rtol=1e-4)
+
+    def test_investment_capex_fixed_varies_by_period(self, optimize):
+        """Proves: Investment.effects_fixed (once) can vary across periods.
+
+        Investment(10, 10), fixed CAPEX varies: 50 in 2020, 100 in 2025.
+        Mandatory build → builds in cheapest period (2020). Once cost = 50.
+        Weights=[1, 1]. Objective = 50.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        capex_by_period = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(10, 10, effects_fixed={'cost': capex_by_period}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 50.0, rtol=1e-4)
+
+    def test_status_running_cost_varies_by_period(self, optimize):
+        """Proves: Status.effects_per_running_hour can vary across periods.
+
+        Flow with status, demand=10 forces flow on for all 3 timesteps.
+        Running cost: 1 in 2020, 3 in 2025. dt=1h.
+        Running cost: 2020→1*3=3, 2025→3*3=9.
+        Weights=[1, 1]. Objective = 3 + 9 = 12.
+        """
+        periods = [2020, 2025]
+        cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=10,
+                            relative_minimum=0.5,
+                            status=Status(effects_per_running_hour={'cost': cost_by_period}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 12.0, rtol=1e-4)
+
+    def test_status_startup_cost_varies_by_period(self, optimize):
+        """Proves: Status.effects_per_startup can vary across periods.
+
+        Demand profile [10, 0, 10] forces off→on at t=2 (1 startup per period).
+        Startup cost: 100 in 2020, 300 in 2025.
+        Weights=[1, 1]. Objective = 100 + 300 = 400.
+        """
+        periods = [2020, 2025]
+        cost_by_period = xr.DataArray([100.0, 300.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 0, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=10,
+                            relative_minimum=0.5,
+                            status=Status(effects_per_startup={'cost': cost_by_period}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 400.0, rtol=1e-4)
+
     def test_contribution_from_varies_by_period(self, optimize):
         """Proves: Effect.contribution_from can vary across periods.
 
@@ -454,6 +673,7 @@ class TestPeriodVaryingEffects:
         CO2 per period = 30. Cost from CO2: 2020→50*30=1500, 2025→100*30=3000.
         Weights=[1, 1]. Objective = 1500 + 3000 = 4500.
         """
+        _xfail_if_validate(optimize)
         periods = [2020, 2025]
         carbon_price = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
         result = optimize(
@@ -481,3 +701,80 @@ class TestPeriodVaryingEffects:
             period_weights=[1, 1],
         )
         assert_allclose(result.objective, 4500.0, rtol=1e-4)
+
+    def test_contribution_from_per_hour_varies_by_period(self, optimize):
+        """Proves: Effect.contribution_from_per_hour can vary across periods.
+
+        CO2 effect tracks emissions. Cost gets contribution_from_per_hour CO2
+        at rate 50 in 2020, 100 in 2025. Grid emits 1 CO2/MWh, demand=10 for 3 ts.
+        CO2 per period = 30. Cost: 2020→50*30=1500, 2025→100*30=3000.
+        Weights=[1, 1]. Objective = 1500 + 3000 = 4500.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        carbon_price = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[
+                Effect('co2'),
+                Effect('cost', is_objective=True, contribution_from_per_hour={'co2': carbon_price}),
+            ],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow('Heat', effects_per_flow_hour={'co2': 1}),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 4500.0, rtol=1e-4)
+
+    def test_storage_sizing_effects_per_size_vary_by_period(self, optimize):
+        """Proves: Storage Sizing.effects_per_size can vary across periods.
+
+        Storage with capacity=Sizing(10, 10), effects_per_size varies: 1 in 2020, 3 in 2025.
+        Capacity fixed at 10. Periodic sizing cost: 2020→1*10=10, 2025→3*10=30.
+        Weights=[1, 1]. Objective = 10 + 30 = 40.
+        """
+        periods = [2020, 2025]
+        cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([5, 5, 5])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow('Heat'),
+                    ],
+                ),
+            ],
+            storages=[
+                Storage(
+                    'store',
+                    charging=Flow('Heat'),
+                    discharging=Flow('Heat'),
+                    capacity=Sizing(10, 10, effects_per_size={'cost': cost_by_period}),
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 40.0, rtol=1e-4)
