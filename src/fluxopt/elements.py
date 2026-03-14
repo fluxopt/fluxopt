@@ -73,8 +73,10 @@ class Investment:
         mandatory: If True, must build exactly once; if False, may build at most once.
         lifetime: Periods active after build; None = forever.
         prior_size: Pre-existing capacity available from period 0.
-        effects_per_size: One-time per-MW costs charged in the build period.
-        effects_fixed: One-time fixed costs charged in the build period.
+        effects_per_size: One-time per-MW costs. Scalar or 1D ``(build_period,)``
+            → diagonal (cost lands in the build period). 2D ``(period, build_period)``
+            → as-is (e.g. installment plans, learning curves).
+        effects_fixed: One-time fixed costs. Same expansion rules as effects_per_size.
         effects_per_size_periodic: Recurring per-MW costs charged every active period.
         effects_fixed_periodic: Recurring fixed costs charged every active period.
     """
