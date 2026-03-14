@@ -168,6 +168,13 @@ class _InvestmentArrays:
         ef_p_rows: list[np.ndarray] = []
 
         for item_id, inv in items:
+            if inv.max_size < inv.min_size:
+                raise ValueError(f'Investment on {item_id!r}: max_size ({inv.max_size}) < min_size ({inv.min_size})')
+            if inv.prior_size < 0:
+                raise ValueError(f'Investment on {item_id!r}: prior_size must be >= 0, got {inv.prior_size}')
+            if inv.lifetime is not None and inv.lifetime <= 0:
+                raise ValueError(f'Investment on {item_id!r}: lifetime must be positive, got {inv.lifetime}')
+
             ids.append(item_id)
             mins.append(inv.min_size)
             maxs.append(inv.max_size)

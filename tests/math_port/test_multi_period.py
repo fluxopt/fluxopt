@@ -134,12 +134,14 @@ class TestMultiPeriod:
         """Proves: scalar relative_maximum_final_level works in multi-period."""
 
 
-@pytest.mark.xfail(
+_xfail_contributions = pytest.mark.xfail(
     reason='effect_contributions does not yet support investment/period decomposition (#84)',
-    condition=True,
-    strict=False,  # pass when no investment costs (optional/prior/lifetime-only)
+    strict=False,
 )
+
+
 class TestInvestment:
+    @_xfail_contributions
     def test_investment_mandatory_builds_once(self, optimize):
         """Proves: mandatory Investment builds exactly once across periods.
 
@@ -294,6 +296,7 @@ class TestInvestment:
         # Cost = 2 * 5 * 30 = 300 (operational only, no CAPEX)
         assert_allclose(result.objective, 300.0, rtol=1e-4)
 
+    @_xfail_contributions
     def test_investment_capex_charged_once(self, optimize):
         """Proves: effects_per_size goes to effect_once domain, not periodic.
 
@@ -330,6 +333,7 @@ class TestInvestment:
         # No flow costs. Objective = 100.
         assert_allclose(result.objective, 100.0, rtol=1e-4)
 
+    @_xfail_contributions
     def test_investment_periodic_costs_weighted(self, optimize):
         """Proves: effects_per_size_periodic goes to effect_periodic, scaled by period weights.
 

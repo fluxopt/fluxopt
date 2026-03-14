@@ -402,7 +402,6 @@ class FlowSystem:
             flow_ids: Flows that have both Status and Sizing.
         """
         ds = self.data.flows
-        assert ds.sizing_max is not None
         assert self.flow_on is not None
         assert self.flow_size is not None
 
@@ -412,8 +411,20 @@ class FlowSystem:
         rl = ds.rel_lb.sel(flow=flow_ids)
         ru = ds.rel_ub.sel(flow=flow_ids)
 
-        # max_size lives on the sizing_flow dim — rename and select
-        max_size = ds.sizing_max.rename({'sizing_flow': 'flow'}).sel(flow=flow_ids)
+        # max_size: combine from sizing_max and invest_max sources
+        sizing_ids = set(ds.sizing_max.coords['sizing_flow'].values) if ds.sizing_max is not None else set()
+        invest_ids = set(ds.invest_max.coords['invest_flow'].values) if ds.invest_max is not None else set()
+        parts: list[xr.DataArray] = []
+        for fid in flow_ids:
+            if fid in sizing_ids:
+                assert ds.sizing_max is not None
+                parts.append(ds.sizing_max.sel(sizing_flow=fid).rename('flow'))
+            elif fid in invest_ids:
+                assert ds.invest_max is not None
+                parts.append(ds.invest_max.sel(invest_flow=fid).rename('flow'))
+            else:
+                raise ValueError(f'Flow {fid!r} has Status+Sizing but no max_size in sizing or investment data')
+        max_size = xr.DataArray([float(p) for p in parts], dims=['flow'], coords={'flow': flow_ids})
 
         big_m_ub = max_size * ru  # M⁺
         big_m_lb = max_size * rl  # M⁻
@@ -562,19 +573,35 @@ class FlowSystem:
             if has_prior:
                 self.m.add_constraints(build.sel(flow=fid).sum('period') == 0, name=f'invest_no_build_prior_{fid}')
 
+        # --- Prior size: fix invest_size to prior_size ---
+        prior_ids = [fid for fid, ps in zip(invest_ids, prior_size.values, strict=True) if ps > 0]
+        if prior_ids:
+            ps_vals = prior_size.sel(flow=prior_ids)
+            self.m.add_constraints(inv_size.sel(flow=prior_ids) == ps_vals, name='invest_size_prior')
+
         # --- Size bounds ---
         # invest_size >= min_size (if mandatory or built)
-        if mand_ids:
+        non_prior_mand = [fid for fid in mand_ids if fid not in prior_ids]
+        if non_prior_mand:
             self.m.add_constraints(
-                inv_size.sel(flow=mand_ids) >= smin.sel(flow=mand_ids),
+                inv_size.sel(flow=non_prior_mand) >= smin.sel(flow=non_prior_mand),
                 name='invest_size_lb_mand',
             )
         if opt_ids:
-            # invest_size >= min_size * sum(build) — only if built
-            self.m.add_constraints(
-                inv_size.sel(flow=opt_ids) >= smin.sel(flow=opt_ids) * build_sum.sel(flow=opt_ids),
-                name='invest_size_lb_opt',
-            )
+            non_prior_opt = [fid for fid in opt_ids if fid not in prior_ids]
+            if non_prior_opt:
+                # invest_size >= min_size * sum(build) — only if built
+                self.m.add_constraints(
+                    inv_size.sel(flow=non_prior_opt)
+                    >= smin.sel(flow=non_prior_opt) * build_sum.sel(flow=non_prior_opt),
+                    name='invest_size_lb_opt',
+                )
+                # invest_size <= max_size * sum(build) — zero when not built
+                self.m.add_constraints(
+                    inv_size.sel(flow=non_prior_opt)
+                    <= smax.sel(flow=non_prior_opt) * build_sum.sel(flow=non_prior_opt),
+                    name='invest_size_ub_opt',
+                )
 
         # invest_size <= max_size (already via variable upper bound)
 
