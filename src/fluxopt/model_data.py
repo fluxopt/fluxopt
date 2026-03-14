@@ -81,16 +81,16 @@ def _expand_once_effect(value: TimeSeries, period: pd.Index) -> xr.DataArray:
     if isinstance(value, xr.DataArray):
         vdims = {str(d) for d in value.dims}
         if vdims == {'period', 'build_period'}:
-            return value
+            return value.reindex(period=period, build_period=period)
         if vdims <= {'period', 'build_period'} and len(vdims) == 1:
-            vals = value.values
-            if len(vals) != n:
-                dim_name = next(iter(vdims))
+            dim_name = next(iter(vdims))
+            aligned = value.reindex({dim_name: period})
+            if aligned.isnull().any():
                 raise ValueError(
-                    f'Once-effect DataArray with dim {dim_name!r} has length {len(vals)}, '
-                    f'expected {n} (number of periods)'
+                    f'Once-effect DataArray with dim {dim_name!r} has coords that do not '
+                    f'match the model periods {list(period)}'
                 )
-            return xr.DataArray(np.diag(vals), dims=dims, coords=coords)
+            return xr.DataArray(np.diag(aligned.values), dims=dims, coords=coords)
         foreign = [str(d) for d in value.dims if d not in ('period', 'build_period')]
         if foreign:
             raise ValueError(
