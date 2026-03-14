@@ -15,6 +15,50 @@ if TYPE_CHECKING:
     from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
     from fluxopt.types import TimeIndex, Timesteps
 
+
+@dataclass(frozen=True)
+class _EffectTemplate:
+    """Pre-computed shape/dims/coords for an effect-dimensioned zero array."""
+
+    shape: tuple[int, ...]
+    dims: tuple[str, ...]
+    coords: dict[str, Any]
+    as_da_coords: dict[str, Any]
+
+    def zeros(self) -> xr.DataArray:
+        """Create a zero-filled DataArray with this template's shape."""
+        return xr.DataArray(np.zeros(self.shape), dims=list(self.dims), coords=self.coords)
+
+
+def _effect_template(
+    base_dims: dict[str, Any],
+    period: pd.Index | None = None,
+) -> _EffectTemplate:
+    """Build template shape/dims/coords for effect arrays with optional period.
+
+    Args:
+        base_dims: Ordered mapping of dim_name -> coord_values.
+        period: Period index to append as trailing dimension.
+    """
+    dims = list(base_dims.keys())
+    coords = dict(base_dims)
+    shape = [len(v) for v in base_dims.values()]
+    as_da_coords: dict[str, Any] = {k: v for k, v in base_dims.items() if k not in ('effect', 'source_effect')}
+
+    if period is not None:
+        dims.append('period')
+        coords['period'] = period
+        shape.append(len(period))
+        as_da_coords['period'] = period
+
+    return _EffectTemplate(
+        shape=tuple(shape),
+        dims=tuple(dims),
+        coords=coords,
+        as_da_coords=as_da_coords,
+    )
+
+
 _NC_GROUPS = {
     'flows': 'model/flows',
     'carriers': 'model/carriers',
@@ -85,7 +129,7 @@ class _SizingArrays:
             return cls()
 
         effect_set = set(effect_ids)
-        n_effects = len(effect_ids)
+        tmpl = _effect_template({'effect': effect_ids}, period)
 
         ids: list[str] = []
         mins: list[float] = []
@@ -94,33 +138,22 @@ class _SizingArrays:
         eps_slices: list[xr.DataArray] = []
         ef_slices: list[xr.DataArray] = []
 
-        # Template shape: (effect,) or (effect, period)
-        tmpl_coords: dict[str, Any] = {'effect': effect_ids}
-        tmpl_shape: list[int] = [n_effects]
-        tmpl_dims: list[str] = ['effect']
-        da_coords: dict[str, Any] = {}
-        if period is not None:
-            tmpl_coords['period'] = period
-            tmpl_shape.append(len(period))
-            tmpl_dims.append('period')
-            da_coords['period'] = period
-
         for item_id, s in items:
             ids.append(item_id)
             mins.append(s.min_size)
             maxs.append(s.max_size)
             mandatories.append(s.mandatory)
 
-            eps = xr.DataArray(np.zeros(tmpl_shape), dims=tmpl_dims, coords=tmpl_coords)
-            ef = xr.DataArray(np.zeros(tmpl_shape), dims=tmpl_dims, coords=tmpl_coords)
+            eps = tmpl.zeros()
+            ef = tmpl.zeros()
             for ek, ev in s.effects_per_size.items():
                 if ek not in effect_set:
                     raise ValueError(f'Unknown effect {ek!r} in Sizing.effects_per_size on {item_id!r}')
-                eps.loc[ek] = as_dataarray(ev, da_coords)
+                eps.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
             for ek, ev in s.effects_fixed.items():
                 if ek not in effect_set:
                     raise ValueError(f'Unknown effect {ek!r} in Sizing.effects_fixed on {item_id!r}')
-                ef.loc[ek] = as_dataarray(ev, da_coords)
+                ef.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
             eps_slices.append(eps)
             ef_slices.append(ef)
 
@@ -167,7 +200,7 @@ class _InvestmentArrays:
             return cls()
 
         effect_set = set(effect_ids)
-        n_effects = len(effect_ids)
+        tmpl = _effect_template({'effect': effect_ids}, period)
 
         ids: list[str] = []
         mins: list[float] = []
@@ -175,18 +208,6 @@ class _InvestmentArrays:
         mandatories: list[bool] = []
         lifetimes: list[float] = []
         prior_sizes: list[float] = []
-
-        # Template shape: (effect,) or (effect, period)
-        tmpl_coords: dict[str, Any] = {'effect': effect_ids}
-        tmpl_shape: list[int] = [n_effects]
-        tmpl_dims: list[str] = ['effect']
-        da_coords: dict[str, Any] = {}
-        if period is not None:
-            tmpl_coords['period'] = period
-            tmpl_shape.append(len(period))
-            tmpl_dims.append('period')
-            da_coords['period'] = period
-
         all_slices: dict[str, list[xr.DataArray]] = {
             'eps': [],
             'ef': [],
@@ -215,11 +236,11 @@ class _InvestmentArrays:
                 ('Investment.effects_per_size_periodic', inv.effects_per_size_periodic, 'eps_p'),
                 ('Investment.effects_fixed_periodic', inv.effects_fixed_periodic, 'ef_p'),
             ]:
-                arr = xr.DataArray(np.zeros(tmpl_shape), dims=tmpl_dims, coords=tmpl_coords)
+                arr = tmpl.zeros()
                 for ek, ev in src_dict.items():
                     if ek not in effect_set:
                         raise ValueError(f'Unknown effect {ek!r} in {label} on {item_id!r}')
-                    arr.loc[ek] = as_dataarray(ev, da_coords)
+                    arr.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
                 all_slices[dest_key].append(arr)
 
         coords = {dim: ids}
@@ -304,8 +325,7 @@ class _StatusArrays:
 
         prior_rates_map = prior_rates_map or {}
         effect_set = set(effect_ids)
-        n_effects = len(effect_ids)
-        n_time = len(time)
+        tmpl = _effect_template({'effect': effect_ids, 'time': time}, period)
 
         ids: list[str] = []
         min_ups: list[float] = []
@@ -336,29 +356,18 @@ class _StatusArrays:
                 prev_ups.append(np.nan)
                 prev_downs.append(np.nan)
 
-            # Effects per running hour — (effect, time, period?)
-            er_coords: dict[str, Any] = {'effect': effect_ids, 'time': time}
-            er_shape: list[int] = [n_effects, n_time]
-            er_dims: list[str] = ['effect', 'time']
-            as_da_coords: dict[str, Any] = {'time': time}
-            if period is not None:
-                er_coords['period'] = period
-                er_shape.append(len(period))
-                er_dims.append('period')
-                as_da_coords['period'] = period
-            er = xr.DataArray(np.zeros(er_shape), dims=er_dims, coords=er_coords)
+            er = tmpl.zeros()
             for ek, ev in s.effects_per_running_hour.items():
                 if ek not in effect_set:
                     raise ValueError(f'Unknown effect {ek!r} in Status.effects_per_running_hour on {item_id!r}')
-                er.loc[ek] = as_dataarray(ev, as_da_coords)
+                er.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
             er_slices.append(er)
 
-            # Effects per startup — (effect, time, period?)
-            es = xr.DataArray(np.zeros(er_shape), dims=er_dims, coords=er_coords)
+            es = tmpl.zeros()
             for ek, ev in s.effects_per_startup.items():
                 if ek not in effect_set:
                     raise ValueError(f'Unknown effect {ek!r} in Status.effects_per_startup on {item_id!r}')
-                es.loc[ek] = as_dataarray(ev, as_da_coords)
+                es.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
             es_slices.append(es)
 
         coords = {dim: ids}
@@ -929,41 +938,21 @@ class EffectsData:
             if cycle is not None:
                 raise ValueError(f'Circular contribution_from dependency: {" -> ".join(cycle)}')
 
-            # cf_periodic: (effect, source_effect, period?)
-            cf_p_coords: dict[str, Any] = {'effect': effect_ids, 'source_effect': effect_ids}
-            cf_p_shape: list[int] = [n, n]
-            cf_p_dims: list[str] = ['effect', 'source_effect']
-            cf_da_coords: dict[str, Any] = {}
-            if period is not None:
-                cf_p_coords['period'] = period
-                cf_p_shape.append(len(period))
-                cf_p_dims.append('period')
-                cf_da_coords['period'] = period
+            tmpl_p = _effect_template({'effect': effect_ids, 'source_effect': effect_ids}, period)
+            tmpl_t = _effect_template({'effect': effect_ids, 'source_effect': effect_ids, 'time': time}, period)
 
-            # cf_temporal: (effect, source_effect, time, period?)
-            cf_t_coords: dict[str, Any] = {'effect': effect_ids, 'source_effect': effect_ids, 'time': time}
-            cf_t_shape: list[int] = [n, n, n_time]
-            cf_t_dims: list[str] = ['effect', 'source_effect', 'time']
-            cf_t_da_coords: dict[str, Any] = {'time': time}
-            if period is not None:
-                cf_t_coords['period'] = period
-                cf_t_shape.append(len(period))
-                cf_t_dims.append('period')
-                cf_t_da_coords['period'] = period
-
-            periodic_mat = xr.DataArray(np.zeros(cf_p_shape), dims=cf_p_dims, coords=cf_p_coords)
-            temporal_mat = xr.DataArray(np.zeros(cf_t_shape), dims=cf_t_dims, coords=cf_t_coords)
+            periodic_mat = tmpl_p.zeros()
+            temporal_mat = tmpl_t.zeros()
             for e in effects:
                 for src_id, factor in e.contribution_from.items():
                     if src_id not in effect_set:
                         raise ValueError(f'Unknown effect {src_id!r} in Effect.contribution_from on {e.id!r}')
-                    factor_da = as_dataarray(factor, cf_da_coords)
-                    periodic_mat.loc[e.id, src_id] = factor_da
-                    temporal_mat.loc[e.id, src_id] = as_dataarray(factor, cf_t_da_coords)
+                    periodic_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_p.as_da_coords)
+                    temporal_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_t.as_da_coords)
                 for src_id, factor_ts in e.contribution_from_per_hour.items():
                     if src_id not in effect_set:
                         raise ValueError(f'Unknown effect {src_id!r} in Effect.contribution_from_per_hour on {e.id!r}')
-                    temporal_mat.loc[e.id, src_id] = as_dataarray(factor_ts, cf_t_da_coords)
+                    temporal_mat.loc[e.id, src_id] = as_dataarray(factor_ts, tmpl_t.as_da_coords)
             cf_periodic = periodic_mat
             cf_temporal = temporal_mat
 
