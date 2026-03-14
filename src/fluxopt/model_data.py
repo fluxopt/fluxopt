@@ -354,7 +354,7 @@ class FlowsData:
     rel_ub: xr.DataArray  # (flow, time)
     fixed_profile: xr.DataArray  # (flow, time) — NaN where not fixed
     size: xr.DataArray  # (flow,) — NaN for unsized
-    effect_coeff: xr.DataArray  # (flow, effect, time)
+    effect_coeff: xr.DataArray  # (flow, effect, time[, period])
     sizing_min: xr.DataArray | None = None  # (sizing_flow,)
     sizing_max: xr.DataArray | None = None  # (sizing_flow,)
     sizing_mandatory: xr.DataArray | None = None  # (sizing_flow,)
@@ -405,7 +405,14 @@ class FlowsData:
         return cls(**kwargs)
 
     @classmethod
-    def build(cls, flows: list[Flow], time: TimeIndex, effects: list[Effect], dt: float = 1.0) -> Self:
+    def build(
+        cls,
+        flows: list[Flow],
+        time: TimeIndex,
+        effects: list[Effect],
+        dt: float = 1.0,
+        period: pd.Index | None = None,
+    ) -> Self:
         """Build FlowsData from element objects.
 
         Args:
@@ -413,6 +420,9 @@ class FlowsData:
             time: Time index.
             effects: Effect definitions for cost coefficients.
             dt: Scalar timestep duration in hours for prior duration computation.
+            period: Period index for multi-period models. When provided,
+                ``effect_coeff`` gains a ``period`` dimension so that
+                ``effects_per_flow_hour`` values can vary across periods.
         """
         from fluxopt.elements import Investment, Sizing
 
@@ -457,15 +467,25 @@ class FlowsData:
                 bound_type.append('bounded')
 
             # Effect coefficients for this flow
+            ec_coords: dict[str, Any] = {'effect': effect_ids, 'time': time}
+            ec_shape = [n_effects, n_time]
+            ec_dims = ['effect', 'time']
+            if period is not None:
+                ec_coords['period'] = period
+                ec_shape.append(len(period))
+                ec_dims.append('period')
             ec = xr.DataArray(
-                np.zeros((n_effects, n_time)),
-                dims=['effect', 'time'],
-                coords={'effect': effect_ids, 'time': time},
+                np.zeros(ec_shape),
+                dims=ec_dims,
+                coords=ec_coords,
             )
+            as_da_coords: dict[str, Any] = {'time': time}
+            if period is not None:
+                as_da_coords['period'] = period
             for effect_label, factor in f.effects_per_flow_hour.items():
                 if effect_label not in effect_set:
                     raise ValueError(f'Unknown effect {effect_label!r} in Flow.effects_per_flow_hour on {f.id!r}')
-                ec.loc[effect_label] = as_dataarray(factor, {'time': time})
+                ec.loc[effect_label] = as_dataarray(factor, as_da_coords)
             effect_coeffs.append(ec)
 
             if f.status is not None:
@@ -1340,10 +1360,10 @@ class ModelData:
 
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dims.dt.values[0])
-        flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar)
+        period_idx = pd.Index(dims.period.values) if dims.period is not None else None
+        flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar, period=period_idx)
         carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
-        period_idx = pd.Index(dims.period.values) if dims.period is not None else None
         effects_data = EffectsData.build(effects, time, period=period_idx)
         storages_data = StoragesData.build(stor_list, time, dims.dt, effects)
 

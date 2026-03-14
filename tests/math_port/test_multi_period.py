@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+import xarray as xr
 from conftest import ts
 from numpy.testing import assert_allclose
 
@@ -54,6 +55,39 @@ class TestMultiPeriod:
     @pytest.mark.skip(reason='multi-period over-period constraints not yet implemented')
     def test_effect_minimum_over_periods(self, optimize):
         """Proves: Effect.minimum_over_periods forces minimum weighted total."""
+
+    def test_period_varying_effects_per_flow_hour(self, optimize):
+        """Proves: effects_per_flow_hour with period dim produces period-specific costs.
+
+        3 timesteps, periods=[2020, 2025], weights=[1, 1].
+        Demand=10 constant. Grid cost varies: 1 in 2020, 3 in 2025.
+        Per-period cost: 2020→10*3*1=30, 2025→10*3*3=90.
+        Objective = 1*30 + 1*90 = 120.
+        """
+        periods = [2020, 2025]
+        cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow('Heat', effects_per_flow_hour={'cost': cost_by_period}),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 120.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='multi-period linked periods not yet implemented')
     def test_invest_linked_periods(self, optimize):
