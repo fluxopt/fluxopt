@@ -65,4 +65,5 @@ def optimize(request, tmp_path):
         _ = loaded.stats.effect_contributions  # validate contributions survive IO roundtrip
         return loaded
 
+    _optimize.pipeline = request.param  # type: ignore[attr-defined]
     return _optimize

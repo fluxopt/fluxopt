@@ -55,8 +55,8 @@ class Sizing:
     min_size: float
     max_size: float
     mandatory: bool = True
-    effects_per_size: dict[str, float] = field(default_factory=dict)
-    effects_fixed: dict[str, float] = field(default_factory=dict)
+    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
 
 
 @dataclass
@@ -84,10 +84,10 @@ class Investment:
     mandatory: bool = True
     lifetime: int | None = None
     prior_size: float = 0.0
-    effects_per_size: dict[str, float] = field(default_factory=dict)
-    effects_fixed: dict[str, float] = field(default_factory=dict)
-    effects_per_size_periodic: dict[str, float] = field(default_factory=dict)
-    effects_fixed_periodic: dict[str, float] = field(default_factory=dict)
+    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size_periodic: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed_periodic: dict[str, TimeSeries] = field(default_factory=dict)
 
 
 @dataclass
@@ -158,7 +158,7 @@ class Effect:
     minimum_total: float | None = None  # Φ̲_k  [unit]
     maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit]
     minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit]
-    contribution_from: dict[str, float] = field(default_factory=dict)
+    contribution_from: dict[str, TimeSeries] = field(default_factory=dict)
     contribution_from_per_hour: dict[str, TimeSeries] = field(default_factory=dict)
     period_weights_periodic: list[float] | None = None  # ω_periodic[p] — scales temporal+periodic
     period_weights_once: list[float] | None = None  # ω_once[p] — scales once

@@ -15,6 +15,50 @@ if TYPE_CHECKING:
     from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
     from fluxopt.types import TimeIndex, Timesteps
 
+
+@dataclass(frozen=True)
+class _EffectTemplate:
+    """Pre-computed shape/dims/coords for an effect-dimensioned zero array."""
+
+    shape: tuple[int, ...]
+    dims: tuple[str, ...]
+    coords: dict[str, Any]
+    as_da_coords: dict[str, Any]
+
+    def zeros(self) -> xr.DataArray:
+        """Create a zero-filled DataArray with this template's shape."""
+        return xr.DataArray(np.zeros(self.shape), dims=list(self.dims), coords=self.coords)
+
+
+def _effect_template(
+    base_dims: dict[str, Any],
+    period: pd.Index | None = None,
+) -> _EffectTemplate:
+    """Build template shape/dims/coords for effect arrays with optional period.
+
+    Args:
+        base_dims: Ordered mapping of dim_name -> coord_values.
+        period: Period index to append as trailing dimension.
+    """
+    dims = list(base_dims.keys())
+    coords = dict(base_dims)
+    shape = [len(v) for v in base_dims.values()]
+    as_da_coords: dict[str, Any] = {k: v for k, v in base_dims.items() if k not in ('effect', 'source_effect')}
+
+    if period is not None:
+        dims.append('period')
+        coords['period'] = period
+        shape.append(len(period))
+        as_da_coords['period'] = period
+
+    return _EffectTemplate(
+        shape=tuple(shape),
+        dims=tuple(dims),
+        coords=coords,
+        as_da_coords=as_da_coords,
+    )
+
+
 _NC_GROUPS = {
     'flows': 'model/flows',
     'carriers': 'model/carriers',
@@ -50,8 +94,8 @@ class _SizingArrays:
     min: xr.DataArray | None = None
     max: xr.DataArray | None = None
     mandatory: xr.DataArray | None = None
-    effects_per_size: xr.DataArray | None = None
-    effects_fixed: xr.DataArray | None = None
+    effects_per_size: xr.DataArray | None = None  # (sizing_dim, effect, period?)
+    effects_fixed: xr.DataArray | None = None  # (sizing_dim, effect, period?)
 
     def __post_init__(self) -> None:
         """Validate min >= 0 and max >= min."""
@@ -71,6 +115,7 @@ class _SizingArrays:
         items: list[tuple[str, Sizing]],
         effect_ids: list[str],
         dim: str,
+        period: pd.Index | None = None,
     ) -> Self:
         """Validate Sizing objects and collect into DataArrays.
 
@@ -78,49 +123,48 @@ class _SizingArrays:
             items: Pairs of (element_id, Sizing).
             effect_ids: Known effect ids for validation.
             dim: Dimension name for the resulting arrays.
+            period: Period index for period-varying effects.
         """
         if not items:
             return cls()
 
         effect_set = set(effect_ids)
-        n_effects = len(effect_ids)
+        tmpl = _effect_template({'effect': effect_ids}, period)
 
         ids: list[str] = []
         mins: list[float] = []
         maxs: list[float] = []
         mandatories: list[bool] = []
-        eps_rows: list[np.ndarray] = []
-        ef_rows: list[np.ndarray] = []
+        eps_slices: list[xr.DataArray] = []
+        ef_slices: list[xr.DataArray] = []
 
         for item_id, s in items:
             ids.append(item_id)
             mins.append(s.min_size)
             maxs.append(s.max_size)
             mandatories.append(s.mandatory)
-            eps_row = np.zeros(n_effects)
-            ef_row = np.zeros(n_effects)
+
+            eps = tmpl.zeros()
+            ef = tmpl.zeros()
             for ek, ev in s.effects_per_size.items():
                 if ek not in effect_set:
                     raise ValueError(f'Unknown effect {ek!r} in Sizing.effects_per_size on {item_id!r}')
-                eps_row[effect_ids.index(ek)] = ev
+                eps.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
             for ek, ev in s.effects_fixed.items():
                 if ek not in effect_set:
                     raise ValueError(f'Unknown effect {ek!r} in Sizing.effects_fixed on {item_id!r}')
-                ef_row[effect_ids.index(ek)] = ev
-            eps_rows.append(eps_row)
-            ef_rows.append(ef_row)
+                ef.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
+            eps_slices.append(eps)
+            ef_slices.append(ef)
 
         coords = {dim: ids}
+        sizing_idx = pd.Index(ids, name=dim)
         return cls(
             min=xr.DataArray(np.array(mins), dims=[dim], coords=coords),
             max=xr.DataArray(np.array(maxs), dims=[dim], coords=coords),
             mandatory=xr.DataArray(np.array(mandatories), dims=[dim], coords=coords),
-            effects_per_size=xr.DataArray(
-                np.array(eps_rows), dims=[dim, 'effect'], coords={dim: ids, 'effect': effect_ids}
-            ),
-            effects_fixed=xr.DataArray(
-                np.array(ef_rows), dims=[dim, 'effect'], coords={dim: ids, 'effect': effect_ids}
-            ),
+            effects_per_size=fast_concat(eps_slices, sizing_idx),
+            effects_fixed=fast_concat(ef_slices, sizing_idx),
         )
 
 
@@ -131,10 +175,10 @@ class _InvestmentArrays:
     mandatory: xr.DataArray | None = None  # (invest_dim,)
     lifetime: xr.DataArray | None = None  # (invest_dim,) — NaN = forever
     prior_size: xr.DataArray | None = None  # (invest_dim,)
-    effects_per_size: xr.DataArray | None = None  # (invest_dim, effect) — once
-    effects_fixed: xr.DataArray | None = None  # (invest_dim, effect) — once
-    effects_per_size_periodic: xr.DataArray | None = None  # (invest_dim, effect)
-    effects_fixed_periodic: xr.DataArray | None = None  # (invest_dim, effect)
+    effects_per_size: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
+    effects_fixed: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
+    effects_per_size_periodic: xr.DataArray | None = None  # (invest_dim, effect, period?)
+    effects_fixed_periodic: xr.DataArray | None = None  # (invest_dim, effect, period?)
 
     @classmethod
     def build(
@@ -142,6 +186,7 @@ class _InvestmentArrays:
         items: list[tuple[str, Investment]],
         effect_ids: list[str],
         dim: str,
+        period: pd.Index | None = None,
     ) -> Self:
         """Validate Investment objects and collect into DataArrays.
 
@@ -149,12 +194,13 @@ class _InvestmentArrays:
             items: Pairs of (element_id, Investment).
             effect_ids: Known effect ids for validation.
             dim: Dimension name for the resulting arrays.
+            period: Period index for period-varying effects.
         """
         if not items:
             return cls()
 
         effect_set = set(effect_ids)
-        n_effects = len(effect_ids)
+        tmpl = _effect_template({'effect': effect_ids}, period)
 
         ids: list[str] = []
         mins: list[float] = []
@@ -162,10 +208,12 @@ class _InvestmentArrays:
         mandatories: list[bool] = []
         lifetimes: list[float] = []
         prior_sizes: list[float] = []
-        eps_rows: list[np.ndarray] = []
-        ef_rows: list[np.ndarray] = []
-        eps_p_rows: list[np.ndarray] = []
-        ef_p_rows: list[np.ndarray] = []
+        all_slices: dict[str, list[xr.DataArray]] = {
+            'eps': [],
+            'ef': [],
+            'eps_p': [],
+            'ef_p': [],
+        }
 
         for item_id, inv in items:
             if inv.max_size < inv.min_size:
@@ -182,31 +230,31 @@ class _InvestmentArrays:
             lifetimes.append(float(inv.lifetime) if inv.lifetime is not None else np.nan)
             prior_sizes.append(inv.prior_size)
 
-            for label, src_dict, dest in [
-                ('Investment.effects_per_size', inv.effects_per_size, eps_rows),
-                ('Investment.effects_fixed', inv.effects_fixed, ef_rows),
-                ('Investment.effects_per_size_periodic', inv.effects_per_size_periodic, eps_p_rows),
-                ('Investment.effects_fixed_periodic', inv.effects_fixed_periodic, ef_p_rows),
+            for label, src_dict, dest_key in [
+                ('Investment.effects_per_size', inv.effects_per_size, 'eps'),
+                ('Investment.effects_fixed', inv.effects_fixed, 'ef'),
+                ('Investment.effects_per_size_periodic', inv.effects_per_size_periodic, 'eps_p'),
+                ('Investment.effects_fixed_periodic', inv.effects_fixed_periodic, 'ef_p'),
             ]:
-                row = np.zeros(n_effects)
+                arr = tmpl.zeros()
                 for ek, ev in src_dict.items():
                     if ek not in effect_set:
                         raise ValueError(f'Unknown effect {ek!r} in {label} on {item_id!r}')
-                    row[effect_ids.index(ek)] = ev
-                dest.append(row)
+                    arr.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
+                all_slices[dest_key].append(arr)
 
         coords = {dim: ids}
-        ec = {dim: ids, 'effect': effect_ids}
+        invest_idx = pd.Index(ids, name=dim)
         return cls(
             min=xr.DataArray(np.array(mins), dims=[dim], coords=coords),
             max=xr.DataArray(np.array(maxs), dims=[dim], coords=coords),
             mandatory=xr.DataArray(np.array(mandatories), dims=[dim], coords=coords),
             lifetime=xr.DataArray(np.array(lifetimes), dims=[dim], coords=coords),
             prior_size=xr.DataArray(np.array(prior_sizes), dims=[dim], coords=coords),
-            effects_per_size=xr.DataArray(np.array(eps_rows), dims=[dim, 'effect'], coords=ec),
-            effects_fixed=xr.DataArray(np.array(ef_rows), dims=[dim, 'effect'], coords=ec),
-            effects_per_size_periodic=xr.DataArray(np.array(eps_p_rows), dims=[dim, 'effect'], coords=ec),
-            effects_fixed_periodic=xr.DataArray(np.array(ef_p_rows), dims=[dim, 'effect'], coords=ec),
+            effects_per_size=fast_concat(all_slices['eps'], invest_idx),
+            effects_fixed=fast_concat(all_slices['ef'], invest_idx),
+            effects_per_size_periodic=fast_concat(all_slices['eps_p'], invest_idx),
+            effects_fixed_periodic=fast_concat(all_slices['ef_p'], invest_idx),
         )
 
 
@@ -217,8 +265,8 @@ class _StatusArrays:
     min_downtime: xr.DataArray | None = None  # (status_flow,)
     max_downtime: xr.DataArray | None = None  # (status_flow,)
     initial: xr.DataArray | None = None  # (status_flow,) — NaN = free
-    effects_running: xr.DataArray | None = None  # (status_flow, effect, time)
-    effects_startup: xr.DataArray | None = None  # (status_flow, effect, time)
+    effects_running: xr.DataArray | None = None  # (status_flow, effect, time, period?)
+    effects_startup: xr.DataArray | None = None  # (status_flow, effect, time, period?)
     previous_uptime: xr.DataArray | None = None  # (status_flow,) — hours, NaN = no prior
     previous_downtime: xr.DataArray | None = None  # (status_flow,) — hours, NaN = no prior
 
@@ -257,6 +305,7 @@ class _StatusArrays:
         dim: str,
         prior_rates_map: dict[str, list[float]] | None = None,
         dt: float = 1.0,
+        period: pd.Index | None = None,
     ) -> Self:
         """Validate Status objects and collect into DataArrays.
 
@@ -267,6 +316,7 @@ class _StatusArrays:
             dim: Dimension name for the resulting arrays.
             prior_rates_map: Flow id to prior flow rates (MW) before horizon.
             dt: Scalar timestep duration in hours for prior duration computation.
+            period: Period index for period-varying effects.
         """
         from fluxopt.constraints.status import compute_previous_duration
 
@@ -275,8 +325,7 @@ class _StatusArrays:
 
         prior_rates_map = prior_rates_map or {}
         effect_set = set(effect_ids)
-        n_effects = len(effect_ids)
-        n_time = len(time)
+        tmpl = _effect_template({'effect': effect_ids, 'time': time}, period)
 
         ids: list[str] = []
         min_ups: list[float] = []
@@ -307,28 +356,18 @@ class _StatusArrays:
                 prev_ups.append(np.nan)
                 prev_downs.append(np.nan)
 
-            # Effects per running hour — (effect, time)
-            er = xr.DataArray(
-                np.zeros((n_effects, n_time)),
-                dims=['effect', 'time'],
-                coords={'effect': effect_ids, 'time': time},
-            )
+            er = tmpl.zeros()
             for ek, ev in s.effects_per_running_hour.items():
                 if ek not in effect_set:
                     raise ValueError(f'Unknown effect {ek!r} in Status.effects_per_running_hour on {item_id!r}')
-                er.loc[ek] = as_dataarray(ev, {'time': time})
+                er.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
             er_slices.append(er)
 
-            # Effects per startup — (effect, time)
-            es = xr.DataArray(
-                np.zeros((n_effects, n_time)),
-                dims=['effect', 'time'],
-                coords={'effect': effect_ids, 'time': time},
-            )
+            es = tmpl.zeros()
             for ek, ev in s.effects_per_startup.items():
                 if ek not in effect_set:
                     raise ValueError(f'Unknown effect {ek!r} in Status.effects_per_startup on {item_id!r}')
-                es.loc[ek] = as_dataarray(ev, {'time': time})
+                es.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
             es_slices.append(es)
 
         coords = {dim: ids}
@@ -365,15 +404,15 @@ class FlowsData:
     sizing_min: xr.DataArray | None = None  # (sizing_flow,)
     sizing_max: xr.DataArray | None = None  # (sizing_flow,)
     sizing_mandatory: xr.DataArray | None = None  # (sizing_flow,)
-    sizing_effects_per_size: xr.DataArray | None = None  # (sizing_flow, effect)
-    sizing_effects_fixed: xr.DataArray | None = None  # (sizing_flow, effect)
+    sizing_effects_per_size: xr.DataArray | None = None  # (sizing_flow, effect, period?)
+    sizing_effects_fixed: xr.DataArray | None = None  # (sizing_flow, effect, period?)
     status_min_uptime: xr.DataArray | None = None  # (status_flow,)
     status_max_uptime: xr.DataArray | None = None  # (status_flow,)
     status_min_downtime: xr.DataArray | None = None  # (status_flow,)
     status_max_downtime: xr.DataArray | None = None  # (status_flow,)
     status_initial: xr.DataArray | None = None  # (status_flow,)
-    status_effects_running: xr.DataArray | None = None  # (status_flow, effect, time)
-    status_effects_startup: xr.DataArray | None = None  # (status_flow, effect, time)
+    status_effects_running: xr.DataArray | None = None  # (status_flow, effect, time, period?)
+    status_effects_startup: xr.DataArray | None = None  # (status_flow, effect, time, period?)
     status_previous_uptime: xr.DataArray | None = None  # (status_flow,)
     status_previous_downtime: xr.DataArray | None = None  # (status_flow,)
     invest_min: xr.DataArray | None = None  # (invest_flow,)
@@ -381,10 +420,10 @@ class FlowsData:
     invest_mandatory: xr.DataArray | None = None  # (invest_flow,)
     invest_lifetime: xr.DataArray | None = None  # (invest_flow,) — NaN = forever
     invest_prior_size: xr.DataArray | None = None  # (invest_flow,)
-    invest_effects_per_size: xr.DataArray | None = None  # (invest_flow, effect) — once
-    invest_effects_fixed: xr.DataArray | None = None  # (invest_flow, effect) — once
-    invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_flow, effect)
-    invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_flow, effect)
+    invest_effects_per_size: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
+    invest_effects_fixed: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
+    invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
+    invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
 
     def __post_init__(self) -> None:
         """Validate relative bounds: non-negative and lb <= ub."""
@@ -502,10 +541,10 @@ class FlowsData:
                 prior_rates_map[f.id] = f.prior_rates
 
         flow_idx = pd.Index(flow_ids, name='flow')
-        sz = _SizingArrays.build(sizing_items, effect_ids, dim='sizing_flow')
-        inv = _InvestmentArrays.build(invest_items, effect_ids, dim='invest_flow')
+        sz = _SizingArrays.build(sizing_items, effect_ids, dim='sizing_flow', period=period)
+        inv = _InvestmentArrays.build(invest_items, effect_ids, dim='invest_flow', period=period)
         st = _StatusArrays.build(
-            status_items, effect_ids, time, dim='status_flow', prior_rates_map=prior_rates_map, dt=dt
+            status_items, effect_ids, time, dim='status_flow', prior_rates_map=prior_rates_map, dt=dt, period=period
         )
 
         return cls(
@@ -765,8 +804,8 @@ class EffectsData:
     max_per_hour: xr.DataArray  # (effect, time)
     is_objective: xr.DataArray  # (effect,)
     objective_effect: str
-    cf_periodic: xr.DataArray | None = None  # (effect, source_effect)
-    cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time)
+    cf_periodic: xr.DataArray | None = None  # (effect, source_effect, period?)
+    cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
     period_weights_periodic: xr.DataArray | None = None  # (effect, period)
     period_weights_once: xr.DataArray | None = None  # (effect, period)
 
@@ -899,30 +938,23 @@ class EffectsData:
             if cycle is not None:
                 raise ValueError(f'Circular contribution_from dependency: {" -> ".join(cycle)}')
 
-            periodic_mat = np.zeros((n, n))
-            temporal_mat = np.zeros((n, n, n_time))
-            for i, e in enumerate(effects):
+            tmpl_p = _effect_template({'effect': effect_ids, 'source_effect': effect_ids}, period)
+            tmpl_t = _effect_template({'effect': effect_ids, 'source_effect': effect_ids, 'time': time}, period)
+
+            periodic_mat = tmpl_p.zeros()
+            temporal_mat = tmpl_t.zeros()
+            for e in effects:
                 for src_id, factor in e.contribution_from.items():
                     if src_id not in effect_set:
                         raise ValueError(f'Unknown effect {src_id!r} in Effect.contribution_from on {e.id!r}')
-                    j = effect_ids.index(src_id)
-                    periodic_mat[i, j] = factor
-                    temporal_mat[i, j, :] = factor  # default temporal = scalar
+                    periodic_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_p.as_da_coords)
+                    temporal_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_t.as_da_coords)
                 for src_id, factor_ts in e.contribution_from_per_hour.items():
                     if src_id not in effect_set:
                         raise ValueError(f'Unknown effect {src_id!r} in Effect.contribution_from_per_hour on {e.id!r}')
-                    j = effect_ids.index(src_id)
-                    temporal_mat[i, j, :] = as_dataarray(factor_ts, {'time': time}).values
-            cf_periodic = xr.DataArray(
-                periodic_mat,
-                dims=['effect', 'source_effect'],
-                coords={'effect': effect_ids, 'source_effect': effect_ids},
-            )
-            cf_temporal = xr.DataArray(
-                temporal_mat,
-                dims=['effect', 'source_effect', 'time'],
-                coords={'effect': effect_ids, 'source_effect': effect_ids, 'time': time},
-            )
+                    temporal_mat.loc[e.id, src_id] = as_dataarray(factor_ts, tmpl_t.as_da_coords)
+            cf_periodic = periodic_mat
+            cf_temporal = temporal_mat
 
         effect_idx = pd.Index(effect_ids, name='effect')
 
@@ -991,17 +1023,17 @@ class StoragesData:
     sizing_min: xr.DataArray | None = None  # (sizing_storage,)
     sizing_max: xr.DataArray | None = None  # (sizing_storage,)
     sizing_mandatory: xr.DataArray | None = None  # (sizing_storage,)
-    sizing_effects_per_size: xr.DataArray | None = None  # (sizing_storage, effect)
-    sizing_effects_fixed: xr.DataArray | None = None  # (sizing_storage, effect)
+    sizing_effects_per_size: xr.DataArray | None = None  # (sizing_storage, effect, period?)
+    sizing_effects_fixed: xr.DataArray | None = None  # (sizing_storage, effect, period?)
     invest_min: xr.DataArray | None = None  # (invest_storage,)
     invest_max: xr.DataArray | None = None  # (invest_storage,)
     invest_mandatory: xr.DataArray | None = None  # (invest_storage,)
     invest_lifetime: xr.DataArray | None = None  # (invest_storage,) — NaN = forever
     invest_prior_size: xr.DataArray | None = None  # (invest_storage,)
-    invest_effects_per_size: xr.DataArray | None = None  # (invest_storage, effect) — once
-    invest_effects_fixed: xr.DataArray | None = None  # (invest_storage, effect) — once
-    invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_storage, effect)
-    invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_storage, effect)
+    invest_effects_per_size: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
+    invest_effects_fixed: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
+    invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_storage, effect, period?)
+    invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_storage, effect, period?)
 
     def __post_init__(self) -> None:
         """Validate capacity, efficiencies, and loss rates."""
@@ -1041,6 +1073,7 @@ class StoragesData:
         time: TimeIndex,
         dt: xr.DataArray,
         effects: list[Effect] | None = None,
+        period: pd.Index | None = None,
     ) -> Self | None:
         """Build StoragesData from element objects.
 
@@ -1049,6 +1082,7 @@ class StoragesData:
             time: Time index.
             dt: Timestep durations.
             effects: Effect definitions for sizing cost validation.
+            period: Period index for period-varying effects.
         """
         from fluxopt.elements import Investment, Sizing
 
@@ -1095,8 +1129,8 @@ class StoragesData:
             discharge_flow.append(s.discharging.id)
 
         stor_idx = pd.Index(stor_ids, name='storage')
-        sz = _SizingArrays.build(sizing_items, effect_ids, dim='sizing_storage')
-        inv = _InvestmentArrays.build(invest_items, effect_ids, dim='invest_storage')
+        sz = _SizingArrays.build(sizing_items, effect_ids, dim='sizing_storage', period=period)
+        inv = _InvestmentArrays.build(invest_items, effect_ids, dim='invest_storage', period=period)
 
         return cls(
             capacity=xr.DataArray(capacity_vals, dims=['storage'], coords={'storage': stor_ids}),
@@ -1372,7 +1406,7 @@ class ModelData:
         carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
         effects_data = EffectsData.build(effects, time, period=period_idx)
-        storages_data = StoragesData.build(stor_list, time, dims.dt, effects)
+        storages_data = StoragesData.build(stor_list, time, dims.dt, effects, period=period_idx)
 
         return cls(
             flows=flows_data,
