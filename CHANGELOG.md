@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.6-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.5-alpha.0...v0.0.6-alpha.0) (2026-03-14)
+
+
+### Features
+
+* make all effect parameters period-aware ([#94](https://github.com/FBumann/fluxopt/issues/94)) ([e0f8e66](https://github.com/FBumann/fluxopt/commit/e0f8e66e6237751f14322aeb88677a1c2a82d469))
+
 ## [0.0.5-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.4-alpha.0...v0.0.5-alpha.0) (2026-03-14)
 
 
