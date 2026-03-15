@@ -81,7 +81,13 @@ def _expand_once_effect(value: TimeSeries, period: pd.Index) -> xr.DataArray:
     if isinstance(value, xr.DataArray):
         vdims = {str(d) for d in value.dims}
         if vdims == {'period', 'build_period'}:
-            return value.reindex(period=period, build_period=period)
+            aligned = value.reindex(period=period, build_period=period)
+            if aligned.isnull().any():
+                raise ValueError(
+                    f'Once-effect DataArray (period, build_period) has coords that do not '
+                    f'fully cover the model periods {list(period)}'
+                )
+            return aligned
         if vdims <= {'period', 'build_period'} and len(vdims) == 1:
             dim_name = next(iter(vdims))
             aligned = value.reindex({dim_name: period})

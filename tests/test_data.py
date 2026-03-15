@@ -364,6 +364,16 @@ class TestExpandOnceEffect:
         with pytest.raises(ValueError, match='do not match'):
             _expand_once_effect(da, self.period)
 
+    def test_2d_mismatched_coords_raises(self):
+        """2D input with coords not covering model periods raises."""
+        da = xr.DataArray(
+            np.eye(2),
+            dims=['period', 'build_period'],
+            coords={'period': [2020, 9999], 'build_period': [2020, 9999]},
+        )
+        with pytest.raises(ValueError, match='do not fully cover'):
+            _expand_once_effect(da, self.period)
+
     def test_foreign_dim_raises(self):
         da = xr.DataArray([1.0, 2.0, 3.0], dims=['time'], coords={'time': [0, 1, 2]})
         with pytest.raises(ValueError, match='unexpected dims'):
