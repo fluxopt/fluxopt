@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Protocol, overload, runtime_checkable
+from typing import TYPE_CHECKING, Annotated, Any, Protocol, TypeAlias, overload, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -11,11 +11,32 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
 # -- User input types --------------------------------------------------
-type TimeSeries = float | int | list[float] | np.ndarray | pd.Series | xr.DataArray
-type Timesteps = list[datetime] | list[int] | pd.DatetimeIndex | pd.Index
+
+ArrayInput: TypeAlias = float | int | list[float] | np.ndarray | pd.Series | xr.DataArray
+"""Flexible user input: scalar, sequence, or labeled array.
+
+Normalized to `xr.DataArray` by `as_dataarray()`.
+"""
+
+TemporalInput: TypeAlias = Annotated[ArrayInput, 'dims ⊆ {time}']
+"""Scalar or array with dims ⊆ {time}."""
+
+TemporalPeriodicInput: TypeAlias = Annotated[ArrayInput, 'dims ⊆ {time, period}']
+"""Scalar or array with dims ⊆ {time, period}."""
+
+PeriodicInput: TypeAlias = Annotated[ArrayInput, 'dims ⊆ {period}']
+"""Scalar or array with dims ⊆ {period}."""
+
+OnceEffectInput: TypeAlias = Annotated[ArrayInput, 'dims ⊆ {period, build_period}']
+"""Scalar or array with dims ⊆ {period, build_period}."""
+
+Timesteps: TypeAlias = list[datetime] | list[int] | pd.DatetimeIndex | pd.Index
+"""User-provided timestep labels."""
 
 # -- Internal types (after normalization) ------------------------------
-type TimeIndex = pd.DatetimeIndex | pd.Index
+
+TimeIndex: TypeAlias = pd.DatetimeIndex | pd.Index
+"""Normalized time index (after `normalize_timesteps`)."""
 
 
 @runtime_checkable
@@ -109,13 +130,13 @@ def fast_concat(arrays: list[xr.DataArray], dim: pd.Index) -> xr.DataArray:
 
 
 def as_dataarray(
-    value: TimeSeries,
+    value: ArrayInput,
     coords: Mapping[str, Any],
     *,
     name: str = 'value',
     broadcast: bool = True,
 ) -> xr.DataArray:
-    """Convert a TimeSeries to a DataArray aligned to given coordinates.
+    """Convert an ArrayInput to a DataArray aligned to given coordinates.
 
     Args:
         value: Scalar, list, ndarray, Series, or DataArray.
@@ -161,7 +182,7 @@ def as_dataarray(
     elif isinstance(value, list):
         arr = np.array(value, dtype=float)
     else:
-        raise TypeError(f'Unsupported TimeSeries type: {type(value)}')
+        raise TypeError(f'Unsupported ArrayInput type: {type(value)}')
 
     n = len(arr)
     matches = [k for k, v in coord_idx.items() if len(v) == n]

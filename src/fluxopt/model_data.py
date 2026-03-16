@@ -13,7 +13,7 @@ from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
 if TYPE_CHECKING:
     from fluxopt.components import Converter, Port
     from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
-    from fluxopt.types import TimeIndex, TimeSeries, Timesteps
+    from fluxopt.types import OnceEffectInput, TimeIndex, Timesteps
 
 
 @dataclass(frozen=True)
@@ -59,16 +59,17 @@ def _effect_template(
     )
 
 
-def _expand_once_effect(value: TimeSeries, period: pd.Index) -> xr.DataArray:
+def _expand_once_effect(value: OnceEffectInput, period: pd.Index) -> xr.DataArray:
     """Expand an investment once-effect value to 2D (period, build_period).
 
     Construction rule:
         - Scalar → diagonal filled with that constant
-        - 1D ``(build_period,)`` or ``(period,)`` → diagonal
-        - 2D ``(period, build_period)`` → as-is
+        - list/array → treated as ``(build_period,)`` → diagonal
+        - 1D DataArray ``(build_period,)`` or ``(period,)`` → diagonal
+        - 2D DataArray ``(period, build_period)`` → as-is
 
     Args:
-        value: Scalar, 1D build_period-indexed, or 2D effect value.
+        value: Scalar, list, 1D, or 2D effect value.
         period: Period index (shared by both axes).
     """
     n = len(period)
