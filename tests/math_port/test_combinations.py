@@ -10,21 +10,108 @@ import pytest
 from conftest import assert_off_blocks, assert_on_blocks
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, ConversionCurve, Converter, Effect, Flow, Port, Sizing, Status
+from fluxopt import (
+    Carrier,
+    ConversionCurve,
+    Converter,
+    Effect,
+    Flow,
+    PiecewiseInvestment,
+    Port,
+    Sizing,
+    Status,
+)
 
 from .conftest import ts, waste
 
 
 class TestPiecewiseWithInvestment:
-    """Tests combining PiecewiseConversion with InvestParameters."""
+    """Tests combining PiecewiseConversion with PiecewiseInvestment."""
 
-    @pytest.mark.skip(reason='piecewise + investment not yet supported')
     def test_piecewise_conversion_with_investment_sizing(self, optimize):
-        """Proves: PiecewiseConversion and InvestParameters on the same converter."""
+        """Proves: PiecewiseInvestment on a piecewise converter gates operation by period.
 
-    @pytest.mark.skip(reason='piecewise + investment not yet supported')
+        Boiler with PiecewiseInvestment(mandatory=True) must be built in one period.
+        periods=[2025, 2030], demand=30 both periods.
+        Investment cost = 10/MW. Size = max_bp = 100.
+        Fuel cost = 1/MWh. At demand=30 → Gas=33.3 (eta≈0.9 in segment 1).
+
+        Total = invest_cost(100*10=1000) + fuel(33.3*2=66.7).
+        """
+        result = optimize(
+            timesteps=ts(1),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([30.0]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [0, 50, 100], 'Heat': [0, 45, 80]},
+                        size=PiecewiseInvestment(
+                            mandatory=True,
+                            effects_per_size={'cost': 10},
+                        ),
+                    ),
+                ),
+            ],
+            periods=[2025, 2030],
+        )
+        # Investment cost: 100 * 10 = 1000 (one-time, charged once)
+        # Fuel per period: demand=30 → Gas≈33.3 (interpolated), cost≈33.3
+        # Each period weighted 5 years: temporal cost = 33.3 * 5 * 2 = ~333
+        # Total: 1000 + 333 ≈ 1333
+        total = result.effect_totals.sel(effect='cost').values
+        assert total.sum() > 1000, f'Expected total > 1000 (includes invest), got {total.sum()}'
+        # Verify boiler is active in both periods (mandatory build)
+        pw_active = result.solution['pw_invest--active'].sel(pw_converter='Boiler')
+        assert pw_active.sum() >= 2, f'Expected active in both periods, got {pw_active.values}'
+
     def test_piecewise_invest_cost_with_optional_skip(self, optimize):
-        """Proves: Piecewise investment cost function works with optional investment."""
+        """Proves: Optional PiecewiseInvestment (mandatory=False) allows skipping build.
+
+        High invest cost (10000/MW) with cheap backup.
+        Optimizer should skip building the boiler entirely.
+        """
+        result = optimize(
+            timesteps=ts(1),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([30.0]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port('Backup', imports=[Flow('Heat', size=1000, effects_per_flow_hour={'cost': 0.5})]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [0, 50, 100], 'Heat': [0, 45, 80]},
+                        size=PiecewiseInvestment(
+                            mandatory=False,
+                            effects_per_size={'cost': 10000},
+                        ),
+                    ),
+                ),
+            ],
+            periods=[2025, 2030],
+        )
+        # Backup at 0.5/unit * 30 units = 15 per period << invest cost
+        pw_active = result.solution['pw_invest--active'].sel(pw_converter='Boiler')
+        assert pw_active.sum() == 0, f'Expected no build (too expensive), got active={pw_active.values}'
 
 
 class TestPiecewiseWithStatus:
@@ -531,12 +618,49 @@ class TestConversionWithTimeVaryingEffects:
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 76.0, rtol=1e-5)
 
 
-@pytest.mark.skip(reason='piecewise + investment not yet supported')
 class TestPiecewiseInvestWithStatus:
     """Tests combining piecewise investment costs with status parameters."""
 
     def test_piecewise_invest_with_startup_cost(self, optimize):
-        """Proves: Piecewise investment cost and startup cost work together."""
+        """Proves: PiecewiseInvestment + Status work together.
+
+        Boiler must be built (mandatory) AND turned on to produce.
+        Startup cost = 50. Investment cost = 1/MW. demand=[0,30,0,30].
+        Optimizer should prefer staying on to avoid multiple startups.
+        """
+        result = optimize(
+            timesteps=ts(4),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 30, 0, 30]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port('Waste', exports=[Flow('Heat', size=1000)]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [0, 50, 100], 'Heat': [0, 45, 80]},
+                        size=PiecewiseInvestment(
+                            mandatory=True,
+                            effects_per_size={'cost': 1},
+                        ),
+                        status=Status(effects_per_startup={'cost': 50}),
+                    ),
+                ),
+            ],
+            periods=[2025, 2030],
+        )
+        # Check per-period: use first period (both have same timesteps)
+        on = result.solution['component--on'].sel(component='Boiler', period=2025).values
+        startups = sum(1 for i in range(len(on)) if on[i] > 0.5 and (i == 0 or on[i - 1] < 0.5))
+        assert startups <= 1, f'Expected ≤1 startup: on={on}'
 
 
 class TestStatusWithMultipleConstraints:

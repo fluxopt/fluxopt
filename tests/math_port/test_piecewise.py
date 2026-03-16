@@ -7,7 +7,7 @@ between operating points using linopy's piecewise API.
 import numpy as np
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, ConversionCurve, Converter, Effect, Flow, Port
+from fluxopt import Carrier, ConversionCurve, Converter, Effect, Flow, PiecewiseSizing, Port
 
 from .conftest import ts
 
@@ -103,7 +103,6 @@ class TestPiecewise:
                     outputs=[Flow('Heat', size=100)],
                     conversion=ConversionCurve(
                         breakpoints={'Gas': [10, 50, 100], 'Heat': [8, 45, 80]},
-                        mandatory=True,
                     ),
                 ),
             ],
@@ -138,7 +137,7 @@ class TestPiecewise:
                     outputs=[Flow('Heat', size=100)],
                     conversion=ConversionCurve(
                         breakpoints={'Gas': [0, 10, 50, 100], 'Heat': [0, 8, 45, 80]},
-                        mandatory=False,
+                        size=PiecewiseSizing(mandatory=False),
                     ),
                 ),
             ],
