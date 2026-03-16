@@ -111,9 +111,14 @@ def _compute_periodic(
 
 
 def _pw_converter_first_flow(data: ModelData, conv_id: str) -> str | None:
-    """Find the first flow id for a piecewise converter."""
+    """Find the reference flow id for a piecewise converter."""
     pw = data.piecewise
     assert pw is not None
+    ref = pw.ref_flow.sel(pw_converter=conv_id)
+    ref_val = str(ref.values)
+    if ref_val:
+        return ref_val
+    # Fallback to first pair_flow if ref_flow is missing
     mask = pw.pair_converter.values == conv_id
     return str(pw.pair_flow.values[np.where(mask)[0][0]]) if mask.any() else None
 

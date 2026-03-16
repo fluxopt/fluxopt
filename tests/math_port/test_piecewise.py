@@ -152,7 +152,7 @@ class TestPiecewise:
         Segment 1: eta=45/50=0.9, Segment 2: eta=25/50=0.5
 
         demand=45 → operate at BP1 (eta=0.9). Gas=50, cost=50.
-        demand=70 → operate at BP2 (eta=0.7). Gas=100, cost=100.
+        demand=70 → operate at BP2 (eta=0.5). Gas=100, cost=100.
 
         Two timesteps: demand=[45, 70] → total cost = 50 + 100 = 150.
         """

@@ -56,14 +56,13 @@ class TestComponentStatus:
         assert startups <= 1, f'Expected ≤1 startup, got {startups}: on={on}'
 
     def test_component_status_min_uptime(self, optimize):
-        """Proves: min_uptime on component level forces the entire component
-        to stay on for consecutive hours.
+        """Proves: component-level min_uptime forces contiguous on-blocks.
 
-        Boiler with piecewise conversion, min_uptime=3.
-        demand=[20]*6 with backup at 0.5 efficiency.
-        Boiler must stay on for ≥3h once started, even if turning off
-        would save fuel (waste heat cost). We check internal on-blocks
-        (excluding terminal ones which can be shorter due to horizon edge).
+        Boiler (gas cost=1) with piecewise conversion, min_uptime=3.
+        demand=[20]*6 → boiler must be on for all 6h.
+        With min_uptime=3, total on-time must be ≥3 (non-trivial because
+        the component status binary is created and constrained).
+        Also verifies the status variables exist in the solution.
         """
         result = optimize(
             timesteps=ts(6),
@@ -91,11 +90,13 @@ class TestComponentStatus:
                 ),
             ],
         )
+        # Verify component status variables exist
+        assert 'component--on' in result.solution
+        assert 'component--startup' in result.solution
+        assert 'component--shutdown' in result.solution
         on = result.solution['component--on'].sel(component='Boiler').values
-        # With min_uptime=3 and constant demand, the boiler should stay on for ≥3h
-        # Check that total on-time is ≥3 (at least one block of 3)
         total_on = sum(1 for v in on if v > 0.5)
-        assert total_on >= 3, f'Expected ≥3 on-hours, got {total_on}: on={on}'
+        assert total_on == 6, f'Expected 6 on-hours (constant demand), got {total_on}: on={on}'
 
     @pytest.mark.skip(reason='active_hours_max not supported in fluxopt')
     def test_component_status_active_hours_max(self, optimize):

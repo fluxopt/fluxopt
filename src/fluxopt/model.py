@@ -644,7 +644,7 @@ class FlowSystem:
                     else:
                         self.m.add_constraints(a_sel == rhs, name=f'invest_active_{fid}_p{p}')
 
-            # --- Prevent build when prior is active and no lifetime (can't build twice) ---
+            # --- Prevent build when prior exists (each component can only be built once) ---
             if has_prior:
                 self.m.add_constraints(build.sel(flow=fid).sum('period') == 0, name=f'invest_no_build_prior_{fid}')
 
@@ -762,6 +762,7 @@ class FlowSystem:
                     else:
                         self.m.add_constraints(a_sel == rhs, name=f'pw_invest_active_{cid}_p{p}')
 
+            # Each component can only be built once — prior counts as the build
             if has_prior:
                 self.m.add_constraints(
                     build.sel(pw_converter=cid).sum('period') == 0, name=f'pw_invest_no_build_prior_{cid}'
