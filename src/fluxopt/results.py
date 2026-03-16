@@ -207,6 +207,14 @@ class Result:
             sol_vars['component--startup'] = model.component_startup.solution
         if model.component_shutdown is not None:
             sol_vars['component--shutdown'] = model.component_shutdown.solution
+        if model.pw_invest_size is not None:
+            sol_vars['pw_invest--size'] = model.pw_invest_size.solution
+        if model.pw_invest_build is not None:
+            sol_vars['pw_invest--build'] = model.pw_invest_build.solution
+        if model.pw_invest_active is not None:
+            sol_vars['pw_invest--active'] = model.pw_invest_active.solution
+        if model.pw_invest_size_at_build is not None:
+            sol_vars['pw_invest--size_at_build'] = model.pw_invest_size_at_build.solution
         # Include custom variables added after build()
         for var_name in model.m.variables:
             if var_name not in model._builtin_var_names and var_name not in sol_vars:

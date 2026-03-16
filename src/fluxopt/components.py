@@ -77,11 +77,11 @@ class Converter:
                 msg = f'Converter {self.id!r}: ConversionCurve breakpoint keys {unknown} do not match flow short_ids {flow_keys}'
                 raise ValueError(msg)
             # Validate no flow-level size or status on piecewise flows
-            from fluxopt.elements import Investment, Sizing
+            from fluxopt.elements import Investment, PiecewiseInvestment, PiecewiseSizing, Sizing
 
             for f in (*self.inputs, *self.outputs):
                 if f.short_id in bp_keys:
-                    if isinstance(f.size, (Sizing, Investment)):
+                    if isinstance(f.size, (Sizing, Investment, PiecewiseSizing, PiecewiseInvestment)):
                         msg = f'Converter {self.id!r}: flow {f.short_id!r} cannot have Sizing/Investment when using ConversionCurve'
                         raise ValueError(msg)
                     if f.status is not None:

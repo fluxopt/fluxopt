@@ -107,6 +107,48 @@ class Status:
 
 
 @dataclass
+class PiecewiseSizing:
+    """Sizing for piecewise converters. Size = max breakpoint (implicit).
+
+    Args:
+        mandatory: When True, must operate. When False, a silent binary
+            allows the converter to be completely off.
+        effects_per_size: Per-MW costs charged every period ``{effect_id: value}``.
+        effects_fixed: Fixed costs charged every period ``{effect_id: value}``.
+    """
+
+    mandatory: bool = True
+    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
+
+
+@dataclass
+class PiecewiseInvestment:
+    """Build-timing for piecewise converters. Size = max breakpoint (implicit).
+
+    The solver decides WHEN to build (which period). Once built, the
+    converter is available for ``lifetime`` periods at its implicit size.
+
+    Args:
+        mandatory: If True, must build exactly once; if False, may build at most once.
+        lifetime: Periods active after build; None = forever.
+        prior_size: Pre-existing capacity available from period 0.
+        effects_per_size: One-time per-MW costs charged in the build period.
+        effects_fixed: One-time fixed costs charged in the build period.
+        effects_per_size_periodic: Recurring per-MW costs charged every active period.
+        effects_fixed_periodic: Recurring fixed costs charged every active period.
+    """
+
+    mandatory: bool = True
+    lifetime: int | None = None
+    prior_size: float = 0.0
+    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size_periodic: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed_periodic: dict[str, TimeSeries] = field(default_factory=dict)
+
+
+@dataclass
 class ConversionCurve:
     """Piecewise-linear conversion defined by breakpoints.
 
@@ -116,18 +158,18 @@ class ConversionCurve:
 
     Args:
         breakpoints: ``{flow_short_id: [bp0, bp1, …]}`` per flow.
+        size: Sizing/investment for the piecewise converter. ``None`` means
+            mandatory operation, ``float`` sets an explicit scale,
+            ``PiecewiseSizing`` adds effects and optional binary,
+            ``PiecewiseInvestment`` enables build-timing optimization.
         status: Component-level on/off behavior. Governs all flows.
-        mandatory: When True (default), the converter must operate in the
-            piecewise region whenever any flow is non-zero.
-        effects_fixed: Per-activation fixed costs ``{effect_id: value}``.
         availability: Maximum fraction of the reference flow's last
             breakpoint that can be dispatched each timestep.
     """
 
     breakpoints: dict[str, list[TimeSeries]]
+    size: float | PiecewiseSizing | PiecewiseInvestment | None = None
     status: Status | None = None
-    mandatory: bool = True
-    effects_fixed: dict[str, float] = field(default_factory=dict)
     availability: TimeSeries = 1.0
 
     def __post_init__(self) -> None:
@@ -144,6 +186,13 @@ class ConversionCurve:
         if n < 2:
             msg = f'ConversionCurve requires at least 2 breakpoints, got {n}'
             raise ValueError(msg)
+
+    @property
+    def mandatory(self) -> bool:
+        """Whether the converter must always operate."""
+        if self.size is None or isinstance(self.size, (int, float)):
+            return True
+        return self.size.mandatory
 
 
 @dataclass(eq=False)

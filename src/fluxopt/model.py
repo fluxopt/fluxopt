@@ -49,6 +49,12 @@ class FlowSystem:
     component_startup: Variable | None = None
     component_shutdown: Variable | None = None
 
+    # Piecewise investment variables — None when no PiecewiseInvestment
+    pw_invest_size: Variable | None = None
+    pw_invest_build: Variable | None = None
+    pw_invest_active: Variable | None = None
+    pw_invest_size_at_build: Variable | None = None
+
     def __init__(self, data: ModelData) -> None:
         """Initialize the flow system optimization model.
 
@@ -91,6 +97,7 @@ class FlowSystem:
         self._create_flow_variables()
         self._create_sizing_variables()
         self._create_investment_variables()
+        self._create_piecewise_investment_variables()
         self._create_status_variables()
         self._create_component_status_variables()
         # Phase 2: Flow rate constraints
@@ -101,6 +108,7 @@ class FlowSystem:
         # Phase 3: Feature constraints
         self._constrain_sizing()
         self._constrain_investment()
+        self._constrain_piecewise_investment()
         self._constrain_status()
         self._constrain_component_status()
         # Phase 4: System
@@ -258,6 +266,36 @@ class FlowSystem:
         # invest_size_at_build[flow, period]: invest_size * build (big-M)
         self.invest_size_at_build = self._add_variables(
             lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name='invest--size_at_build'
+        )
+
+    def _create_piecewise_investment_variables(self) -> None:
+        """Create investment variables for piecewise converters with PiecewiseInvestment."""
+        pw = self.data.piecewise
+        if pw is None or pw.invest_min is None:
+            return
+        assert pw.invest_max is not None
+
+        invest_ids = list(pw.invest_min.coords['invest_pw_converter'].values)
+        pc = self.data.dims.coords(period=True)
+
+        if not pc:
+            msg = 'PiecewiseInvestment requires multi-period optimization (periods must be specified)'
+            raise ValueError(msg)
+
+        conv_coord = xr.DataArray(invest_ids, dims=['pw_converter'])
+        upper = pw.invest_max.rename({'invest_pw_converter': 'pw_converter'})
+
+        self.pw_invest_size = self._add_variables(
+            lower=0, upper=upper, coords={'pw_converter': conv_coord}, name='pw_invest--size'
+        )
+        self.pw_invest_build = self._add_variables(
+            binary=True, coords={'pw_converter': conv_coord, **pc}, name='pw_invest--build'
+        )
+        self.pw_invest_active = self._add_variables(
+            binary=True, coords={'pw_converter': conv_coord, **pc}, name='pw_invest--active'
+        )
+        self.pw_invest_size_at_build = self._add_variables(
+            lower=0, upper=upper, coords={'pw_converter': conv_coord, **pc}, name='pw_invest--size_at_build'
         )
 
     def _create_status_variables(self) -> None:
@@ -652,6 +690,116 @@ class FlowSystem:
         self.m.add_constraints(sab <= inv_size, name='invest_sab_ub_size')
         self.m.add_constraints(sab >= inv_size - smax * (1 - build), name='invest_sab_lb')
 
+    def _constrain_piecewise_investment(self) -> None:
+        """Constrain piecewise investment variables: build-once, active logic."""
+        if self.pw_invest_size is None:
+            return
+
+        pw = self.data.piecewise
+        assert pw is not None
+        assert pw.invest_min is not None
+        assert pw.invest_max is not None
+        assert pw.invest_mandatory is not None
+        assert pw.invest_lifetime is not None
+        assert pw.invest_prior_size is not None
+        assert self.pw_invest_build is not None
+        assert self.pw_invest_active is not None
+        assert self.pw_invest_size_at_build is not None
+
+        dim = 'invest_pw_converter'
+        invest_ids = list(pw.invest_min.coords[dim].values)
+        smin = pw.invest_min.rename({dim: 'pw_converter'})
+        smax = pw.invest_max.rename({dim: 'pw_converter'})
+        mandatory = pw.invest_mandatory.rename({dim: 'pw_converter'})
+        lifetime = pw.invest_lifetime.rename({dim: 'pw_converter'})
+        prior_size = pw.invest_prior_size.rename({dim: 'pw_converter'})
+
+        build = self.pw_invest_build
+        active = self.pw_invest_active
+        inv_size = self.pw_invest_size
+        sab = self.pw_invest_size_at_build
+
+        periods = self.data.dims.period
+        assert periods is not None
+        period_vals = list(periods.values)
+        n_periods = len(period_vals)
+
+        # --- Build-once constraints ---
+        build_sum = build.sum('period')
+        mand_ids = [cid for cid, m in zip(invest_ids, mandatory.values, strict=True) if m]
+        opt_ids = [cid for cid, m in zip(invest_ids, mandatory.values, strict=True) if not m]
+
+        if mand_ids:
+            self.m.add_constraints(build_sum.sel(pw_converter=mand_ids) == 1, name='pw_invest_build_once_mand')
+        if opt_ids:
+            self.m.add_constraints(build_sum.sel(pw_converter=opt_ids) <= 1, name='pw_invest_build_once_opt')
+
+        # --- Active logic per converter ---
+        for c_idx, cid in enumerate(invest_ids):
+            lt = lifetime.values[c_idx]
+            has_prior = prior_size.values[c_idx] > 0
+            lt_int = int(lt) if not np.isnan(lt) else None
+
+            for p_idx, p in enumerate(period_vals):
+                b_sel = build.sel(pw_converter=cid)
+                a_sel = active.sel(pw_converter=cid, period=p)
+
+                if lt_int is None:
+                    contributing = [period_vals[t] for t in range(p_idx + 1)]
+                    rhs = b_sel.sel(period=contributing).sum('period')
+                    if has_prior:
+                        self.m.add_constraints(a_sel == rhs + 1, name=f'pw_invest_active_{cid}_p{p}')
+                    else:
+                        self.m.add_constraints(a_sel == rhs, name=f'pw_invest_active_{cid}_p{p}')
+                else:
+                    contributing = []
+                    for t_idx in range(n_periods):
+                        if t_idx <= p_idx < t_idx + lt_int:
+                            contributing.append(period_vals[t_idx])
+                    rhs = b_sel.sel(period=contributing).sum('period') if contributing else 0
+                    if has_prior and p_idx < lt_int:
+                        self.m.add_constraints(a_sel == rhs + 1, name=f'pw_invest_active_{cid}_p{p}')
+                    else:
+                        self.m.add_constraints(a_sel == rhs, name=f'pw_invest_active_{cid}_p{p}')
+
+            if has_prior:
+                self.m.add_constraints(
+                    build.sel(pw_converter=cid).sum('period') == 0, name=f'pw_invest_no_build_prior_{cid}'
+                )
+
+        # --- Prior size: fix invest_size to prior_size ---
+        prior_ids = [cid for cid, ps in zip(invest_ids, prior_size.values, strict=True) if ps > 0]
+        if prior_ids:
+            ps_vals = prior_size.sel(pw_converter=prior_ids)
+            self.m.add_constraints(inv_size.sel(pw_converter=prior_ids) == ps_vals, name='pw_invest_size_prior')
+
+        # --- Size bounds: invest_size = max_bp (fixed) ---
+        # For piecewise, size is implicitly max breakpoint. min == max.
+        non_prior_mand = [cid for cid in mand_ids if cid not in prior_ids]
+        if non_prior_mand:
+            self.m.add_constraints(
+                inv_size.sel(pw_converter=non_prior_mand) >= smin.sel(pw_converter=non_prior_mand),
+                name='pw_invest_size_lb_mand',
+            )
+        if opt_ids:
+            non_prior_opt = [cid for cid in opt_ids if cid not in prior_ids]
+            if non_prior_opt:
+                self.m.add_constraints(
+                    inv_size.sel(pw_converter=non_prior_opt)
+                    >= smin.sel(pw_converter=non_prior_opt) * build_sum.sel(pw_converter=non_prior_opt),
+                    name='pw_invest_size_lb_opt',
+                )
+                self.m.add_constraints(
+                    inv_size.sel(pw_converter=non_prior_opt)
+                    <= smax.sel(pw_converter=non_prior_opt) * build_sum.sel(pw_converter=non_prior_opt),
+                    name='pw_invest_size_ub_opt',
+                )
+
+        # --- size_at_build: linearization of invest_size * build ---
+        self.m.add_constraints(sab <= smax * build, name='pw_invest_sab_ub_build')
+        self.m.add_constraints(sab <= inv_size, name='pw_invest_sab_ub_size')
+        self.m.add_constraints(sab >= inv_size - smax * (1 - build), name='pw_invest_sab_lb')
+
     def _constrain_status(self) -> None:
         """Add switch transition and duration tracking constraints for status flows."""
         if self.flow_on is None:
@@ -844,15 +992,36 @@ class FlowSystem:
         if pw is None:
             return
 
+        # Determine which converters have investment
+        invest_conv_ids: set[str] = set()
+        if pw.invest_min is not None:
+            invest_conv_ids = set(pw.invest_min.coords['invest_pw_converter'].values)
+
         for conv_id in pw.converter_ids():
             bp_dict = pw.get_breakpoints(conv_id)
             ref_fid = pw.get_ref_flow(conv_id)
             is_mandatory = bool(pw.mandatory.sel(pw_converter=conv_id).values)
             has_stat = bool(pw.has_status.sel(pw_converter=conv_id).values)
+            has_invest = conv_id in invest_conv_ids
 
             # Determine the "active" variable for piecewise gating
             active_var = None
-            if has_stat and self.component_on is not None:
+            active_has_time = True  # whether active_var has a time dimension
+            if has_invest and self.pw_invest_active is not None:
+                # Investment gating: must be built to operate
+                invest_active = self.pw_invest_active.sel(pw_converter=conv_id)
+                if has_stat and self.component_on is not None:
+                    # Both investment AND status: use component_on (has time dim)
+                    # and constrain: component_on <= invest_active
+                    active_var = self.component_on.sel(component=conv_id)
+                    self.m.add_constraints(
+                        active_var <= invest_active,
+                        name=f'pw_on_requires_invest_{conv_id}',
+                    )
+                else:
+                    active_var = invest_active
+                    active_has_time = False  # invest_active has (period,), not (time,)
+            elif has_stat and self.component_on is not None:
                 active_var = self.component_on.sel(component=conv_id)
             elif not is_mandatory:
                 # Create a "silent" binary for optional piecewise (no duration tracking)
@@ -881,7 +1050,10 @@ class FlowSystem:
                     x_var = flow_rate_ref.sel(time=time_val)
                     y_var = self.flow_rate.sel(flow=fid, time=time_val)
 
-                    active_t = active_var.sel(time=time_val) if active_var is not None else None
+                    if active_var is not None:
+                        active_t = active_var.sel(time=time_val) if active_has_time else active_var
+                    else:
+                        active_t = None
                     descriptor = linopy_piecewise(x_var, x_points=x_pts, y_points=y_pts, active=active_t) == y_var
                     self.m.add_piecewise_constraints(descriptor, name=f'pw_{conv_id}_{fid}_t{t_idx}')
 
@@ -1090,6 +1262,36 @@ class FlowSystem:
             if (ef_p != 0).any():
                 periodic_direct = periodic_direct + (ef_p * self.invest_active).sum('flow')
 
+        # Piecewise sizing: per-size costs (size = max_bp, always charged for mandatory)
+        pw_sz_eps = d.piecewise.sizing_effects_per_size if d.piecewise is not None else None
+        if pw_sz_eps is not None:
+            pw = d.piecewise
+            assert pw is not None
+            assert pw.max_bp_size is not None
+            sz_ids = list(pw_sz_eps.coords['sizing_pw_converter'].values)
+            if (pw_sz_eps != 0).any():
+                max_bp = pw.max_bp_size.sel(pw_converter=sz_ids)
+                periodic_direct = periodic_direct + (pw_sz_eps * max_bp).sum('sizing_pw_converter')
+
+        # Piecewise sizing: fixed costs (mandatory = constant, optional = binary * cost)
+        pw_sz_ef = d.piecewise.sizing_effects_fixed if d.piecewise is not None else None
+        if pw_sz_ef is not None and (pw_sz_ef != 0).any():
+            periodic_direct = periodic_direct + pw_sz_ef.sum('sizing_pw_converter')
+
+        # Piecewise investment: recurring per-size costs → effect_periodic
+        if self.pw_invest_active is not None and d.piecewise is not None:
+            pw = d.piecewise
+            if pw.invest_effects_per_size_periodic is not None:
+                eps_p = pw.invest_effects_per_size_periodic.rename({'invest_pw_converter': 'pw_converter'})
+                if (eps_p != 0).any():
+                    assert self.pw_invest_size is not None
+                    periodic_direct = periodic_direct + (eps_p * self.pw_invest_size).sum('pw_converter')
+
+            if pw.invest_effects_fixed_periodic is not None:
+                ef_p = pw.invest_effects_fixed_periodic.rename({'invest_pw_converter': 'pw_converter'})
+                if (ef_p != 0).any():
+                    periodic_direct = periodic_direct + (ef_p * self.pw_invest_active).sum('pw_converter')
+
         # Cross-effect periodic: cf_periodic[k,j] * effect_periodic[j]
         periodic_rhs: Any = periodic_direct
         if ds.cf_periodic is not None:
@@ -1115,6 +1317,20 @@ class FlowSystem:
             ef_once = d.flows.invest_effects_fixed.rename({'invest_flow': 'flow'})
             if (ef_once != 0).any():
                 once_direct = once_direct + (ef_once * self.invest_build).sum('flow')
+
+        # Piecewise investment: one-time per-size costs (charged in build period)
+        if self.pw_invest_size_at_build is not None and d.piecewise is not None:
+            pw = d.piecewise
+            if pw.invest_effects_per_size is not None:
+                eps_once = pw.invest_effects_per_size.rename({'invest_pw_converter': 'pw_converter'})
+                if (eps_once != 0).any():
+                    once_direct = once_direct + (eps_once * self.pw_invest_size_at_build).sum('pw_converter')
+
+            if pw.invest_effects_fixed is not None:
+                assert self.pw_invest_build is not None
+                ef_once = pw.invest_effects_fixed.rename({'invest_pw_converter': 'pw_converter'})
+                if (ef_once != 0).any():
+                    once_direct = once_direct + (ef_once * self.pw_invest_build).sum('pw_converter')
 
         self.m.add_constraints(self.effect_once == once_direct, name='effect_once_eq')
 

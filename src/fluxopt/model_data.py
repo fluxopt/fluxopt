@@ -12,7 +12,16 @@ from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
 
 if TYPE_CHECKING:
     from fluxopt.components import Converter, Port
-    from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
+    from fluxopt.elements import (
+        Carrier,
+        Effect,
+        Flow,
+        Investment,
+        PiecewiseSizing,
+        Sizing,
+        Status,
+        Storage,
+    )
     from fluxopt.types import TimeIndex, Timesteps
 
 
@@ -1434,6 +1443,23 @@ class PiecewiseData:
     mandatory: xr.DataArray  # (pw_converter,) — bool
     availability: xr.DataArray  # (pw_converter, time) — fraction
     has_status: xr.DataArray  # (pw_converter,) — bool
+    max_bp_size: xr.DataArray | None = None  # (pw_converter,) — implicit size
+
+    # Investment arrays (PiecewiseInvestment) — keyed by invest_pw_converter
+    invest_min: xr.DataArray | None = None
+    invest_max: xr.DataArray | None = None
+    invest_mandatory: xr.DataArray | None = None
+    invest_lifetime: xr.DataArray | None = None
+    invest_prior_size: xr.DataArray | None = None
+    invest_effects_per_size: xr.DataArray | None = None
+    invest_effects_fixed: xr.DataArray | None = None
+    invest_effects_per_size_periodic: xr.DataArray | None = None
+    invest_effects_fixed_periodic: xr.DataArray | None = None
+
+    # Sizing effects (PiecewiseSizing) — keyed by sizing_pw_converter
+    sizing_effects_per_size: xr.DataArray | None = None
+    sizing_effects_fixed: xr.DataArray | None = None
+    sizing_mandatory: xr.DataArray | None = None
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -1454,6 +1480,19 @@ class PiecewiseData:
             mandatory=ds['mandatory'],
             availability=ds['availability'],
             has_status=ds['has_status'],
+            max_bp_size=ds.get('max_bp_size'),
+            invest_min=ds.get('invest_min'),
+            invest_max=ds.get('invest_max'),
+            invest_mandatory=ds.get('invest_mandatory'),
+            invest_lifetime=ds.get('invest_lifetime'),
+            invest_prior_size=ds.get('invest_prior_size'),
+            invest_effects_per_size=ds.get('invest_effects_per_size'),
+            invest_effects_fixed=ds.get('invest_effects_fixed'),
+            invest_effects_per_size_periodic=ds.get('invest_effects_per_size_periodic'),
+            invest_effects_fixed_periodic=ds.get('invest_effects_fixed_periodic'),
+            sizing_effects_per_size=ds.get('sizing_effects_per_size'),
+            sizing_effects_fixed=ds.get('sizing_effects_fixed'),
+            sizing_mandatory=ds.get('sizing_mandatory'),
         )
 
     def converter_ids(self) -> list[str]:
@@ -1483,15 +1522,23 @@ class PiecewiseData:
         cls,
         piecewise_converters: list[Converter],
         time: TimeIndex,
+        effects: list[Effect] | None = None,
+        period: pd.Index | None = None,
     ) -> PiecewiseData | None:
         """Build PiecewiseData from converters with ConversionCurve.
 
         Args:
             piecewise_converters: Converters that have ``conversion`` set.
             time: Time index.
+            effects: Effect definitions (needed for investment/sizing effects).
+            period: Period index for multi-period investment.
         """
+        from fluxopt.elements import Investment, PiecewiseInvestment, PiecewiseSizing
+
         if not piecewise_converters:
             return None
+
+        effect_ids = [e.id for e in effects] if effects else []
 
         conv_ids: list[str] = []
         pair_conv_ids: list[str] = []
@@ -1501,6 +1548,10 @@ class PiecewiseData:
         mandatories: list[bool] = []
         avail_slices: list[xr.DataArray] = []
         has_statuses: list[bool] = []
+        max_bp_sizes: list[float] = []
+
+        invest_items: list[tuple[str, Investment]] = []
+        sizing_items: list[tuple[str, PiecewiseSizing, float]] = []  # (id, sizing, max_bp)
 
         for conv in piecewise_converters:
             assert conv.conversion is not None
@@ -1527,9 +1578,35 @@ class PiecewiseData:
             assert ref_fid is not None
             ref_flows.append(ref_fid)
 
+            # Compute max breakpoint of ref flow (implicit size)
+            ref_short = next(k for k, v in conv._short_to_id.items() if v == ref_fid)
+            ref_bp_list = curve.breakpoints[ref_short]
+            # max_bp is the last breakpoint value (scalar for now)
+            last_bp = ref_bp_list[-1]
+            max_bp = float(last_bp) if isinstance(last_bp, (int, float)) else float(np.max(last_bp))
+            max_bp_sizes.append(max_bp)
+
             mandatories.append(curve.mandatory)
             avail_slices.append(as_dataarray(curve.availability, {'time': time}))
             has_statuses.append(curve.status is not None)
+
+            # Handle size field
+            if isinstance(curve.size, PiecewiseInvestment):
+                pi = curve.size
+                synth_inv = Investment(
+                    min_size=max_bp,
+                    max_size=max_bp,
+                    mandatory=pi.mandatory,
+                    lifetime=pi.lifetime,
+                    prior_size=pi.prior_size,
+                    effects_per_size=pi.effects_per_size,
+                    effects_fixed=pi.effects_fixed,
+                    effects_per_size_periodic=pi.effects_per_size_periodic,
+                    effects_fixed_periodic=pi.effects_fixed_periodic,
+                )
+                invest_items.append((conv.id, synth_inv))
+            elif isinstance(curve.size, PiecewiseSizing):
+                sizing_items.append((conv.id, curve.size, max_bp))
 
         # Stack breakpoints into (pw_pair, breakpoint, time)
         pair_idx = pd.Index(range(len(bp_slices)), name='pw_pair')
@@ -1537,6 +1614,38 @@ class PiecewiseData:
 
         conv_idx = pd.Index(conv_ids, name='pw_converter')
         availability = fast_concat(avail_slices, conv_idx)
+
+        # Build investment arrays
+        inv = _InvestmentArrays.build(invest_items, effect_ids, dim='invest_pw_converter', period=period)
+
+        # Build sizing effect arrays
+        sizing_eps: xr.DataArray | None = None
+        sizing_ef: xr.DataArray | None = None
+        sizing_mand: xr.DataArray | None = None
+        if sizing_items:
+            effect_set = set(effect_ids)
+            tmpl = _effect_template({'effect': effect_ids}, period)
+            sz_ids: list[str] = []
+            sz_eps_slices: list[xr.DataArray] = []
+            sz_ef_slices: list[xr.DataArray] = []
+            sz_mands: list[bool] = []
+            for item_id, ps, _mbp in sizing_items:
+                sz_ids.append(item_id)
+                sz_mands.append(ps.mandatory)
+                for src_dict, dest_list in [
+                    (ps.effects_per_size, sz_eps_slices),
+                    (ps.effects_fixed, sz_ef_slices),
+                ]:
+                    arr = tmpl.zeros()
+                    for ek, ev in src_dict.items():
+                        if ek not in effect_set:
+                            raise ValueError(f'Unknown effect {ek!r} in PiecewiseSizing on {item_id!r}')
+                        arr.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
+                    dest_list.append(arr)
+            sz_idx = pd.Index(sz_ids, name='sizing_pw_converter')
+            sizing_eps = fast_concat(sz_eps_slices, sz_idx)
+            sizing_ef = fast_concat(sz_ef_slices, sz_idx)
+            sizing_mand = xr.DataArray(sz_mands, dims=['sizing_pw_converter'], coords={'sizing_pw_converter': sz_ids})
 
         return cls(
             breakpoints=breakpoints,
@@ -1546,6 +1655,19 @@ class PiecewiseData:
             mandatory=xr.DataArray(mandatories, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
             availability=availability,
             has_status=xr.DataArray(has_statuses, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
+            max_bp_size=xr.DataArray(max_bp_sizes, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
+            invest_min=inv.min,
+            invest_max=inv.max,
+            invest_mandatory=inv.mandatory,
+            invest_lifetime=inv.lifetime,
+            invest_prior_size=inv.prior_size,
+            invest_effects_per_size=inv.effects_per_size,
+            invest_effects_fixed=inv.effects_fixed,
+            invest_effects_per_size_periodic=inv.effects_per_size_periodic,
+            invest_effects_fixed_periodic=inv.effects_fixed_periodic,
+            sizing_effects_per_size=sizing_eps,
+            sizing_effects_fixed=sizing_ef,
+            sizing_mandatory=sizing_mand,
         )
 
 
@@ -1692,7 +1814,7 @@ class ModelData:
         converters_data = ConvertersData.build(linear_converters, time)
         effects_data = EffectsData.build(effects, time, period=period_idx)
         storages_data = StoragesData.build(stor_list, time, dims.dt, effects, period=period_idx)
-        piecewise_data = PiecewiseData.build(pw_converters, time)
+        piecewise_data = PiecewiseData.build(pw_converters, time, effects=effects, period=period_idx)
 
         return cls(
             flows=flows_data,
