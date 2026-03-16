@@ -72,9 +72,13 @@ class Converter:
             # Validate breakpoint keys match flow short_ids
             bp_keys = set(self.conversion.breakpoints.keys())
             flow_keys = set(self._short_to_id.keys())
-            if not bp_keys.issubset(flow_keys):
+            if bp_keys != flow_keys:
                 unknown = bp_keys - flow_keys
-                msg = f'Converter {self.id!r}: ConversionCurve breakpoint keys {unknown} do not match flow short_ids {flow_keys}'
+                missing = flow_keys - bp_keys
+                msg = (
+                    f'Converter {self.id!r}: ConversionCurve breakpoints must cover every flow. '
+                    f'Unknown keys: {unknown or set()}, missing keys: {missing or set()}'
+                )
                 raise ValueError(msg)
             # Validate no flow-level size or status on piecewise flows
             from fluxopt.elements import Investment, PiecewiseInvestment, PiecewiseSizing, Sizing
