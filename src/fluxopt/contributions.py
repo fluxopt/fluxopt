@@ -4,9 +4,9 @@ Decomposes solver effect totals into per-contributor (flow/storage) parts,
 split into temporal (per-timestep), periodic (sizing, recurring investment),
 and once (one-time investment) domains — matching the model's own structure.
 
-Cross-effects use the Leontief inverse: total = (I - C)^-1 * direct,
-where C is the cross-effect coefficient matrix. One-time costs bypass
-the Leontief pass (matching the solver's ``effect_once`` variable).
+Each domain supports cross-effect propagation via the Leontief inverse:
+total = (I - C)^-1 * direct, where C is the domain's cross-effect matrix
+(``cf_temporal``, ``cf_periodic``, ``cf_once``).
 """
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ import pytest
 import xarray as xr
 from conftest import ts
 
-from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, Storage, optimize
+from fluxopt import Carrier, Effect, Flow, Investment, Port, Sizing, Status, Storage, optimize
 from fluxopt.components import Converter
 
 
@@ -272,6 +272,41 @@ class TestSizing:
         invest_co2 = invest_size * 10
         expected_inv_cost = invest_co2 * 50
         assert grid_inv_cost == pytest.approx(expected_inv_cost, abs=1e-6)
+
+
+class TestCrossOnce:
+    def test_cross_once_prices_embodied_co2(self):
+        """cross_once prices one-time investment CO2 into cost via Leontief."""
+
+        source = Flow(
+            'elec',
+            size=Investment(50, 50, mandatory=True, effects_per_size={'co2': 10}),
+            effects_per_flow_hour={'co2': 1},
+        )
+        sink = Flow('elec', size=1, fixed_relative_profile=[10, 10, 10])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', is_objective=True, cross_temporal={'co2': 50}, cross_once={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            periods=[2020, 2025],
+            period_weights=[1, 1],
+        )
+
+        contrib = result.stats.effect_contributions
+        assert 'once' in contrib
+
+        # Once domain: 50 MW * 10 CO2/MW = 500 CO2, priced at 50 → 25000 cost
+        grid_once_cost = float(contrib['once'].sel(contributor='grid(elec)', effect='cost').sum().values)
+        assert grid_once_cost == pytest.approx(25000.0, abs=1e-4)
+
+        # Total matches solver
+        diff = abs(contrib['total'].sum('contributor') - result.solution['effect--total'])
+        assert float(diff.max().values) < 1e-4
 
 
 class TestStatus:
