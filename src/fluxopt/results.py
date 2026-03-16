@@ -201,6 +201,12 @@ class Result:
             sol_vars['flow--startup'] = model.flow_startup.solution
         if model.flow_shutdown is not None:
             sol_vars['flow--shutdown'] = model.flow_shutdown.solution
+        if model.component_on is not None:
+            sol_vars['component--on'] = model.component_on.solution
+        if model.component_startup is not None:
+            sol_vars['component--startup'] = model.component_startup.solution
+        if model.component_shutdown is not None:
+            sol_vars['component--shutdown'] = model.component_shutdown.solution
         # Include custom variables added after build()
         for var_name in model.m.variables:
             if var_name not in model._builtin_var_names and var_name not in sol_vars:

@@ -65,6 +65,7 @@ _NC_GROUPS = {
     'converters': 'model/conv',
     'effects': 'model/effects',
     'storages': 'model/stor',
+    'piecewise': 'model/pw',
 }
 
 
@@ -394,6 +395,109 @@ class _StatusArrays:
 
 
 @dataclass
+class _ComponentStatusArrays:
+    """Component-level status arrays — parallel to _StatusArrays but for components.
+
+    Each component (storage or converter) with a Status creates one entry.
+    The ``governed_flows`` mapping records which flow ids each component governs.
+    """
+
+    min_uptime: xr.DataArray | None = None  # (cstatus_component,)
+    max_uptime: xr.DataArray | None = None
+    min_downtime: xr.DataArray | None = None
+    max_downtime: xr.DataArray | None = None
+    initial: xr.DataArray | None = None  # (cstatus_component,) — NaN = free
+    effects_running: xr.DataArray | None = None  # (cstatus_component, effect, time, period?)
+    effects_startup: xr.DataArray | None = None  # (cstatus_component, effect, time, period?)
+    previous_uptime: xr.DataArray | None = None
+    previous_downtime: xr.DataArray | None = None
+    governed_flows: xr.DataArray | None = None  # (cstatus_component, cstatus_flow_idx) — str flow ids
+
+    @classmethod
+    def build(
+        cls,
+        items: list[tuple[str, Status, list[str]]],
+        effect_ids: list[str],
+        time: TimeIndex,
+        dim: str = 'cstatus_component',
+        period: pd.Index | None = None,
+    ) -> _ComponentStatusArrays:
+        """Build component status arrays.
+
+        Args:
+            items: Triples of (component_id, Status, governed_flow_ids).
+            effect_ids: Known effect ids.
+            time: Time index.
+            dim: Dimension name.
+            period: Period index.
+        """
+        if not items:
+            return cls()
+
+        effect_set = set(effect_ids)
+        tmpl = _effect_template({'effect': effect_ids, 'time': time}, period)
+
+        ids: list[str] = []
+        min_ups: list[float] = []
+        max_ups: list[float] = []
+        min_downs: list[float] = []
+        max_downs: list[float] = []
+        initials: list[float] = []
+        er_slices: list[xr.DataArray] = []
+        es_slices: list[xr.DataArray] = []
+        gov_lists: list[list[str]] = []
+
+        for comp_id, s, flow_ids in items:
+            ids.append(comp_id)
+            min_ups.append(s.min_uptime if s.min_uptime is not None else np.nan)
+            max_ups.append(s.max_uptime if s.max_uptime is not None else np.nan)
+            min_downs.append(s.min_downtime if s.min_downtime is not None else np.nan)
+            max_downs.append(s.max_downtime if s.max_downtime is not None else np.nan)
+            initials.append(np.nan)  # component-level has no prior_rates
+            gov_lists.append(flow_ids)
+
+            er = tmpl.zeros()
+            for ek, ev in s.effects_per_running_hour.items():
+                if ek not in effect_set:
+                    raise ValueError(f'Unknown effect {ek!r} in Status.effects_per_running_hour on {comp_id!r}')
+                er.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
+            er_slices.append(er)
+
+            es = tmpl.zeros()
+            for ek, ev in s.effects_per_startup.items():
+                if ek not in effect_set:
+                    raise ValueError(f'Unknown effect {ek!r} in Status.effects_per_startup on {comp_id!r}')
+                es.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
+            es_slices.append(es)
+
+        coords = {dim: ids}
+        idx = pd.Index(ids, name=dim)
+
+        # Build governed_flows as 2D string array (component, flow_idx) — pad with ''
+        max_flows = max(len(fl) for fl in gov_lists) if gov_lists else 0
+        gov_data = np.full((len(ids), max_flows), '', dtype=object)
+        for i, fl in enumerate(gov_lists):
+            for j, fid in enumerate(fl):
+                gov_data[i, j] = fid
+        gov_da = xr.DataArray(
+            gov_data,
+            dims=[dim, 'cstatus_flow_idx'],
+            coords={dim: ids, 'cstatus_flow_idx': list(range(max_flows))},
+        )
+
+        return cls(
+            min_uptime=xr.DataArray(np.array(min_ups), dims=[dim], coords=coords),
+            max_uptime=xr.DataArray(np.array(max_ups), dims=[dim], coords=coords),
+            min_downtime=xr.DataArray(np.array(min_downs), dims=[dim], coords=coords),
+            max_downtime=xr.DataArray(np.array(max_downs), dims=[dim], coords=coords),
+            initial=xr.DataArray(np.array(initials), dims=[dim], coords=coords),
+            effects_running=fast_concat(er_slices, idx),
+            effects_startup=fast_concat(es_slices, idx),
+            governed_flows=gov_da,
+        )
+
+
+@dataclass
 class FlowsData:
     bound_type: xr.DataArray  # (flow,) — 'unsized' | 'bounded' | 'profile'
     rel_lb: xr.DataArray  # (flow, time)
@@ -424,6 +528,17 @@ class FlowsData:
     invest_effects_fixed: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
     invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
     invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
+    # Component-level status (from Storage.status or ConversionCurve.status)
+    cstatus_min_uptime: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_max_uptime: xr.DataArray | None = None
+    cstatus_min_downtime: xr.DataArray | None = None
+    cstatus_max_downtime: xr.DataArray | None = None
+    cstatus_initial: xr.DataArray | None = None
+    cstatus_effects_running: xr.DataArray | None = None  # (cstatus_component, effect, time, period?)
+    cstatus_effects_startup: xr.DataArray | None = None
+    cstatus_previous_uptime: xr.DataArray | None = None
+    cstatus_previous_downtime: xr.DataArray | None = None
+    cstatus_governed_flows: xr.DataArray | None = None  # (cstatus_component, cstatus_flow_idx) — str flow ids
 
     def __post_init__(self) -> None:
         """Validate relative bounds: non-negative and lb <= ub."""
@@ -458,6 +573,7 @@ class FlowsData:
         effects: list[Effect],
         dt: float = 1.0,
         period: pd.Index | None = None,
+        component_status_items: list[tuple[str, Status, list[str]]] | None = None,
     ) -> Self:
         """Build FlowsData from element objects.
 
@@ -469,6 +585,8 @@ class FlowsData:
             period: Period index for multi-period models. When provided,
                 ``effect_coeff`` gains a ``period`` dimension so that
                 ``effects_per_flow_hour`` values can vary across periods.
+            component_status_items: Triples of (component_id, Status, governed_flow_ids)
+                for component-level status (Storage.status, ConversionCurve.status).
         """
         from fluxopt.elements import Investment, Sizing
 
@@ -546,6 +664,7 @@ class FlowsData:
         st = _StatusArrays.build(
             status_items, effect_ids, time, dim='status_flow', prior_rates_map=prior_rates_map, dt=dt, period=period
         )
+        cst = _ComponentStatusArrays.build(component_status_items or [], effect_ids, time, period=period)
 
         return cls(
             bound_type=xr.DataArray(bound_type, dims=['flow'], coords={'flow': flow_ids}),
@@ -577,6 +696,16 @@ class FlowsData:
             invest_effects_fixed=inv.effects_fixed,
             invest_effects_per_size_periodic=inv.effects_per_size_periodic,
             invest_effects_fixed_periodic=inv.effects_fixed_periodic,
+            cstatus_min_uptime=cst.min_uptime,
+            cstatus_max_uptime=cst.max_uptime,
+            cstatus_min_downtime=cst.min_downtime,
+            cstatus_max_downtime=cst.max_downtime,
+            cstatus_initial=cst.initial,
+            cstatus_effects_running=cst.effects_running,
+            cstatus_effects_startup=cst.effects_startup,
+            cstatus_previous_uptime=cst.previous_uptime,
+            cstatus_previous_downtime=cst.previous_downtime,
+            cstatus_governed_flows=cst.governed_flows if cst.governed_flows is not None else None,
         )
 
 
@@ -1292,6 +1421,135 @@ class Dims:
 
 
 @dataclass
+class PiecewiseData:
+    """Data for piecewise-linear converters.
+
+    All data stored as DataArrays for NetCDF serialization.
+    """
+
+    breakpoints: xr.DataArray  # (pw_pair, breakpoint, time) — values
+    pair_converter: xr.DataArray  # (pw_pair,) — converter id
+    pair_flow: xr.DataArray  # (pw_pair,) — flow id
+    ref_flow: xr.DataArray  # (pw_converter,) — reference flow id
+    mandatory: xr.DataArray  # (pw_converter,) — bool
+    availability: xr.DataArray  # (pw_converter, time) — fraction
+    has_status: xr.DataArray  # (pw_converter,) — bool
+
+    def to_dataset(self) -> xr.Dataset:
+        """Serialize to xr.Dataset."""
+        return _to_dataset(self)
+
+    @classmethod
+    def from_dataset(cls, ds: xr.Dataset) -> PiecewiseData:
+        """Deserialize from xr.Dataset.
+
+        Args:
+            ds: Dataset with piecewise data variables.
+        """
+        return cls(
+            breakpoints=ds['breakpoints'],
+            pair_converter=ds['pair_converter'],
+            pair_flow=ds['pair_flow'],
+            ref_flow=ds['ref_flow'],
+            mandatory=ds['mandatory'],
+            availability=ds['availability'],
+            has_status=ds['has_status'],
+        )
+
+    def converter_ids(self) -> list[str]:
+        """Return list of piecewise converter ids."""
+        return list(self.ref_flow.coords['pw_converter'].values)
+
+    def get_breakpoints(self, conv_id: str) -> dict[str, xr.DataArray]:
+        """Get breakpoints for a converter as {flow_id: DataArray(breakpoint, time)}.
+
+        Args:
+            conv_id: Converter id.
+        """
+        mask = self.pair_converter.values == conv_id
+        pair_indices = np.where(mask)[0]
+        result: dict[str, xr.DataArray] = {}
+        for idx in pair_indices:
+            fid = str(self.pair_flow.values[idx])
+            result[fid] = self.breakpoints.isel(pw_pair=idx)
+        return result
+
+    def get_ref_flow(self, conv_id: str) -> str:
+        """Get reference flow id for a converter."""
+        return str(self.ref_flow.sel(pw_converter=conv_id).values)
+
+    @classmethod
+    def build(
+        cls,
+        piecewise_converters: list[Converter],
+        time: TimeIndex,
+    ) -> PiecewiseData | None:
+        """Build PiecewiseData from converters with ConversionCurve.
+
+        Args:
+            piecewise_converters: Converters that have ``conversion`` set.
+            time: Time index.
+        """
+        if not piecewise_converters:
+            return None
+
+        conv_ids: list[str] = []
+        pair_conv_ids: list[str] = []
+        pair_flow_ids: list[str] = []
+        bp_slices: list[xr.DataArray] = []
+        ref_flows: list[str] = []
+        mandatories: list[bool] = []
+        avail_slices: list[xr.DataArray] = []
+        has_statuses: list[bool] = []
+
+        for conv in piecewise_converters:
+            assert conv.conversion is not None
+            curve = conv.conversion
+            conv_ids.append(conv.id)
+
+            # Resolve breakpoints: short_id → qualified flow id
+            ref_fid: str | None = None
+            for short_id, bp_list in curve.breakpoints.items():
+                qid = conv._short_to_id[short_id]
+                bp_arrays = [as_dataarray(bp, {'time': time}) for bp in bp_list]
+                bp_idx = pd.Index(range(len(bp_arrays)), name='breakpoint')
+                bp_da = fast_concat(bp_arrays, bp_idx)
+                pair_conv_ids.append(conv.id)
+                pair_flow_ids.append(qid)
+                bp_slices.append(bp_da)
+
+            # Reference flow is first input flow that appears in breakpoints
+            bp_flow_set = {conv._short_to_id[k] for k in curve.breakpoints}
+            for f in (*conv.inputs, *conv.outputs):
+                if f.id in bp_flow_set:
+                    ref_fid = f.id
+                    break
+            assert ref_fid is not None
+            ref_flows.append(ref_fid)
+
+            mandatories.append(curve.mandatory)
+            avail_slices.append(as_dataarray(curve.availability, {'time': time}))
+            has_statuses.append(curve.status is not None)
+
+        # Stack breakpoints into (pw_pair, breakpoint, time)
+        pair_idx = pd.Index(range(len(bp_slices)), name='pw_pair')
+        breakpoints = fast_concat(bp_slices, pair_idx)
+
+        conv_idx = pd.Index(conv_ids, name='pw_converter')
+        availability = fast_concat(avail_slices, conv_idx)
+
+        return cls(
+            breakpoints=breakpoints,
+            pair_converter=xr.DataArray(pair_conv_ids, dims=['pw_pair']),
+            pair_flow=xr.DataArray(pair_flow_ids, dims=['pw_pair']),
+            ref_flow=xr.DataArray(ref_flows, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
+            mandatory=xr.DataArray(mandatories, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
+            availability=availability,
+            has_status=xr.DataArray(has_statuses, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
+        )
+
+
+@dataclass
 class ModelData:
     flows: FlowsData
     carriers: CarriersData
@@ -1299,6 +1557,7 @@ class ModelData:
     effects: EffectsData
     storages: StoragesData | None  # None when no storages
     dims: Dims
+    piecewise: PiecewiseData | None = None  # None when no piecewise converters
 
     def to_netcdf(self, path: str | Path, *, mode: Literal['w', 'a'] = 'a') -> None:
         """Write model data as NetCDF groups under ``/model/``.
@@ -1308,12 +1567,15 @@ class ModelData:
             mode: Write mode ('w' to overwrite, 'a' to append).
         """
         p = Path(path)
-        dataset_fields: dict[str, FlowsData | CarriersData | ConvertersData | EffectsData | StoragesData | None] = {
+        dataset_fields: dict[
+            str, FlowsData | CarriersData | ConvertersData | EffectsData | StoragesData | PiecewiseData | None
+        ] = {
             'flows': self.flows,
             'carriers': self.carriers,
             'converters': self.converters,
             'effects': self.effects,
             'storages': self.storages,
+            'piecewise': self.piecewise,
         }
         current_mode = mode
         for name, obj in dataset_fields.items():
@@ -1347,6 +1609,7 @@ class ModelData:
         converters = ConvertersData.from_dataset(datasets['converters']) if datasets['converters'].data_vars else None
         effects = EffectsData.from_dataset(datasets['effects'])
         storages = StoragesData.from_dataset(datasets['storages']) if datasets['storages'].data_vars else None
+        piecewise = PiecewiseData.from_dataset(datasets['piecewise']) if datasets['piecewise'].data_vars else None
 
         return cls(
             flows=flows,
@@ -1355,6 +1618,7 @@ class ModelData:
             effects=effects,
             storages=storages,
             dims=Dims.from_dataset(meta),
+            piecewise=piecewise,
         )
 
     @classmethod
@@ -1399,14 +1663,36 @@ class ModelData:
 
         dims = Dims.build(time, dt_da, periods=periods, period_weights=period_weights)
 
+        # Separate piecewise converters from linear ones
+        linear_converters = [c for c in converters if c.conversion is None]
+        pw_converters = [c for c in converters if c.conversion is not None]
+
+        # Collect component-level status items
+        comp_status_items: list[tuple[str, Status, list[str]]] = [
+            (s.id, s.status, [s.charging.id, s.discharging.id]) for s in stor_list if s.status is not None
+        ]
+        for conv in pw_converters:
+            assert conv.conversion is not None
+            if conv.conversion.status is not None:
+                flow_ids = [f.id for f in (*conv.inputs, *conv.outputs)]
+                comp_status_items.append((conv.id, conv.conversion.status, flow_ids))
+
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dims.dt.values[0])
         period_idx = pd.Index(dims.period.values) if dims.period is not None else None
-        flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar, period=period_idx)
+        flows_data = FlowsData.build(
+            flows,
+            time,
+            effects,
+            dt=dt_scalar,
+            period=period_idx,
+            component_status_items=comp_status_items or None,
+        )
         carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
-        converters_data = ConvertersData.build(converters, time)
+        converters_data = ConvertersData.build(linear_converters, time)
         effects_data = EffectsData.build(effects, time, period=period_idx)
         storages_data = StoragesData.build(stor_list, time, dims.dt, effects, period=period_idx)
+        piecewise_data = PiecewiseData.build(pw_converters, time)
 
         return cls(
             flows=flows_data,
@@ -1415,6 +1701,7 @@ class ModelData:
             effects=effects_data,
             storages=storages_data,
             dims=dims,
+            piecewise=piecewise_data,
         )
 
 

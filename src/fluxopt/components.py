@@ -7,7 +7,7 @@ from fluxopt.elements import qualified_id
 from fluxopt.types import IdList
 
 if TYPE_CHECKING:
-    from fluxopt.elements import Flow
+    from fluxopt.elements import ConversionCurve, Flow
     from fluxopt.types import TimeSeries
 
 
@@ -39,24 +39,56 @@ class Port:
 
 @dataclass
 class Converter:
-    """Linear conversion between input and output flows.
+    """Conversion between input and output flows.
 
-    Conversion equation (per equation index)::
+    Supports two modes:
 
-        sum_f(a_f * P_{f,t}) = 0   for all t
+    **Linear** (default): ``conversion_factors`` is a list of dicts, each
+    defining one equation ``sum_f(a_f * P_{f,t}) = 0``.
+
+    **Piecewise**: set ``conversion`` to a :class:`ConversionCurve`.
+    Breakpoint keys must match flow ``short_id`` values. Individual flows
+    must not carry ``size`` or ``status`` (the curve governs sizing/status
+    at the component level).
     """
 
     id: str
     inputs: list[Flow] | IdList[Flow]
     outputs: list[Flow] | IdList[Flow]
     conversion_factors: list[dict[str, TimeSeries]] = field(default_factory=list)  # a_f
+    conversion: ConversionCurve | None = None
     _short_to_id: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Qualify flow ids and build short→qualified mapping."""
+        """Qualify flow ids, build short→qualified mapping, validate."""
         self.inputs = _qualify_flows(self.id, list(self.inputs))
         self.outputs = _qualify_flows(self.id, list(self.outputs))
         self._short_to_id = {f.short_id: f.id for f in (*self.inputs, *self.outputs)}
+
+        if self.conversion is not None:
+            if self.conversion_factors:
+                msg = f'Converter {self.id!r}: cannot specify both conversion_factors and conversion'
+                raise ValueError(msg)
+            # Validate breakpoint keys match flow short_ids
+            bp_keys = set(self.conversion.breakpoints.keys())
+            flow_keys = set(self._short_to_id.keys())
+            if not bp_keys.issubset(flow_keys):
+                unknown = bp_keys - flow_keys
+                msg = f'Converter {self.id!r}: ConversionCurve breakpoint keys {unknown} do not match flow short_ids {flow_keys}'
+                raise ValueError(msg)
+            # Validate no flow-level size or status on piecewise flows
+            from fluxopt.elements import Investment, Sizing
+
+            for f in (*self.inputs, *self.outputs):
+                if f.short_id in bp_keys:
+                    if isinstance(f.size, (Sizing, Investment)):
+                        msg = f'Converter {self.id!r}: flow {f.short_id!r} cannot have Sizing/Investment when using ConversionCurve'
+                        raise ValueError(msg)
+                    if f.status is not None:
+                        msg = (
+                            f'Converter {self.id!r}: flow {f.short_id!r} cannot have status when using ConversionCurve'
+                        )
+                        raise ValueError(msg)
 
     @classmethod
     def _single_io(cls, id: str, coefficient: TimeSeries, input_flow: Flow, output_flow: Flow) -> Converter:

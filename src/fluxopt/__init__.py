@@ -2,7 +2,17 @@ from collections.abc import Callable
 from typing import Any
 
 from fluxopt.components import Converter, Port
-from fluxopt.elements import PENALTY_EFFECT_ID, Carrier, Effect, Flow, Investment, Sizing, Status, Storage
+from fluxopt.elements import (
+    PENALTY_EFFECT_ID,
+    Carrier,
+    ConversionCurve,
+    Effect,
+    Flow,
+    Investment,
+    Sizing,
+    Status,
+    Storage,
+)
 from fluxopt.model import FlowSystem
 from fluxopt.model_data import Dims, ModelData
 from fluxopt.results import Result
@@ -64,6 +74,7 @@ def optimize(
 __all__ = [
     'PENALTY_EFFECT_ID',
     'Carrier',
+    'ConversionCurve',
     'Converter',
     'Dims',
     'Effect',

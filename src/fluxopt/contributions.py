@@ -147,6 +147,37 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         es = data.flows.status_effects_startup.rename({'status_flow': 'flow'})
         temporal_flow = temporal_flow + (es * solution['flow--startup']).reindex(flow=flow_ids, fill_value=0.0)
 
+    # Component-level status running costs — attribute to first governed flow
+    if data.flows.cstatus_effects_running is not None and 'component--on' in solution:
+        er = data.flows.cstatus_effects_running  # (cstatus_component, effect, time)
+        on = solution['component--on']  # (component, time)
+        er_renamed = er.rename({'cstatus_component': 'component'})
+        comp_temporal = er_renamed * on * dt  # (component, effect, time)
+        # Attribute to first governed flow of each component
+        if data.flows.cstatus_governed_flows is not None:
+            for comp_id in comp_temporal.coords['component'].values:
+                row = data.flows.cstatus_governed_flows.sel(cstatus_component=str(comp_id))
+                first_flow = str(row.values[0])
+                if first_flow and first_flow in flow_ids:
+                    temporal_flow.loc[first_flow] = temporal_flow.sel(flow=first_flow) + comp_temporal.sel(
+                        component=comp_id
+                    )
+
+    # Component-level status startup costs — attribute to first governed flow
+    if data.flows.cstatus_effects_startup is not None and 'component--startup' in solution:
+        es = data.flows.cstatus_effects_startup  # (cstatus_component, effect, time)
+        startup = solution['component--startup']  # (component, time)
+        es_renamed = es.rename({'cstatus_component': 'component'})
+        comp_startup = es_renamed * startup  # (component, effect, time)
+        if data.flows.cstatus_governed_flows is not None:
+            for comp_id in comp_startup.coords['component'].values:
+                row = data.flows.cstatus_governed_flows.sel(cstatus_component=str(comp_id))
+                first_flow = str(row.values[0])
+                if first_flow and first_flow in flow_ids:
+                    temporal_flow.loc[first_flow] = temporal_flow.sel(flow=first_flow) + comp_startup.sel(
+                        component=comp_id
+                    )
+
     # Cross-effects on temporal via Leontief inverse
     if data.effects.cf_temporal is not None:
         temporal_flow = _apply_leontief(_leontief(data.effects.cf_temporal), temporal_flow)

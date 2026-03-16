@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import xarray as xr
 from linopy import Model, Variable
+from linopy import piecewise as linopy_piecewise
 
 from fluxopt.constraints.sparse import sparse_weighted_sum
 from fluxopt.constraints.status import add_duration_tracking, add_switch_transitions
@@ -42,6 +43,11 @@ class FlowSystem:
     flow_on: Variable | None = None
     flow_startup: Variable | None = None
     flow_shutdown: Variable | None = None
+
+    # Component-level status variables — None when no component status
+    component_on: Variable | None = None
+    component_startup: Variable | None = None
+    component_shutdown: Variable | None = None
 
     def __init__(self, data: ModelData) -> None:
         """Initialize the flow system optimization model.
@@ -86,17 +92,21 @@ class FlowSystem:
         self._create_sizing_variables()
         self._create_investment_variables()
         self._create_status_variables()
+        self._create_component_status_variables()
         # Phase 2: Flow rate constraints
         self._constrain_flow_rates_plain()
         self._constrain_flow_rates_sizing()
         self._constrain_flow_rates_status()
+        self._constrain_flow_rates_component_status()
         # Phase 3: Feature constraints
         self._constrain_sizing()
         self._constrain_investment()
         self._constrain_status()
+        self._constrain_component_status()
         # Phase 4: System
         self._create_balance()
         self._create_converter_constraints()
+        self._create_piecewise_constraints()
         self._create_storage()
         self._create_effects()
         self._set_objective()
@@ -126,10 +136,12 @@ class FlowSystem:
         """Solve the built model and return results.
 
         Thin wrapper around ``linopy.Model.solve()``. Call :meth:`build` first.
+        Enables SOS reformulation by default (required for HiGHS).
 
         Args:
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
+        kwargs.setdefault('reformulate_sos', True)
         self.m.solve(**kwargs)
         return Result.from_model(self)
 
@@ -263,11 +275,35 @@ class FlowSystem:
         self.flow_shutdown = self._add_variables(binary=True, coords=tp, name='flow--shutdown')
 
     def _status_flow_ids(self) -> set[str]:
-        """Return ids of flows with Status, or empty set."""
+        """Return ids of flows with flow-level Status, or empty set."""
         ds = self.data.flows
         if ds.status_min_uptime is None:
             return set()
         return set(ds.status_min_uptime.coords['status_flow'].values)
+
+    def _component_status_flow_ids(self) -> set[str]:
+        """Return ids of flows governed by component-level status."""
+        ds = self.data.flows
+        if ds.cstatus_governed_flows is None:
+            return set()
+        result: set[str] = set()
+        for fid in ds.cstatus_governed_flows.values.flat:
+            s = str(fid)
+            if s:
+                result.add(s)
+        return result
+
+    def _governed_flows_map(self) -> dict[str, list[str]]:
+        """Extract component→flow_ids mapping from the governed_flows DataArray."""
+        ds = self.data.flows
+        if ds.cstatus_governed_flows is None:
+            return {}
+        result: dict[str, list[str]] = {}
+        for comp_id in ds.cstatus_governed_flows.coords['cstatus_component'].values:
+            row = ds.cstatus_governed_flows.sel(cstatus_component=comp_id)
+            flow_ids = [str(v) for v in row.values if str(v)]
+            result[str(comp_id)] = flow_ids
+        return result
 
     def _sizing_flow_ids(self) -> set[str]:
         """Return ids of sizing flows, or empty set."""
@@ -283,7 +319,8 @@ class FlowSystem:
         ds = self.data.flows
         sizing_ids = self._sizing_flow_ids()
         status_ids = self._status_flow_ids()
-        exclude = sizing_ids | status_ids
+        cstatus_ids = self._component_status_flow_ids()
+        exclude = sizing_ids | status_ids | cstatus_ids
 
         size = ds.size
         rel_lb = ds.rel_lb
@@ -686,6 +723,182 @@ class FlowSystem:
                 previous=prev_down,
             )
 
+    def _create_component_status_variables(self) -> None:
+        """Create binary on/off variables for component-level status."""
+        ds = self.data.flows
+        if ds.cstatus_min_uptime is None:
+            return
+
+        comp_ids = ds.cstatus_min_uptime.coords['cstatus_component'].values
+        comp_coord = xr.DataArray(comp_ids, dims=['component'])
+        tp = {'component': comp_coord, **self.data.dims.coords(time=True, period=True)}
+
+        self.component_on = self._add_variables(binary=True, coords=tp, name='component--on')
+        self.component_startup = self._add_variables(binary=True, coords=tp, name='component--startup')
+        self.component_shutdown = self._add_variables(binary=True, coords=tp, name='component--shutdown')
+
+    def _constrain_flow_rates_component_status(self) -> None:
+        """Apply semi-continuous flow rate bounds for flows governed by component-level status.
+
+        P_f <= size * rel_ub * component_on[c]
+        P_f >= size * rel_lb * component_on[c]
+        """
+        if self.component_on is None:
+            return
+
+        ds = self.data.flows
+        gov_map = self._governed_flows_map()
+
+        for comp_id, flow_ids in gov_map.items():
+            on = self.component_on.sel(component=comp_id)  # (time[, period])
+            for fid in flow_ids:
+                fr = self.flow_rate.sel(flow=fid)
+                bt = str(ds.bound_type.sel(flow=fid).values)
+                size = float(ds.size.sel(flow=fid).values)
+
+                if bt == 'bounded' and not np.isnan(size):
+                    rl = ds.rel_lb.sel(flow=fid)
+                    ru = ds.rel_ub.sel(flow=fid)
+                    self.m.add_constraints(fr >= size * rl * on, name=f'flow_lb_cstatus_{fid}')
+                    self.m.add_constraints(fr <= size * ru * on, name=f'flow_ub_cstatus_{fid}')
+                elif bt == 'profile' and not np.isnan(size):
+                    fp = ds.fixed_profile.sel(flow=fid)
+                    self.m.add_constraints(fr == size * fp * on, name=f'flow_fix_cstatus_{fid}')
+
+    def _constrain_component_status(self) -> None:
+        """Add switch transition and duration tracking for component-level status."""
+        if self.component_on is None:
+            return
+        assert self.component_startup is not None
+        assert self.component_shutdown is not None
+
+        ds = self.data.flows
+        assert ds.cstatus_min_uptime is not None
+        assert ds.cstatus_max_uptime is not None
+        assert ds.cstatus_min_downtime is not None
+        assert ds.cstatus_max_downtime is not None
+        assert ds.cstatus_initial is not None
+
+        dim = 'component'
+        min_up = ds.cstatus_min_uptime.rename({'cstatus_component': dim})
+        max_up = ds.cstatus_max_uptime.rename({'cstatus_component': dim})
+        min_down = ds.cstatus_min_downtime.rename({'cstatus_component': dim})
+        max_down = ds.cstatus_max_downtime.rename({'cstatus_component': dim})
+        initial = ds.cstatus_initial.rename({'cstatus_component': dim})
+
+        prev_up = (
+            ds.cstatus_previous_uptime.rename({'cstatus_component': dim})
+            if ds.cstatus_previous_uptime is not None
+            else None
+        )
+        prev_down = (
+            ds.cstatus_previous_downtime.rename({'cstatus_component': dim})
+            if ds.cstatus_previous_downtime is not None
+            else None
+        )
+
+        has_initial = initial.notnull()
+        previous_state = initial.sel({dim: initial.coords[dim][has_initial]}) if has_initial.any() else None
+
+        add_switch_transitions(
+            self.m,
+            self.component_on,
+            self.component_startup,
+            self.component_shutdown,
+            name='cstatus',
+            element_dim=dim,
+            previous_state=previous_state,
+        )
+
+        dt = self.data.dims.dt
+
+        has_any_up = min_up.notnull().any() | max_up.notnull().any()
+        if has_any_up:
+            add_duration_tracking(
+                self.m,
+                self.component_on,
+                dt,
+                name='c_uptime',
+                element_dim=dim,
+                minimum=min_up,
+                maximum=max_up,
+                previous=prev_up,
+            )
+
+        has_any_down = min_down.notnull().any() | max_down.notnull().any()
+        if has_any_down:
+            add_duration_tracking(
+                self.m,
+                1 - self.component_on,
+                dt,
+                name='c_downtime',
+                element_dim=dim,
+                minimum=min_down,
+                maximum=max_down,
+                previous=prev_down,
+            )
+
+    def _create_piecewise_constraints(self) -> None:
+        """Create piecewise-linear conversion constraints using linopy's piecewise API."""
+        pw = self.data.piecewise
+        if pw is None:
+            return
+
+        for conv_id in pw.converter_ids():
+            bp_dict = pw.get_breakpoints(conv_id)
+            ref_fid = pw.get_ref_flow(conv_id)
+            is_mandatory = bool(pw.mandatory.sel(pw_converter=conv_id).values)
+            has_stat = bool(pw.has_status.sel(pw_converter=conv_id).values)
+
+            # Determine the "active" variable for piecewise gating
+            active_var = None
+            if has_stat and self.component_on is not None:
+                active_var = self.component_on.sel(component=conv_id)
+            elif not is_mandatory:
+                # Create a "silent" binary for optional piecewise (no duration tracking)
+                active_var = self._add_variables(
+                    binary=True,
+                    coords=self.data.dims.coords(time=True, period=True),
+                    name=f'pw_on_{conv_id}',
+                )
+
+            # For each flow in the breakpoints, constrain it as a piecewise function
+            # of the reference flow. The reference flow itself doesn't need a constraint.
+            ref_bps = bp_dict[ref_fid]  # (breakpoint, time)
+            flow_rate_ref = self.flow_rate.sel(flow=ref_fid)
+
+            for fid, bps in bp_dict.items():
+                if fid == ref_fid:
+                    continue
+
+                # bps: (breakpoint, time), ref_bps: (breakpoint, time)
+                # Use linopy's piecewise to create: P_other = f(P_ref) where f interpolates breakpoints
+                n_time = len(self.data.dims.time)
+                for t_idx in range(n_time):
+                    time_val = self.data.dims.time.values[t_idx]
+                    x_pts = ref_bps.isel(time=t_idx).values.tolist()
+                    y_pts = bps.isel(time=t_idx).values.tolist()
+                    x_var = flow_rate_ref.sel(time=time_val)
+                    y_var = self.flow_rate.sel(flow=fid, time=time_val)
+
+                    active_t = active_var.sel(time=time_val) if active_var is not None else None
+                    descriptor = linopy_piecewise(x_var, x_points=x_pts, y_points=y_pts, active=active_t) == y_var
+                    self.m.add_piecewise_constraints(descriptor, name=f'pw_{conv_id}_{fid}_t{t_idx}')
+
+            # Availability constraint: P_ref <= availability * max_breakpoint * on
+            avail = pw.availability.sel(pw_converter=conv_id)  # (time,)
+            max_bp = ref_bps.isel(breakpoint=-1)  # (time,)
+            if active_var is not None:
+                self.m.add_constraints(
+                    flow_rate_ref <= avail * max_bp * active_var,
+                    name=f'pw_avail_{conv_id}',
+                )
+            else:
+                self.m.add_constraints(
+                    flow_rate_ref <= avail * max_bp,
+                    name=f'pw_avail_{conv_id}',
+                )
+
     def _create_balance(self) -> None:
         """Create carrier balance: ``sum_f(coeff * P) = 0`` for all carriers and timesteps."""
         d = self.data
@@ -763,6 +976,20 @@ class FlowSystem:
             es = d.flows.status_effects_startup.rename({'status_flow': 'flow'})
             if (es != 0).any():
                 temporal_rhs = temporal_rhs + (es * self.flow_startup).sum('flow')
+
+        # Component-level status running costs
+        if d.flows.cstatus_effects_running is not None:
+            assert self.component_on is not None
+            er = d.flows.cstatus_effects_running.rename({'cstatus_component': 'component'})
+            if (er != 0).any():
+                temporal_rhs = temporal_rhs + (er * self.component_on * d.dims.dt).sum('component')
+
+        # Component-level status startup costs
+        if d.flows.cstatus_effects_startup is not None:
+            assert self.component_startup is not None
+            es = d.flows.cstatus_effects_startup.rename({'cstatus_component': 'component'})
+            if (es != 0).any():
+                temporal_rhs = temporal_rhs + (es * self.component_startup).sum('component')
 
         # Cross-effect temporal: cf_temporal[k,j,t] * effect_temporal[j,t]
         if ds.cf_temporal is not None:

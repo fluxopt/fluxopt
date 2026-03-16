@@ -106,6 +106,46 @@ class Status:
     effects_per_startup: dict[str, TimeSeries] = field(default_factory=dict)
 
 
+@dataclass
+class ConversionCurve:
+    """Piecewise-linear conversion defined by breakpoints.
+
+    Each key in ``breakpoints`` maps a flow short_id to a list of operating
+    points.  All lists must have the same length (>= 2).  The solver picks
+    the optimal operating point, interpolating between adjacent breakpoints.
+
+    Args:
+        breakpoints: ``{flow_short_id: [bp0, bp1, …]}`` per flow.
+        status: Component-level on/off behavior. Governs all flows.
+        mandatory: When True (default), the converter must operate in the
+            piecewise region whenever any flow is non-zero.
+        effects_fixed: Per-activation fixed costs ``{effect_id: value}``.
+        availability: Maximum fraction of the reference flow's last
+            breakpoint that can be dispatched each timestep.
+    """
+
+    breakpoints: dict[str, list[TimeSeries]]
+    status: Status | None = None
+    mandatory: bool = True
+    effects_fixed: dict[str, float] = field(default_factory=dict)
+    availability: TimeSeries = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate breakpoint structure."""
+        if len(self.breakpoints) < 2:
+            msg = 'ConversionCurve requires breakpoints for at least 2 flows'
+            raise ValueError(msg)
+        lengths = {k: len(v) for k, v in self.breakpoints.items()}
+        unique_lengths = set(lengths.values())
+        if len(unique_lengths) != 1:
+            msg = f'ConversionCurve breakpoint lists must all have the same length, got {lengths}'
+            raise ValueError(msg)
+        n = unique_lengths.pop()
+        if n < 2:
+            msg = f'ConversionCurve requires at least 2 breakpoints, got {n}'
+            raise ValueError(msg)
+
+
 @dataclass(eq=False)
 class Flow:
     """A single energy flow on a carrier.
@@ -190,6 +230,7 @@ class Storage:
     cyclic: bool = True  # E_{s,first} == E_{s,last}
     relative_minimum_level: TimeSeries = 0.0  # e̲_s  [-]
     relative_maximum_level: TimeSeries = 1.0  # ē_s  [-]
+    status: Status | None = None
 
     def __post_init__(self) -> None:
         """Validate carrier match, rename colliding flow ids, and qualify."""
@@ -204,3 +245,11 @@ class Storage:
             self.discharging.short_id = 'discharge'
         self.charging.id = qualified_id(self.id, self.charging.short_id)
         self.discharging.id = qualified_id(self.id, self.discharging.short_id)
+        if self.status is not None:
+            for f in (self.charging, self.discharging):
+                if f.status is not None:
+                    msg = f'Storage {self.id!r}: flow {f.short_id!r} cannot have status when Storage.status is set'
+                    raise ValueError(msg)
+                if f.fixed_relative_profile is not None:
+                    msg = f'Storage {self.id!r}: flow {f.short_id!r} cannot have fixed_relative_profile when Storage.status is set'
+                    raise ValueError(msg)

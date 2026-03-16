@@ -10,7 +10,7 @@ import pytest
 from conftest import assert_off_blocks, assert_on_blocks
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Status
+from fluxopt import Carrier, ConversionCurve, Converter, Effect, Flow, Port, Sizing, Status
 
 from .conftest import ts, waste
 
@@ -18,11 +18,11 @@ from .conftest import ts, waste
 class TestPiecewiseWithInvestment:
     """Tests combining PiecewiseConversion with InvestParameters."""
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
+    @pytest.mark.skip(reason='piecewise + investment not yet supported')
     def test_piecewise_conversion_with_investment_sizing(self, optimize):
         """Proves: PiecewiseConversion and InvestParameters on the same converter."""
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
+    @pytest.mark.skip(reason='piecewise + investment not yet supported')
     def test_piecewise_invest_cost_with_optional_skip(self, optimize):
         """Proves: Piecewise investment cost function works with optional investment."""
 
@@ -30,37 +30,243 @@ class TestPiecewiseWithInvestment:
 class TestPiecewiseWithStatus:
     """Tests combining PiecewiseConversion with StatusParameters."""
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
     def test_piecewise_nonlinear_conversion_with_startup_cost(self, optimize):
-        """Proves: PiecewiseConversion and startup costs interact correctly."""
+        """Proves: PiecewiseConversion and startup costs interact correctly.
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
+        Boiler with nonlinear efficiency and startup cost=50.
+        demand=[0,30,0,30] → 2 startups = 100. Keeping on costs less (run-waste).
+        """
+        result = optimize(
+            timesteps=ts(4),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 30, 0, 30]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port('Waste', exports=[Flow('Heat', size=1000)]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [0, 50, 100], 'Heat': [0, 45, 80]},
+                        status=Status(effects_per_startup={'cost': 50}),
+                    ),
+                ),
+            ],
+        )
+        on = result.solution['component--on'].sel(component='Boiler').values
+        startups = sum(1 for i in range(len(on)) if on[i] > 0.5 and (i == 0 or on[i - 1] < 0.5))
+        assert startups <= 1, f'Expected ≤1 startup: on={on}'
+
     def test_piecewise_minimum_load_with_status(self, optimize):
-        """Proves: Piecewise gap enforces minimum load, interacting with status."""
+        """Proves: Piecewise gap enforces minimum load, interacting with status.
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
+        breakpoints: Gas=[0, 20, 100], Heat=[0, 15, 80]
+        With status → can be off (Gas=Heat=0) or on with Gas≥20.
+        demand=5 → boiler at minimum (Gas=20, Heat=15) or off + backup.
+        """
+        result = optimize(
+            timesteps=ts(1),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([5.0]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port('Backup', imports=[Flow('Heat', size=1000, effects_per_flow_hour={'cost': 0.5})]),
+                Port('Waste', exports=[Flow('Heat', size=1000)]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [0, 20, 100], 'Heat': [0, 15, 80]},
+                        status=Status(),
+                    ),
+                ),
+            ],
+        )
+        # Backup at 0.5/unit for 5 units = 2.5 is cheaper than boiler at Gas=20 → cost=20
+        backup_rate = result.flow_rates.sel(flow='Backup(Heat)').values[0]
+        assert_allclose(backup_rate, 5.0, atol=1e-4)
+
     def test_piecewise_no_zero_point_with_status(self, optimize):
-        """Proves: Piecewise WITHOUT off-state piece interacts with StatusParameters."""
+        """Proves: Piecewise WITHOUT off-state piece interacts with StatusParameters.
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
+        breakpoints start at Gas=20 (no zero point), so minimum load = 20.
+        With status, the component can still be turned off (on=0 → all flows=0).
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 30]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port('Waste', exports=[Flow('Heat', size=1000)]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [20, 50, 100], 'Heat': [15, 45, 80]},
+                        status=Status(),
+                    ),
+                ),
+            ],
+        )
+        # At t=0: demand=0, boiler off → Gas=0
+        gas_t0 = result.flow_rates.sel(flow='Boiler(Gas)').values[0]
+        assert_allclose(gas_t0, 0.0, atol=1e-4)
+
     def test_piecewise_no_zero_point_startup_cost(self, optimize):
-        """Proves: Piecewise without zero point + startup cost work together."""
+        """Proves: Piecewise without zero point + startup cost work together.
+
+        breakpoints start at Gas=20, startup cost=100.
+        demand=[0,30,0,30] → 2 startups cost 200.
+        Staying on costs less fuel waste.
+        """
+        result = optimize(
+            timesteps=ts(4),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 30, 0, 30]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port('Waste', exports=[Flow('Heat', size=1000)]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [20, 50, 100], 'Heat': [15, 45, 80]},
+                        status=Status(effects_per_startup={'cost': 100}),
+                    ),
+                ),
+            ],
+        )
+        on = result.solution['component--on'].sel(component='Boiler').values
+        startups = sum(1 for i in range(len(on)) if on[i] > 0.5 and (i == 0 or on[i - 1] < 0.5))
+        assert startups <= 1, f'Expected ≤1 startup: on={on}'
 
 
 class TestPiecewiseThreeSegments:
     """Tests for piecewise conversion with 3+ segments."""
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
     def test_three_segment_piecewise(self, optimize):
-        """Proves: 3-segment PiecewiseConversion correctly selects the optimal segment."""
+        """Proves: 3-segment PiecewiseConversion correctly selects the optimal segment.
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
+        breakpoints: Gas=[0, 30, 60, 100], Heat=[0, 27, 48, 70]
+        Segment 1: eta=0.9, Segment 2: eta=0.7, Segment 3: eta=0.55
+
+        demand=27 → BP1 (Gas=30). demand=48 → BP2 (Gas=60).
+        Total cost = 30 + 60 = 90.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([27, 48]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [0, 30, 60, 100], 'Heat': [0, 27, 48, 70]},
+                    ),
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 90.0, rtol=1e-4)
+
     def test_three_segment_low_load_selection(self, optimize):
-        """Proves: With 3 segments, low demand correctly uses segment 1."""
+        """Proves: With 3 segments, low demand correctly uses segment 1.
 
-    @pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
+        breakpoints: Gas=[0, 30, 60, 100], Heat=[0, 27, 48, 70]
+        demand=13.5 → interpolate in segment 1 (Gas=15, Heat=13.5).
+        """
+        result = optimize(
+            timesteps=ts(1),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([13.5]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [0, 30, 60, 100], 'Heat': [0, 27, 48, 70]},
+                    ),
+                ),
+            ],
+        )
+        # Heat=13.5 is exactly half of segment 1 → Gas = 0 + 0.5*(30-0) = 15
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 15.0, rtol=1e-4)
+
     def test_three_segment_mid_load_selection(self, optimize):
-        """Proves: With 3 segments, mid demand correctly uses segment 2."""
+        """Proves: With 3 segments, mid demand correctly uses segment 2.
+
+        breakpoints: Gas=[0, 30, 60, 100], Heat=[0, 27, 48, 70]
+        demand=37.5 → interpolate in segment 2. Heat goes 27→48 (delta=21) over Gas 30→60.
+        fraction = (37.5-27)/21 = 0.5 → Gas = 30 + 0.5*30 = 45.
+        """
+        result = optimize(
+            timesteps=ts(1),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([37.5]))],
+                ),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', size=100)],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=ConversionCurve(
+                        breakpoints={'Gas': [0, 30, 60, 100], 'Heat': [0, 27, 48, 70]},
+                    ),
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 45.0, rtol=1e-4)
 
 
 class TestStatusWithEffects:
@@ -325,7 +531,7 @@ class TestConversionWithTimeVaryingEffects:
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 76.0, rtol=1e-5)
 
 
-@pytest.mark.skip(reason='piecewise conversion not supported in fluxopt')
+@pytest.mark.skip(reason='piecewise + investment not yet supported')
 class TestPiecewiseInvestWithStatus:
     """Tests combining piecewise investment costs with status parameters."""
 
