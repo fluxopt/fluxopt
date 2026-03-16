@@ -28,6 +28,7 @@ nav:
     - Effects: math/effects.md
     - Sizing: math/sizing.md
     - Status: math/status.md
+  - API Reference: api/
   - Changelog: changelog.md
 
 theme:
@@ -95,6 +96,13 @@ markdown_extensions:
 plugins:
   - search
   - include-markdown
+
+  - gen-files:
+      scripts:
+        - scripts/gen_ref_pages.py
+
+  - literate-nav:
+      nav_file: SUMMARY.md
 
   - mkdocs-jupyter:
       include_source: true
