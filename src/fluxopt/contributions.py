@@ -1,16 +1,17 @@
 """Per-contributor effect breakdown.
 
 Decomposes solver effect totals into per-contributor (flow/storage) parts,
-split into temporal (per-timestep) and periodic (sizing, fixed costs) domains — matching
-the model's own temporal/periodic structure.
+split into temporal (per-timestep), periodic (sizing, recurring investment),
+and once (one-time investment) domains — matching the model's own structure.
 
 Cross-effects use the Leontief inverse: total = (I - C)^-1 * direct,
-where C is the cross-effect coefficient matrix.
+where C is the cross-effect coefficient matrix. One-time costs bypass
+the Leontief pass (matching the solver's ``effect_once`` variable).
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import xarray as xr
@@ -123,16 +124,71 @@ def _pw_converter_first_flow(data: ModelData, conv_id: str) -> str | None:
     return str(pw.pair_flow.values[np.where(mask)[0][0]]) if mask.any() else None
 
 
-def _add_pw_invest_contributions(
+def _pw_attribute_to_flows(
+    cost: xr.DataArray,
+    conv_ids: list[str],
+    data: ModelData,
+    flow_ids: list[str],
+    all_ids: list[str],
+) -> xr.DataArray:
+    """Map per-converter costs to per-flow contributions."""
+    terms = []
+    for cid in conv_ids:
+        first_flow = _pw_converter_first_flow(data, cid)
+        if first_flow and first_flow in flow_ids:
+            val = cost.sel(pw_converter=cid).expand_dims(contributor=[first_flow])
+            terms.append(val)
+    if not terms:
+        return xr.DataArray(0)
+    concat = xr.concat(terms, dim='contributor')
+    return concat.reindex(contributor=all_ids, fill_value=0.0)
+
+
+def _add_pw_once_contributions(
+    once: xr.DataArray,
+    data: ModelData,
+    solution: xr.Dataset,
+    flow_ids: list[str],
+    all_ids: list[str],
+) -> xr.DataArray:
+    """Add piecewise investment one-time contributions.
+
+    Args:
+        once: Current one-time contributions array.
+        data: Model data.
+        solution: Solved variable dataset.
+        flow_ids: All flow ids.
+        all_ids: All contributor ids.
+    """
+    pw = data.piecewise
+    if pw is None:
+        return once
+
+    # Once: per-size costs * size_at_build
+    if pw.invest_effects_per_size is not None and 'pw_invest--size_at_build' in solution:
+        eps = pw.invest_effects_per_size.rename({'invest_pw_converter': 'pw_converter'})
+        sab = solution['pw_invest--size_at_build']
+        inv_ids = list(pw.invest_effects_per_size.coords['invest_pw_converter'].values)
+        once = once + _pw_attribute_to_flows(eps * sab, inv_ids, data, flow_ids, all_ids)
+
+    # Once: fixed costs * build
+    if pw.invest_effects_fixed is not None and 'pw_invest--build' in solution:
+        ef = pw.invest_effects_fixed.rename({'invest_pw_converter': 'pw_converter'})
+        build = solution['pw_invest--build']
+        inv_ids = list(pw.invest_effects_fixed.coords['invest_pw_converter'].values)
+        once = once + _pw_attribute_to_flows(ef * build, inv_ids, data, flow_ids, all_ids)
+
+    return once
+
+
+def _add_pw_periodic_contributions(
     periodic: xr.DataArray,
     data: ModelData,
     solution: xr.Dataset,
     flow_ids: list[str],
     all_ids: list[str],
 ) -> xr.DataArray:
-    """Add piecewise investment contributions to the periodic array.
-
-    Attributes investment costs to the first governed flow of each converter.
+    """Add piecewise investment recurring contributions.
 
     Args:
         periodic: Current periodic contributions array.
@@ -145,47 +201,19 @@ def _add_pw_invest_contributions(
     if pw is None:
         return periodic
 
-    # Helper: create a (contributor, ...) term from a per-converter cost
-    def _attribute_to_flows(cost: xr.DataArray, conv_ids: list[str]) -> xr.DataArray:
-        """Map per-converter costs to per-flow contributions."""
-        terms = []
-        for cid in conv_ids:
-            first_flow = _pw_converter_first_flow(data, cid)
-            if first_flow and first_flow in flow_ids:
-                val = cost.sel(pw_converter=cid).expand_dims(contributor=[first_flow])
-                terms.append(val)
-        if not terms:
-            return xr.DataArray(0)
-        concat = xr.concat(terms, dim='contributor')
-        return concat.reindex(contributor=all_ids, fill_value=0.0)
-
-    # Once: per-size costs * size_at_build
-    if pw.invest_effects_per_size is not None and 'pw_invest--size_at_build' in solution:
-        eps = pw.invest_effects_per_size.rename({'invest_pw_converter': 'pw_converter'})
-        sab = solution['pw_invest--size_at_build']
-        inv_ids = list(pw.invest_effects_per_size.coords['invest_pw_converter'].values)
-        periodic = periodic + _attribute_to_flows(eps * sab, inv_ids)
-
-    # Once: fixed costs * build
-    if pw.invest_effects_fixed is not None and 'pw_invest--build' in solution:
-        ef = pw.invest_effects_fixed.rename({'invest_pw_converter': 'pw_converter'})
-        build = solution['pw_invest--build']
-        inv_ids = list(pw.invest_effects_fixed.coords['invest_pw_converter'].values)
-        periodic = periodic + _attribute_to_flows(ef * build, inv_ids)
-
     # Periodic: per-size costs * size
     if pw.invest_effects_per_size_periodic is not None and 'pw_invest--size' in solution:
         eps_p = pw.invest_effects_per_size_periodic.rename({'invest_pw_converter': 'pw_converter'})
         pw_size = solution['pw_invest--size']
         inv_ids = list(pw.invest_effects_per_size_periodic.coords['invest_pw_converter'].values)
-        periodic = periodic + _attribute_to_flows(eps_p * pw_size, inv_ids)
+        periodic = periodic + _pw_attribute_to_flows(eps_p * pw_size, inv_ids, data, flow_ids, all_ids)
 
     # Periodic: fixed costs * active
     if pw.invest_effects_fixed_periodic is not None and 'pw_invest--active' in solution:
         ef_p = pw.invest_effects_fixed_periodic.rename({'invest_pw_converter': 'pw_converter'})
         pw_active = solution['pw_invest--active']
         inv_ids = list(pw.invest_effects_fixed_periodic.coords['invest_pw_converter'].values)
-        periodic = periodic + _attribute_to_flows(ef_p * pw_active, inv_ids)
+        periodic = periodic + _pw_attribute_to_flows(ef_p * pw_active, inv_ids, data, flow_ids, all_ids)
 
     return periodic
 
@@ -204,7 +232,8 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         Dataset with:
         - ``temporal`` (contributor, effect, time) — per-timestep contributions
         - ``periodic`` (contributor, effect) — periodic contributions (flows + storages)
-        - ``total`` (contributor, effect) — temporal summed over time + periodic
+        - ``once`` (contributor, effect) — one-time investment contributions
+        - ``total`` (contributor, effect) — temporal summed over time + periodic + once
     """
     flow_ids: list[str] = list(data.flows.effect_coeff.coords['flow'].values)
     effect_ids: list[str] = list(data.effects.min_total.coords['effect'].values)
@@ -326,20 +355,7 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         if terms:
             periodic = periodic + xr.concat(terms, dim='contributor').reindex(contributor=all_ids, fill_value=0.0)
 
-    # --- Investment once costs (merged into periodic for attribution) ---
-    # Flow investment once costs
-    if data.flows.invest_effects_per_size is not None and 'invest--size_at_build' in solution:
-        eps = data.flows.invest_effects_per_size.rename({'invest_flow': 'flow'})
-        sab = solution['invest--size_at_build']
-        term = (eps * sab).reindex(flow=flow_ids, fill_value=0.0)
-        periodic = periodic + term.rename({'flow': 'contributor'}).reindex(contributor=all_ids, fill_value=0.0)
-    if data.flows.invest_effects_fixed is not None and 'invest--build' in solution:
-        ef = data.flows.invest_effects_fixed.rename({'invest_flow': 'flow'})
-        build = solution['invest--build']
-        term = (ef * build).reindex(flow=flow_ids, fill_value=0.0)
-        periodic = periodic + term.rename({'flow': 'contributor'}).reindex(contributor=all_ids, fill_value=0.0)
-
-    # Flow investment periodic costs
+    # --- Periodic: flow investment recurring costs ---
     if data.flows.invest_effects_per_size_periodic is not None and 'flow--size' in solution:
         eps_p = data.flows.invest_effects_per_size_periodic.rename({'invest_flow': 'flow'})
         invest_ids = list(data.flows.invest_effects_per_size_periodic.coords['invest_flow'].values)
@@ -352,25 +368,54 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         term = (ef_p * active).reindex(flow=flow_ids, fill_value=0.0)
         periodic = periodic + term.rename({'flow': 'contributor'}).reindex(contributor=all_ids, fill_value=0.0)
 
-    # Piecewise investment costs (attributed to first governed flow)
-    periodic = _add_pw_invest_contributions(periodic, data, solution, flow_ids, all_ids)
+    # --- Periodic: piecewise investment recurring costs ---
+    periodic = _add_pw_periodic_contributions(periodic, data, solution, flow_ids, all_ids)
 
     # Cross-effects on periodic via Leontief inverse
     if data.effects.cf_periodic is not None:
         periodic = _apply_leontief(_leontief(data.effects.cf_periodic), periodic)
 
-    # --- Total: temporal (weighted sum over time) + periodic ---
-    total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + periodic.reindex(
-        contributor=all_ids, fill_value=0.0
+    # --- Once: one-time investment costs (bypass Leontief) ---
+    once: Any = 0
+
+    # Flow investment one-time costs
+    if data.flows.invest_effects_per_size is not None and 'invest--size_at_build' in solution:
+        eps = data.flows.invest_effects_per_size.rename({'invest_flow': 'flow'})
+        sab = solution['invest--size_at_build']
+        term = (eps * sab).reindex(flow=flow_ids, fill_value=0.0)
+        once = once + term.rename({'flow': 'contributor'}).reindex(contributor=all_ids, fill_value=0.0)
+    if data.flows.invest_effects_fixed is not None and 'invest--build' in solution:
+        ef = data.flows.invest_effects_fixed.rename({'invest_flow': 'flow'})
+        build = solution['invest--build']
+        term = (ef * build).reindex(flow=flow_ids, fill_value=0.0)
+        once = once + term.rename({'flow': 'contributor'}).reindex(contributor=all_ids, fill_value=0.0)
+
+    # Piecewise investment one-time costs
+    once = _add_pw_once_contributions(once, data, solution, flow_ids, all_ids)
+
+    # Ensure once is a proper DataArray (may still be 0 if no investment)
+    if not isinstance(once, xr.DataArray):
+        once = xr.DataArray(
+            np.zeros((len(all_ids), len(effect_ids))),
+            dims=['contributor', 'effect'],
+            coords={'contributor': all_ids, 'effect': effect_ids},
+        )
+
+    # --- Total: temporal (weighted sum over time) + periodic + once ---
+    total = (
+        (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0)
+        + periodic.reindex(contributor=all_ids, fill_value=0.0)
+        + once.reindex(contributor=all_ids, fill_value=0.0)
     )
 
     # --- Validate: contributions must sum to solver effect totals ---
     solver = solution['effect--total']
     computed = total.sum('contributor')
-    if not np.allclose(computed.values, solver.values, atol=1e-6):
-        diff = abs(computed - solver)
+    # Use xarray subtraction for automatic dim alignment
+    diff = abs(computed - solver)
+    if float(diff.max().values) > 1e-6:
         raise ValueError(
             f'Effect contributions do not sum to solver totals. Max deviation: {float(diff.max().values):.6g}'
         )
 
-    return xr.Dataset({'temporal': temporal, 'periodic': periodic, 'total': total})
+    return xr.Dataset({'temporal': temporal, 'periodic': periodic, 'once': once, 'total': total})

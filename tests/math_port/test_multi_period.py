@@ -778,3 +778,55 @@ class TestPeriodVaryingEffects:
             period_weights=[1, 1],
         )
         assert_allclose(result.objective, 40.0, rtol=1e-4)
+
+    def test_contribution_from_with_investment_once_costs(self, optimize):
+        """Proves: one-time investment costs bypass periodic Leontief pass.
+
+        Grid with Investment(50, 50, mandatory=True):
+        - one-time cost: 1000 €/MW → 50000 € in effect_once
+        - operational: 1 €/MWh, demand=10 for 3 ts → 30 €/period
+        CO2 tracks emissions (1 CO2/MWh), cost has contribution_from CO2 at 50.
+
+        Objective = temporal_cost(0) + periodic_leontief(0 + 30*50*2) + once(50000)
+        The key: effect_contributions validation must pass, confirming
+        that one-time costs are not distorted by the periodic Leontief.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[
+                Effect('co2'),
+                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+            ],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(50, 50, mandatory=True, effects_per_size={'cost': 1000}),
+                            effects_per_flow_hour={'co2': 1},
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        # One-time: 50*1000 = 50000 cost. Operational CO2: 30*2=60, cost via Leontief: 60*50=3000.
+        assert_allclose(result.objective, 53000.0, rtol=1e-4)
+        # Contribution validation passes (inside result.stats) — this is the actual regression test.
+        # If once costs leaked into the Leontief, the validation would raise ValueError.
+        contribs = result.stats.effect_contributions
+        assert 'once' in contribs
+        # Verify contributions match solver totals (xarray-aligned)
+        diff = abs(contribs['total'].sum('contributor') - result.solution['effect--total'])
+        assert float(diff.max().values) < 1e-4
