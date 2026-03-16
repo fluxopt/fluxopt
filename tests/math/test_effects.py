@@ -126,6 +126,20 @@ class TestCrossEffects:
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             )
 
+    def test_cross_effect_unknown_effect_raises(self):
+        """Referencing a non-existent effect in cross-effect raises ValueError."""
+
+        source = Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+
+        with pytest.raises(ValueError, match='Unknown effect'):
+            optimize(
+                timesteps=ts(3),
+                carriers=[Carrier('elec')],
+                effects=[Effect('cost', is_objective=True, cross_periodic={'nonexistent': 50})],
+                ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            )
+
     def test_cross_effect_carbon_pricing(self):
         """CO2 at 0.5 kg/MWh, carbon price 50 €/kg → cost includes CO2 * 50."""
         demand = [50.0, 80.0, 60.0]

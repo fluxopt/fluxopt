@@ -1086,16 +1086,10 @@ class EffectsData:
             once_mat = tmpl_p.zeros()
             for e in effects:
                 for src_id, factor in e.cross_periodic.items():
-                    if src_id not in effect_set:
-                        raise ValueError(f'Unknown effect {src_id!r} in Effect.cross_periodic on {e.id!r}')
                     periodic_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_p.as_da_coords)
                 for src_id, factor_ts in e.cross_temporal.items():
-                    if src_id not in effect_set:
-                        raise ValueError(f'Unknown effect {src_id!r} in Effect.cross_temporal on {e.id!r}')
                     temporal_mat.loc[e.id, src_id] = as_dataarray(factor_ts, tmpl_t.as_da_coords)
                 for src_id, factor in e.cross_once.items():
-                    if src_id not in effect_set:
-                        raise ValueError(f'Unknown effect {src_id!r} in Effect.cross_once on {e.id!r}')
                     once_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_p.as_da_coords)
             cf_periodic = periodic_mat
             cf_temporal = temporal_mat
