@@ -51,8 +51,9 @@ Each symbol maps to a specific field or variable in the code.
 | \(\underline{e}_s\) | `Storage.relative_minimum_level` | \([0, 1]\) | — | Relative min SOC |
 | \(\bar{e}_s\) | `Storage.relative_maximum_level` | \([0, 1]\) | — | Relative max SOC |
 | \(a_{f}\) | `Converter.conversion_factors` | \(\mathbb{R}\) | — | Conversion coefficient |
-| \(\alpha_{k,j}\) | `Effect.contribution_from` | \(\mathbb{R}\) | varies | Cross-effect factor (scalar) |
-| \(\alpha_{k,j,t}\) | `Effect.contribution_from_per_hour` | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying) |
+| \(\alpha_{k,j}\) | `Effect.cross_periodic` | \(\mathbb{R}\) | varies | Cross-effect factor (periodic) |
+| \(\alpha_{k,j,t}\) | `Effect.cross_temporal` | \(\mathbb{R}\) | varies | Cross-effect factor (temporal, possibly time-varying) |
+| \(\alpha^{\text{once}}_{k,j}\) | `Effect.cross_once` | \(\mathbb{R}\) | varies | Cross-effect factor (once) |
 | \(S^-\) | `Sizing.min_size` | \(\geq 0\) | MW or MWh | Minimum invested size (flow or storage) |
 | \(S^+\) | `Sizing.max_size` | \(\geq 0\) | MW or MWh | Maximum invested size (flow or storage) |
 | \(\gamma_{f,k}\) | `Sizing.effects_per_size` | \(\mathbb{R}\) | varies | Per-size investment cost |

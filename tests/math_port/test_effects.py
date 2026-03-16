@@ -51,21 +51,21 @@ class TestEffects:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 15.0, rtol=1e-5)
 
-    def test_contribution_from_temporal(self, optimize):
-        """Proves: contribution_from adds a weighted fraction of one effect's
+    def test_cross_effect_temporal(self, optimize):
+        """Proves: cross_temporal adds a weighted fraction of one effect's
         temporal sum into another effect's total.
 
-        cost has contribution_from={'CO2': 0.5}. Source: cost=1, CO2=10 per kWh.
+        cost has cross_temporal={'CO2': 0.5}. Source: cost=1, CO2=10 per kWh.
         Demand=20. Direct cost=20, CO2=200. Cross: 0.5*200=100. Total cost=120.
 
         Sensitivity: Without cross-effect, cost=20 (6x less). The 120
-        value is impossible without contribution_from working.
+        value is impossible without cross_temporal working.
         """
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'CO2': 0.5}),
+                Effect('cost', is_objective=True, cross_periodic={'CO2': 0.5}, cross_temporal={'CO2': 0.5}),
                 Effect('CO2'),
             ],
             ports=[
@@ -276,22 +276,22 @@ class TestEffects:
         """
         raise NotImplementedError  # TODO: implement minimum_temporal on Effect
 
-    def test_contribution_from_periodic(self, optimize):
-        """Proves: contribution_from adds a weighted fraction of one effect's periodic
+    def test_cross_effect_periodic(self, optimize):
+        """Proves: cross_periodic adds a weighted fraction of one effect's periodic
         (investment) sum into another effect's total.
 
-        cost has contribution_from={'CO2': 10}. Boiler invest: fixed cost=100, CO2=5.
+        cost has cross_periodic={'CO2': 10}. Boiler invest: fixed cost=100, CO2=5.
         Fuel cost=20. Direct cost = 100 + 20 = 120. CO2 periodic = 5.
         Cross: 10 * 5 = 50. Total cost = 170.
 
-        Sensitivity: Without contribution_from, cost=120. With it, cost=170.
+        Sensitivity: Without cross_periodic, cost=120. With it, cost=170.
         """
 
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'CO2': 10}),
+                Effect('cost', is_objective=True, cross_periodic={'CO2': 10}, cross_temporal={'CO2': 10}),
                 Effect('CO2'),
             ],
             ports=[

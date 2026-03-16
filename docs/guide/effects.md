@@ -65,37 +65,70 @@ co2 = Effect('co2', unit='kg', maximum_per_hour=[50, 40, 60, 50])
 
 ## Cross-Effect Contributions
 
-An effect can include a weighted contribution from another effect using
-`contribution_from`. This is useful for carbon pricing, primary energy factors,
-or any chain where one tracked quantity feeds into another.
+An effect can include a weighted contribution from another effect. Each domain
+has its own field: `cross_temporal`, `cross_periodic`, and `cross_once`. This
+is useful for carbon pricing, primary energy factors, or any chain where one
+tracked quantity feeds into another.
 
-### Scalar (temporal + periodic)
+### Temporal (per-timestep)
 
-A scalar factor applies to **both** domains — temporal (per-timestep) and
-periodic (sizing, yearly costs):
+`cross_temporal` links effects in the temporal domain (flow operation costs).
+The factor can be scalar or time-varying:
 
 ```python
 effects = [
-    Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+    Effect('cost', is_objective=True, cross_temporal={'co2': 50}),
     Effect('co2', unit='kg'),
 ]
 ```
 
-Here, every kg of CO2 adds 50 to cost — both for temporal emissions
-(from flow operation) and periodic emissions (e.g., from `Sizing.effects_per_size`).
+Here, every kg of CO2 emitted per timestep adds 50 to the temporal cost.
 
-### Time-Varying (temporal only)
+Time-varying factors are also supported:
 
-Use `contribution_from_per_hour` for time-varying factors that override the
-scalar in the temporal domain:
+```python
+effects = [
+    Effect('cost', is_objective=True, cross_temporal={'co2': [40, 50, 60]}),
+    Effect('co2', unit='kg'),
+]
+```
+
+### Periodic (recurring costs)
+
+`cross_periodic` links effects in the periodic domain (sizing costs, fixed
+annual O&M — anything that recurs and is weighted by period weights):
+
+```python
+effects = [
+    Effect('cost', is_objective=True, cross_periodic={'co2': 50}),
+    Effect('co2', unit='kg'),
+]
+```
+
+### Once (one-time costs)
+
+`cross_once` links effects in the once domain (one-time investment CAPEX,
+decommissioning — costs that happen at a specific point, not recurring):
+
+```python
+effects = [
+    Effect('cost', is_objective=True, cross_once={'co2': 50}),
+    Effect('co2', unit='kg'),
+]
+```
+
+### Combining domains
+
+Typically you want the same factor in multiple domains. Set each explicitly:
 
 ```python
 effects = [
     Effect(
         'cost',
         is_objective=True,
-        contribution_from={'co2': 50},  # scalar for periodic domain
-        contribution_from_per_hour={'co2': [40, 50, 60]},  # time-varying for temporal domain
+        cross_temporal={'co2': 50},
+        cross_periodic={'co2': 50},
+        cross_once={'co2': 50},
     ),
     Effect('co2', unit='kg'),
 ]
@@ -107,8 +140,8 @@ Contributions chain transitively. A PE -> CO2 -> cost chain is modeled as:
 
 ```python
 effects = [
-    Effect('cost', is_objective=True, contribution_from={'co2': 50}),
-    Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
+    Effect('cost', is_objective=True, cross_temporal={'co2': 50}),
+    Effect('co2', unit='kg', cross_temporal={'pe': 0.3}),
     Effect('pe', unit='kWh'),
 ]
 ```
@@ -212,5 +245,6 @@ print(result.effect_totals)
 | `minimum_total` | `float \| None` | `None` | Lower bound on total |
 | `maximum_per_hour` | `TimeSeries \| None` | `None` | Upper bound per timestep |
 | `minimum_per_hour` | `TimeSeries \| None` | `None` | Lower bound per timestep |
-| `contribution_from` | `dict[str, float]` | `{}` | Cross-effect factor (both domains) |
-| `contribution_from_per_hour` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (temporal domain only) |
+| `cross_temporal` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (temporal domain) |
+| `cross_periodic` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (periodic domain) |
+| `cross_once` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (once domain) |

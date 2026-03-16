@@ -108,7 +108,7 @@ class TestCrossEffects:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
@@ -140,7 +140,7 @@ class TestCrossEffects:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
                 Effect('co2', maximum_total=co2_limit),
             ],
             ports=[
@@ -170,8 +170,8 @@ class TestCrossEffects:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
-                Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
+                Effect('co2', unit='kg', cross_periodic={'pe': 0.3}, cross_temporal={'pe': 0.3}),
                 Effect('pe', unit='kWh'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
@@ -243,7 +243,7 @@ class TestSizing:
         assert grid_periodic == pytest.approx(1000, abs=1e-6)
 
     def test_sizing_cross_effect_investment(self):
-        """Sizing CO2 priced into cost via contribution_from."""
+        """Sizing CO2 priced into cost via cross-effects."""
 
         source = Flow(
             'elec',
@@ -256,7 +256,7 @@ class TestSizing:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
@@ -374,7 +374,7 @@ class TestStorage:
         assert total_from_contrib == pytest.approx(solver_total, abs=1e-6)
 
     def test_storage_sizing_cross_effect(self):
-        """Storage sizing CO2 priced into cost via contribution_from."""
+        """Storage sizing CO2 priced into cost via cross-effects."""
 
         charge = Flow('elec')
         discharge = Flow('elec')
@@ -385,7 +385,7 @@ class TestStorage:
             timesteps=ts(4),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],

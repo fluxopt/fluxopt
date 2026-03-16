@@ -33,7 +33,7 @@ def _leontief(cf: xr.DataArray) -> xr.DataArray:
     vals = cf.transpose(*ordered).values  # (..., n, n)
     mat = np.eye(n) - vals
     if np.any(np.linalg.matrix_rank(mat) < n):
-        raise ValueError('Cross-effect matrix (I - C) is singular — check for circular contribution_from chains')
+        raise ValueError('Cross-effect matrix (I - C) is singular — check for circular cross-effect chains')
     inv = np.linalg.inv(mat)  # (..., n, n)
     return xr.DataArray(inv, dims=ordered, coords=cf.coords)
 
@@ -400,6 +400,10 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
             dims=['contributor', 'effect'],
             coords={'contributor': all_ids, 'effect': effect_ids},
         )
+
+    # Cross-effects on once via Leontief inverse
+    if data.effects.cf_once is not None:
+        once = _apply_leontief(_leontief(data.effects.cf_once), once)
 
     # --- Total: temporal (weighted sum over time) + periodic + once ---
     total = (

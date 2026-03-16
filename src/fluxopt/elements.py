@@ -247,8 +247,9 @@ class Effect:
     minimum_total: float | None = None  # Φ̲_k  [unit]
     maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit]
     minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit]
-    contribution_from: dict[str, TimeSeries] = field(default_factory=dict)
-    contribution_from_per_hour: dict[str, TimeSeries] = field(default_factory=dict)
+    cross_periodic: dict[str, TimeSeries] = field(default_factory=dict)
+    cross_temporal: dict[str, TimeSeries] = field(default_factory=dict)
+    cross_once: dict[str, TimeSeries] = field(default_factory=dict)
     period_weights_periodic: list[float] | None = None  # ω_periodic[p] — scales temporal+periodic
     period_weights_once: list[float] | None = None  # ω_once[p] — scales once
 
