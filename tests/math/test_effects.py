@@ -94,39 +94,53 @@ class TestEffects:
         assert result.objective == pytest.approx(expected, abs=1e-6)
 
 
-class TestContributionFrom:
-    def test_contribution_from_self_reference_raises(self):
-        """Self-referencing contribution_from raises ValueError."""
+class TestCrossEffects:
+    def test_cross_effect_self_reference_raises(self):
+        """Self-referencing cross-effect raises ValueError."""
 
         source = Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
-        with pytest.raises(ValueError, match='cannot reference itself'):
+        with pytest.raises(ValueError, match='cannot reference itself in cross-effect fields'):
             optimize(
                 timesteps=ts(3),
                 carriers=[Carrier('elec')],
-                effects=[Effect('cost', is_objective=True, contribution_from={'cost': 0.5})],
+                effects=[Effect('cost', is_objective=True, cross_periodic={'cost': 0.5})],
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             )
 
-    def test_contribution_from_circular_raises(self):
-        """Circular contribution_from dependency raises ValueError."""
+    def test_cross_effect_circular_raises(self):
+        """Circular cross-effect dependency raises ValueError."""
 
         source = Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
-        with pytest.raises(ValueError, match='Circular contribution_from dependency'):
+        with pytest.raises(ValueError, match='Circular cross-effect dependency'):
             optimize(
                 timesteps=ts(3),
                 carriers=[Carrier('elec')],
                 effects=[
-                    Effect('cost', is_objective=True, contribution_from={'co2': 50}),
-                    Effect('co2', unit='kg', contribution_from={'cost': 0.01}),
+                    Effect('cost', is_objective=True, cross_periodic={'co2': 50}),
+                    Effect('co2', unit='kg', cross_periodic={'cost': 0.01}),
                 ],
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             )
 
-    def test_contribution_from_carbon_pricing(self):
+    def test_cross_effect_unknown_effect_raises(self):
+        """Referencing a non-existent effect in cross-effect raises ValueError."""
+
+        source = Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+
+        with pytest.raises(ValueError, match='Unknown effect'):
+            optimize(
+                timesteps=ts(3),
+                carriers=[Carrier('elec')],
+                effects=[Effect('cost', is_objective=True, cross_periodic={'nonexistent': 50})],
+                ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            )
+
+    def test_cross_effect_carbon_pricing(self):
         """CO2 at 0.5 kg/MWh, carbon price 50 €/kg → cost includes CO2 * 50."""
         demand = [50.0, 80.0, 60.0]
 
@@ -141,7 +155,7 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
@@ -154,8 +168,8 @@ class TestContributionFrom:
         expected_cost = direct_cost + co2_cost
         assert result.objective == pytest.approx(expected_cost, abs=1e-6)
 
-    def test_contribution_from_source_unaffected(self):
-        """Source effect total is unchanged by contribution_from on target."""
+    def test_cross_effect_source_unaffected(self):
+        """Source effect total is unchanged by cross-effect on target."""
         demand = [50.0, 80.0, 60.0]
 
         source = Flow(
@@ -169,7 +183,7 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
@@ -180,7 +194,7 @@ class TestContributionFrom:
         co2_total = float(result.effect_totals.sel(effect='co2').values)
         assert co2_total == pytest.approx(expected_co2, abs=1e-6)
 
-    def test_contribution_from_transitive(self):
+    def test_cross_effect_transitive(self):
         """PE → CO2 → cost chain: transitivity via variable chaining."""
         demand = [50.0, 80.0, 60.0]
 
@@ -195,8 +209,8 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
-                Effect('co2', unit='kg', contribution_from={'pe': 0.3}),  # 0.3 kg_CO2/kWh_PE
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
+                Effect('co2', unit='kg', cross_periodic={'pe': 0.3}, cross_temporal={'pe': 0.3}),
                 Effect('pe', unit='kWh'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
@@ -211,8 +225,8 @@ class TestContributionFrom:
         assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
         assert result.objective == pytest.approx(cost_total, abs=1e-6)
 
-    def test_contribution_from_per_hour(self):
-        """Time-varying carbon price overrides scalar for per-timestep."""
+    def test_cross_temporal_time_varying(self):
+        """Time-varying carbon price for per-timestep cross-effect."""
         demand = [50.0, 80.0, 60.0]
 
         source = Flow(
@@ -230,8 +244,8 @@ class TestContributionFrom:
                 Effect(
                     'cost',
                     is_objective=True,
-                    contribution_from={'co2': 50},  # scalar for invest
-                    contribution_from_per_hour={'co2': carbon_prices},  # time-varying for ops
+                    cross_periodic={'co2': 50},  # scalar for invest
+                    cross_temporal={'co2': carbon_prices},  # time-varying for ops
                 ),
                 Effect('co2', unit='kg'),
             ],
@@ -244,8 +258,8 @@ class TestContributionFrom:
         expected = sum(d * 0.5 * p for d, p in zip(demand, carbon_prices, strict=True))
         assert result.objective == pytest.approx(expected, abs=1e-6)
 
-    def test_contribution_from_investment(self):
-        """Sizing CO2 priced into cost via contribution_from."""
+    def test_cross_effect_investment(self):
+        """Sizing CO2 priced into cost via cross-effects."""
         demand = [50.0, 50.0, 50.0]
 
         source = Flow(
@@ -259,7 +273,7 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
@@ -278,7 +292,7 @@ class TestContributionFrom:
         assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
         assert result.objective == pytest.approx(cost_total, abs=1e-6)
 
-    def test_contribution_from_investment_transitive(self):
+    def test_cross_effect_investment_transitive(self):
         """PE → CO2 → cost: 3-level chain with investment costs propagates correctly."""
         demand = [50.0, 50.0, 50.0]
 
@@ -293,8 +307,8 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
-                Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
+                Effect('co2', unit='kg', cross_periodic={'pe': 0.3}, cross_temporal={'pe': 0.3}),
                 Effect('pe', unit='kWh'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],

@@ -4,9 +4,9 @@ Decomposes solver effect totals into per-contributor (flow/storage) parts,
 split into temporal (per-timestep), periodic (sizing, recurring investment),
 and once (one-time investment) domains — matching the model's own structure.
 
-Cross-effects use the Leontief inverse: total = (I - C)^-1 * direct,
-where C is the cross-effect coefficient matrix. One-time costs bypass
-the Leontief pass (matching the solver's ``effect_once`` variable).
+Each domain supports cross-effect propagation via the Leontief inverse:
+total = (I - C)^-1 * direct, where C is the domain's cross-effect matrix
+(``cf_temporal``, ``cf_periodic``, ``cf_once``).
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def _leontief(cf: xr.DataArray) -> xr.DataArray:
     vals = cf.transpose(*ordered).values  # (..., n, n)
     mat = np.eye(n) - vals
     if np.any(np.linalg.matrix_rank(mat) < n):
-        raise ValueError('Cross-effect matrix (I - C) is singular — check for circular contribution_from chains')
+        raise ValueError('Cross-effect matrix (I - C) is singular — check for circular cross-effect chains')
     inv = np.linalg.inv(mat)  # (..., n, n)
     return xr.DataArray(inv, dims=ordered, coords=cf.coords)
 
@@ -400,6 +400,10 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
             dims=['contributor', 'effect'],
             coords={'contributor': all_ids, 'effect': effect_ids},
         )
+
+    # Cross-effects on once via Leontief inverse
+    if data.effects.cf_once is not None:
+        once = _apply_leontief(_leontief(data.effects.cf_once), once)
 
     # --- Total: temporal (weighted sum over time) + periodic + once ---
     total = (

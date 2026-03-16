@@ -944,6 +944,7 @@ class EffectsData:
     objective_effect: str
     cf_periodic: xr.DataArray | None = None  # (effect, source_effect, period?)
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
+    cf_once: xr.DataArray | None = None  # (effect, source_effect, period?)
     period_weights_periodic: xr.DataArray | None = None  # (effect, period)
     period_weights_once: xr.DataArray | None = None  # (effect, period)
 
@@ -1052,47 +1053,47 @@ class EffectsData:
                 as_dataarray(e.maximum_per_hour, {'time': time}) if e.maximum_per_hour is not None else nan_time
             )
             is_objective[i] = e.is_objective
-            if e.contribution_from or e.contribution_from_per_hour:
+            if e.cross_periodic or e.cross_temporal or e.cross_once:
                 has_contributions = True
 
         # Build cross-effect contribution arrays
         cf_periodic: xr.DataArray | None = None
         cf_temporal: xr.DataArray | None = None
+        cf_once: xr.DataArray | None = None
         if has_contributions:
             # Self-reference check
             for e in effects:
-                for src_id in (*e.contribution_from, *e.contribution_from_per_hour):
+                for src_id in (*e.cross_periodic, *e.cross_temporal, *e.cross_once):
                     if src_id == e.id:
-                        raise ValueError(f'Effect {e.id!r} cannot reference itself in contribution_from')
+                        raise ValueError(f'Effect {e.id!r} cannot reference itself in cross-effect fields')
 
             # Cycle check
             adjacency: dict[str, list[str]] = {eid: [] for eid in effect_ids}
             for e in effects:
-                for src_id in {*e.contribution_from, *e.contribution_from_per_hour}:
+                for src_id in {*e.cross_periodic, *e.cross_temporal, *e.cross_once}:
                     if src_id not in effect_set:
-                        raise ValueError(f'Unknown effect {src_id!r} in contribution_from on {e.id!r}')
+                        raise ValueError(f'Unknown effect {src_id!r} in cross-effect fields on {e.id!r}')
                     adjacency[e.id].append(src_id)
             cycle = _detect_contribution_cycle(adjacency)
             if cycle is not None:
-                raise ValueError(f'Circular contribution_from dependency: {" -> ".join(cycle)}')
+                raise ValueError(f'Circular cross-effect dependency: {" -> ".join(cycle)}')
 
             tmpl_p = _effect_template({'effect': effect_ids, 'source_effect': effect_ids}, period)
             tmpl_t = _effect_template({'effect': effect_ids, 'source_effect': effect_ids, 'time': time}, period)
 
             periodic_mat = tmpl_p.zeros()
             temporal_mat = tmpl_t.zeros()
+            once_mat = tmpl_p.zeros()
             for e in effects:
-                for src_id, factor in e.contribution_from.items():
-                    if src_id not in effect_set:
-                        raise ValueError(f'Unknown effect {src_id!r} in Effect.contribution_from on {e.id!r}')
+                for src_id, factor in e.cross_periodic.items():
                     periodic_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_p.as_da_coords)
-                    temporal_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_t.as_da_coords)
-                for src_id, factor_ts in e.contribution_from_per_hour.items():
-                    if src_id not in effect_set:
-                        raise ValueError(f'Unknown effect {src_id!r} in Effect.contribution_from_per_hour on {e.id!r}')
+                for src_id, factor_ts in e.cross_temporal.items():
                     temporal_mat.loc[e.id, src_id] = as_dataarray(factor_ts, tmpl_t.as_da_coords)
+                for src_id, factor in e.cross_once.items():
+                    once_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_p.as_da_coords)
             cf_periodic = periodic_mat
             cf_temporal = temporal_mat
+            cf_once = once_mat if (once_mat != 0).any() else None
 
         effect_idx = pd.Index(effect_ids, name='effect')
 
@@ -1141,6 +1142,7 @@ class EffectsData:
             objective_effect=objective_effect,
             cf_periodic=cf_periodic,
             cf_temporal=cf_temporal,
+            cf_once=cf_once,
             period_weights_periodic=pw_periodic,
             period_weights_once=pw_once,
         )

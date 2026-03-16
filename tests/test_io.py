@@ -138,9 +138,9 @@ class TestCarrierMetadataRoundtrip:
         assert str(loaded.data.carriers.description.sel(carrier='elec').values) == 'Electrical energy'
 
 
-class TestRoundtripContributionFrom:
-    def test_roundtrip_with_contribution_from(self, tmp_nc: Path) -> None:
-        """ModelData with contribution_from survives NetCDF roundtrip."""
+class TestRoundtripCrossEffects:
+    def test_roundtrip_with_cross_effects(self, tmp_nc: Path) -> None:
+        """ModelData with cross-effects survives NetCDF roundtrip."""
         ts = [datetime(2024, 1, 1, h) for h in range(3)]
         source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
@@ -149,7 +149,7 @@ class TestRoundtripContributionFrom:
             timesteps=ts,
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],

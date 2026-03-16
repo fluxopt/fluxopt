@@ -664,10 +664,10 @@ class TestPeriodVaryingEffects:
         )
         assert_allclose(result.objective, 400.0, rtol=1e-4)
 
-    def test_contribution_from_varies_by_period(self, optimize):
-        """Proves: Effect.contribution_from can vary across periods.
+    def test_cross_periodic_varies_by_period(self, optimize):
+        """Proves: Effect.cross_periodic can vary across periods.
 
-        CO2 effect tracks emissions. Cost effect gets contribution_from CO2
+        CO2 effect tracks emissions. Cost effect gets cross_periodic CO2
         at rate 50 in 2020, 100 in 2025 (rising carbon price).
         Grid emits 1 CO2/MWh, demand=10 for 3 timesteps.
         CO2 per period = 30. Cost from CO2: 2020→50*30=1500, 2025→100*30=3000.
@@ -681,7 +681,12 @@ class TestPeriodVaryingEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('co2'),
-                Effect('cost', is_objective=True, contribution_from={'co2': carbon_price}),
+                Effect(
+                    'cost',
+                    is_objective=True,
+                    cross_periodic={'co2': carbon_price},
+                    cross_temporal={'co2': carbon_price},
+                ),
             ],
             ports=[
                 Port(
@@ -702,10 +707,10 @@ class TestPeriodVaryingEffects:
         )
         assert_allclose(result.objective, 4500.0, rtol=1e-4)
 
-    def test_contribution_from_per_hour_varies_by_period(self, optimize):
-        """Proves: Effect.contribution_from_per_hour can vary across periods.
+    def test_cross_temporal_varies_by_period(self, optimize):
+        """Proves: Effect.cross_temporal can vary across periods.
 
-        CO2 effect tracks emissions. Cost gets contribution_from_per_hour CO2
+        CO2 effect tracks emissions. Cost gets cross_temporal CO2
         at rate 50 in 2020, 100 in 2025. Grid emits 1 CO2/MWh, demand=10 for 3 ts.
         CO2 per period = 30. Cost: 2020→50*30=1500, 2025→100*30=3000.
         Weights=[1, 1]. Objective = 1500 + 3000 = 4500.
@@ -718,7 +723,7 @@ class TestPeriodVaryingEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('co2'),
-                Effect('cost', is_objective=True, contribution_from_per_hour={'co2': carbon_price}),
+                Effect('cost', is_objective=True, cross_temporal={'co2': carbon_price}),
             ],
             ports=[
                 Port(
@@ -779,13 +784,13 @@ class TestPeriodVaryingEffects:
         )
         assert_allclose(result.objective, 40.0, rtol=1e-4)
 
-    def test_contribution_from_with_investment_once_costs(self, optimize):
+    def test_cross_effect_with_investment_once_costs(self, optimize):
         """Proves: one-time investment costs bypass periodic Leontief pass.
 
         Grid with Investment(50, 50, mandatory=True):
         - one-time cost: 1000 €/MW → 50000 € in effect_once
         - operational: 1 €/MWh, demand=10 for 3 ts → 30 €/period
-        CO2 tracks emissions (1 CO2/MWh), cost has contribution_from CO2 at 50.
+        CO2 tracks emissions (1 CO2/MWh), cost has cross-effects from CO2 at 50.
 
         Objective = temporal_cost(0) + periodic_leontief(0 + 30*50*2) + once(50000)
         The key: effect_contributions validation must pass, confirming
@@ -798,7 +803,7 @@ class TestPeriodVaryingEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('co2'),
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', is_objective=True, cross_periodic={'co2': 50}, cross_temporal={'co2': 50}),
             ],
             ports=[
                 Port(
@@ -828,5 +833,55 @@ class TestPeriodVaryingEffects:
         contribs = result.stats.effect_contributions
         assert 'once' in contribs
         # Verify contributions match solver totals (xarray-aligned)
+        diff = abs(contribs['total'].sum('contributor') - result.solution['effect--total'])
+        assert float(diff.max().values) < 1e-4
+
+    def test_cross_once_prices_embodied_emissions(self, optimize):
+        """Proves: cross_once prices one-time investment emissions into cost.
+
+        Grid with Investment(50, 50, mandatory=True), embodied CO2 = 10 kg/MW.
+        cross_once={'co2': 50} prices this into cost.
+        Demand=10 for 3 ts, operational CO2=1/MWh, cross_temporal={'co2': 50}.
+
+        Operational CO2: 30/period * 2 periods = 60. Cost via temporal: 60*50=3000.
+        Embodied CO2: 50 MW * 10 = 500. Cost via once: 500*50 = 25000.
+        Total CO2 = 60 + 500 = 560. Objective = 3000 + 25000 = 28000.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[
+                Effect('co2'),
+                Effect('cost', is_objective=True, cross_temporal={'co2': 50}, cross_once={'co2': 50}),
+            ],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(50, 50, mandatory=True, effects_per_size={'co2': 10}),
+                            effects_per_flow_hour={'co2': 1},
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        # CO2 total: operational 60 + embodied 500 = 560
+        assert_allclose(float(result.effect_totals.sel(effect='co2').sum().values), 560.0, rtol=1e-4)
+        # Cost: temporal Leontief(60*50=3000) + once Leontief(500*50=25000) = 28000
+        assert_allclose(result.objective, 28000.0, rtol=1e-4)
+        # Contribution validation
+        contribs = result.stats.effect_contributions
         diff = abs(contribs['total'].sum('contributor') - result.solution['effect--total'])
         assert float(diff.max().values) < 1e-4

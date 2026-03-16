@@ -21,7 +21,8 @@ periods (e.g., annual O&M for 5 years), while **once** costs happen at a specifi
 differ — recurring costs scale with duration, one-time costs typically don't
 (or use discount factors instead).
 
-All domains support cross-effect chains via `contribution_from`.
+All domains support cross-effect chains via `cross_temporal`, `cross_periodic`,
+and `cross_once`.
 
 In multi-period mode, all variables gain an optional `period` dimension.
 See [Objective](objective.md) for how the domains are weighted in the objective.
@@ -37,8 +38,8 @@ Each effect accumulates contributions from all flows at each timestep:
 The coefficient \(c_{f,k,t}\) specifies how much of effect \(k\) is produced per
 flow-hour of flow \(f\) (e.g., €/MWh for cost, kg/MWh for emissions).
 
-The cross-effect factor \(\alpha_{k,j,t}\) can be time-varying
-(`contribution_from_per_hour`) or constant (`contribution_from`).
+The cross-effect factor \(\alpha_{k,j,t}\) is set via `cross_temporal` and
+can be time-varying or constant.
 Because \(\Phi_{k,t}^{\text{temporal}}\) is a **variable**, the solver resolves
 multi-level chains (e.g., PE → CO₂ → cost) automatically.
 
@@ -63,13 +64,14 @@ periodic domain just as it does through the temporal domain.
 
 ## Cross-Effect Contributions
 
-An effect can include a weighted fraction of another effect's value via
-`contribution_from`. This enables patterns like carbon pricing (CO₂ → cost)
+An effect can include a weighted fraction of another effect's value. Each domain
+has its own cross-effect field — `cross_temporal`, `cross_periodic`, and
+`cross_once` — enabling patterns like carbon pricing (CO₂ → cost)
 or transitive chains (PE → CO₂ → cost).
 
-The scalar factor \(\alpha_{k,j}\) from `contribution_from` applies to **both**
-domains. The time-varying factor from `contribution_from_per_hour` overrides the
-temporal factor only.
+The factor \(\alpha_{k,j}\) from `cross_periodic` applies to the periodic domain,
+\(\alpha_{k,j,t}\) from `cross_temporal` applies to the temporal domain (and can
+be time-varying), and \(\alpha_{k,j}\) from `cross_once` applies to the once domain.
 
 ### Validation
 
@@ -79,12 +81,13 @@ Self-references (\(\alpha_{k,k}\)) and circular dependencies
 ## Once Domain
 
 One-time costs that should not be scaled by period weights (e.g., investment CAPEX,
-decommissioning costs). Currently constrained to zero — a placeholder for future
-investment modelling:
+decommissioning costs):
 
 \[
-\Phi_{k(,p)}^{\text{once}} = 0 \quad \forall \, k
+\Phi_k^{\text{once}} = \underbrace{\Phi_k^{\text{once,direct}}}_{\text{direct one-time costs}} + \underbrace{\sum_{j \in \mathcal{K}} \alpha^{\text{once}}_{k,j} \cdot \Phi_j^{\text{once}}}_{\text{cross-effect contributions}} \quad \forall \, k
 \]
+
+The cross-effect factor \(\alpha^{\text{once}}_{k,j}\) is set via `cross_once`.
 
 ## Total Aggregation
 
@@ -125,8 +128,9 @@ This enforces per-hour limits (e.g., maximum hourly emissions).
 | \(\Phi_{k(,p)}^{\text{once}}\) | One-time effect variable | `effect_once[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
 | \(c_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
-| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (per hour) | `Effect.contribution_from_per_hour` |
-| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | `Effect.contribution_from` |
+| \(\alpha_{k,j,t}\) | Cross-effect factor (temporal, possibly time-varying) | `Effect.cross_temporal` |
+| \(\alpha_{k,j}\) | Cross-effect factor (periodic) | `Effect.cross_periodic` |
+| \(\alpha^{\text{once}}_{k,j}\) | Cross-effect factor (once) | `Effect.cross_once` |
 | \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(w_t\) | Timestep weight | weights |
@@ -161,13 +165,13 @@ At timestep \(t\) with \(P_{\text{gas},t} = 5\) MW and \(\Delta t = 1\) h:
 - \(\Phi_{\text{cost},t} = 30 \times 5 \times 1 = 150\) €
 - \(\Phi_{\text{CO₂},t} = 0.2 \times 5 \times 1 = 1.0\) kg
 
-### Carbon pricing via `contribution_from`
+### Carbon pricing via cross-effects
 
-CO₂ priced at 50 €/t into the cost effect:
+CO₂ priced at 50 €/t into the cost effect (temporal domain):
 
 ```python
 effects = [
-    Effect("cost", is_objective=True, contribution_from={"co2": 50}),
+    Effect("cost", is_objective=True, cross_temporal={"co2": 50}),
     Effect("co2", unit="kg"),
 ]
 ```
@@ -178,4 +182,4 @@ With \(\alpha_{\text{cost,co2}} = 50\), the per-timestep cost becomes:
 \Phi_{\text{cost},t} = c_{\text{cost}} \cdot P_t \cdot \Delta t + 50 \cdot \Phi_{\text{co2},t}
 \]
 
-The CO₂ total itself is **not** affected — `contribution_from` is one-directional.
+The CO₂ total itself is **not** affected — cross-effects are one-directional.

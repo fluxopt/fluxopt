@@ -1333,7 +1333,14 @@ class FlowSystem:
                 if (ef_once != 0).any():
                     once_direct = once_direct + (ef_once * self.pw_invest_build).sum('pw_converter')
 
-        self.m.add_constraints(self.effect_once == once_direct, name='effect_once_eq')
+        # Cross-effect once: cf_once[k,j] * effect_once[j]
+        once_rhs: Any = once_direct
+        if ds.cf_once is not None:
+            source_o = self.effect_once.rename({'effect': 'source_effect'})
+            cross = (ds.cf_once * source_o).sum('source_effect')
+            once_rhs = cross + once_direct
+
+        self.m.add_constraints(self.effect_once == once_rhs, name='effect_once_eq')
 
         # --- Total: effect_total[effect(, period)] ---
         self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--total')
