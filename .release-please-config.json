@@ -9,7 +9,6 @@
       "bump-minor-for-major-pre-major": true,
       "bump-patch-for-minor-pre-major": true,
       "changelog-path": "CHANGELOG.md",
-      "prerelease": true,
       "prerelease-type": "alpha",
       "initial-version": "0.0.2-alpha.0"
     }
