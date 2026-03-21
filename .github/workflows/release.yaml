@@ -39,7 +39,7 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ steps.app-token.outputs.token }}
           target-branch: ${{ inputs.branch || github.ref_name }}
-          prerelease: ${{ inputs.prerelease == '' && true || inputs.prerelease }}
+          prerelease: ${{ inputs.prerelease }}
 
   publish:
     needs: [release-please]
