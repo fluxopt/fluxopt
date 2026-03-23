@@ -36,7 +36,7 @@ Key runtime deps: xarray, linopy, numpy, pandas.
 ## Common Commands
 
 ```bash
-uv sync --group dev      # Install runtime + dev deps
+uv sync --extra dev      # Install runtime + dev deps
 uv run pytest -v         # Run tests
 uv run ruff check .      # Lint
 uv run ruff format .     # Format
