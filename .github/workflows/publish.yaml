@@ -43,7 +43,8 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    if: github.event_name == 'push'
+    needs: [publish]
+    if: github.event_name == 'push' && needs.publish.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +53,10 @@ jobs:
 
       - name: Create GitHub Release
         run: |
+          if gh release view "$TAG" &>/dev/null; then
+            echo "Release $TAG already exists, skipping."
+            exit 0
+          fi
           if [[ "$TAG" == *-* ]]; then
             gh release create "$TAG" --generate-notes --prerelease
           else
