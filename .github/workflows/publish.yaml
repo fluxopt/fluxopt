@@ -65,13 +65,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-
-  deploy-docs:
-    name: Deploy docs
-    needs: [publish]
-    permissions:
-      contents: write
-    uses: ./.github/workflows/docs.yaml
-    with:
-      deploy: true
-      version: ${{ inputs.tag || github.ref_name }}
