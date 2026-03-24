@@ -12,9 +12,6 @@ jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-24.04
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: actions/create-github-app-token@v3
         id: app-token
@@ -28,14 +25,3 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
-
-  publish:
-    needs: release-please
-    if: needs.release-please.outputs.release_created
-    permissions:
-      id-token: write
-      contents: write
-      attestations: write
-    uses: ./.github/workflows/publish.yaml
-    with:
-      tag: ${{ needs.release-please.outputs.tag_name }}
