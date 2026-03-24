@@ -69,7 +69,7 @@ jobs:
         run: uv sync --group dev
 
       - name: Run tests
-        run: uv run pytest --cov
+        run: uv run pytest --cov=fluxopt --cov-report=xml --cov-report=term-missing
 
       - uses: codecov/codecov-action@v5
         if: matrix.python-version == '3.12'
