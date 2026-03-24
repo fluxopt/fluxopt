@@ -1,6 +1,7 @@
 name: Dependabot auto-merge
 
-on: pull_request
+on:
+  pull_request:
 
 permissions:
   contents: write
@@ -8,20 +9,31 @@ permissions:
 
 jobs:
   auto-merge:
-    runs-on: ubuntu-24.04
+    name: Auto-merge patch
     if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
     steps:
-      - name: Dependabot metadata
+      - uses: dependabot/fetch-metadata@v2
         id: metadata
-        uses: dependabot/fetch-metadata@v2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Auto-merge minor and patch updates
-        if: >-
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
-        run: gh pr merge --auto --squash "$PR_URL"
+      - name: Generate app token
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Approve PR
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr review "$PR" --approve
         env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Enable auto-merge
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge "$PR" --auto --squash
+        env:
+          PR: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
