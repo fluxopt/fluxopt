@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, 'release-please--**']
+    branches: [main, "release-please--**"]
   pull_request:
   workflow_call:
 
@@ -17,16 +17,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-
-      - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Ruff check
-        run: uvx ruff check . --output-format=github
-
-      - name: Ruff format
-        run: uvx ruff format --check --diff .
+      - uses: astral-sh/ruff-action@v3
+      - run: ruff check --output-format=github
+      - run: ruff format --diff
 
   typecheck:
     name: Type check
@@ -34,6 +27,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -43,10 +38,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: uv sync --group dev
+      - name: Install
+        run: uv sync --extra dev
 
-      - name: Run mypy
+      - name: Mypy
         run: uv run mypy src/
 
   test:
@@ -59,6 +54,8 @@ jobs:
         python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -68,31 +65,45 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        run: uv sync --group dev
+      - name: Install
+        run: uv sync --extra dev
 
       - name: Run tests
-        run: uv run pytest -v --cov=fluxopt --cov-report=xml --cov-report=term-missing
+        run: uv run pytest --cov
 
-      - name: Upload coverage
-        if: matrix.python-version == '3.12' && !cancelled()
-        uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v5
+        if: matrix.python-version == '3.12'
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.xml
-          fail_ci_if_error: false
+
+  docs:
+    name: Build docs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Build MkDocs
+        run: uv run mkdocs build --strict
 
   ci-success:
     name: CI Success
-    needs: [lint, typecheck, test]
     if: always()
+    needs: [lint, typecheck, test, docs]
     runs-on: ubuntu-24.04
     steps:
-      - name: Check all jobs passed
-        run: |
-          if [[ "${{ needs.lint.result }}" != "success" || \
-                "${{ needs.typecheck.result }}" != "success" || \
-                "${{ needs.test.result }}" != "success" ]]; then
-            echo "::error::One or more CI jobs failed"
-            exit 1
-          fi
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
