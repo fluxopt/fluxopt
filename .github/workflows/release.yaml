@@ -3,16 +3,6 @@ name: Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: Branch to create the release from
-        required: true
-        default: main
-      prerelease:
-        description: Create a pre-release
-        type: boolean
-        default: true
 
 permissions:
   contents: write
@@ -35,19 +25,17 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
+          token: ${{ steps.app-token.outputs.token }}
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
-          token: ${{ steps.app-token.outputs.token }}
-          target-branch: ${{ inputs.branch || github.ref_name }}
-          prerelease: ${{ inputs.prerelease }}
 
   publish:
-    needs: [release-please]
+    needs: release-please
     if: needs.release-please.outputs.release_created
     permissions:
       id-token: write
-      attestations: write
       contents: write
+      attestations: write
     uses: ./.github/workflows/publish.yaml
     with:
       tag: ${{ needs.release-please.outputs.tag_name }}
