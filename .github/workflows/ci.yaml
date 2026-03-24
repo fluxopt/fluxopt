@@ -39,7 +39,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install
-        run: uv sync --extra dev
+        run: uv sync --group dev
 
       - name: Mypy
         run: uv run mypy src/
@@ -66,7 +66,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install
-        run: uv sync --extra dev
+        run: uv sync --group dev
 
       - name: Run tests
         run: uv run pytest --cov
@@ -94,7 +94,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install
-        run: uv sync --extra dev
+        run: uv sync --group dev
 
       - name: Build MkDocs
         run: uv run mkdocs build --strict
