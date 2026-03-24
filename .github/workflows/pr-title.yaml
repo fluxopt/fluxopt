@@ -8,7 +8,7 @@ on:
 
 jobs:
   validate:
-    name: Validate conventional commit
+    name: Validate conventional commit format
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
