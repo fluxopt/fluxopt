@@ -94,7 +94,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install
-        run: uv sync --group dev
+        run: uv sync --group docs
 
       - name: Build MkDocs
         run: uv run mkdocs build --strict
