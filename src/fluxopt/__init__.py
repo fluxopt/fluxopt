@@ -7,9 +7,13 @@ from fluxopt.model import FlowSystem
 from fluxopt.model_data import Dims, ModelData
 from fluxopt.results import Result
 from fluxopt.types import (
+    ArrayInput,
     IdList,
+    OnceEffectInput,
+    PeriodicInput,
+    TemporalInput,
+    TemporalPeriodicInput,
     TimeIndex,
-    TimeSeries,
     Timesteps,
     as_dataarray,
 )
@@ -63,6 +67,7 @@ def optimize(
 
 __all__ = [
     'PENALTY_EFFECT_ID',
+    'ArrayInput',
     'Carrier',
     'Converter',
     'Dims',
@@ -72,13 +77,16 @@ __all__ = [
     'IdList',
     'Investment',
     'ModelData',
+    'OnceEffectInput',
+    'PeriodicInput',
     'Port',
     'Result',
     'Sizing',
     'Status',
     'Storage',
+    'TemporalInput',
+    'TemporalPeriodicInput',
     'TimeIndex',
-    'TimeSeries',
     'Timesteps',
     'as_dataarray',
     'optimize',

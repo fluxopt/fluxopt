@@ -877,17 +877,20 @@ class FlowSystem:
 
         once_direct: Any = 0
 
-        # Investment: one-time per-size costs (charged in build period)
+        # Investment: one-time per-size costs — (flow, effect, period, build_period)
+        # Multiply by invest_size_at_build renamed to build_period, sum over both.
         if self.invest_size_at_build is not None and d.flows.invest_effects_per_size is not None:
             eps_once = d.flows.invest_effects_per_size.rename({'invest_flow': 'flow'})
             if (eps_once != 0).any():
-                once_direct = once_direct + (eps_once * self.invest_size_at_build).sum('flow')
+                sab_bp = self.invest_size_at_build.rename({'period': 'build_period'})
+                once_direct = once_direct + (eps_once * sab_bp).sum(['flow', 'build_period'])
 
-        # Investment: one-time fixed costs (charged in build period)
+        # Investment: one-time fixed costs — (flow, effect, period, build_period)
         if self.invest_build is not None and d.flows.invest_effects_fixed is not None:
             ef_once = d.flows.invest_effects_fixed.rename({'invest_flow': 'flow'})
             if (ef_once != 0).any():
-                once_direct = once_direct + (ef_once * self.invest_build).sum('flow')
+                bld_bp = self.invest_build.rename({'period': 'build_period'})
+                once_direct = once_direct + (ef_once * bld_bp).sum(['flow', 'build_period'])
 
         self.m.add_constraints(self.effect_once == once_direct, name='effect_once_eq')
 

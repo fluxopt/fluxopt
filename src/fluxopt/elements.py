@@ -4,7 +4,12 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fluxopt.types import TimeSeries
+    from fluxopt.types import (
+        OnceEffectInput,
+        PeriodicInput,
+        TemporalInput,
+        TemporalPeriodicInput,
+    )
 
 PENALTY_EFFECT_ID = 'penalty'
 
@@ -55,8 +60,8 @@ class Sizing:
     min_size: float
     max_size: float
     mandatory: bool = True
-    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size: dict[str, PeriodicInput] = field(default_factory=dict)
+    effects_fixed: dict[str, PeriodicInput] = field(default_factory=dict)
 
 
 @dataclass
@@ -73,8 +78,10 @@ class Investment:
         mandatory: If True, must build exactly once; if False, may build at most once.
         lifetime: Periods active after build; None = forever.
         prior_size: Pre-existing capacity available from period 0.
-        effects_per_size: One-time per-MW costs charged in the build period.
-        effects_fixed: One-time fixed costs charged in the build period.
+        effects_per_size: One-time per-MW costs. Scalar or 1D ``(build_period,)``
+            → diagonal (cost lands in the build period). 2D ``(period, build_period)``
+            → as-is (e.g. installment plans, learning curves).
+        effects_fixed: One-time fixed costs. Same expansion rules as effects_per_size.
         effects_per_size_periodic: Recurring per-MW costs charged every active period.
         effects_fixed_periodic: Recurring fixed costs charged every active period.
     """
@@ -84,10 +91,10 @@ class Investment:
     mandatory: bool = True
     lifetime: int | None = None
     prior_size: float = 0.0
-    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_per_size_periodic: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed_periodic: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size: dict[str, OnceEffectInput] = field(default_factory=dict)
+    effects_fixed: dict[str, OnceEffectInput] = field(default_factory=dict)
+    effects_per_size_periodic: dict[str, PeriodicInput] = field(default_factory=dict)
+    effects_fixed_periodic: dict[str, PeriodicInput] = field(default_factory=dict)
 
 
 @dataclass
@@ -102,8 +109,8 @@ class Status:
     max_uptime: float | None = None  # [h]
     min_downtime: float | None = None  # [h]
     max_downtime: float | None = None  # [h]
-    effects_per_running_hour: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_per_startup: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_running_hour: dict[str, TemporalPeriodicInput] = field(default_factory=dict)
+    effects_per_startup: dict[str, PeriodicInput] = field(default_factory=dict)
 
 
 @dataclass(eq=False)
@@ -129,10 +136,10 @@ class Flow:
     id: str = field(init=False, default='')
     node: str | None = None
     size: float | Sizing | Investment | None = None  # P̄_f  [MW]
-    relative_minimum: TimeSeries = 0.0  # p̲_f  [-]
-    relative_maximum: TimeSeries = 1.0  # p̄_f  [-]
-    fixed_relative_profile: TimeSeries | None = None  # π_f  [-]
-    effects_per_flow_hour: dict[str, TimeSeries] = field(default_factory=dict)  # c_{f,k}  [varies]
+    relative_minimum: TemporalInput = 0.0  # p̲_f  [-]
+    relative_maximum: TemporalInput = 1.0  # p̄_f  [-]
+    fixed_relative_profile: TemporalInput | None = None  # π_f  [-]
+    effects_per_flow_hour: dict[str, TemporalPeriodicInput] = field(default_factory=dict)  # c_{f,k}  [varies]
     status: Status | None = None
     prior_rates: list[float] | None = None  # flow rates before horizon [MW]
 
@@ -156,10 +163,10 @@ class Effect:
     is_objective: bool = False
     maximum_total: float | None = None  # Φ̄_k  [unit]
     minimum_total: float | None = None  # Φ̲_k  [unit]
-    maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit]
-    minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit]
-    contribution_from: dict[str, TimeSeries] = field(default_factory=dict)
-    contribution_from_per_hour: dict[str, TimeSeries] = field(default_factory=dict)
+    maximum_per_hour: TemporalInput | None = None  # Φ̄_{k,t}  [unit]
+    minimum_per_hour: TemporalInput | None = None  # Φ̲_{k,t}  [unit]
+    contribution_from: dict[str, PeriodicInput] = field(default_factory=dict)
+    contribution_from_per_hour: dict[str, TemporalPeriodicInput] = field(default_factory=dict)
     period_weights_periodic: list[float] | None = None  # ω_periodic[p] — scales temporal+periodic
     period_weights_once: list[float] | None = None  # ω_once[p] — scales once
 
@@ -183,13 +190,13 @@ class Storage:
     charging: Flow
     discharging: Flow
     capacity: float | Sizing | Investment | None = None  # Ē_s  [MWh]
-    eta_charge: TimeSeries = 1.0  # η^c_s  [-]
-    eta_discharge: TimeSeries = 1.0  # η^d_s  [-]
-    relative_loss_per_hour: TimeSeries = 0.0  # δ_s  [1/h]
+    eta_charge: TemporalInput = 1.0  # η^c_s  [-]
+    eta_discharge: TemporalInput = 1.0  # η^d_s  [-]
+    relative_loss_per_hour: TemporalInput = 0.0  # δ_s  [1/h]
     prior_level: float | None = None  # E_{s,0}  [MWh]
     cyclic: bool = True  # E_{s,first} == E_{s,last}
-    relative_minimum_level: TimeSeries = 0.0  # e̲_s  [-]
-    relative_maximum_level: TimeSeries = 1.0  # ē_s  [-]
+    relative_minimum_level: TemporalInput = 0.0  # e̲_s  [-]
+    relative_maximum_level: TemporalInput = 1.0  # ē_s  [-]
 
     def __post_init__(self) -> None:
         """Validate carrier match, rename colliding flow ids, and qualify."""

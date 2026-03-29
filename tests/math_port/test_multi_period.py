@@ -778,3 +778,156 @@ class TestPeriodVaryingEffects:
             period_weights=[1, 1],
         )
         assert_allclose(result.objective, 40.0, rtol=1e-4)
+
+
+class TestBuildPeriodEffects:
+    def test_capex_per_size_build_period_dim(self, optimize):
+        """Proves: 1D (build_period,) input produces diagonal — cost charged when built.
+
+        CAPEX = 10 if built in 2020, 20 if built in 2025. Mandatory, size=10.
+        Optimizer builds in cheapest period (2020). Once cost = 10*10 = 100.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        capex = xr.DataArray([10.0, 20.0], dims=['build_period'], coords={'build_period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(10, 10, effects_per_size={'cost': capex}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 100.0, rtol=1e-4)
+
+    def test_capex_fixed_build_period_dim(self, optimize):
+        """Proves: 1D (build_period,) fixed cost — charged when built.
+
+        Fixed CAPEX = 50 if built in 2020, 100 if built in 2025. Mandatory.
+        Builds in 2020. Once cost = 50.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        capex = xr.DataArray([50.0, 100.0], dims=['build_period'], coords={'build_period': periods})
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(10, 10, effects_fixed={'cost': capex}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 50.0, rtol=1e-4)
+
+    def test_capex_2d_spread_across_periods(self, optimize):
+        """Proves: 2D (period, build_period) matrix spreads costs across periods.
+
+        Building in 2020 costs 5/MW in 2020 + 5/MW in 2025 (installment plan).
+        Building in 2025 costs 15/MW in 2025 only.
+        Size=10, mandatory. Optimizer picks 2020: total = 10*(5+5) = 100.
+        vs 2025: total = 10*15 = 150. Objective = 100.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        capex_2d = xr.DataArray(
+            [[5.0, 0.0], [5.0, 15.0]],
+            dims=['period', 'build_period'],
+            coords={'period': periods, 'build_period': periods},
+        )
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(10, 10, effects_per_size={'cost': capex_2d}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 100.0, rtol=1e-4)
+
+    def test_fixed_2d_installments(self, optimize):
+        """Proves: 2D fixed costs can spread across periods.
+
+        Building in 2020: fixed cost 30 in 2020 + 30 in 2025.
+        Building in 2025: fixed cost 80 in 2025 only.
+        Mandatory. Build in 2020: total = 30+30 = 60. Objective = 60.
+        """
+        _xfail_if_validate(optimize)
+        periods = [2020, 2025]
+        fixed_2d = xr.DataArray(
+            [[30.0, 0.0], [30.0, 80.0]],
+            dims=['period', 'build_period'],
+            coords={'period': periods, 'build_period': periods},
+        )
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost', is_objective=True)],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Investment(10, 10, effects_fixed={'cost': fixed_2d}),
+                        ),
+                    ],
+                ),
+            ],
+            periods=periods,
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 60.0, rtol=1e-4)

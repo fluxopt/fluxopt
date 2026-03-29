@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 from conftest import ts
 
 from fluxopt import Carrier, Converter, Dims, Effect, Flow, ModelData, Port, Storage, optimize
+from fluxopt.model_data import _expand_once_effect
 
 
 class TestFlowsTable:
@@ -301,3 +303,78 @@ class TestDimsValidation:
         bad_weights = xr.DataArray(np.ones(3), dims=['time'], coords={'time': [0, 1, 2]})
         with pytest.raises(ValueError, match='does not match'):
             Dims(time=time, dt=dt, weights=bad_weights)
+
+
+class TestExpandOnceEffect:
+    """Unit tests for _expand_once_effect diagonal expansion."""
+
+    period = pd.Index([2020, 2025, 2030])
+
+    def test_scalar(self):
+        result = _expand_once_effect(5.0, self.period)
+        expected = np.eye(3) * 5.0
+        np.testing.assert_array_equal(result.values, expected)
+        assert list(result.dims) == ['period', 'build_period']
+
+    def test_list_input(self):
+        result = _expand_once_effect([1.0, 2.0, 3.0], self.period)
+        expected = np.diag([1.0, 2.0, 3.0])
+        np.testing.assert_array_equal(result.values, expected)
+
+    def test_1d_build_period(self):
+        da = xr.DataArray([10.0, 20.0, 30.0], dims=['build_period'], coords={'build_period': self.period})
+        result = _expand_once_effect(da, self.period)
+        expected = np.diag([10.0, 20.0, 30.0])
+        np.testing.assert_array_equal(result.values, expected)
+
+    def test_1d_period_dim_treated_as_diagonal(self):
+        da = xr.DataArray([10.0, 20.0, 30.0], dims=['period'], coords={'period': self.period})
+        result = _expand_once_effect(da, self.period)
+        expected = np.diag([10.0, 20.0, 30.0])
+        np.testing.assert_array_equal(result.values, expected)
+
+    def test_1d_reordered_coords_aligned(self):
+        """Coords in different order are aligned to model period."""
+        da = xr.DataArray([30.0, 10.0, 20.0], dims=['build_period'], coords={'build_period': [2030, 2020, 2025]})
+        result = _expand_once_effect(da, self.period)
+        # After alignment: [10.0, 20.0, 30.0] matching [2020, 2025, 2030]
+        expected = np.diag([10.0, 20.0, 30.0])
+        np.testing.assert_array_equal(result.values, expected)
+
+    def test_2d_passthrough(self):
+        data = np.array([[1, 2, 0], [0, 3, 4], [0, 0, 5]], dtype=float)
+        da = xr.DataArray(
+            data, dims=['period', 'build_period'], coords={'period': self.period, 'build_period': self.period}
+        )
+        result = _expand_once_effect(da, self.period)
+        np.testing.assert_array_equal(result.values, data)
+
+    def test_2d_reordered_aligned(self):
+        """2D input with swapped period order is reindexed."""
+        rev = pd.Index([2030, 2025, 2020])
+        data = np.array([[9, 8, 7], [6, 5, 4], [3, 2, 1]], dtype=float)
+        da = xr.DataArray(data, dims=['period', 'build_period'], coords={'period': rev, 'build_period': rev})
+        result = _expand_once_effect(da, self.period)
+        # After reindex to [2020, 2025, 2030]: reversed rows and columns
+        expected = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
+        np.testing.assert_array_equal(result.values, expected)
+
+    def test_1d_mismatched_coords_raises(self):
+        da = xr.DataArray([1.0, 2.0], dims=['build_period'], coords={'build_period': [2020, 9999]})
+        with pytest.raises(ValueError, match='do not match'):
+            _expand_once_effect(da, self.period)
+
+    def test_2d_mismatched_coords_raises(self):
+        """2D input with coords not covering model periods raises."""
+        da = xr.DataArray(
+            np.eye(2),
+            dims=['period', 'build_period'],
+            coords={'period': [2020, 9999], 'build_period': [2020, 9999]},
+        )
+        with pytest.raises(ValueError, match='do not fully cover'):
+            _expand_once_effect(da, self.period)
+
+    def test_foreign_dim_raises(self):
+        da = xr.DataArray([1.0, 2.0, 3.0], dims=['time'], coords={'time': [0, 1, 2]})
+        with pytest.raises(ValueError, match='unexpected dims'):
+            _expand_once_effect(da, self.period)

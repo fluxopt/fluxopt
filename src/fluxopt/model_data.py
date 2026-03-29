@@ -13,7 +13,7 @@ from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
 if TYPE_CHECKING:
     from fluxopt.components import Converter, Port
     from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
-    from fluxopt.types import TimeIndex, Timesteps
+    from fluxopt.types import OnceEffectInput, TimeIndex, Timesteps
 
 
 @dataclass(frozen=True)
@@ -57,6 +57,55 @@ def _effect_template(
         coords=coords,
         as_da_coords=as_da_coords,
     )
+
+
+def _expand_once_effect(value: OnceEffectInput, period: pd.Index) -> xr.DataArray:
+    """Expand an investment once-effect value to 2D (period, build_period).
+
+    Construction rule:
+        - Scalar → diagonal filled with that constant
+        - list/array → treated as ``(build_period,)`` → diagonal
+        - 1D DataArray ``(build_period,)`` or ``(period,)`` → diagonal
+        - 2D DataArray ``(period, build_period)`` → as-is
+
+    Args:
+        value: Scalar, list, 1D, or 2D effect value.
+        period: Period index (shared by both axes).
+    """
+    n = len(period)
+    coords: dict[str, Any] = {'period': period, 'build_period': period}
+    dims = ['period', 'build_period']
+
+    if isinstance(value, (int, float)):
+        return xr.DataArray(np.eye(n) * float(value), dims=dims, coords=coords)
+
+    if isinstance(value, xr.DataArray):
+        vdims = {str(d) for d in value.dims}
+        if vdims == {'period', 'build_period'}:
+            aligned = value.reindex(period=period, build_period=period)
+            if aligned.isnull().any():
+                raise ValueError(
+                    f'Once-effect DataArray (period, build_period) has coords that do not '
+                    f'fully cover the model periods {list(period)}'
+                )
+            return aligned
+        if vdims <= {'period', 'build_period'} and len(vdims) == 1:
+            dim_name = next(iter(vdims))
+            aligned = value.reindex({dim_name: period})
+            if aligned.isnull().any():
+                raise ValueError(
+                    f'Once-effect DataArray with dim {dim_name!r} has coords that do not '
+                    f'match the model periods {list(period)}'
+                )
+            return xr.DataArray(np.diag(aligned.values), dims=dims, coords=coords)
+        foreign = [str(d) for d in value.dims if d not in ('period', 'build_period')]
+        if foreign:
+            raise ValueError(
+                f'Once-effect DataArray has unexpected dims {foreign}. Expected subset of (period, build_period).'
+            )
+
+    da = as_dataarray(value, {'build_period': period})
+    return xr.DataArray(np.diag(da.values), dims=dims, coords=coords)
 
 
 _NC_GROUPS = {
@@ -175,8 +224,8 @@ class _InvestmentArrays:
     mandatory: xr.DataArray | None = None  # (invest_dim,)
     lifetime: xr.DataArray | None = None  # (invest_dim,) — NaN = forever
     prior_size: xr.DataArray | None = None  # (invest_dim,)
-    effects_per_size: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
-    effects_fixed: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
+    effects_per_size: xr.DataArray | None = None  # (invest_dim, effect, period, build_period) — once
+    effects_fixed: xr.DataArray | None = None  # (invest_dim, effect, period, build_period) — once
     effects_per_size_periodic: xr.DataArray | None = None  # (invest_dim, effect, period?)
     effects_fixed_periodic: xr.DataArray | None = None  # (invest_dim, effect, period?)
 
@@ -200,7 +249,25 @@ class _InvestmentArrays:
             return cls()
 
         effect_set = set(effect_ids)
-        tmpl = _effect_template({'effect': effect_ids}, period)
+        periodic_tmpl = _effect_template({'effect': effect_ids}, period)
+
+        # Once-effect template: (effect, period, build_period) when multi-period
+        once_coords: dict[str, Any]
+        once_shape: tuple[int, ...]
+        once_dims: tuple[str, ...]
+        if period is not None:
+            n_p = len(period)
+            once_coords = {
+                'effect': effect_ids,
+                'period': period,
+                'build_period': period,
+            }
+            once_shape = (len(effect_ids), n_p, n_p)
+            once_dims = ('effect', 'period', 'build_period')
+        else:
+            once_coords = {'effect': effect_ids}
+            once_shape = (len(effect_ids),)
+            once_dims = ('effect',)
 
         ids: list[str] = []
         mins: list[float] = []
@@ -230,17 +297,31 @@ class _InvestmentArrays:
             lifetimes.append(float(inv.lifetime) if inv.lifetime is not None else np.nan)
             prior_sizes.append(inv.prior_size)
 
+            # Once-effects: expand to (effect, period, build_period) via diagonal rule
             for label, src_dict, dest_key in [
                 ('Investment.effects_per_size', inv.effects_per_size, 'eps'),
                 ('Investment.effects_fixed', inv.effects_fixed, 'ef'),
-                ('Investment.effects_per_size_periodic', inv.effects_per_size_periodic, 'eps_p'),
-                ('Investment.effects_fixed_periodic', inv.effects_fixed_periodic, 'ef_p'),
             ]:
-                arr = tmpl.zeros()
+                arr = xr.DataArray(np.zeros(once_shape), dims=list(once_dims), coords=once_coords)
                 for ek, ev in src_dict.items():
                     if ek not in effect_set:
                         raise ValueError(f'Unknown effect {ek!r} in {label} on {item_id!r}')
-                    arr.loc[ek] = as_dataarray(ev, tmpl.as_da_coords)
+                    if period is not None:
+                        arr.loc[ek] = _expand_once_effect(ev, period)
+                    else:
+                        arr.loc[ek] = as_dataarray(ev, {})
+                all_slices[dest_key].append(arr)
+
+            # Periodic effects: (effect, period?) — no build_period axis
+            for label, src_dict, dest_key in [
+                ('Investment.effects_per_size_periodic', inv.effects_per_size_periodic, 'eps_p'),
+                ('Investment.effects_fixed_periodic', inv.effects_fixed_periodic, 'ef_p'),
+            ]:
+                arr = periodic_tmpl.zeros()
+                for ek, ev in src_dict.items():
+                    if ek not in effect_set:
+                        raise ValueError(f'Unknown effect {ek!r} in {label} on {item_id!r}')
+                    arr.loc[ek] = as_dataarray(ev, periodic_tmpl.as_da_coords)
                 all_slices[dest_key].append(arr)
 
         coords = {dim: ids}
@@ -420,8 +501,8 @@ class FlowsData:
     invest_mandatory: xr.DataArray | None = None  # (invest_flow,)
     invest_lifetime: xr.DataArray | None = None  # (invest_flow,) — NaN = forever
     invest_prior_size: xr.DataArray | None = None  # (invest_flow,)
-    invest_effects_per_size: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
-    invest_effects_fixed: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
+    invest_effects_per_size: xr.DataArray | None = None  # (invest_flow, effect, period, build_period) — once
+    invest_effects_fixed: xr.DataArray | None = None  # (invest_flow, effect, period, build_period) — once
     invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
     invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
 
@@ -1030,8 +1111,8 @@ class StoragesData:
     invest_mandatory: xr.DataArray | None = None  # (invest_storage,)
     invest_lifetime: xr.DataArray | None = None  # (invest_storage,) — NaN = forever
     invest_prior_size: xr.DataArray | None = None  # (invest_storage,)
-    invest_effects_per_size: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
-    invest_effects_fixed: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
+    invest_effects_per_size: xr.DataArray | None = None  # (invest_storage, effect, period, build_period) — once
+    invest_effects_fixed: xr.DataArray | None = None  # (invest_storage, effect, period, build_period) — once
     invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_storage, effect, period?)
     invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_storage, effect, period?)
 

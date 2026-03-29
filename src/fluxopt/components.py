@@ -8,7 +8,7 @@ from fluxopt.types import IdList
 
 if TYPE_CHECKING:
     from fluxopt.elements import Flow
-    from fluxopt.types import TimeSeries
+    from fluxopt.types import TemporalInput
 
 
 def _qualify_flows(component_id: str, flows: list[Flow]) -> IdList[Flow]:
@@ -49,7 +49,7 @@ class Converter:
     id: str
     inputs: list[Flow] | IdList[Flow]
     outputs: list[Flow] | IdList[Flow]
-    conversion_factors: list[dict[str, TimeSeries]] = field(default_factory=list)  # a_f
+    conversion_factors: list[dict[str, TemporalInput]] = field(default_factory=list)  # a_f
     _short_to_id: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -59,7 +59,7 @@ class Converter:
         self._short_to_id = {f.short_id: f.id for f in (*self.inputs, *self.outputs)}
 
     @classmethod
-    def _single_io(cls, id: str, coefficient: TimeSeries, input_flow: Flow, output_flow: Flow) -> Converter:
+    def _single_io(cls, id: str, coefficient: TemporalInput, input_flow: Flow, output_flow: Flow) -> Converter:
         """Create a single-input/single-output converter: input * coefficient = output."""
         return cls(
             id,
@@ -69,7 +69,7 @@ class Converter:
         )
 
     @classmethod
-    def boiler(cls, id: str, thermal_efficiency: TimeSeries, fuel_flow: Flow, thermal_flow: Flow) -> Converter:
+    def boiler(cls, id: str, thermal_efficiency: TemporalInput, fuel_flow: Flow, thermal_flow: Flow) -> Converter:
         """Create a boiler converter: fuel * eta = thermal.
 
         Args:
@@ -84,7 +84,7 @@ class Converter:
     def heat_pump(
         cls,
         id: str,
-        cop: TimeSeries,
+        cop: TemporalInput,
         electrical_flow: Flow,
         source_flow: Flow,
         thermal_flow: Flow,
@@ -113,7 +113,7 @@ class Converter:
         )
 
     @classmethod
-    def power2heat(cls, id: str, efficiency: TimeSeries, electrical_flow: Flow, thermal_flow: Flow) -> Converter:
+    def power2heat(cls, id: str, efficiency: TemporalInput, electrical_flow: Flow, thermal_flow: Flow) -> Converter:
         """Create an electric resistance heater: electrical * eta = thermal.
 
         Args:
@@ -128,8 +128,8 @@ class Converter:
     def chp(
         cls,
         id: str,
-        eta_el: TimeSeries,
-        eta_th: TimeSeries,
+        eta_el: TemporalInput,
+        eta_th: TemporalInput,
         fuel_flow: Flow,
         electrical_flow: Flow,
         thermal_flow: Flow,
