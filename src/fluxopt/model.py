@@ -771,13 +771,16 @@ class FlowSystem:
 
         self.m.add_constraints(self.effect_temporal == temporal_rhs, name='effect_temporal_eq')
 
-        # Per-hour bounds on effect_temporal
-        min_ph = ds.min_per_hour  # (effect, time) — NaN = unbounded
+        # Per-hour bounds: effect[t] <= max_per_hour * dt[t]
+        # effect_temporal is in absolute units (e.g. EUR), so the per-hour rate
+        # must be scaled by the timestep duration to get the per-timestep limit.
+        dt = d.dims.dt
+        min_ph = ds.min_per_hour * dt  # (effect, time) — NaN = unbounded
         has_min_ph = min_ph.notnull()
         if has_min_ph.any():
             self.m.add_constraints(self.effect_temporal >= min_ph, name='effect_min_ph', mask=has_min_ph)
 
-        max_ph = ds.max_per_hour
+        max_ph = ds.max_per_hour * dt
         has_max_ph = max_ph.notnull()
         if has_max_ph.any():
             self.m.add_constraints(self.effect_temporal <= max_ph, name='effect_max_ph', mask=has_max_ph)
