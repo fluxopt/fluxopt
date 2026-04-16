@@ -53,10 +53,12 @@ revenue = Effect('revenue', minimum_total=500)
 
 ### Per-Hour Bounds
 
-Limit the effect value at each timestep:
+Limit the effect **rate** at each timestep. The bound is specified per hour and
+scales with the timestep duration (`dt`), so the constraint is
+resolution-independent:
 
 ```python
-# Max 50 kg CO2 per hour
+# Max 50 kg CO2 per hour — allows 200 kg in a 4h timestep
 co2 = Effect('co2', unit='kg', maximum_per_hour=50)
 
 # Time-varying per-hour bound
@@ -210,7 +212,7 @@ print(result.effect_totals)
 | `is_objective` | `bool` | `False` | Whether this effect is minimized |
 | `maximum_total` | `float \| None` | `None` | Upper bound on total |
 | `minimum_total` | `float \| None` | `None` | Lower bound on total |
-| `maximum_per_hour` | `TimeSeries \| None` | `None` | Upper bound per timestep |
-| `minimum_per_hour` | `TimeSeries \| None` | `None` | Lower bound per timestep |
+| `maximum_per_hour` | `TimeSeries \| None` | `None` | Upper bound rate (per hour), scaled by `dt` |
+| `minimum_per_hour` | `TimeSeries \| None` | `None` | Lower bound rate (per hour), scaled by `dt` |
 | `contribution_from` | `dict[str, float]` | `{}` | Cross-effect factor (both domains) |
 | `contribution_from_per_hour` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (temporal domain only) |

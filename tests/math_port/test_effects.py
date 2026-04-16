@@ -249,6 +249,96 @@ class TestEffects:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 20.0, rtol=1e-5)
 
+    def test_effect_maximum_per_hour_scales_with_dt(self, optimize):
+        """Proves: maximum_per_hour scales with timestep duration.
+
+        CO2 max_per_hour=4. dt=2h. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
+        Demand=[15,5] (power in MW). CO2 per timestep = rate * 1 * dt.
+
+        Per-timestep CO2 cap = max_per_hour * dt = 4 * 2 = 8 kgCO2.
+        Dirty rate capped at 4 MW (since 4 * 1 * 2 = 8 = cap).
+        t=0: Dirty_rate=4, Clean_rate=11. t=1: Dirty_rate=4, Clean_rate=1.
+        cost = (4*2 + 4*2)*1 + (11*2 + 1*2)*5 = 16 + 120 = 136.
+
+        Sensitivity: With dt=1h, cap=4/ts, Dirty=[4,4], Clean=[11,1], cost=68.
+        """
+        from datetime import datetime, timedelta
+
+        start = datetime(2024, 1, 1)
+        timesteps = [start, start + timedelta(hours=2)]
+        result = optimize(
+            timesteps=timesteps,
+            carriers=[Carrier('Heat')],
+            effects=[
+                Effect('cost', is_objective=True),
+                Effect('CO2', maximum_per_hour=4),
+            ],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([15, 5])),
+                    ],
+                ),
+                Port(
+                    'Dirty',
+                    imports=[
+                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                    ],
+                ),
+                Port(
+                    'Clean',
+                    imports=[
+                        Flow('Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
+                    ],
+                ),
+            ],
+        )
+        # t=0: Dirty_rate=4 (capped), Clean_rate=11. t=1: Dirty_rate=4, Clean_rate=1.
+        # cost = (4+4)*1*2 + (11+1)*5*2 = 16 + 120 = 136
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 136.0, rtol=1e-5)
+
+    def test_effect_minimum_per_hour_scales_with_dt(self, optimize):
+        """Proves: minimum_per_hour scales with timestep duration.
+
+        CO2 min_per_hour=5. dt=2h. Dirty: 1€+1kgCO2/kWh. Demand=[3,3] (power).
+        Per-timestep energy: [6,6] kWh. Per-timestep CO2 floor = 5 * 2 = 10 kgCO2.
+        Dirty must produce ≥10 kWh each ts → excess absorbed by waste.
+
+        cost = 10 + 10 = 20.
+        Sensitivity: Without min_per_hour, Dirty=6 each ts → cost=12.
+        """
+        from datetime import datetime, timedelta
+
+        start = datetime(2024, 1, 1)
+        timesteps = [start, start + timedelta(hours=2)]
+        result = optimize(
+            timesteps=timesteps,
+            carriers=[Carrier('Heat')],
+            effects=[
+                Effect('cost', is_objective=True),
+                Effect('CO2', minimum_per_hour=5),
+            ],
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[
+                        Flow('Heat', size=1, fixed_relative_profile=np.array([3, 3])),
+                    ],
+                ),
+                Port(
+                    'Dirty',
+                    imports=[
+                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                    ],
+                ),
+                waste('Heat'),
+            ],
+        )
+        # Must emit ≥10 CO2 each ts → Dirty ≥ 10 each ts → cost = 20
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 20.0, rtol=1e-5)
+
     @pytest.mark.skip(reason='maximum_temporal not supported in fluxopt')
     def test_effect_maximum_temporal(self, optimize):
         """Proves: maximum_temporal caps the sum of an effect's per-timestep contributions

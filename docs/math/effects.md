@@ -106,15 +106,17 @@ Upper and lower bounds on the total effect over the entire horizon:
 
 This is useful for emission caps or budget constraints.
 
-## Per-Timestep Bounds
+## Per-Hour Bounds
 
-Bounds on the effect value at each timestep:
+The per-hour bounds are **rates** (e.g., kg/h, €/h) that scale with the timestep
+duration \(\Delta t_t\). This ensures the constraint is resolution-independent:
 
 \[
-\underline{\Phi}_{k,t} \leq \Phi_{k,t} \leq \bar{\Phi}_{k,t} \quad \forall \, t \in \mathcal{T}
+\underline{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \leq \Phi_{k,t}^{\text{temporal}} \leq \bar{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \quad \forall \, k \in \mathcal{K}, \; t \in \mathcal{T}
 \]
 
-This enforces per-hour limits (e.g., maximum hourly emissions).
+For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
+400 kg of emissions in that timestep.
 
 ## Parameters
 
