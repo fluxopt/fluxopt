@@ -26,12 +26,12 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "highspy>=1.13.1",
+    "highspy>=1.13.1,!=1.14.0",  # 1.14.0 has MIP presolve bug (ERGO-Code/HiGHS#2975)
     "linopy @ git+https://github.com/PyPSA/linopy.git@f53d1968e53d70962eb208b01c3f938f693f0083",
     "netcdf4>=1.6.0",
     "numpy>=1.26",
     "pandas>=2.1",
-    "xarray>=2024.1.0",
+    "xarray>=2024.1.0,<2026.4.0",  # 2026.4.0 breaks linopy (Dataset-as-data_vars)
 ]
 
 [project.urls]
