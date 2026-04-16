@@ -60,7 +60,6 @@ class TestFlowInvest:
         assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 50.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 140.0, rtol=1e-5)
 
-    @pytest.mark.xfail(reason='HiGHS >=1.14 presolve regression (#128)', strict=False)
     def test_invest_optional_not_built(self, optimize):
         """Proves: Optional investment is correctly skipped when the fixed investment
         cost outweighs operational savings.
@@ -279,7 +278,6 @@ class TestFlowInvest:
         # invest=1000+10*1=1010, fuel from ExpensiveBoiler=20 (eta=1.0), total=1030
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 1030.0, rtol=1e-5)
 
-    @pytest.mark.xfail(reason='HiGHS >=1.14 presolve regression (#128)', strict=False)
     def test_invest_not_mandatory_skips_when_uneconomical(self, optimize):
         """Proves: mandatory=False (default) allows optimizer to skip investment
         when it's not economical.
