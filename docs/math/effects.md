@@ -112,7 +112,7 @@ The per-hour bounds are **rates** (e.g., kg/h, €/h) that scale with the timest
 duration \(\Delta t_t\). This ensures the constraint is resolution-independent:
 
 \[
-\underline{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \leq \Phi_{k,t}^{\text{temporal}} \leq \bar{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \quad \forall \, t \in \mathcal{T}
+\underline{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \leq \Phi_{k,t}^{\text{temporal}} \leq \bar{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \quad \forall \, k \in \mathcal{K}, \; t \in \mathcal{T}
 \]
 
 For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
