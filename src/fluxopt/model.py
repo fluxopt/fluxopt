@@ -35,8 +35,7 @@ class FlowSystem:
     storage_level: Variable | None = None
     prior_storage_level: Variable | None = None
 
-    # Effect variables — set during build
-    effect_once: Variable | None = None
+    # Effect variables — set during build (no class-level defaults needed for temporal/lump/total)
 
     # Status variables — None when no status is configured
     flow_on: Variable | None = None
@@ -726,7 +725,7 @@ class FlowSystem:
         self.m.add_constraints(lhs == 0, name='conversion', mask=mask_3d)
 
     def _create_effects(self) -> None:
-        """Effect tracking: temporal, periodic, and one-time domains."""
+        """Effect tracking: temporal and lump domains."""
         d = self.data
         ds = d.effects
 
@@ -785,12 +784,13 @@ class FlowSystem:
         if has_max_ph.any():
             self.m.add_constraints(self.effect_temporal <= max_ph, name='effect_max_ph', mask=has_max_ph)
 
-        # --- Periodic domain: effect_periodic[effect(, period)] ---
+        # --- Lump domain: effect_lump[effect(, period)] ---
+        # Combines all non-temporal contributions (sizing, investment recurring, investment at-build)
         pc = self.data.dims.coords(period=True)
-        self.effect_periodic = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--periodic')
+        self.effect_lump = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--lump')
 
-        # Accumulate direct investment contributions per effect
-        periodic_direct: Any = 0
+        # Accumulate direct lump contributions per effect
+        lump_direct: Any = 0
 
         # Flow sizing: per-size costs (Sizing only, not Investment)
         if d.flows.sizing_effects_per_size is not None:
@@ -798,7 +798,7 @@ class FlowSystem:
             eps = d.flows.sizing_effects_per_size.rename({'sizing_flow': 'flow'})
             if (eps != 0).any():
                 assert self.flow_size is not None
-                periodic_direct = periodic_direct + (eps * self.flow_size.sel(flow=sizing_ids)).sum('flow')
+                lump_direct = lump_direct + (eps * self.flow_size.sel(flow=sizing_ids)).sum('flow')
 
         # Flow sizing: fixed costs — optional (binary * cost), mandatory (constant)
         if self.flow_size_indicator is not None:
@@ -806,7 +806,7 @@ class FlowSystem:
             opt_ids = list(self.flow_size_indicator.coords['flow'].values)
             ef = d.flows.sizing_effects_fixed.rename({'sizing_flow': 'flow'}).sel(flow=opt_ids)
             if (ef != 0).any():
-                periodic_direct = periodic_direct + (ef * self.flow_size_indicator).sum('flow')
+                lump_direct = lump_direct + (ef * self.flow_size_indicator).sum('flow')
         if (
             self.flow_size is not None
             and d.flows.sizing_effects_fixed is not None
@@ -817,7 +817,7 @@ class FlowSystem:
                 mand_ids = list(d.flows.sizing_mandatory.coords['sizing_flow'].values[mand_mask])
                 ef_mand = d.flows.sizing_effects_fixed.sel(sizing_flow=mand_ids)
                 if (ef_mand != 0).any():
-                    periodic_direct = periodic_direct + ef_mand.sum('sizing_flow')
+                    lump_direct = lump_direct + ef_mand.sum('sizing_flow')
 
         # Storage sizing: per-size costs
         if (
@@ -827,7 +827,7 @@ class FlowSystem:
         ):
             eps = d.storages.sizing_effects_per_size.rename({'sizing_storage': 'storage'})
             if (eps != 0).any():
-                periodic_direct = periodic_direct + (eps * self.storage_capacity).sum('storage')
+                lump_direct = lump_direct + (eps * self.storage_capacity).sum('storage')
 
         # Storage sizing: fixed costs — optional (binary * cost), mandatory (constant)
         if (
@@ -838,7 +838,7 @@ class FlowSystem:
             opt_ids = list(self.storage_capacity_indicator.coords['storage'].values)
             ef = d.storages.sizing_effects_fixed.rename({'sizing_storage': 'storage'}).sel(storage=opt_ids)
             if (ef != 0).any():
-                periodic_direct = periodic_direct + (ef * self.storage_capacity_indicator).sum('storage')
+                lump_direct = lump_direct + (ef * self.storage_capacity_indicator).sum('storage')
         if (
             self.storage_capacity is not None
             and d.storages is not None
@@ -850,54 +850,47 @@ class FlowSystem:
                 mand_ids = list(d.storages.sizing_mandatory.coords['sizing_storage'].values[mand_mask])
                 ef_mand = d.storages.sizing_effects_fixed.sel(sizing_storage=mand_ids)
                 if (ef_mand != 0).any():
-                    periodic_direct = periodic_direct + ef_mand.sum('sizing_storage')
+                    lump_direct = lump_direct + ef_mand.sum('sizing_storage')
 
-        # Investment: recurring per-size costs → effect_periodic
+        # Investment: recurring per-size costs
         if self.invest_active is not None and d.flows.invest_effects_per_size_recurring is not None:
             eps_p = d.flows.invest_effects_per_size_recurring.rename({'invest_flow': 'flow'})
             if (eps_p != 0).any():
                 assert self.flow_size is not None
                 invest_ids = list(d.flows.invest_effects_per_size_recurring.coords['invest_flow'].values)
-                periodic_direct = periodic_direct + (eps_p * self.flow_size.sel(flow=invest_ids)).sum('flow')
+                lump_direct = lump_direct + (eps_p * self.flow_size.sel(flow=invest_ids)).sum('flow')
 
-        # Investment: recurring fixed costs → effect_periodic
+        # Investment: recurring fixed costs
         if self.invest_active is not None and d.flows.invest_effects_fixed_recurring is not None:
             ef_p = d.flows.invest_effects_fixed_recurring.rename({'invest_flow': 'flow'})
             if (ef_p != 0).any():
-                periodic_direct = periodic_direct + (ef_p * self.invest_active).sum('flow')
+                lump_direct = lump_direct + (ef_p * self.invest_active).sum('flow')
 
-        # Cross-effect periodic: cf_periodic[k,j] * effect_periodic[j]
-        periodic_rhs: Any = periodic_direct
-        if ds.cf_periodic is not None:
-            source_p = self.effect_periodic.rename({'effect': 'source_effect'})
-            cross = (ds.cf_periodic * source_p).sum('source_effect')
-            periodic_rhs = cross + periodic_direct  # linopy expr must be left operand
-
-        self.m.add_constraints(self.effect_periodic == periodic_rhs, name='effect_periodic_eq')
-
-        # --- One-time domain: effect_once[effect(, period)] ---
-        self.effect_once = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--once')
-
-        once_direct: Any = 0
-
-        # Investment: one-time per-size costs (charged in build period)
+        # Investment: at-build per-size costs (charged in build period)
         if self.invest_size_at_build is not None and d.flows.invest_effects_per_size_at_build is not None:
             eps_once = d.flows.invest_effects_per_size_at_build.rename({'invest_flow': 'flow'})
             if (eps_once != 0).any():
-                once_direct = once_direct + (eps_once * self.invest_size_at_build).sum('flow')
+                lump_direct = lump_direct + (eps_once * self.invest_size_at_build).sum('flow')
 
-        # Investment: one-time fixed costs (charged in build period)
+        # Investment: at-build fixed costs (charged in build period)
         if self.invest_build is not None and d.flows.invest_effects_fixed_at_build is not None:
             ef_once = d.flows.invest_effects_fixed_at_build.rename({'invest_flow': 'flow'})
             if (ef_once != 0).any():
-                once_direct = once_direct + (ef_once * self.invest_build).sum('flow')
+                lump_direct = lump_direct + (ef_once * self.invest_build).sum('flow')
 
-        self.m.add_constraints(self.effect_once == once_direct, name='effect_once_eq')
+        # Cross-effect lump: cf_periodic[k,j] * effect_lump[j]
+        lump_rhs: Any = lump_direct
+        if ds.cf_periodic is not None:
+            source_p = self.effect_lump.rename({'effect': 'source_effect'})
+            cross = (ds.cf_periodic * source_p).sum('source_effect')
+            lump_rhs = cross + lump_direct  # linopy expr must be left operand
+
+        self.m.add_constraints(self.effect_lump == lump_rhs, name='effect_lump_eq')
 
         # --- Total: effect_total[effect(, period)] ---
         self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--total')
         temporal_sum = (self.effect_temporal * d.dims.weights).sum('time')
-        rhs = temporal_sum + self.effect_periodic + self.effect_once
+        rhs = temporal_sum + self.effect_lump
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
         # Per-period bounds on effect_total
@@ -1056,20 +1049,11 @@ class FlowSystem:
     def _set_objective(self) -> None:
         """Set objective: minimize the (period-weighted) objective effect total.
 
-        Objective = sum_p( ω_periodic[k*,p] * (temporal_sum + periodic) + ω_once[k*,p] * once )
+        Objective = sum_p( ω[k*,p] * effect_total[k*,p] )
 
-        ω_periodic defaults to global period_weights (or 1 in single-period).
-        ω_once defaults to 1.
+        ω defaults to global period_weights (or 1 in single-period).
         """
         k = self.data.effects.objective_effect
-        w_periodic, w_once = self.data.effects.objective_weights(self.data.dims.period_weights)
+        w_periodic, _w_once = self.data.effects.objective_weights(self.data.dims.period_weights)
 
-        assert self.effect_temporal is not None
-        assert self.effect_periodic is not None
-        assert self.effect_once is not None
-
-        temporal_sum = (self.effect_temporal.sel(effect=k) * self.data.dims.weights).sum('time')
-        recurring = temporal_sum + self.effect_periodic.sel(effect=k)
-        once = self.effect_once.sel(effect=k)
-
-        self.m.add_objective((w_periodic * recurring + w_once * once).sum())
+        self.m.add_objective((w_periodic * self.effect_total.sel(effect=k)).sum())

@@ -206,8 +206,8 @@ class TestSizing:
         )
 
         contrib = result.stats.effect_contributions
-        grid_inv = float(contrib['periodic'].sel(contributor='grid(elec)', effect='cost').values)
-        demand_inv = float(contrib['periodic'].sel(contributor='demand(elec)', effect='cost').values)
+        grid_inv = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
+        demand_inv = float(contrib['lump'].sel(contributor='demand(elec)', effect='cost').values)
         # size=50 (min to meet demand) * effects_per_size=100
         expected_inv = 50 * 100
         assert grid_inv == pytest.approx(expected_inv, abs=1e-6)
@@ -239,7 +239,7 @@ class TestSizing:
         assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
 
         # Grid has investment cost from fixed costs
-        grid_periodic = float(contrib['periodic'].sel(contributor='grid(elec)', effect='cost').values)
+        grid_periodic = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
         assert grid_periodic == pytest.approx(1000, abs=1e-6)
 
     def test_sizing_cross_effect_investment(self):
@@ -267,7 +267,7 @@ class TestSizing:
         assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
 
         # Grid flow gets the investment cost (including cross-effect from CO2)
-        grid_inv_cost = float(contrib['periodic'].sel(contributor='grid(elec)', effect='cost').values)
+        grid_inv_cost = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
         invest_size = float(result.sizes.sel(flow='grid(elec)').values)
         invest_co2 = invest_size * 10
         expected_inv_cost = invest_co2 * 50
@@ -364,7 +364,7 @@ class TestStorage:
 
         contrib = result.stats.effect_contributions
         # Storage appears as a contributor in periodic
-        bat_inv = float(contrib['periodic'].sel(contributor='battery', effect='cost').values)
+        bat_inv = float(contrib['lump'].sel(contributor='battery', effect='cost').values)
         bat_capacity = float(result.storage_capacities.sel(storage='battery').values)
         assert bat_inv == pytest.approx(bat_capacity * 50, abs=1e-5)
 
@@ -405,7 +405,7 @@ class TestStorage:
         assert total_from_contrib == pytest.approx(solver_total, abs=1e-6)
 
         # Storage has CO2 investment cost that gets priced into cost via cross-effect
-        bat_periodic_cost = float(contrib['periodic'].sel(contributor='battery', effect='cost').values)
+        bat_periodic_cost = float(contrib['lump'].sel(contributor='battery', effect='cost').values)
         bat_capacity = float(result.storage_capacities.sel(storage='battery').values)
         expected_co2_inv = bat_capacity * 5
         expected_cost_inv = expected_co2_inv * 50

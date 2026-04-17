@@ -57,7 +57,7 @@ class StatsAccessor:
 
         Returns:
             Dataset with ``temporal`` (contributor, effect, time),
-            ``periodic`` (contributor, effect), and ``total``
+            ``lump`` (contributor, effect), and ``total``
             (contributor, effect).
         """
         from fluxopt.contributions import compute_effect_contributions

@@ -148,10 +148,11 @@ class TestInvestment:
         """Proves: mandatory Investment builds exactly once across periods.
 
         3 timesteps, 3 periods [2020, 2025, 2030], weights=[5, 5, 5].
-        Grid with Investment(0, 20, mandatory=True), CAPEX=10/MW once.
+        Grid with Investment(0, 20, mandatory=True), CAPEX=10/MW at build.
         Demand=10 MW constant. Cheapest: build in first period, CAPEX=10*10=100.
-        Operational cost per period: 10*3*1=30, weighted=5*30=150.
-        Total recurring: 3*150=450. Total once: 100. Objective=450+100=550.
+        Operational cost per period: 10*3*1=30.
+        total[p=0]=130, total[p=1]=30, total[p=2]=30.
+        Objective = 5*130 + 5*30 + 5*30 = 950.
         """
         _xfail_if_validate(optimize)
         result = optimize(
@@ -179,10 +180,11 @@ class TestInvestment:
             periods=[2020, 2025, 2030],
             period_weights=[5, 5, 5],
         )
-        # CAPEX: 10/MW * 10 MW = 100 (once)
-        # Operational: 10 MW * 3h * 1 cost/MWh = 30 per period, weighted 5*30=150 per period
-        # Total = 3 * 150 + 100 = 550
-        assert_allclose(result.objective, 550.0, rtol=1e-4)
+        # CAPEX: 10/MW * 10 MW = 100 in build period (p=0)
+        # Operational: 10 MW * 3h * 1 cost/MWh = 30 per period
+        # total[p=0]=130, total[p=1]=30, total[p=2]=30
+        # Objective = 5*130 + 5*30 + 5*30 = 950
+        assert_allclose(result.objective, 950.0, rtol=1e-4)
 
     def test_investment_optional_skips_when_expensive(self, optimize):
         """Proves: optional Investment is not built if cost exceeds benefit.
@@ -299,12 +301,13 @@ class TestInvestment:
         # Cost = 2 * 5 * 30 = 300 (operational only, no CAPEX)
         assert_allclose(result.objective, 300.0, rtol=1e-4)
 
-    def test_investment_capex_charged_once(self, optimize):
-        """Proves: effects_per_size_at_build goes to effect_once domain, not periodic.
+    def test_investment_capex_in_lump(self, optimize):
+        """Proves: effects_per_size_at_build goes to lump domain, weighted like all lump costs.
 
-        CAPEX = 10/MW, size=10 MW → one-time cost = 100 (unweighted).
+        CAPEX = 10/MW, size=10 MW → lump cost = 100 per build period.
         No operational costs. 2 periods, weights=[5, 5].
-        Objective = 5*0 + 5*0 + 1*100 = 100  (once costs have ω_once=1 by default).
+        Mandatory build → built in period 0. Lump = 100 in p=0, 0 in p=1.
+        Objective = 5*100 + 5*0 = 500.
         """
         _xfail_if_validate(optimize)
         result = optimize(
@@ -332,9 +335,8 @@ class TestInvestment:
             period_weights=[5, 5],
         )
         # min_size == max_size == 10, so invest_size = 10.
-        # CAPEX: 10 * 10 = 100 (effect_once, ω_once=1 by default)
-        # No flow costs. Objective = 100.
-        assert_allclose(result.objective, 100.0, rtol=1e-4)
+        # CAPEX: 10 * 10 = 100 in build period. Weighted: 5 * 100 = 500.
+        assert_allclose(result.objective, 500.0, rtol=1e-4)
 
     def test_investment_periodic_costs_weighted(self, optimize):
         """Proves: effects_per_size_recurring goes to effect_periodic, scaled by period weights.
