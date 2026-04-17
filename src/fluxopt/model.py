@@ -878,11 +878,12 @@ class FlowSystem:
             if (ef_once != 0).any():
                 lump_direct = lump_direct + (ef_once * self.invest_build).sum('flow')
 
-        # Cross-effect lump: cf_periodic[k,j] * effect_lump[j]
+        # Cross-effect lump: mean(cf_temporal, 'time')[k,j] * effect_lump[j]
         lump_rhs: Any = lump_direct
-        if ds.cf_periodic is not None:
+        if ds.cf_temporal is not None:
+            cf_lump = ds.cf_temporal.mean('time')
             source_p = self.effect_lump.rename({'effect': 'source_effect'})
-            cross = (ds.cf_periodic * source_p).sum('source_effect')
+            cross = (cf_lump * source_p).sum('source_effect')
             lump_rhs = cross + lump_direct  # linopy expr must be left operand
 
         self.m.add_constraints(self.effect_lump == lump_rhs, name='effect_lump_eq')

@@ -211,8 +211,8 @@ class TestContributionFrom:
         assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
         assert result.objective == pytest.approx(cost_total, abs=1e-6)
 
-    def test_contribution_from_per_hour(self):
-        """Time-varying carbon price overrides scalar for per-timestep."""
+    def test_contribution_from_time_varying(self):
+        """Time-varying contribution_from uses per-timestep values for temporal."""
         demand = [50.0, 80.0, 60.0]
 
         source = Flow(
@@ -230,8 +230,7 @@ class TestContributionFrom:
                 Effect(
                     'cost',
                     is_objective=True,
-                    contribution_from={'co2': 50},  # scalar for invest
-                    contribution_from_per_hour={'co2': carbon_prices},  # time-varying for ops
+                    contribution_from={'co2': carbon_prices},  # time-varying
                 ),
                 Effect('co2', unit='kg'),
             ],
@@ -240,7 +239,7 @@ class TestContributionFrom:
 
         # per_ts[co2, t] = demand[t] * 0.5 (dt=1)
         # per_ts[cost, t] = carbon_price[t] * per_ts[co2, t]
-        # total[cost] = sum(per_ts[cost, t])  (no invest here)
+        # total[cost] = sum(per_ts[cost, t])  (no lump costs)
         expected = sum(d * 0.5 * p for d, p in zip(demand, carbon_prices, strict=True))
         assert result.objective == pytest.approx(expected, abs=1e-6)
 

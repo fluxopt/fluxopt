@@ -186,9 +186,10 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
     else:
         lump = flow_lump
 
-    # Cross-effects on lump via Leontief inverse
-    if data.effects.cf_periodic is not None:
-        lump = _apply_leontief(_leontief(data.effects.cf_periodic), lump)
+    # Cross-effects on lump via Leontief inverse (using mean of temporal cross-effect)
+    if data.effects.cf_temporal is not None:
+        cf_lump = data.effects.cf_temporal.mean('time')
+        lump = _apply_leontief(_leontief(cf_lump), lump)
 
     # --- Total: temporal (weighted sum over time) + lump ---
     total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + lump.reindex(
