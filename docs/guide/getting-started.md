@@ -39,10 +39,11 @@ heat = Carrier('heat')
 
 ### 3. Define Effects
 
-Effects track quantities across the horizon. Mark one as the objective.
+Effects track quantities across the horizon. The objective is specified
+in the `optimize()` call (defaults to `'cost'`).
 
 ```python
-effects = [Effect('cost', is_objective=True)]
+effects = [Effect('cost')]
 ```
 
 ### 4. Define Flows

@@ -30,7 +30,7 @@ demand = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
 result = optimize(
     timesteps=timesteps,
     carriers=[gas, heat],
-    effects=[Effect('cost', is_objective=True)],
+    effects=[Effect('cost')],
     ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
     converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_out)],
 )

@@ -127,7 +127,7 @@ heat = Carrier('heat')
 result = optimize(
     timesteps=timesteps,
     carriers=[gas, heat],
-    effects=[Effect('cost', is_objective=True)],
+    effects=[Effect('cost')],
     ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand_flow])],
     converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_out)],
 )

@@ -151,7 +151,7 @@ elec = Carrier('elec')
 result = optimize(
     timesteps=timesteps,
     carriers=[elec],
-    effects=[Effect('cost', is_objective=True)],
+    effects=[Effect('cost')],
     ports=[
         Port('grid', imports=[grid]),
         Port('solar', imports=[solar]),
