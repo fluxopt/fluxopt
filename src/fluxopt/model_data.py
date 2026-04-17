@@ -804,20 +804,8 @@ class EffectsData:
     max_per_period: xr.DataArray  # (effect,) — per-period bound
     min_per_hour: xr.DataArray  # (effect, time)
     max_per_hour: xr.DataArray  # (effect, time)
-    is_objective: xr.DataArray  # (effect,)
-    objective_effect: str
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
     period_weights: xr.DataArray | None = None  # (effect, period)
-
-    def __post_init__(self) -> None:
-        """Validate exactly one objective effect exists."""
-        n_obj = int(self.is_objective.sum())
-        if n_obj == 0:
-            raise ValueError('No objective effect found. Include an Effect with is_objective=True.')
-        if n_obj > 1:
-            raise ValueError(
-                f'Multiple objective effects: {list(self.is_objective.coords["effect"][self.is_objective].values)}. Only one is allowed.'
-            )
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -837,7 +825,7 @@ class EffectsData:
             elif f.name in ds.attrs:
                 kwargs[f.name] = ds.attrs[f.name]
             # else: rely on dataclass default (e.g. None for optional fields)
-        return cls(**kwargs)  # type: ignore[arg-type]
+        return cls(**kwargs)
 
     @classmethod
     def build(
@@ -857,20 +845,12 @@ class EffectsData:
         effect_set = set(effect_ids)
         n = len(effects)
         n_time = len(time)
-        objective_effect = next(
-            (e.id for e in effects if e.is_objective),
-            None,
-        )
-        if objective_effect is None:
-            raise ValueError('No objective effect found. Include an Effect with is_objective=True.')
-
         min_bound = np.full(n, np.nan)
         max_bound = np.full(n, np.nan)
         min_per_period = np.full(n, np.nan)
         max_per_period = np.full(n, np.nan)
         min_per_hours: list[xr.DataArray] = []
         max_per_hours: list[xr.DataArray] = []
-        is_objective = np.zeros(n, dtype=bool)
 
         nan_time = xr.DataArray(np.full(n_time, np.nan), dims=['time'], coords={'time': time})
 
@@ -890,7 +870,6 @@ class EffectsData:
             max_per_hours.append(
                 as_dataarray(e.maximum_per_hour, {'time': time}) if e.maximum_per_hour is not None else nan_time
             )
-            is_objective[i] = e.is_objective
             if e.contribution_from:
                 has_contributions = True
 
@@ -951,8 +930,6 @@ class EffectsData:
             max_per_period=xr.DataArray(max_per_period, dims=['effect'], coords={'effect': effect_ids}),
             min_per_hour=fast_concat(min_per_hours, effect_idx),
             max_per_hour=fast_concat(max_per_hours, effect_idx),
-            is_objective=xr.DataArray(is_objective, dims=['effect'], coords={'effect': effect_ids}),
-            objective_effect=objective_effect,
             cf_temporal=cf_temporal,
             period_weights=pw,
         )

@@ -14,7 +14,7 @@ class TestCarrierBalance:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -52,7 +52,7 @@ class TestMultiNodeBalance:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('heat', nodes=['A', 'B'])],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('cheap_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 1})]),
                 Port('cheap_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 1})]),
@@ -73,7 +73,7 @@ class TestMultiNodeBalance:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('heat', nodes=['A', 'B'])],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('cheap_a', imports=[Flow('heat', node='A', size=200, effects_per_flow_hour={'cost': 1})]),
                 Port('exp_b', imports=[Flow('heat', node='B', size=200, effects_per_flow_hour={'cost': 10})]),
@@ -91,7 +91,7 @@ class TestMultiNodeBalance:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('elec'), Carrier('heat', nodes=['A', 'B'])],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 # Electricity: single-node
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.1})]),

@@ -35,7 +35,7 @@ class FlowSystem:
     storage_level: Variable | None = None
     prior_storage_level: Variable | None = None
 
-    # Effect variables — set during build (no class-level defaults needed for temporal/lump/total)
+    # Effect / objective — set via optimize() or defaults to ['cost']
 
     # Status variables — None when no status is configured
     flow_on: Variable | None = None
@@ -50,6 +50,7 @@ class FlowSystem:
         """
         self.data = data
         self.m = Model()
+        self._objective_effects: list[str] = ['cost']
 
     def _add_variables(
         self,
@@ -103,6 +104,7 @@ class FlowSystem:
 
     def optimize(
         self,
+        objective: str | list[str] = 'cost',
         customize: Callable[[FlowSystem], None] | None = None,
         *,
         solver: str = 'highs',
@@ -111,11 +113,13 @@ class FlowSystem:
         """Build, optionally customize, and solve the model.
 
         Args:
+            objective: Effect name(s) to minimize. Sum of named effect totals.
             customize: Optional callback to modify the linopy model between build and solve.
                 Receives ``self``; use ``model.m`` to add variables/constraints.
             solver: Solver backend name.
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
+        self._objective_effects = [objective] if isinstance(objective, str) else objective
         self.build()
         if customize is not None:
             customize(self)
@@ -1048,20 +1052,27 @@ class FlowSystem:
             )
 
     def _set_objective(self) -> None:
-        """Set objective: minimize the (period-weighted) objective effect total.
+        """Set objective: minimize the sum of (period-weighted) effect totals.
 
-        Objective = sum_p( ω[k*,p] * effect_total[k*,p] )
+        Objective = sum_k sum_p( ω[k,p] * effect_total[k,p] )
 
-        ω defaults to global period_weights (or 1 in single-period).
+        ω falls back to global period_weights (or 1 in single-period).
         """
-        k = self.data.effects.objective_effect
         ds = self.data.effects
+        obj_expr: Any = 0
 
-        # Resolve per-effect weight, falling back to global period_weights, then 1
-        w: xr.DataArray | int = 1
-        if ds.period_weights is not None and not ds.period_weights.sel(effect=k).isnull().all():
-            w = ds.period_weights.sel(effect=k)
-        elif self.data.dims.period_weights is not None:
-            w = self.data.dims.period_weights
+        for k in self._objective_effects:
+            effect_ids = list(ds.min_bound.coords['effect'].values)
+            if k not in effect_ids:
+                raise ValueError(f'Objective effect {k!r} not found. Available: {effect_ids}')
 
-        self.m.add_objective((w * self.effect_total.sel(effect=k)).sum())
+            # Resolve per-effect weight, falling back to global period_weights, then 1
+            w: xr.DataArray | int = 1
+            if ds.period_weights is not None and not ds.period_weights.sel(effect=k).isnull().all():
+                w = ds.period_weights.sel(effect=k)
+            elif self.data.dims.period_weights is not None:
+                w = self.data.dims.period_weights
+
+            obj_expr = obj_expr + (w * self.effect_total.sel(effect=k)).sum()
+
+        self.m.add_objective(obj_expr)

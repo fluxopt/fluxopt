@@ -29,7 +29,7 @@ class TestEffects:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2'),
             ],
             ports=[
@@ -65,7 +65,7 @@ class TestEffects:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'CO2': 0.5}),
+                Effect('cost', contribution_from={'CO2': 0.5}),
                 Effect('CO2'),
             ],
             ports=[
@@ -96,7 +96,7 @@ class TestEffects:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2', maximum=15),
             ],
             ports=[
@@ -139,7 +139,7 @@ class TestEffects:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2', minimum=25),
             ],
             ports=[
@@ -184,7 +184,7 @@ class TestEffects:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2', maximum_per_hour=8),
             ],
             ports=[
@@ -226,7 +226,7 @@ class TestEffects:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2', minimum_per_hour=10),
             ],
             ports=[
@@ -270,7 +270,7 @@ class TestEffects:
             timesteps=timesteps,
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2', maximum_per_hour=4),
             ],
             ports=[
@@ -316,7 +316,7 @@ class TestEffects:
             timesteps=timesteps,
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2', minimum_per_hour=5),
             ],
             ports=[
@@ -381,7 +381,7 @@ class TestEffects:
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'CO2': 10}),
+                Effect('cost', contribution_from={'CO2': 10}),
                 Effect('CO2'),
             ],
             ports=[

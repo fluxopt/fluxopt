@@ -31,7 +31,7 @@ class TestEndToEnd:
         result = optimize(
             timesteps=ts(4),
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
@@ -67,7 +67,7 @@ class TestEndToEnd:
         result = optimize(
             timesteps=ts(4),
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
@@ -89,7 +89,7 @@ class TestEndToEnd:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -113,7 +113,7 @@ class TestEndToEnd:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -145,7 +145,7 @@ class TestEndToEnd:
         result = optimize(
             timesteps=timesteps,
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),

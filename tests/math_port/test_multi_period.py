@@ -29,7 +29,7 @@ class TestMultiPeriod:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -78,7 +78,7 @@ class TestMultiPeriod:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -113,7 +113,7 @@ class TestMultiPeriod:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True, period_weights=[1, 2]),
+                Effect('cost', period_weights=[1, 2]),
             ],
             ports=[
                 Port(
@@ -158,7 +158,7 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -194,7 +194,7 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -227,7 +227,7 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -269,7 +269,7 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -313,7 +313,7 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -348,7 +348,7 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -390,7 +390,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -425,7 +425,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -461,7 +461,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -496,7 +496,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -532,7 +532,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -568,7 +568,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -604,7 +604,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -641,7 +641,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -683,7 +683,7 @@ class TestPeriodVaryingEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('co2'),
-                Effect('cost', is_objective=True, contribution_from={'co2': carbon_price}),
+                Effect('cost', contribution_from={'co2': carbon_price}),
             ],
             ports=[
                 Port(
@@ -720,7 +720,7 @@ class TestPeriodVaryingEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('co2'),
-                Effect('cost', is_objective=True, contribution_from={'co2': carbon_price}),
+                Effect('cost', contribution_from={'co2': carbon_price}),
             ],
             ports=[
                 Port(
@@ -753,7 +753,7 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',

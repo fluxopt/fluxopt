@@ -25,6 +25,7 @@ def optimize(
     dt: float | list[float] | None = None,
     periods: list[int] | None = None,
     period_weights: list[float] | None = None,
+    objective: str | list[str] = 'cost',
     solver: str = 'highs',
     customize: Callable[[FlowSystem], None] | None = None,
     **kwargs: Any,
@@ -41,6 +42,7 @@ def optimize(
         dt: Timestep duration in hours. Auto-derived if None.
         periods: Integer period labels for multi-period optimization.
         period_weights: Explicit weights per period. Inferred from gaps if None.
+        objective: Effect name(s) to minimize. Sum of named effect totals.
         solver: Solver backend name.
         customize: Optional callback to modify the linopy model between build and solve.
             Receives the built FlowSystem; use ``model.m`` to add variables/constraints.
@@ -58,7 +60,7 @@ def optimize(
         period_weights=period_weights,
     )
     model = FlowSystem(data)
-    return model.optimize(customize=customize, solver=solver, **kwargs)
+    return model.optimize(objective=objective, customize=customize, solver=solver, **kwargs)
 
 
 __all__ = [

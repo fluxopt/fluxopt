@@ -19,7 +19,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -59,7 +59,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -99,7 +99,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -139,7 +139,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -180,7 +180,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',

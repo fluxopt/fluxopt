@@ -14,7 +14,7 @@ class TestFlowHours:
         result = optimize(
             timesteps=ts(3),
             carriers=_elec,
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
@@ -28,7 +28,7 @@ class TestFlowHours:
         result = optimize(
             timesteps=ts(3),
             carriers=_elec,
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
@@ -44,7 +44,7 @@ class TestCaching:
         result = optimize(
             timesteps=ts(3),
             carriers=_elec,
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),

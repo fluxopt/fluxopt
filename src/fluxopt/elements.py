@@ -153,7 +153,6 @@ class Flow:
 class Effect:
     id: str
     unit: str = ''
-    is_objective: bool = False
     maximum: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
     minimum: float | None = None  # Φ̲_k  [unit] — weighted total across all periods
     maximum_per_period: float | None = None  # Φ̄_{k,p}  [unit] — each period independently

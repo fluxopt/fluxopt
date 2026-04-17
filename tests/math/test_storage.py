@@ -23,7 +23,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(4),
             carriers=_elec,
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
         )
@@ -62,7 +62,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(4),
             carriers=_elec,
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
         )
@@ -93,7 +93,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(2),
             carriers=_elec,
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
         )
@@ -130,7 +130,7 @@ class TestStorage:
         result = optimize(
             timesteps=ts(3),
             carriers=_elec,
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
         )

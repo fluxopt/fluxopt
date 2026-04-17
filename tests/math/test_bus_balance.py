@@ -17,7 +17,7 @@ class TestBusBalance:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -34,7 +34,7 @@ class TestBusBalance:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -51,7 +51,7 @@ class TestBusBalance:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('cheap_src', imports=[cheap_flow]),
                 Port('exp_src', imports=[expensive_flow]),

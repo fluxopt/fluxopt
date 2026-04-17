@@ -80,7 +80,7 @@ class TestStatusWithEffects:
         result = optimize(
             timesteps=ts(4),
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2', maximum=60),
             ],
             ports=[
@@ -133,7 +133,7 @@ class TestStatusWithEffects:
         result = optimize(
             timesteps=ts(2),
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2'),
             ],
             ports=[
@@ -182,7 +182,7 @@ class TestInvestWithRelativeMinimum:
 
         result = optimize(
             timesteps=ts(2),
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -245,7 +245,7 @@ class TestConversionWithTimeVaryingEffects:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -285,7 +285,7 @@ class TestConversionWithTimeVaryingEffects:
         result = optimize(
             timesteps=ts(2),
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2'),
             ],
             ports=[
@@ -352,7 +352,7 @@ class TestStatusWithMultipleConstraints:
 
         result = optimize(
             timesteps=ts(6),
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port(
                     'Demand',
@@ -422,7 +422,7 @@ class TestEffectsWithConversion:
         result = optimize(
             timesteps=ts(4),
             effects=[
-                Effect('cost', is_objective=True),
+                Effect('cost'),
                 Effect('CO2', maximum=20),
             ],
             ports=[

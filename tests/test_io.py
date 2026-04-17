@@ -25,7 +25,7 @@ def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
     return optimize(
         timesteps=timesteps,
         carriers=[Carrier('elec')],
-        effects=[Effect('cost', is_objective=True)],
+        effects=[Effect('cost')],
         ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
     )
 
@@ -42,7 +42,7 @@ def _solve_with_storage(timesteps: list[datetime]) -> Result:
     return optimize(
         timesteps=timesteps,
         carriers=[Carrier('gas'), Carrier('heat')],
-        effects=[Effect('cost', is_objective=True)],
+        effects=[Effect('cost')],
         ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
@@ -84,8 +84,6 @@ class TestRoundtrip:
         assert list(loaded.data.flows.rel_lb.coords['flow'].values) == list(
             result.data.flows.rel_lb.coords['flow'].values
         )
-        # Effects attrs preserved
-        assert loaded.data.effects.objective_effect == result.data.effects.objective_effect
         # Storages dataset preserved
         assert loaded.data.storages is not None
         assert result.data.storages is not None
@@ -124,7 +122,7 @@ class TestCarrierMetadataRoundtrip:
         result = optimize(
             timesteps=ts,
             carriers=[Carrier('elec', unit='kWh', color='#ff0000', description='Electrical energy')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
         )
         assert result.data is not None
@@ -149,7 +147,7 @@ class TestRoundtripContributionFrom:
             timesteps=ts,
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],

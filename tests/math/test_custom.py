@@ -16,7 +16,7 @@ class TestCustomize:
         return {
             'timesteps': ts(3),
             'carriers': [Carrier('elec')],
-            'effects': [Effect('cost', is_objective=True)],
+            'effects': [Effect('cost')],
             'ports': [
                 Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),

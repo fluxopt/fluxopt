@@ -14,7 +14,7 @@ class TestFlowsTable:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('b')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('src', imports=[flow])],
         )
         ds = data.flows
@@ -30,7 +30,7 @@ class TestFlowsTable:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('b')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('sink', exports=[flow])],
         )
         fixed = data.flows.fixed_profile.sel(flow='sink(b)').values
@@ -42,7 +42,7 @@ class TestFlowsTable:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('b')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('src', imports=[flow])],
         )
         assert str(data.flows.bound_type.sel(flow='src(b)').values) == 'unsized'
@@ -55,7 +55,7 @@ class TestCarriersData:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('b')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('src', imports=[out_flow]), Port('sink', exports=[in_flow])],
         )
         coeffs = data.carriers.flow_coeff
@@ -68,7 +68,7 @@ class TestCarriersData:
         data = ModelData.build(
             ts(2),
             carriers=[Carrier('elec', unit='kWh', color='blue', description='Electricity')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('src', imports=[Flow('elec', size=100)])],
         )
         assert str(data.carriers.unit.sel(carrier='elec').values) == 'kWh'
@@ -81,7 +81,7 @@ class TestCarriersData:
         data = ModelData.build(
             ts(2),
             carriers=[Carrier('elec', unit='kWh', color='red', description='Power')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('src', imports=[Flow('elec', size=100)])],
         )
         ds = data.carriers.to_dataset()
@@ -99,7 +99,7 @@ class TestConvertersTable:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('src', imports=[Flow('gas', size=200)])],
             converters=[boiler],
         )
@@ -121,20 +121,11 @@ class TestEffectsTable:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('b')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('src', imports=[flow])],
         )
         coeff = data.flows.effect_coeff.sel(flow='src(b)', effect='cost')
         assert all(v == 0.04 for v in coeff.values)
-
-    def test_objective_effect(self):
-        data = ModelData.build(
-            ts(3),
-            carriers=[Carrier('b')],
-            effects=[Effect('cost', is_objective=True), Effect('co2')],
-            ports=[Port('src', imports=[Flow('b', size=100)])],
-        )
-        assert data.effects.objective_effect == 'cost'
 
 
 class TestFlowNodeId:
@@ -177,7 +168,7 @@ class TestCarrierValidation:
             optimize(
                 timesteps=ts(2),
                 carriers=[Carrier('gas')],
-                effects=[Effect('cost', is_objective=True)],
+                effects=[Effect('cost')],
                 ports=[Port('grid', imports=[Flow('elec', size=100)])],
             )
 
@@ -187,7 +178,7 @@ class TestCarrierValidation:
             ModelData.build(
                 ts(2),
                 carriers=[Carrier('gas')],
-                effects=[Effect('cost', is_objective=True)],
+                effects=[Effect('cost')],
                 ports=[Port('grid', imports=[Flow('elec', size=100)])],
             )
 
@@ -197,7 +188,7 @@ class TestCarrierValidation:
             ModelData.build(
                 ts(2),
                 carriers=[Carrier('elec'), Carrier('elec')],
-                effects=[Effect('cost', is_objective=True)],
+                effects=[Effect('cost')],
                 ports=[Port('grid', imports=[Flow('elec', size=100)])],
             )
 
@@ -207,7 +198,7 @@ class TestCarrierValidation:
             ModelData.build(
                 ts(2),
                 carriers=[Carrier('heat')],
-                effects=[Effect('cost', is_objective=True)],
+                effects=[Effect('cost')],
                 ports=[Port('src', imports=[Flow('heat', node='A', size=100)])],
             )
 
@@ -217,7 +208,7 @@ class TestCarrierValidation:
             ModelData.build(
                 ts(2),
                 carriers=[Carrier('heat', nodes=['A', 'B'])],
-                effects=[Effect('cost', is_objective=True)],
+                effects=[Effect('cost')],
                 ports=[Port('src', imports=[Flow('heat', node='C', size=100)])],
             )
 
@@ -228,7 +219,7 @@ class TestCarrierBalance:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('src', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('sink', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
@@ -249,7 +240,7 @@ class TestMultiNodeCarrier:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('heat', nodes=['A', 'B'])],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('src_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('src_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 0.04})]),
@@ -272,7 +263,7 @@ class TestMultiNodeCarrier:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('heat', nodes=['A', 'B'])],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[
                 Port('src_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('src_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 0.04})]),
