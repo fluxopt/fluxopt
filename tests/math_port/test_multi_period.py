@@ -170,7 +170,7 @@ class TestInvestment:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(0, 20, effects_per_size={'cost': 10}),
+                            size=Investment(0, 20, effects_per_size_at_build={'cost': 10}),
                             effects_per_flow_hour={'cost': 1},
                         ),
                     ],
@@ -205,7 +205,7 @@ class TestInvestment:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(0, 20, mandatory=False, effects_per_size={'cost': 100}),
+                            size=Investment(0, 20, mandatory=False, effects_per_size_at_build={'cost': 100}),
                         ),
                     ],
                 ),
@@ -239,7 +239,7 @@ class TestInvestment:
                         Flow(
                             'Heat',
                             short_id='cheap',
-                            size=Investment(0, 20, lifetime=1, effects_per_size={'cost': 0}),
+                            size=Investment(0, 20, lifetime=1, effects_per_size_at_build={'cost': 0}),
                             effects_per_flow_hour={'cost': 1},
                         ),
                     ],
@@ -285,7 +285,7 @@ class TestInvestment:
                                 20,
                                 mandatory=False,
                                 prior_size=10,
-                                effects_per_size={'cost': 1000},
+                                effects_per_size_at_build={'cost': 1000},
                             ),
                             effects_per_flow_hour={'cost': 1},
                         ),
@@ -300,7 +300,7 @@ class TestInvestment:
         assert_allclose(result.objective, 300.0, rtol=1e-4)
 
     def test_investment_capex_charged_once(self, optimize):
-        """Proves: effects_per_size goes to effect_once domain, not periodic.
+        """Proves: effects_per_size_at_build goes to effect_once domain, not periodic.
 
         CAPEX = 10/MW, size=10 MW → one-time cost = 100 (unweighted).
         No operational costs. 2 periods, weights=[5, 5].
@@ -323,7 +323,7 @@ class TestInvestment:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_per_size={'cost': 10}),
+                            size=Investment(10, 10, effects_per_size_at_build={'cost': 10}),
                         ),
                     ],
                 ),
@@ -337,7 +337,7 @@ class TestInvestment:
         assert_allclose(result.objective, 100.0, rtol=1e-4)
 
     def test_investment_periodic_costs_weighted(self, optimize):
-        """Proves: effects_per_size_periodic goes to effect_periodic, scaled by period weights.
+        """Proves: effects_per_size_recurring goes to effect_periodic, scaled by period weights.
 
         Recurring O&M = 2/MW/period, size=10 MW. 2 periods, weights=[5, 5].
         Periodic cost per period = 2*10 = 20. Weighted: 5*20 + 5*20 = 200.
@@ -362,7 +362,7 @@ class TestInvestment:
                             size=Investment(
                                 10,
                                 10,
-                                effects_per_size_periodic={'cost': 2},
+                                effects_per_size_recurring={'cost': 2},
                             ),
                         ),
                     ],
@@ -447,7 +447,7 @@ class TestPeriodVaryingEffects:
         assert_allclose(result.objective, 20.0, rtol=1e-4)
 
     def test_investment_periodic_costs_vary_by_period(self, optimize):
-        """Proves: Investment.effects_per_size_periodic can vary across periods.
+        """Proves: Investment.effects_per_size_recurring can vary across periods.
 
         Investment(10, 10), recurring O&M varies: 1 in 2020, 3 in 2025.
         Active in both periods. Periodic cost = O&M * size.
@@ -472,7 +472,7 @@ class TestPeriodVaryingEffects:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_per_size_periodic={'cost': om_by_period}),
+                            size=Investment(10, 10, effects_per_size_recurring={'cost': om_by_period}),
                         ),
                     ],
                 ),
@@ -483,7 +483,7 @@ class TestPeriodVaryingEffects:
         assert_allclose(result.objective, 40.0, rtol=1e-4)
 
     def test_investment_fixed_periodic_costs_vary_by_period(self, optimize):
-        """Proves: Investment.effects_fixed_periodic can vary across periods.
+        """Proves: Investment.effects_fixed_recurring can vary across periods.
 
         Investment(10, 10), fixed periodic cost varies: 5 in 2020, 15 in 2025.
         Active in both periods. Weights=[1, 1]. Objective = 5 + 15 = 20.
@@ -507,7 +507,7 @@ class TestPeriodVaryingEffects:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_fixed_periodic={'cost': cost_by_period}),
+                            size=Investment(10, 10, effects_fixed_recurring={'cost': cost_by_period}),
                         ),
                     ],
                 ),
@@ -518,7 +518,7 @@ class TestPeriodVaryingEffects:
         assert_allclose(result.objective, 20.0, rtol=1e-4)
 
     def test_investment_capex_per_size_varies_by_period(self, optimize):
-        """Proves: Investment.effects_per_size (once) can vary across periods.
+        """Proves: Investment.effects_per_size_at_build (once) can vary across periods.
 
         Investment(10, 10), CAPEX varies: 10 in 2020, 20 in 2025.
         Mandatory build → builds in cheapest period (2020). Once cost = 10*10 = 100.
@@ -543,7 +543,7 @@ class TestPeriodVaryingEffects:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_per_size={'cost': capex_by_period}),
+                            size=Investment(10, 10, effects_per_size_at_build={'cost': capex_by_period}),
                         ),
                     ],
                 ),
@@ -554,7 +554,7 @@ class TestPeriodVaryingEffects:
         assert_allclose(result.objective, 100.0, rtol=1e-4)
 
     def test_investment_capex_fixed_varies_by_period(self, optimize):
-        """Proves: Investment.effects_fixed (once) can vary across periods.
+        """Proves: Investment.effects_fixed_at_build (once) can vary across periods.
 
         Investment(10, 10), fixed CAPEX varies: 50 in 2020, 100 in 2025.
         Mandatory build → builds in cheapest period (2020). Once cost = 50.
@@ -579,7 +579,7 @@ class TestPeriodVaryingEffects:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_fixed={'cost': capex_by_period}),
+                            size=Investment(10, 10, effects_fixed_at_build={'cost': capex_by_period}),
                         ),
                     ],
                 ),

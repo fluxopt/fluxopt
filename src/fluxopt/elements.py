@@ -73,10 +73,10 @@ class Investment:
         mandatory: If True, must build exactly once; if False, may build at most once.
         lifetime: Periods active after build; None = forever.
         prior_size: Pre-existing capacity available from period 0.
-        effects_per_size: One-time per-MW costs charged in the build period.
-        effects_fixed: One-time fixed costs charged in the build period.
-        effects_per_size_periodic: Recurring per-MW costs charged every active period.
-        effects_fixed_periodic: Recurring fixed costs charged every active period.
+        effects_per_size_at_build: One-time per-MW costs charged in the build period.
+        effects_fixed_at_build: One-time fixed costs charged in the build period.
+        effects_per_size_recurring: Recurring per-MW costs charged every active period.
+        effects_fixed_recurring: Recurring fixed costs charged every active period.
     """
 
     min_size: float
@@ -84,10 +84,10 @@ class Investment:
     mandatory: bool = True
     lifetime: int | None = None
     prior_size: float = 0.0
-    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_per_size_periodic: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed_periodic: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size_at_build: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed_at_build: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size_recurring: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed_recurring: dict[str, TimeSeries] = field(default_factory=dict)
 
 
 @dataclass

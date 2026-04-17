@@ -853,16 +853,16 @@ class FlowSystem:
                     periodic_direct = periodic_direct + ef_mand.sum('sizing_storage')
 
         # Investment: recurring per-size costs → effect_periodic
-        if self.invest_active is not None and d.flows.invest_effects_per_size_periodic is not None:
-            eps_p = d.flows.invest_effects_per_size_periodic.rename({'invest_flow': 'flow'})
+        if self.invest_active is not None and d.flows.invest_effects_per_size_recurring is not None:
+            eps_p = d.flows.invest_effects_per_size_recurring.rename({'invest_flow': 'flow'})
             if (eps_p != 0).any():
                 assert self.flow_size is not None
-                invest_ids = list(d.flows.invest_effects_per_size_periodic.coords['invest_flow'].values)
+                invest_ids = list(d.flows.invest_effects_per_size_recurring.coords['invest_flow'].values)
                 periodic_direct = periodic_direct + (eps_p * self.flow_size.sel(flow=invest_ids)).sum('flow')
 
         # Investment: recurring fixed costs → effect_periodic
-        if self.invest_active is not None and d.flows.invest_effects_fixed_periodic is not None:
-            ef_p = d.flows.invest_effects_fixed_periodic.rename({'invest_flow': 'flow'})
+        if self.invest_active is not None and d.flows.invest_effects_fixed_recurring is not None:
+            ef_p = d.flows.invest_effects_fixed_recurring.rename({'invest_flow': 'flow'})
             if (ef_p != 0).any():
                 periodic_direct = periodic_direct + (ef_p * self.invest_active).sum('flow')
 
@@ -881,14 +881,14 @@ class FlowSystem:
         once_direct: Any = 0
 
         # Investment: one-time per-size costs (charged in build period)
-        if self.invest_size_at_build is not None and d.flows.invest_effects_per_size is not None:
-            eps_once = d.flows.invest_effects_per_size.rename({'invest_flow': 'flow'})
+        if self.invest_size_at_build is not None and d.flows.invest_effects_per_size_at_build is not None:
+            eps_once = d.flows.invest_effects_per_size_at_build.rename({'invest_flow': 'flow'})
             if (eps_once != 0).any():
                 once_direct = once_direct + (eps_once * self.invest_size_at_build).sum('flow')
 
         # Investment: one-time fixed costs (charged in build period)
-        if self.invest_build is not None and d.flows.invest_effects_fixed is not None:
-            ef_once = d.flows.invest_effects_fixed.rename({'invest_flow': 'flow'})
+        if self.invest_build is not None and d.flows.invest_effects_fixed_at_build is not None:
+            ef_once = d.flows.invest_effects_fixed_at_build.rename({'invest_flow': 'flow'})
             if (ef_once != 0).any():
                 once_direct = once_direct + (ef_once * self.invest_build).sum('flow')
 

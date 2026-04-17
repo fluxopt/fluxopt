@@ -175,10 +175,10 @@ class _InvestmentArrays:
     mandatory: xr.DataArray | None = None  # (invest_dim,)
     lifetime: xr.DataArray | None = None  # (invest_dim,) — NaN = forever
     prior_size: xr.DataArray | None = None  # (invest_dim,)
-    effects_per_size: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
-    effects_fixed: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
-    effects_per_size_periodic: xr.DataArray | None = None  # (invest_dim, effect, period?)
-    effects_fixed_periodic: xr.DataArray | None = None  # (invest_dim, effect, period?)
+    effects_per_size_at_build: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
+    effects_fixed_at_build: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
+    effects_per_size_recurring: xr.DataArray | None = None  # (invest_dim, effect, period?)
+    effects_fixed_recurring: xr.DataArray | None = None  # (invest_dim, effect, period?)
 
     @classmethod
     def build(
@@ -231,10 +231,10 @@ class _InvestmentArrays:
             prior_sizes.append(inv.prior_size)
 
             for label, src_dict, dest_key in [
-                ('Investment.effects_per_size', inv.effects_per_size, 'eps'),
-                ('Investment.effects_fixed', inv.effects_fixed, 'ef'),
-                ('Investment.effects_per_size_periodic', inv.effects_per_size_periodic, 'eps_p'),
-                ('Investment.effects_fixed_periodic', inv.effects_fixed_periodic, 'ef_p'),
+                ('Investment.effects_per_size_at_build', inv.effects_per_size_at_build, 'eps'),
+                ('Investment.effects_fixed_at_build', inv.effects_fixed_at_build, 'ef'),
+                ('Investment.effects_per_size_recurring', inv.effects_per_size_recurring, 'eps_p'),
+                ('Investment.effects_fixed_recurring', inv.effects_fixed_recurring, 'ef_p'),
             ]:
                 arr = tmpl.zeros()
                 for ek, ev in src_dict.items():
@@ -251,10 +251,10 @@ class _InvestmentArrays:
             mandatory=xr.DataArray(np.array(mandatories), dims=[dim], coords=coords),
             lifetime=xr.DataArray(np.array(lifetimes), dims=[dim], coords=coords),
             prior_size=xr.DataArray(np.array(prior_sizes), dims=[dim], coords=coords),
-            effects_per_size=fast_concat(all_slices['eps'], invest_idx),
-            effects_fixed=fast_concat(all_slices['ef'], invest_idx),
-            effects_per_size_periodic=fast_concat(all_slices['eps_p'], invest_idx),
-            effects_fixed_periodic=fast_concat(all_slices['ef_p'], invest_idx),
+            effects_per_size_at_build=fast_concat(all_slices['eps'], invest_idx),
+            effects_fixed_at_build=fast_concat(all_slices['ef'], invest_idx),
+            effects_per_size_recurring=fast_concat(all_slices['eps_p'], invest_idx),
+            effects_fixed_recurring=fast_concat(all_slices['ef_p'], invest_idx),
         )
 
 
@@ -420,10 +420,10 @@ class FlowsData:
     invest_mandatory: xr.DataArray | None = None  # (invest_flow,)
     invest_lifetime: xr.DataArray | None = None  # (invest_flow,) — NaN = forever
     invest_prior_size: xr.DataArray | None = None  # (invest_flow,)
-    invest_effects_per_size: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
-    invest_effects_fixed: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
-    invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
-    invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
+    invest_effects_per_size_at_build: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
+    invest_effects_fixed_at_build: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
+    invest_effects_per_size_recurring: xr.DataArray | None = None  # (invest_flow, effect, period?)
+    invest_effects_fixed_recurring: xr.DataArray | None = None  # (invest_flow, effect, period?)
 
     def __post_init__(self) -> None:
         """Validate relative bounds: non-negative and lb <= ub."""
@@ -573,10 +573,10 @@ class FlowsData:
             invest_mandatory=inv.mandatory,
             invest_lifetime=inv.lifetime,
             invest_prior_size=inv.prior_size,
-            invest_effects_per_size=inv.effects_per_size,
-            invest_effects_fixed=inv.effects_fixed,
-            invest_effects_per_size_periodic=inv.effects_per_size_periodic,
-            invest_effects_fixed_periodic=inv.effects_fixed_periodic,
+            invest_effects_per_size_at_build=inv.effects_per_size_at_build,
+            invest_effects_fixed_at_build=inv.effects_fixed_at_build,
+            invest_effects_per_size_recurring=inv.effects_per_size_recurring,
+            invest_effects_fixed_recurring=inv.effects_fixed_recurring,
         )
 
 
@@ -1030,10 +1030,10 @@ class StoragesData:
     invest_mandatory: xr.DataArray | None = None  # (invest_storage,)
     invest_lifetime: xr.DataArray | None = None  # (invest_storage,) — NaN = forever
     invest_prior_size: xr.DataArray | None = None  # (invest_storage,)
-    invest_effects_per_size: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
-    invest_effects_fixed: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
-    invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_storage, effect, period?)
-    invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_storage, effect, period?)
+    invest_effects_per_size_at_build: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
+    invest_effects_fixed_at_build: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
+    invest_effects_per_size_recurring: xr.DataArray | None = None  # (invest_storage, effect, period?)
+    invest_effects_fixed_recurring: xr.DataArray | None = None  # (invest_storage, effect, period?)
 
     def __post_init__(self) -> None:
         """Validate capacity, efficiencies, and loss rates."""
@@ -1153,10 +1153,10 @@ class StoragesData:
             invest_mandatory=inv.mandatory,
             invest_lifetime=inv.lifetime,
             invest_prior_size=inv.prior_size,
-            invest_effects_per_size=inv.effects_per_size,
-            invest_effects_fixed=inv.effects_fixed,
-            invest_effects_per_size_periodic=inv.effects_per_size_periodic,
-            invest_effects_fixed_periodic=inv.effects_fixed_periodic,
+            invest_effects_per_size_at_build=inv.effects_per_size_at_build,
+            invest_effects_fixed_at_build=inv.effects_fixed_at_build,
+            invest_effects_per_size_recurring=inv.effects_per_size_recurring,
+            invest_effects_fixed_recurring=inv.effects_fixed_recurring,
         )
 
 
