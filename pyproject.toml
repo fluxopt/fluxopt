@@ -31,7 +31,7 @@ dependencies = [
     "netcdf4>=1.6.0",
     "numpy>=1.26",
     "pandas>=2.1",
-    "xarray>=2024.1.0,<2026.4.0",  # 2026.4.0 breaks linopy (Dataset-as-data_vars)
+    "xarray>=2024.1.0,<2026.5.0",  # 2026.4.0 breaks linopy (Dataset-as-data_vars)
 ]
 
 [project.urls]
