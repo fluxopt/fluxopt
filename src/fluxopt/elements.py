@@ -161,8 +161,7 @@ class Effect:
     maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
     minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
     contribution_from: dict[str, TimeSeries] = field(default_factory=dict)
-    period_weights_periodic: list[float] | None = None  # ω_periodic[p] — scales temporal+periodic
-    period_weights_once: list[float] | None = None  # ω_once[p] — scales once
+    period_weights: list[float] | None = None  # ω[p] — scales total across periods
 
 
 @dataclass

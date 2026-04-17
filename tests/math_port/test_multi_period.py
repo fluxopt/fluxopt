@@ -102,18 +102,18 @@ class TestMultiPeriod:
     def test_invest_linked_periods(self, optimize):
         """Proves: InvestParameters.linked_periods forces equal sizes across periods."""
 
-    def test_effect_period_weights_periodic(self, optimize):
-        """Proves: Effect.period_weights_periodic overrides global period weights.
+    def test_effect_period_weights(self, optimize):
+        """Proves: Effect.period_weights overrides global period weights.
 
         3 timesteps, periods=[2020, 2025], global weights=[5, 5].
-        Per-period cost = 30. With custom periodic weights [1, 2]:
+        Per-period cost = 30. With custom period_weights [1, 2]:
         Objective = 1*30 + 2*30 = 90  (instead of 5*30 + 5*30 = 300).
         """
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True, period_weights_periodic=[1, 2]),
+                Effect('cost', is_objective=True, period_weights=[1, 2]),
             ],
             ports=[
                 Port(

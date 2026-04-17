@@ -807,8 +807,7 @@ class EffectsData:
     is_objective: xr.DataArray  # (effect,)
     objective_effect: str
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
-    period_weights_periodic: xr.DataArray | None = None  # (effect, period)
-    period_weights_once: xr.DataArray | None = None  # (effect, period)
+    period_weights: xr.DataArray | None = None  # (effect, period)
 
     def __post_init__(self) -> None:
         """Validate exactly one objective effect exists."""
@@ -819,35 +818,6 @@ class EffectsData:
             raise ValueError(
                 f'Multiple objective effects: {list(self.is_objective.coords["effect"][self.is_objective].values)}. Only one is allowed.'
             )
-
-    def objective_weights(
-        self,
-        global_period_weights: xr.DataArray | None,
-    ) -> tuple[xr.DataArray | int, xr.DataArray | int]:
-        """Resolve period weights for the objective effect's two domains.
-
-        Args:
-            global_period_weights: Default period weights from Dims (or None).
-
-        Returns:
-            (w_periodic, w_once) — weights for recurring and one-time domains.
-            Falls back to global_period_weights / 1 when no per-effect override.
-        """
-        k = self.objective_effect
-
-        if self.period_weights_periodic is not None and not self.period_weights_periodic.sel(effect=k).isnull().all():
-            w_periodic: xr.DataArray | int = self.period_weights_periodic.sel(effect=k)
-        elif global_period_weights is not None:
-            w_periodic = global_period_weights
-        else:
-            w_periodic = 1
-
-        if self.period_weights_once is not None and not self.period_weights_once.sel(effect=k).isnull().all():
-            w_once: xr.DataArray | int = self.period_weights_once.sel(effect=k)
-        else:
-            w_once = 1
-
-        return w_periodic, w_once
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -956,40 +926,23 @@ class EffectsData:
         effect_idx = pd.Index(effect_ids, name='effect')
 
         # Per-effect period weights
-        pw_periodic: xr.DataArray | None = None
-        pw_once: xr.DataArray | None = None
+        pw: xr.DataArray | None = None
         if period is not None:
-            has_pw_periodic = any(e.period_weights_periodic is not None for e in effects)
-            has_pw_once = any(e.period_weights_once is not None for e in effects)
+            has_pw = any(e.period_weights is not None for e in effects)
             n_periods = len(period)
-            if has_pw_periodic:
+            if has_pw:
                 mat = np.full((n, n_periods), np.nan)
                 for i, e in enumerate(effects):
-                    if e.period_weights_periodic is not None:
-                        if len(e.period_weights_periodic) != n_periods:
-                            msg = f'Effect {e.id!r}: period_weights_periodic has {len(e.period_weights_periodic)} entries, expected {n_periods}'
+                    if e.period_weights is not None:
+                        if len(e.period_weights) != n_periods:
+                            msg = f'Effect {e.id!r}: period_weights has {len(e.period_weights)} entries, expected {n_periods}'
                             raise ValueError(msg)
-                        vals = np.asarray(e.period_weights_periodic, dtype=float)
+                        vals = np.asarray(e.period_weights, dtype=float)
                         if not np.all(np.isfinite(vals)) or not np.all(vals > 0):
-                            msg = f'Effect {e.id!r}: period_weights_periodic must be positive and finite, got {vals}'
+                            msg = f'Effect {e.id!r}: period_weights must be positive and finite, got {vals}'
                             raise ValueError(msg)
                         mat[i] = vals
-                pw_periodic = xr.DataArray(
-                    mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period}
-                )
-            if has_pw_once:
-                mat = np.full((n, n_periods), np.nan)
-                for i, e in enumerate(effects):
-                    if e.period_weights_once is not None:
-                        if len(e.period_weights_once) != n_periods:
-                            msg = f'Effect {e.id!r}: period_weights_once has {len(e.period_weights_once)} entries, expected {n_periods}'
-                            raise ValueError(msg)
-                        vals = np.asarray(e.period_weights_once, dtype=float)
-                        if not np.all(np.isfinite(vals)) or not np.all(vals > 0):
-                            msg = f'Effect {e.id!r}: period_weights_once must be positive and finite, got {vals}'
-                            raise ValueError(msg)
-                        mat[i] = vals
-                pw_once = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
+                pw = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
 
         return cls(
             min_bound=xr.DataArray(min_bound, dims=['effect'], coords={'effect': effect_ids}),
@@ -1001,8 +954,7 @@ class EffectsData:
             is_objective=xr.DataArray(is_objective, dims=['effect'], coords={'effect': effect_ids}),
             objective_effect=objective_effect,
             cf_temporal=cf_temporal,
-            period_weights_periodic=pw_periodic,
-            period_weights_once=pw_once,
+            period_weights=pw,
         )
 
 

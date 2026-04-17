@@ -1055,6 +1055,13 @@ class FlowSystem:
         ω defaults to global period_weights (or 1 in single-period).
         """
         k = self.data.effects.objective_effect
-        w_periodic, _w_once = self.data.effects.objective_weights(self.data.dims.period_weights)
+        ds = self.data.effects
 
-        self.m.add_objective((w_periodic * self.effect_total.sel(effect=k)).sum())
+        # Resolve per-effect weight, falling back to global period_weights, then 1
+        w: xr.DataArray | int = 1
+        if ds.period_weights is not None and not ds.period_weights.sel(effect=k).isnull().all():
+            w = ds.period_weights.sel(effect=k)
+        elif self.data.dims.period_weights is not None:
+            w = self.data.dims.period_weights
+
+        self.m.add_objective((w * self.effect_total.sel(effect=k)).sum())
