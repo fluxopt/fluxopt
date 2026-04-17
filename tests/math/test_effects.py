@@ -53,7 +53,7 @@ class TestEffects:
         co2_total = float(result.effect_totals.sel(effect='co2').values)
         assert co2_total == pytest.approx(expected_co2, abs=1e-6)
 
-    def test_effect_maximum_total(self):
+    def test_effect_maximum(self):
         """Effect max_total constraint limits total emissions."""
 
         sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
@@ -65,7 +65,7 @@ class TestEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True), Effect('co2', maximum_total=co2_limit)],
+            effects=[Effect('cost', is_objective=True), Effect('co2', maximum=co2_limit)],
             ports=[
                 Port('cheap_src', imports=[cheap_dirty]),
                 Port('clean_src', imports=[expensive_clean]),

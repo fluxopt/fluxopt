@@ -730,7 +730,7 @@ class FlowSystem:
         d = self.data
         ds = d.effects
 
-        effect_ids = ds.min_total.coords['effect']
+        effect_ids = ds.min_bound.coords['effect']
 
         if len(effect_ids) == 0:
             return
@@ -900,17 +900,28 @@ class FlowSystem:
         rhs = temporal_sum + self.effect_periodic + self.effect_once
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
-        # Bounds on effect_total (per-period when multi-period)
-        min_total = ds.min_total  # (effect,) — NaN = unbounded
-        max_total = ds.max_total
+        # Per-period bounds on effect_total
+        min_pp = ds.min_per_period  # (effect,) — NaN = unbounded
+        max_pp = ds.max_per_period
+        has_min_pp = min_pp.notnull()
+        if has_min_pp.any():
+            self.m.add_constraints(self.effect_total >= min_pp, name='effect_min_per_period', mask=has_min_pp)
+        has_max_pp = max_pp.notnull()
+        if has_max_pp.any():
+            self.m.add_constraints(self.effect_total <= max_pp, name='effect_max_per_period', mask=has_max_pp)
 
-        has_min = min_total.notnull()
+        # Weighted total bounds (across all periods)
+        # In single-period: effect_total has no period dim, bound applies directly
+        # In multi-period: sum across periods first
+        min_bound = ds.min_bound  # (effect,) — NaN = unbounded
+        max_bound = ds.max_bound
+        total_sum = self.effect_total.sum('period') if 'period' in self.effect_total.dims else self.effect_total
+        has_min = min_bound.notnull()
         if has_min.any():
-            self.m.add_constraints(self.effect_total >= min_total, name='effect_min_total', mask=has_min)
-
-        has_max = max_total.notnull()
+            self.m.add_constraints(total_sum >= min_bound, name='effect_min_bound', mask=has_min)
+        has_max = max_bound.notnull()
         if has_max.any():
-            self.m.add_constraints(self.effect_total <= max_total, name='effect_max_total', mask=has_max)
+            self.m.add_constraints(total_sum <= max_bound, name='effect_max_bound', mask=has_max)
 
     def _create_storage(self) -> None:
         """Create storage variables, level balance, and prior/cyclic conditions."""

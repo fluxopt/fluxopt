@@ -141,7 +141,7 @@ class TestCrossEffects:
             carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', is_objective=True, contribution_from={'co2': 50}),
-                Effect('co2', maximum_total=co2_limit),
+                Effect('co2', maximum=co2_limit),
             ],
             ports=[
                 Port('dirty_src', imports=[dirty]),

@@ -154,10 +154,12 @@ class Effect:
     id: str
     unit: str = ''
     is_objective: bool = False
-    maximum_total: float | None = None  # Φ̄_k  [unit]
-    minimum_total: float | None = None  # Φ̲_k  [unit]
-    maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit]
-    minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit]
+    maximum: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
+    minimum: float | None = None  # Φ̲_k  [unit] — weighted total across all periods
+    maximum_per_period: float | None = None  # Φ̄_{k,p}  [unit] — each period independently
+    minimum_per_period: float | None = None  # Φ̲_{k,p}  [unit] — each period independently
+    maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
+    minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
     contribution_from: dict[str, TimeSeries] = field(default_factory=dict)
     contribution_from_per_hour: dict[str, TimeSeries] = field(default_factory=dict)
     period_weights_periodic: list[float] | None = None  # ω_periodic[p] — scales temporal+periodic

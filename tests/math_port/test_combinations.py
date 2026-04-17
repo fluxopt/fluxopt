@@ -70,7 +70,7 @@ class TestStatusWithEffects:
         """Proves: effects_per_startup can contribute to a non-cost effect (CO2),
         and that this correctly interacts with effect constraints.
 
-        CO2 capped at maximum_total=60. Boiler startup emits 50kg CO2.
+        CO2 capped at maximum=60. Boiler startup emits 50kg CO2.
         Demand=[0,20,0,20] → 2 startups = 100kg CO2. Exceeds cap!
         Optimizer must reduce startups by keeping boiler running continuously.
 
@@ -81,7 +81,7 @@ class TestStatusWithEffects:
             timesteps=ts(4),
             effects=[
                 Effect('cost', is_objective=True),
-                Effect('CO2', maximum_total=60),
+                Effect('CO2', maximum=60),
             ],
             ports=[
                 Port(
@@ -409,10 +409,10 @@ class TestEffectsWithConversion:
         """Proves: share_from_periodic works correctly with investment costs."""
 
     def test_effect_maximum_with_status_contribution(self, optimize):
-        """Proves: Effect maximum_total correctly accounts for contributions from
+        """Proves: Effect maximum correctly accounts for contributions from
         StatusParameters (effects_per_startup) when constraining.
 
-        CO2 has maximum_total=20. Boiler startup emits 15 kg CO2.
+        CO2 has maximum=20. Boiler startup emits 15 kg CO2.
         Fuel emits 0.1 kg CO2/kWh. Demand=[0,10,0,10].
         2 startups = 30 kg CO2 (exceeds cap). Forced to 1 startup.
 
@@ -423,7 +423,7 @@ class TestEffectsWithConversion:
             timesteps=ts(4),
             effects=[
                 Effect('cost', is_objective=True),
-                Effect('CO2', maximum_total=20),
+                Effect('CO2', maximum=20),
             ],
             ports=[
                 Port(

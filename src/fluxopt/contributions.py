@@ -127,7 +127,7 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         - ``total`` (contributor, effect) — temporal summed over time + periodic
     """
     flow_ids: list[str] = list(data.flows.effect_coeff.coords['flow'].values)
-    effect_ids: list[str] = list(data.effects.min_total.coords['effect'].values)
+    effect_ids: list[str] = list(data.effects.min_bound.coords['effect'].values)
     stor_ids: list[str] = list(data.storages.capacity.coords['storage'].values) if data.storages is not None else []
     all_ids = flow_ids + stor_ids
 

@@ -82,8 +82,8 @@ class TestEffects:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 200.0, rtol=1e-5)
 
-    def test_effect_maximum_total(self, optimize):
-        """Proves: maximum_total on an effect constrains the optimizer to respect an
+    def test_effect_maximum(self, optimize):
+        """Proves: maximum on an effect constrains the optimizer to respect an
         upper bound on cumulative effect, forcing suboptimal dispatch.
 
         CO2 capped at 15kg. Dirty source: 1€+1kgCO2/kWh. Clean source: 10€+0kgCO2/kWh.
@@ -97,7 +97,7 @@ class TestEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
-                Effect('CO2', maximum_total=15),
+                Effect('CO2', maximum=15),
             ],
             ports=[
                 Port(
@@ -125,22 +125,22 @@ class TestEffects:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 65.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 15.0, rtol=1e-5)
 
-    def test_effect_minimum_total(self, optimize):
-        """Proves: minimum_total on an effect forces cumulative effect to reach at least
+    def test_effect_minimum(self, optimize):
+        """Proves: minimum on an effect forces cumulative effect to reach at least
         the specified value, even if it means using a dirtier source.
 
         CO2 floor at 25kg. Dirty source: 1€+1kgCO2/kWh. Clean source: 1€+0kgCO2/kWh.
         Demand=20. Must produce ≥25 CO2 → Dirty ≥ 25 kWh, excess absorbed by dump.
 
-        Sensitivity: Without minimum_total, optimizer could use all Clean → CO2=0.
-        With minimum_total=25, forced to use ≥25 from Dirty → CO2≥25.
+        Sensitivity: Without minimum, optimizer could use all Clean → CO2=0.
+        With minimum=25, forced to use ≥25 from Dirty → CO2≥25.
         """
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost', is_objective=True),
-                Effect('CO2', minimum_total=25),
+                Effect('CO2', minimum=25),
             ],
             ports=[
                 Port(

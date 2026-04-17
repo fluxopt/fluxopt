@@ -798,8 +798,10 @@ def _detect_contribution_cycle(adjacency: dict[str, list[str]]) -> list[str] | N
 
 @dataclass
 class EffectsData:
-    min_total: xr.DataArray  # (effect,)
-    max_total: xr.DataArray  # (effect,)
+    min_bound: xr.DataArray  # (effect,) — weighted total bound
+    max_bound: xr.DataArray  # (effect,) — weighted total bound
+    min_per_period: xr.DataArray  # (effect,) — per-period bound
+    max_per_period: xr.DataArray  # (effect,) — per-period bound
     min_per_hour: xr.DataArray  # (effect, time)
     max_per_hour: xr.DataArray  # (effect, time)
     is_objective: xr.DataArray  # (effect,)
@@ -893,8 +895,10 @@ class EffectsData:
         if objective_effect is None:
             raise ValueError('No objective effect found. Include an Effect with is_objective=True.')
 
-        min_total = np.full(n, np.nan)
-        max_total = np.full(n, np.nan)
+        min_bound = np.full(n, np.nan)
+        max_bound = np.full(n, np.nan)
+        min_per_period = np.full(n, np.nan)
+        max_per_period = np.full(n, np.nan)
         min_per_hours: list[xr.DataArray] = []
         max_per_hours: list[xr.DataArray] = []
         is_objective = np.zeros(n, dtype=bool)
@@ -903,10 +907,14 @@ class EffectsData:
 
         has_contributions = False
         for i, e in enumerate(effects):
-            if e.minimum_total is not None:
-                min_total[i] = e.minimum_total
-            if e.maximum_total is not None:
-                max_total[i] = e.maximum_total
+            if e.minimum is not None:
+                min_bound[i] = e.minimum
+            if e.maximum is not None:
+                max_bound[i] = e.maximum
+            if e.minimum_per_period is not None:
+                min_per_period[i] = e.minimum_per_period
+            if e.maximum_per_period is not None:
+                max_per_period[i] = e.maximum_per_period
             min_per_hours.append(
                 as_dataarray(e.minimum_per_hour, {'time': time}) if e.minimum_per_hour is not None else nan_time
             )
@@ -995,8 +1003,10 @@ class EffectsData:
                 pw_once = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
 
         return cls(
-            min_total=xr.DataArray(min_total, dims=['effect'], coords={'effect': effect_ids}),
-            max_total=xr.DataArray(max_total, dims=['effect'], coords={'effect': effect_ids}),
+            min_bound=xr.DataArray(min_bound, dims=['effect'], coords={'effect': effect_ids}),
+            max_bound=xr.DataArray(max_bound, dims=['effect'], coords={'effect': effect_ids}),
+            min_per_period=xr.DataArray(min_per_period, dims=['effect'], coords={'effect': effect_ids}),
+            max_per_period=xr.DataArray(max_per_period, dims=['effect'], coords={'effect': effect_ids}),
             min_per_hour=fast_concat(min_per_hours, effect_idx),
             max_per_hour=fast_concat(max_per_hours, effect_idx),
             is_objective=xr.DataArray(is_objective, dims=['effect'], coords={'effect': effect_ids}),

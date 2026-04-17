@@ -146,7 +146,7 @@ class TestEffects:
         co2 = float(result.effect_totals.sel(effect='CO2').values)
         assert_allclose(co2, 15.0, rtol=1e-5)
 
-    def test_effect_maximum_total(self):
+    def test_effect_maximum(self):
         """CO2 capped at 15. Dirty: 1EUR+1kgCO2/kWh. Clean: 10EUR+0kgCO2.
         Demand=20. Split: 15 Dirty + 5 Clean -> cost=65.
 
@@ -155,7 +155,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_total=15)],
+            effects=[Effect('costs', is_objective=True), Effect('CO2', maximum=15)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
@@ -166,16 +166,16 @@ class TestEffects:
         co2 = float(result.effect_totals.sel(effect='CO2').values)
         assert_allclose(co2, 15.0, rtol=1e-5)
 
-    def test_effect_minimum_total(self):
+    def test_effect_minimum(self):
         """CO2 floor at 25. Dirty: 1EUR+1kgCO2. Demand=20. Must overproduce.
         Dirty=25 (5 excess absorbed by waste port). cost=25.
 
-        Sensitivity: Without minimum_total, Dirty=20 -> cost=20.
+        Sensitivity: Without minimum, Dirty=20 -> cost=20.
         """
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_total=25)],
+            effects=[Effect('costs', is_objective=True), Effect('CO2', minimum=25)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
@@ -228,7 +228,7 @@ class TestEffects:
         assert_allclose(co2, 20.0, rtol=1e-5)
 
     def test_effect_maximum_temporal(self):
-        """CO2 maximum_total=12 (= maximum_temporal when no periodic effects).
+        """CO2 maximum=12 (= maximum_temporal when no periodic effects).
         Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2. Demand=[10,10].
         Dirty=12, Clean=8 -> cost=52.
 
@@ -237,7 +237,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('costs', is_objective=True), Effect('CO2', maximum_total=12)],
+            effects=[Effect('costs', is_objective=True), Effect('CO2', maximum=12)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
@@ -249,7 +249,7 @@ class TestEffects:
         assert_allclose(co2, 12.0, rtol=1e-5)
 
     def test_effect_minimum_temporal(self):
-        """CO2 minimum_total=25 (= minimum_temporal). Dirty: 1EUR+1kgCO2.
+        """CO2 minimum=25 (= minimum_temporal). Dirty: 1EUR+1kgCO2.
         Demand=[10,10]. Dirty >=25 -> 5 excess. cost=25.
 
         Sensitivity: Without floor, Dirty=20 -> cost=20.
@@ -257,7 +257,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('costs', is_objective=True), Effect('CO2', minimum_total=25)],
+            effects=[Effect('costs', is_objective=True), Effect('CO2', minimum=25)],
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'costs': 1, 'CO2': 1})]),
