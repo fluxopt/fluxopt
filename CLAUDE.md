@@ -71,17 +71,15 @@ Optional scope: `feat(storage): add cyclic constraint`.
 
 ## Labels
 
-Three namespaces:
-
 - **`type:*`** — Conventional Commits type. Auto-applied from issue/PR title by
-  `.github/workflows/label-from-title.yaml`.
-  `type:feat`, `type:fix`, `type:docs`, `type:perf`, `type:refac`, `type:chore`,
-  `type:test`, `type:ci`, `type:build`, `type:question` (manual).
-- **`area:*`** — codebase area. Applied manually during triage.
-  `area:components`, `area:constraints`, `area:effects`, `area:sizing`, `area:status`,
-  `area:storage`, `area:multi-dim`, `area:piecewise`, `area:advanced`, `area:infra`, `area:viz`.
-- **`meta:*`** — triage state (human judgment only).
-  `meta:duplicate`, `meta:invalid`, `meta:wontfix`, `meta:help-wanted`, `meta:good-first-issue`.
+  `.github/workflows/label-from-title.yaml`. Only `feat`, `fix`, `docs`, `perf`
+  get a label; other prefixes (`refac`, `test`, `ci`, `build`, `chore`) no-op.
+- **`area:*`** — subsystem. Applied manually during triage.
+  `area:api` (user-facing types, ergonomics), `area:model` (optimization math
+  and data model), `area:io` (serialization, loading, saving),
+  `area:viz` (plots, stats).
+- **Meta**: `good first issue`, `help wanted` (unprefixed — GitHub's
+  contributors page recognizes these exact strings).
 
 ## Math Documentation
 

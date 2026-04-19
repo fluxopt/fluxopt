@@ -23,7 +23,7 @@ jobs:
           KIND: ${{ github.event.issue.number && 'issue' || 'pr' }}
         run: |
           set -euo pipefail
-          prefix=$(printf '%s' "$TITLE" | sed -nE 's/^(feat|fix|refac|test|docs|chore|ci|build|perf)(\([^)]*\))?!?:.*/\1/p')
+          prefix=$(printf '%s' "$TITLE" | sed -nE 's/^(feat|fix|docs|perf)(\([^)]*\))?!?:.*/\1/p')
           if [ -z "$prefix" ]; then
             echo "No Conventional Commits prefix in title: $TITLE"
             exit 0
