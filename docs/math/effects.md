@@ -69,13 +69,40 @@ or a `TimeSeries`:
   (`cf_temporal.mean('time')` in `model.py`). A `UserWarning` is emitted when
   a time-varying factor is averaged for a non-trivial lump contribution.
 
+```python
+# Scalar: 50 €/kg CO2 in both domains
+effects = [
+    Effect('cost', contribution_from={'co2': 50}),
+    Effect('co2', unit='kg'),
+]
+
+# Time-varying factor
+effects = [
+    Effect('cost', contribution_from={'co2': [40, 50, 60]}),
+    Effect('co2', unit='kg'),
+]
+```
+
 If you need different cross-effect factors for the two domains, split into
 separate effects.
 
+### Transitive Chains
+
+Contributions chain transitively. A PE → CO₂ → cost chain is modeled as:
+
+```python
+effects = [
+    Effect('cost', contribution_from={'co2': 50}),
+    Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
+    Effect('pe', unit='kWh'),
+]
+```
+
 ### Validation
 
-Self-references (\(\alpha_{k,k}\)) and circular dependencies
-(\(k \to j \to \cdots \to k\)) are rejected at build time to prevent singular systems.
+- **No self-references**: an effect cannot reference itself (\(\alpha_{k,k}\)).
+- **No cycles**: \(k \to j \to \cdots \to k\) is rejected at build time to
+  prevent singular systems.
 
 ## Total Aggregation
 
@@ -110,7 +137,15 @@ Three levels of bound granularity, all per-effect:
 For physical quantities (e.g., total CO₂ across all years), `period_weights` should
 typically encode the period duration so the aggregate is a true physical sum.
 
-This is useful for emission caps or budget constraints.
+This is useful for emission caps or budget constraints:
+
+```python
+# CO2 budget: max 1000 kg total
+co2 = Effect('co2', unit='kg', maximum=1000)
+
+# Cost floor (e.g., minimum revenue)
+revenue = Effect('revenue', minimum=500)
+```
 
 ## Per-Hour Bounds
 
@@ -122,7 +157,15 @@ duration \(\Delta t_t\). This ensures the constraint is resolution-independent:
 \]
 
 For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
-400 kg of emissions in that timestep.
+400 kg of emissions in that timestep:
+
+```python
+# Max 50 kg CO2 per hour — allows 200 kg in a 4h timestep
+co2 = Effect('co2', unit='kg', maximum_per_hour=50)
+
+# Time-varying per-hour bound
+co2 = Effect('co2', unit='kg', maximum_per_hour=[50, 40, 60, 50])
+```
 
 ## Parameters
 

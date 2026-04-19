@@ -49,7 +49,17 @@ class Sizing:
 
     - ``mandatory=True``: continuous, size in [min, max], no binary.
     - ``mandatory=False``: binary indicator gates size: 0 or [min, max].
-    - ``min_size == max_size``: binary invest at exact size (yes/no).
+    - ``min_size == max_size`` with ``mandatory=False``: binary invest
+      at exact size (yes/no).
+
+    See: docs/math/sizing.md
+
+    Args:
+        min_size: Minimum capacity if invested.
+        max_size: Maximum capacity.
+        mandatory: If True, must be built (no binary indicator).
+        effects_per_size: Effect cost per unit size (e.g. €/MW).
+        effects_fixed: Fixed effect cost if built (optional only).
     """
 
     min_size: float
@@ -96,6 +106,16 @@ class Status:
 
     Together with relative bounds, gives semi-continuous behavior:
     ``{0} U [min, max] * size``.
+
+    See: docs/math/status.md
+
+    Args:
+        min_uptime: Minimum consecutive on-hours.
+        max_uptime: Maximum consecutive on-hours.
+        min_downtime: Minimum consecutive off-hours.
+        max_downtime: Maximum consecutive off-hours.
+        effects_per_running_hour: Effect cost per running hour.
+        effects_per_startup: Effect cost per startup event.
     """
 
     min_uptime: float | None = None  # [h]
@@ -122,6 +142,26 @@ class Flow:
     colliding short_ids to ``charge`` / ``discharge`` before qualification.
     ``id`` is the qualified form set by the parent component:
     ``component(short_id)``.
+
+    See: docs/math/flows.md
+
+    Args:
+        carrier: Carrier this flow connects to.
+        short_id: Component-local identifier; defaults to ``carrier``
+            (or ``carrier:node``). The qualified form ``component(short_id)``
+            is stored in ``id``.
+        node: Sub-node for multi-node carrier balancing.
+        size: Nominal capacity [MW], ``Sizing`` for investment optimization,
+            or None (unsized / unbounded).
+        relative_minimum: Lower bound as fraction of size.
+        relative_maximum: Upper bound as fraction of size.
+        fixed_relative_profile: Fixed profile as fraction of size; sets both
+            lower and upper bounds equal to the profile value.
+        effects_per_flow_hour: Effect coefficients per flow-hour
+            (e.g. €/MWh).
+        status: On/off behavior (semi-continuous, startup costs, durations).
+        prior_rates: Flow rates [MW] before the horizon, used for
+            status initial conditions.
     """
 
     carrier: str
@@ -151,6 +191,38 @@ class Flow:
 
 @dataclass
 class Effect:
+    """A tracked quantity across the optimization horizon (cost, CO₂, …).
+
+    One effect is designated as the objective to minimize via the
+    ``objective_effects`` argument of ``optimize()``. Others can be bounded
+    to enforce budgets (e.g. emission caps).
+
+    Effects accumulate contributions from two domains:
+
+    - **Temporal** — per-timestep flow costs, running costs, startup costs.
+    - **Lump** — one-time sizing costs and fixed costs.
+
+    Cross-effect chains (e.g. CO₂ → cost) are supported via
+    ``contribution_from``.
+
+    See: docs/math/effects.md
+
+    Args:
+        id: Unique identifier.
+        unit: Unit label (e.g. ``'€'``, ``'kg'``).
+        maximum: Upper bound on weighted total across all periods.
+        minimum: Lower bound on weighted total across all periods.
+        maximum_per_period: Upper bound applied to each period independently.
+        minimum_per_period: Lower bound applied to each period independently.
+        maximum_per_hour: Upper bound rate [unit/h], scaled by Δt.
+        minimum_per_hour: Lower bound rate [unit/h], scaled by Δt.
+        contribution_from: Cross-effect factors ``{source_effect: factor}``.
+            Scalar factors apply identically to both domains; time-varying
+            factors are averaged for the lump domain.
+        period_weights: Per-period weights ω for total aggregation;
+            overrides global ``period_weights``.
+    """
+
     id: str
     unit: str = ''
     maximum: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
@@ -176,6 +248,22 @@ class Storage:
     Level balance::
 
         E_{s,t+1} = E_{s,t} (1 - δ)^Δt + P^c η^c Δt - P^d / η^d Δt
+
+    See: docs/math/storage.md
+
+    Args:
+        id: Storage identifier.
+        charging: Charging flow.
+        discharging: Discharging flow.
+        capacity: Maximum stored energy [MWh], ``Sizing`` for investment
+            optimization, or None.
+        eta_charge: Charging efficiency.
+        eta_discharge: Discharging efficiency.
+        relative_loss_per_hour: Self-discharge rate [1/h].
+        prior_level: Initial energy level [MWh]; None = unconstrained.
+        cyclic: If True, end level must equal start level.
+        relative_minimum_level: Min SOC as fraction of capacity.
+        relative_maximum_level: Max SOC as fraction of capacity.
     """
 
     id: str

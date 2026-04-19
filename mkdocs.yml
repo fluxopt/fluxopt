@@ -5,19 +5,13 @@ repo_name: FBumann/fluxopt
 
 nav:
   - Home: index.md
-  - Guide:
-    - Getting Started: guide/getting-started.md
-    - Flows: guide/flows.md
-    - Converters: guide/converters.md
-    - Storage: guide/storage.md
-    - Effects: guide/effects.md
-    - Sizing: guide/sizing.md
-    - Status: guide/status.md
   - Notebooks:
     - Quickstart: notebooks/01-quickstart.ipynb
     - Heat System: notebooks/02-heat-system.ipynb
     - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
     - Multi-Period: notebooks/04-multi-period.ipynb
+    - Investment: notebooks/05-investment.ipynb
+    - Status: notebooks/06-status.ipynb
   - Math:
     - Notation: math/notation.md
     - Objective: math/objective.md
@@ -107,6 +101,8 @@ plugins:
   - mkdocs-jupyter:
       include_source: true
       execute: true
+      remove_tag_config:
+        remove_input_tags: ["hide-input"]
 
   - mkdocstrings:
       default_handler: python

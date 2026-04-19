@@ -23,7 +23,16 @@ When `mandatory=True`, the component must be built. The capacity is continuous:
 S^- \leq S_f \leq S^+ \quad \text{(mandatory)}
 \]
 
-where \(S^-\) = `min_size` and \(S^+\) = `max_size`.
+where \(S^-\) = `min_size` and \(S^+\) = `max_size`. No binary variable is needed,
+so the problem is faster to solve:
+
+```python
+# Always built, size in [50, 200] MW
+Flow('elec', size=Sizing(min_size=50, max_size=200))
+
+# min_size=0 lets the solver pick size=0 without a binary variable
+Flow('elec', size=Sizing(min_size=0, max_size=200))
+```
 
 ## Optional Sizing
 
@@ -34,11 +43,23 @@ S^- \cdot y_f \leq S_f \leq S^+ \cdot y_f
 \]
 
 When \(y_f = 0\): \(S_f = 0\) (not built). When \(y_f = 1\): \(S_f \in [S^-, S^+]\).
+Use this when you need `effects_fixed` (one-time costs gated by the indicator)
+or when `min_size > 0` must be enforced only if built:
+
+```python
+# Built at [50, 200] MW or not built at all
+Flow('elec', size=Sizing(min_size=50, max_size=200, mandatory=False))
+```
 
 ### Binary Invest
 
 When \(S^- = S^+\), the sizing reduces to a binary yes/no decision at exactly
-that capacity.
+that capacity:
+
+```python
+# Either build a 100 MW unit or nothing
+Flow('elec', size=Sizing(min_size=100, max_size=100, mandatory=False))
+```
 
 ## Flow Rate Bounds with Sizing
 
@@ -69,13 +90,22 @@ Investment costs contribute to effect totals. For each effect \(k\):
 
 ### Per-Size
 
+Cost proportional to the invested size (e.g. €/MW):
+
 \[
 \Phi_k^{\text{invest,per\_size}} = \sum_{f} \gamma_{f,k} \cdot S_f + \sum_{s} \gamma_{s,k} \cdot S_s
 \]
 
 where \(\gamma_{f,k}\) is `Sizing.effects_per_size[k]`.
 
+```python
+# 500 €/MW investment cost
+Flow('elec', size=Sizing(min_size=50, max_size=200, effects_per_size={'cost': 500}))
+```
+
 ### Fixed
+
+One-time cost charged when the component is built, gated by the binary indicator:
 
 \[
 \Phi_k^{\text{invest,fixed}} = \sum_{f} \phi_{f,k} \cdot y_f + \sum_{s} \phi_{s,k} \cdot y_s
@@ -83,6 +113,15 @@ where \(\gamma_{f,k}\) is `Sizing.effects_per_size[k]`.
 
 where \(\phi_{f,k}\) is `Sizing.effects_fixed[k]`. Only applies when
 `mandatory=False` (binary indicator exists).
+
+```python
+# 10,000 € fixed cost if built, plus 500 €/MW
+Flow('elec', size=Sizing(
+    min_size=50, max_size=200, mandatory=False,
+    effects_per_size={'cost': 500},
+    effects_fixed={'cost': 10_000},
+))
+```
 
 ### Total
 
@@ -94,6 +133,20 @@ The direct investment contribution to effect \(k\) is:
 
 This feeds into the [effect total](effects.md) equation and can be further
 weighted by [cross-effect contributions](effects.md#cross-effect-contributions).
+
+## Interaction with Other Features
+
+### With Bounds
+
+Relative bounds (`relative_minimum`, `relative_maximum`) are fractions of the
+**optimized** size variable, not a fixed number. If the solver picks 80 MW and
+`relative_minimum=0.3`, the minimum flow rate is 24 MW.
+
+### With Status
+
+When a flow has both `Sizing` and `Status`, a big-M formulation decouples the
+binary on/off from the continuous size. See [Status — Interaction with Sizing](status.md#interaction-with-sizing)
+for the constraints.
 
 ## Parameters
 
