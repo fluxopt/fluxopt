@@ -101,6 +101,26 @@ Converter.chp("chp", eta_el=0.4, eta_th=0.5,
 # ]
 ```
 
+### Custom Equations
+
+For devices not covered by factory methods, pass `conversion_factors` directly.
+Each dict in the list is one equation, mapping flow short ids to coefficients:
+
+```python
+in1 = Flow('a', size=100)
+in2 = Flow('b', size=100)
+out = Flow('c', size=100)
+
+conv = Converter(
+    id='custom',
+    inputs=[in1, in2],
+    outputs=[out],
+    conversion_factors=[{'a': 0.5, 'b': 0.3, 'c': -1}],
+)
+```
+
+This enforces: \(0.5 \cdot P_a + 0.3 \cdot P_b - P_c = 0\).
+
 ### Time-Varying Coefficients
 
 Conversion coefficients can be time-varying (e.g., a heat pump with hourly COP from

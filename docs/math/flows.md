@@ -31,6 +31,14 @@ bounded by relative minimum and maximum profiles:
 By default, \(\underline{p}_{f,t} = 0\) and \(\bar{p}_{f,t} = 1\), so the bounds
 simplify to \(0 \leq P_{f,t} \leq \bar{P}_f\).
 
+```python
+# Minimum load 30%, maximum 100% → [30, 100] MW
+f = Flow('heat', size=100, relative_minimum=0.3)
+
+# Time-varying maximum
+f = Flow('heat', size=100, relative_maximum=[1.0, 0.8, 0.6, 1.0])
+```
+
 ### Unsized Flows
 
 When no capacity is specified (\(\bar{P}_f = \infty\)), the flow is unbounded above:
@@ -60,6 +68,13 @@ decision variable. See [Sizing](sizing.md) for the full formulation.
 When `Flow.status` is set, binary on/off behavior is added. The flow becomes
 semi-continuous: \(\{0\} \cup [\underline{P}, \bar{P}]\). See [Status](status.md)
 for the full formulation.
+
+## Multi-Node Carriers
+
+Flows can target a specific node of a multi-node carrier via `Flow.node`.
+Each node gets an independent balance constraint. See
+[Carrier Balance — Multi-Node](carrier-balance.md#multi-node-carriers) for
+the formulation.
 
 ## Effect Contributions
 

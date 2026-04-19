@@ -19,6 +19,16 @@ where:
 - \(\delta_s \in [0, 1]\) — self-discharge rate per hour
 - \(\Delta t_t\) — timestep duration in hours
 
+```python
+battery = Storage(
+    'battery', charging=charge, discharging=discharge,
+    capacity=100.0,
+    eta_charge=0.95,        # 95% charging efficiency
+    eta_discharge=0.95,     # 95% discharging efficiency
+    relative_loss_per_hour=0.001,  # 0.1%/h self-discharge
+)
+```
+
 The charge state has \(|\mathcal{T}| + 1\) values (one before each timestep plus one
 after the last timestep).
 
@@ -29,6 +39,15 @@ The charge state is bounded by relative SOC limits scaled by the storage capacit
 \[
 \bar{E}_s \cdot \underline{e}_s \leq E_{s,t} \leq \bar{E}_s \cdot \bar{e}_s \quad \forall \, s, t
 \]
+
+```python
+battery = Storage(
+    'battery', charging=charge, discharging=discharge,
+    capacity=100.0,
+    relative_minimum_level=0.2,  # never below 20%
+    relative_maximum_level=0.9,  # never above 90%
+)
+```
 
 ## Initial & Cyclic Conditions
 
@@ -48,6 +67,14 @@ E_{s,t_{\text{end}}} = E_{s,t_0}
 \]
 
 This ensures the storage ends at the same level it started.
+
+```python
+# Fixed initial level (absolute MWh), no cyclic constraint
+battery = Storage(..., prior_level=50.0, cyclic=False)
+
+# Unconstrained initial level (optimizer chooses), cyclic (default)
+battery = Storage(..., prior_level=None, cyclic=True)
+```
 
 ## Parameters
 
