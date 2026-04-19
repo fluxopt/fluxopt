@@ -8,15 +8,6 @@ from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Investment, Port, Sizing, Status, Storage
 
-_VALIDATE = 'optimize->save->reload->validate'
-_XFAIL_REASON = 'effect_contributions Leontief inverse fails for period-varying contribution_from (#134)'
-
-
-def _xfail_if_validate(optimize: object) -> None:
-    """Mark expected failure for the validate pipeline."""
-    if getattr(optimize, 'pipeline', None) == _VALIDATE:
-        pytest.xfail(_XFAIL_REASON)
-
 
 class TestMultiPeriod:
     def test_period_weights_affect_objective(self, optimize):
@@ -685,7 +676,6 @@ class TestPeriodVaryingEffects:
         CO2 per period = 30. Cost from CO2: 2020→50*30=1500, 2025→100*30=3000.
         Weights=[1, 1]. Objective = 1500 + 3000 = 4500.
         """
-        _xfail_if_validate(optimize)
         periods = [2020, 2025]
         carbon_price = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
         result = optimize(
