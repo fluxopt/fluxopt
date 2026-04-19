@@ -20,6 +20,29 @@ if TYPE_CHECKING:
 
 @dataclass
 class Result:
+    """Optimization result with solution variables and model data.
+
+    Provides access to flow rates, storage levels, effect totals, and
+    investment decisions. Key properties::
+
+        result.objective  # scalar objective value
+        result.flow_rates  # (flow, time) DataArray
+        result.flow_rate('id')  # single flow time series
+        result.storage_levels  # (storage, time) DataArray
+        result.effect_totals  # (effect,) DataArray
+        result.effects_temporal  # (effect, time) DataArray
+        result.effects_lump  # (effect,) DataArray
+        result.sizes  # (flow,) DataArray — invested sizes
+        result.storage_capacities  # (storage,) DataArray
+
+    Per-contributor effect breakdown is available via ``result.stats``.
+
+    Args:
+        solution: Solved variable values as xr.Dataset.
+        data: ModelData used to build the optimization.
+        duals: Dual values (shadow prices) from the solver.
+    """
+
     solution: xr.Dataset
     data: ModelData = field(repr=False)
     duals: xr.Dataset = field(default_factory=xr.Dataset, repr=False)

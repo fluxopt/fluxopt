@@ -55,10 +55,20 @@ class StatsAccessor:
     def effect_contributions(self) -> xr.Dataset:
         """Per-contributor breakdown of effect contributions.
 
+        Decomposes effect totals into per-contributor parts on a unified
+        ``contributor`` dimension (flow IDs + storage IDs)::
+
+            contrib = result.stats.effect_contributions
+            contrib['temporal']  # (contributor, effect, time) — flows only
+            contrib['lump']  # (contributor, effect) — flows + storages
+            contrib['total']  # (contributor, effect) — temporal sum + lump
+
+        Cross-effects (e.g. CO₂ → cost) are attributed to the originating
+        contributor. The contributions are validated against solver totals;
+        a ``ValueError`` is raised if they don't match.
+
         Returns:
-            Dataset with ``temporal`` (contributor, effect, time),
-            ``lump`` (contributor, effect), and ``total``
-            (contributor, effect).
+            Dataset with ``temporal``, ``lump``, and ``total`` DataArrays.
         """
         from fluxopt.contributions import compute_effect_contributions
 

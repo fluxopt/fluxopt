@@ -10,7 +10,6 @@ nav:
     - Flows: guide/flows.md
     - Converters: guide/converters.md
     - Storage: guide/storage.md
-    - Effects: guide/effects.md
     - Sizing: guide/sizing.md
     - Status: guide/status.md
   - Notebooks:
@@ -106,7 +105,8 @@ plugins:
       nav_file: SUMMARY.md
 
   - redirects:
-      redirect_maps: {}
+      redirect_maps:
+        guide/effects.md: math/effects.md
 
   - mkdocs-jupyter:
       include_source: true
