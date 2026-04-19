@@ -17,6 +17,7 @@ class TestCustomize:
             'timesteps': ts(3),
             'carriers': [Carrier('elec')],
             'effects': [Effect('cost')],
+            'objective_effects': 'cost',
             'ports': [
                 Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
@@ -81,6 +82,7 @@ class TestCustomize:
             simple_system['ports'],
         )
         model = FlowSystem(data)
+        model._objective_effects = ['cost']
         model.build()
 
         # Add custom variable and constraint

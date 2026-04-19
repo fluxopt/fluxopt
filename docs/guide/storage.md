@@ -114,6 +114,7 @@ result = optimize(
     effects=[Effect('cost')],
     ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
     storages=[battery],
+    objective_effects='cost',
 )
 
 print(result.flow_rate('battery(charge)'))

@@ -38,6 +38,7 @@ class TestBusBalance:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 30])]),
                 Port('Src1', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1}, size=20)]),
@@ -69,6 +70,7 @@ class TestConversionEfficiency:
             ts(3),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 20, 10])]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
@@ -89,6 +91,7 @@ class TestConversionEfficiency:
             ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
@@ -111,6 +114,7 @@ class TestConversionEfficiency:
             ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat'), Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('HeatDemand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port('ElecGrid', exports=[Flow('Elec', effects_per_flow_hour={'cost': -2})]),
@@ -137,6 +141,7 @@ class TestEffects:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost'), Effect('CO2')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 20])]),
                 Port('HeatSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 2, 'CO2': 0.5})]),
@@ -156,6 +161,7 @@ class TestEffects:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost'), Effect('CO2', maximum=15)],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
@@ -176,6 +182,7 @@ class TestEffects:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost'), Effect('CO2', minimum=25)],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
@@ -198,6 +205,7 @@ class TestEffects:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost'), Effect('CO2', maximum_per_hour=8)],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[15, 5])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
@@ -217,6 +225,7 @@ class TestEffects:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost'), Effect('CO2', minimum_per_hour=10)],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
@@ -238,6 +247,7 @@ class TestEffects:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost'), Effect('CO2', maximum=12)],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
@@ -258,6 +268,7 @@ class TestEffects:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost'), Effect('CO2', minimum=25)],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
@@ -288,6 +299,7 @@ class TestFlowConstraints:
             ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 30])]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
@@ -309,6 +321,7 @@ class TestFlowConstraints:
             ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
                 Port(
@@ -340,6 +353,7 @@ class TestStorage:
             ts(3),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 0, 20])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [10, 1, 10]})]),
@@ -371,6 +385,7 @@ class TestStorage:
             ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 90])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [1, 1000]})]),
@@ -403,6 +418,7 @@ class TestStorage:
             ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 72])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [1, 1000]})]),
@@ -434,6 +450,7 @@ class TestStorage:
             ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 60])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [1, 100]})]),
@@ -466,6 +483,7 @@ class TestStorage:
             ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 50])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [1, 100]})]),
@@ -497,6 +515,7 @@ class TestStorage:
             ts(3),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 80, 0])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [1, 100, 1]})]),

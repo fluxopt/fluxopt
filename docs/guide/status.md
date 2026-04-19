@@ -197,6 +197,7 @@ result = optimize(
     effects=[Effect('cost')],
     ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
     converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
+    objective_effects='cost',
 )
 ```
 

@@ -32,6 +32,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2'),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -68,6 +69,7 @@ class TestEffects:
                 Effect('cost', contribution_from={'CO2': 0.5}),
                 Effect('CO2'),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -99,6 +101,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', maximum=15),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -142,6 +145,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', minimum=25),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -187,6 +191,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', maximum_per_hour=8),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -229,6 +234,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', minimum_per_hour=10),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -273,6 +279,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', maximum_per_hour=4),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -319,6 +326,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', minimum_per_hour=5),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -384,6 +392,7 @@ class TestEffects:
                 Effect('cost', contribution_from={'CO2': 10}),
                 Effect('CO2'),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',

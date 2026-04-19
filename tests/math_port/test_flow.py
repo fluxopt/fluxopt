@@ -25,6 +25,7 @@ class TestFlowConstraints:
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -70,6 +71,7 @@ class TestFlowConstraints:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',

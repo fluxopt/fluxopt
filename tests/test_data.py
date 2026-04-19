@@ -169,6 +169,7 @@ class TestCarrierValidation:
                 timesteps=ts(2),
                 carriers=[Carrier('gas')],
                 effects=[Effect('cost')],
+                objective_effects='cost',
                 ports=[Port('grid', imports=[Flow('elec', size=100)])],
             )
 
@@ -220,6 +221,7 @@ class TestCarrierBalance:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('src', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('sink', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
@@ -241,6 +243,7 @@ class TestMultiNodeCarrier:
             timesteps=ts(3),
             carriers=[Carrier('heat', nodes=['A', 'B'])],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('src_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port('src_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 0.04})]),

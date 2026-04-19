@@ -30,6 +30,7 @@ class TestMultiPeriod:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -79,6 +80,7 @@ class TestMultiPeriod:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -115,6 +117,7 @@ class TestMultiPeriod:
             effects=[
                 Effect('cost', period_weights=[1, 2]),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -159,6 +162,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -195,6 +199,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -228,6 +233,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -270,6 +276,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -314,6 +321,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -349,6 +357,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -391,6 +400,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -426,6 +436,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -462,6 +473,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -497,6 +509,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -533,6 +546,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -569,6 +583,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -605,6 +620,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -642,6 +658,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -685,6 +702,7 @@ class TestPeriodVaryingEffects:
                 Effect('co2'),
                 Effect('cost', contribution_from={'co2': carbon_price}),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -722,6 +740,7 @@ class TestPeriodVaryingEffects:
                 Effect('co2'),
                 Effect('cost', contribution_from={'co2': carbon_price}),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -754,6 +773,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',

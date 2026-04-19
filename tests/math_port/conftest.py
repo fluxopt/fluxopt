@@ -37,9 +37,9 @@ def optimize(request, tmp_path):
     """Callable fixture: each test runs 3 pipelines to verify IO roundtrip."""
 
     def _optimize(**kwargs: Any) -> Result:
-        objective = kwargs.pop('objective', 'cost')
+        objective_effects = kwargs.pop('objective_effects', 'cost')
         if request.param == 'optimize':
-            return fluxopt_optimize(**kwargs, objective=objective)
+            return fluxopt_optimize(**kwargs, objective_effects=objective_effects)
         if request.param == 'save->reload->optimize':
             data = ModelData.build(
                 kwargs['timesteps'],
@@ -56,9 +56,9 @@ def optimize(request, tmp_path):
             data.to_netcdf(path, mode='w')
             loaded = ModelData.from_netcdf(path)
             model = FlowSystem(loaded)
-            return model.optimize(objective=objective)
+            return model.optimize(objective_effects=objective_effects)
         # optimize->save->reload->validate
-        result = fluxopt_optimize(**kwargs, objective=objective)
+        result = fluxopt_optimize(**kwargs, objective_effects=objective_effects)
         path = tmp_path / 'result.nc'
         result.to_netcdf(path)
         loaded = Result.from_netcdf(path)

@@ -83,6 +83,7 @@ class TestStatusWithEffects:
                 Effect('cost'),
                 Effect('CO2', maximum=60),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -136,6 +137,7 @@ class TestStatusWithEffects:
                 Effect('cost'),
                 Effect('CO2'),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -183,6 +185,7 @@ class TestInvestWithRelativeMinimum:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -246,6 +249,7 @@ class TestConversionWithTimeVaryingEffects:
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -288,6 +292,7 @@ class TestConversionWithTimeVaryingEffects:
                 Effect('cost'),
                 Effect('CO2'),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'HeatDemand',
@@ -353,6 +358,7 @@ class TestStatusWithMultipleConstraints:
         result = optimize(
             timesteps=ts(6),
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -425,6 +431,7 @@ class TestEffectsWithConversion:
                 Effect('cost'),
                 Effect('CO2', maximum=20),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',

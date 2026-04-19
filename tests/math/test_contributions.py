@@ -19,6 +19,7 @@ class TestSumToTotal:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -38,6 +39,7 @@ class TestSumToTotal:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('cheap_src', imports=[cheap]),
                 Port('exp_src', imports=[expensive]),
@@ -60,6 +62,7 @@ class TestSumToTotal:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -81,6 +84,7 @@ class TestProportionalSplit:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('cheap_src', imports=[cheap]),
                 Port('exp_src', imports=[expensive]),
@@ -111,6 +115,7 @@ class TestCrossEffects:
                 Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -143,6 +148,7 @@ class TestCrossEffects:
                 Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', maximum=co2_limit),
             ],
+            objective_effects='cost',
             ports=[
                 Port('dirty_src', imports=[dirty]),
                 Port('clean_src', imports=[clean]),
@@ -174,6 +180,7 @@ class TestCrossEffects:
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
                 Effect('pe', unit='kWh'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -202,6 +209,7 @@ class TestSizing:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -231,6 +239,7 @@ class TestSizing:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -259,6 +268,7 @@ class TestSizing:
                 Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -291,6 +301,7 @@ class TestStatus:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -321,6 +332,7 @@ class TestConverter:
             timesteps=ts(3),
             carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('gas_grid', imports=[gas_supply]), Port('demand', exports=[heat_sink])],
             converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_flow)],
         )
@@ -351,6 +363,7 @@ class TestStorage:
             timesteps=ts(4),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             storages=[
                 Storage(
@@ -388,6 +401,7 @@ class TestStorage:
                 Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             storages=[
                 Storage(
@@ -423,6 +437,7 @@ class TestEdgeCases:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -439,6 +454,7 @@ class TestEdgeCases:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost'), Effect('co2', unit='kg')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -458,6 +474,7 @@ class TestEdgeCases:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 

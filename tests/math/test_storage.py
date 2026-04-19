@@ -24,6 +24,7 @@ class TestStorage:
             timesteps=ts(4),
             carriers=_elec,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
         )
@@ -63,6 +64,7 @@ class TestStorage:
             timesteps=ts(4),
             carriers=_elec,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
         )
@@ -94,6 +96,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=_elec,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
         )
@@ -131,6 +134,7 @@ class TestStorage:
             timesteps=ts(3),
             carriers=_elec,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
             storages=[battery],
         )

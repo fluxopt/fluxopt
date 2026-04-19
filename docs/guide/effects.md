@@ -18,7 +18,7 @@ cost = Effect('cost')
 co2 = Effect('co2', unit='kg')
 ```
 
-The objective is specified in the `optimize()` call via `objective='cost'`
+The objective is specified in the `optimize()` call via `objective_effects='cost'`
 (defaults to `'cost'`).
 
 ## Linking Flows to Effects
@@ -195,6 +195,7 @@ result = optimize(
         Port('clean', imports=[expensive_clean]),
         Port('demand', exports=[demand]),
     ],
+    objective_effects='cost',
 )
 
 print(f"Total cost: {result.objective:.2f}")

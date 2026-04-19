@@ -20,6 +20,7 @@ class TestStorage:
             timesteps=ts(3),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -60,6 +61,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -100,6 +102,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -140,6 +143,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -181,6 +185,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',

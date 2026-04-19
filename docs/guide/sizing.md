@@ -157,6 +157,7 @@ result = optimize(
         Port('solar', imports=[solar]),
         Port('demand', exports=[demand]),
     ],
+    objective_effects='cost',
 )
 
 print(f"Objective: {result.objective:.2f}")

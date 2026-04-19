@@ -26,6 +26,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -58,6 +59,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -89,6 +91,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -120,6 +123,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -148,6 +152,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[25, 50])]),
                 Port(
@@ -179,6 +184,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
                 Port(
@@ -222,6 +228,7 @@ class TestStorageSizing:
             ts(3),
             carriers=_elec,
             effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 50, 0])]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [1, 10, 1]})]),

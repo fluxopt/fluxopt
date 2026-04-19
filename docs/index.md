@@ -33,6 +33,7 @@ result = optimize(
     effects=[Effect('cost')],
     ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
     converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_out)],
+    objective_effects='cost',
 )
 
 print(f"Total cost: {result.objective:.2f}")

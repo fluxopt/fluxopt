@@ -50,7 +50,7 @@ class FlowSystem:
         """
         self.data = data
         self.m = Model()
-        self._objective_effects: list[str] = ['cost']
+        self._objective_effects: list[str] = []
 
     def _add_variables(
         self,
@@ -104,7 +104,7 @@ class FlowSystem:
 
     def optimize(
         self,
-        objective: str | list[str] = 'cost',
+        objective_effects: str | list[str],
         customize: Callable[[FlowSystem], None] | None = None,
         *,
         solver: str = 'highs',
@@ -113,13 +113,13 @@ class FlowSystem:
         """Build, optionally customize, and solve the model.
 
         Args:
-            objective: Effect name(s) to minimize. Sum of named effect totals.
+            objective_effects: Effect name(s) to minimize. Sum of named effect totals.
             customize: Optional callback to modify the linopy model between build and solve.
                 Receives ``self``; use ``model.m`` to add variables/constraints.
             solver: Solver backend name.
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
-        self._objective_effects = [objective] if isinstance(objective, str) else objective
+        self._objective_effects = [objective_effects] if isinstance(objective_effects, str) else objective_effects
         self.build()
         if customize is not None:
             customize(self)

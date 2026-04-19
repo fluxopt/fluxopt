@@ -88,6 +88,7 @@ result = optimize(
     effects=effects,
     ports=ports,
     converters=converters,
+    objective_effects='cost',
 )
 ```
 
