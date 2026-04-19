@@ -47,5 +47,6 @@ print(result.flow_rates)
 
 ## Next Steps
 
-- **[Guide](guide/getting-started.md)** — walkthrough of the full API, from flows to storage
+- **[Quickstart](notebooks/01-quickstart.ipynb)** — build your first model in five minutes
+- **[Notebooks](notebooks/02-heat-system.ipynb)** — worked examples from heat systems to investment optimization
 - **[Math](math/notation.md)** — formulation reference with notation, constraints, and examples

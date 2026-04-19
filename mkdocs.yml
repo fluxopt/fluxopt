@@ -18,6 +18,7 @@ nav:
     - Heat System: notebooks/02-heat-system.ipynb
     - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
     - Multi-Period: notebooks/04-multi-period.ipynb
+    - Investment: notebooks/05-investment.ipynb
   - Math:
     - Notation: math/notation.md
     - Objective: math/objective.md
@@ -103,6 +104,9 @@ plugins:
 
   - literate-nav:
       nav_file: SUMMARY.md
+
+  - redirects:
+      redirect_maps: {}
 
   - mkdocs-jupyter:
       include_source: true

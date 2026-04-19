@@ -151,6 +151,38 @@ class Flow:
 
 @dataclass
 class Effect:
+    """A tracked quantity across the optimization horizon (cost, CO₂, …).
+
+    One effect is designated as the objective to minimize via the
+    ``objective_effects`` argument of ``optimize()``. Others can be bounded
+    to enforce budgets (e.g. emission caps).
+
+    Effects accumulate contributions from two domains:
+
+    - **Temporal** — per-timestep flow costs, running costs, startup costs.
+    - **Lump** — one-time sizing costs and fixed costs.
+
+    Cross-effect chains (e.g. CO₂ → cost) are supported via
+    ``contribution_from``.
+
+    See: docs/math/effects.md
+
+    Args:
+        id: Unique identifier.
+        unit: Unit label (e.g. ``'€'``, ``'kg'``).
+        maximum: Upper bound on weighted total across all periods.
+        minimum: Lower bound on weighted total across all periods.
+        maximum_per_period: Upper bound applied to each period independently.
+        minimum_per_period: Lower bound applied to each period independently.
+        maximum_per_hour: Upper bound rate [unit/h], scaled by Δt.
+        minimum_per_hour: Lower bound rate [unit/h], scaled by Δt.
+        contribution_from: Cross-effect factors ``{source_effect: factor}``.
+            Scalar factors apply identically to both domains; time-varying
+            factors are averaged for the lump domain.
+        period_weights: Per-period weights ω for total aggregation;
+            overrides global ``period_weights``.
+    """
+
     id: str
     unit: str = ''
     maximum: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
