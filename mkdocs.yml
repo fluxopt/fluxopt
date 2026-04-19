@@ -101,6 +101,8 @@ plugins:
   - mkdocs-jupyter:
       include_source: true
       execute: true
+      remove_tag_config:
+        remove_input_tags: ["hide-input"]
 
   - mkdocstrings:
       default_handler: python
