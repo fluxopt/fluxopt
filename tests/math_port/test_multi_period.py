@@ -29,7 +29,8 @@ class TestMultiPeriod:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -78,7 +79,8 @@ class TestMultiPeriod:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -102,19 +104,20 @@ class TestMultiPeriod:
     def test_invest_linked_periods(self, optimize):
         """Proves: InvestParameters.linked_periods forces equal sizes across periods."""
 
-    def test_effect_period_weights_periodic(self, optimize):
-        """Proves: Effect.period_weights_periodic overrides global period weights.
+    def test_effect_period_weights(self, optimize):
+        """Proves: Effect.period_weights overrides global period weights.
 
         3 timesteps, periods=[2020, 2025], global weights=[5, 5].
-        Per-period cost = 30. With custom periodic weights [1, 2]:
+        Per-period cost = 30. With custom period_weights [1, 2]:
         Objective = 1*30 + 2*30 = 90  (instead of 5*30 + 5*30 = 300).
         """
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[
-                Effect('cost', is_objective=True, period_weights_periodic=[1, 2]),
+                Effect('cost', period_weights=[1, 2]),
             ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -148,16 +151,18 @@ class TestInvestment:
         """Proves: mandatory Investment builds exactly once across periods.
 
         3 timesteps, 3 periods [2020, 2025, 2030], weights=[5, 5, 5].
-        Grid with Investment(0, 20, mandatory=True), CAPEX=10/MW once.
+        Grid with Investment(0, 20, mandatory=True), CAPEX=10/MW at build.
         Demand=10 MW constant. Cheapest: build in first period, CAPEX=10*10=100.
-        Operational cost per period: 10*3*1=30, weighted=5*30=150.
-        Total recurring: 3*150=450. Total once: 100. Objective=450+100=550.
+        Operational cost per period: 10*3*1=30.
+        total[p=0]=130, total[p=1]=30, total[p=2]=30.
+        Objective = 5*130 + 5*30 + 5*30 = 950.
         """
         _xfail_if_validate(optimize)
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -170,7 +175,7 @@ class TestInvestment:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(0, 20, effects_per_size={'cost': 10}),
+                            size=Investment(0, 20, effects_per_size_at_build={'cost': 10}),
                             effects_per_flow_hour={'cost': 1},
                         ),
                     ],
@@ -179,10 +184,11 @@ class TestInvestment:
             periods=[2020, 2025, 2030],
             period_weights=[5, 5, 5],
         )
-        # CAPEX: 10/MW * 10 MW = 100 (once)
-        # Operational: 10 MW * 3h * 1 cost/MWh = 30 per period, weighted 5*30=150 per period
-        # Total = 3 * 150 + 100 = 550
-        assert_allclose(result.objective, 550.0, rtol=1e-4)
+        # CAPEX: 10/MW * 10 MW = 100 in build period (p=0)
+        # Operational: 10 MW * 3h * 1 cost/MWh = 30 per period
+        # total[p=0]=130, total[p=1]=30, total[p=2]=30
+        # Objective = 5*130 + 5*30 + 5*30 = 950
+        assert_allclose(result.objective, 950.0, rtol=1e-4)
 
     def test_investment_optional_skips_when_expensive(self, optimize):
         """Proves: optional Investment is not built if cost exceeds benefit.
@@ -192,7 +198,8 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -205,7 +212,7 @@ class TestInvestment:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(0, 20, mandatory=False, effects_per_size={'cost': 100}),
+                            size=Investment(0, 20, mandatory=False, effects_per_size_at_build={'cost': 100}),
                         ),
                     ],
                 ),
@@ -225,7 +232,8 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -239,7 +247,7 @@ class TestInvestment:
                         Flow(
                             'Heat',
                             short_id='cheap',
-                            size=Investment(0, 20, lifetime=1, effects_per_size={'cost': 0}),
+                            size=Investment(0, 20, lifetime=1, effects_per_size_at_build={'cost': 0}),
                             effects_per_flow_hour={'cost': 1},
                         ),
                     ],
@@ -267,7 +275,8 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -285,7 +294,7 @@ class TestInvestment:
                                 20,
                                 mandatory=False,
                                 prior_size=10,
-                                effects_per_size={'cost': 1000},
+                                effects_per_size_at_build={'cost': 1000},
                             ),
                             effects_per_flow_hour={'cost': 1},
                         ),
@@ -299,18 +308,20 @@ class TestInvestment:
         # Cost = 2 * 5 * 30 = 300 (operational only, no CAPEX)
         assert_allclose(result.objective, 300.0, rtol=1e-4)
 
-    def test_investment_capex_charged_once(self, optimize):
-        """Proves: effects_per_size goes to effect_once domain, not periodic.
+    def test_investment_capex_in_lump(self, optimize):
+        """Proves: effects_per_size_at_build goes to lump domain, weighted like all lump costs.
 
-        CAPEX = 10/MW, size=10 MW → one-time cost = 100 (unweighted).
+        CAPEX = 10/MW, size=10 MW → lump cost = 100 per build period.
         No operational costs. 2 periods, weights=[5, 5].
-        Objective = 5*0 + 5*0 + 1*100 = 100  (once costs have ω_once=1 by default).
+        Mandatory build → built in period 0. Lump = 100 in p=0, 0 in p=1.
+        Objective = 5*100 + 5*0 = 500.
         """
         _xfail_if_validate(optimize)
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -323,7 +334,7 @@ class TestInvestment:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_per_size={'cost': 10}),
+                            size=Investment(10, 10, effects_per_size_at_build={'cost': 10}),
                         ),
                     ],
                 ),
@@ -332,12 +343,11 @@ class TestInvestment:
             period_weights=[5, 5],
         )
         # min_size == max_size == 10, so invest_size = 10.
-        # CAPEX: 10 * 10 = 100 (effect_once, ω_once=1 by default)
-        # No flow costs. Objective = 100.
-        assert_allclose(result.objective, 100.0, rtol=1e-4)
+        # CAPEX: 10 * 10 = 100 in build period. Weighted: 5 * 100 = 500.
+        assert_allclose(result.objective, 500.0, rtol=1e-4)
 
     def test_investment_periodic_costs_weighted(self, optimize):
-        """Proves: effects_per_size_periodic goes to effect_periodic, scaled by period weights.
+        """Proves: effects_per_size_recurring goes to effect_periodic, scaled by period weights.
 
         Recurring O&M = 2/MW/period, size=10 MW. 2 periods, weights=[5, 5].
         Periodic cost per period = 2*10 = 20. Weighted: 5*20 + 5*20 = 200.
@@ -346,7 +356,8 @@ class TestInvestment:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -362,7 +373,7 @@ class TestInvestment:
                             size=Investment(
                                 10,
                                 10,
-                                effects_per_size_periodic={'cost': 2},
+                                effects_per_size_recurring={'cost': 2},
                             ),
                         ),
                     ],
@@ -388,7 +399,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -423,7 +435,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -447,7 +460,7 @@ class TestPeriodVaryingEffects:
         assert_allclose(result.objective, 20.0, rtol=1e-4)
 
     def test_investment_periodic_costs_vary_by_period(self, optimize):
-        """Proves: Investment.effects_per_size_periodic can vary across periods.
+        """Proves: Investment.effects_per_size_recurring can vary across periods.
 
         Investment(10, 10), recurring O&M varies: 1 in 2020, 3 in 2025.
         Active in both periods. Periodic cost = O&M * size.
@@ -459,7 +472,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -472,7 +486,7 @@ class TestPeriodVaryingEffects:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_per_size_periodic={'cost': om_by_period}),
+                            size=Investment(10, 10, effects_per_size_recurring={'cost': om_by_period}),
                         ),
                     ],
                 ),
@@ -483,7 +497,7 @@ class TestPeriodVaryingEffects:
         assert_allclose(result.objective, 40.0, rtol=1e-4)
 
     def test_investment_fixed_periodic_costs_vary_by_period(self, optimize):
-        """Proves: Investment.effects_fixed_periodic can vary across periods.
+        """Proves: Investment.effects_fixed_recurring can vary across periods.
 
         Investment(10, 10), fixed periodic cost varies: 5 in 2020, 15 in 2025.
         Active in both periods. Weights=[1, 1]. Objective = 5 + 15 = 20.
@@ -494,7 +508,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -507,7 +522,7 @@ class TestPeriodVaryingEffects:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_fixed_periodic={'cost': cost_by_period}),
+                            size=Investment(10, 10, effects_fixed_recurring={'cost': cost_by_period}),
                         ),
                     ],
                 ),
@@ -518,7 +533,7 @@ class TestPeriodVaryingEffects:
         assert_allclose(result.objective, 20.0, rtol=1e-4)
 
     def test_investment_capex_per_size_varies_by_period(self, optimize):
-        """Proves: Investment.effects_per_size (once) can vary across periods.
+        """Proves: Investment.effects_per_size_at_build (once) can vary across periods.
 
         Investment(10, 10), CAPEX varies: 10 in 2020, 20 in 2025.
         Mandatory build → builds in cheapest period (2020). Once cost = 10*10 = 100.
@@ -530,7 +545,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -543,7 +559,7 @@ class TestPeriodVaryingEffects:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_per_size={'cost': capex_by_period}),
+                            size=Investment(10, 10, effects_per_size_at_build={'cost': capex_by_period}),
                         ),
                     ],
                 ),
@@ -554,7 +570,7 @@ class TestPeriodVaryingEffects:
         assert_allclose(result.objective, 100.0, rtol=1e-4)
 
     def test_investment_capex_fixed_varies_by_period(self, optimize):
-        """Proves: Investment.effects_fixed (once) can vary across periods.
+        """Proves: Investment.effects_fixed_at_build (once) can vary across periods.
 
         Investment(10, 10), fixed CAPEX varies: 50 in 2020, 100 in 2025.
         Mandatory build → builds in cheapest period (2020). Once cost = 50.
@@ -566,7 +582,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -579,7 +596,7 @@ class TestPeriodVaryingEffects:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Investment(10, 10, effects_fixed={'cost': capex_by_period}),
+                            size=Investment(10, 10, effects_fixed_at_build={'cost': capex_by_period}),
                         ),
                     ],
                 ),
@@ -602,7 +619,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -639,7 +657,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -681,45 +700,9 @@ class TestPeriodVaryingEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('co2'),
-                Effect('cost', is_objective=True, contribution_from={'co2': carbon_price}),
+                Effect('cost', contribution_from={'co2': carbon_price}),
             ],
-            ports=[
-                Port(
-                    'Demand',
-                    exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
-                    ],
-                ),
-                Port(
-                    'Grid',
-                    imports=[
-                        Flow('Heat', effects_per_flow_hour={'co2': 1}),
-                    ],
-                ),
-            ],
-            periods=periods,
-            period_weights=[1, 1],
-        )
-        assert_allclose(result.objective, 4500.0, rtol=1e-4)
-
-    def test_contribution_from_per_hour_varies_by_period(self, optimize):
-        """Proves: Effect.contribution_from_per_hour can vary across periods.
-
-        CO2 effect tracks emissions. Cost gets contribution_from_per_hour CO2
-        at rate 50 in 2020, 100 in 2025. Grid emits 1 CO2/MWh, demand=10 for 3 ts.
-        CO2 per period = 30. Cost: 2020→50*30=1500, 2025→100*30=3000.
-        Weights=[1, 1]. Objective = 1500 + 3000 = 4500.
-        """
-        _xfail_if_validate(optimize)
-        periods = [2020, 2025]
-        carbon_price = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
-        result = optimize(
-            timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[
-                Effect('co2'),
-                Effect('cost', is_objective=True, contribution_from_per_hour={'co2': carbon_price}),
-            ],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -751,7 +734,8 @@ class TestPeriodVaryingEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',

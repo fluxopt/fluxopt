@@ -175,10 +175,10 @@ class _InvestmentArrays:
     mandatory: xr.DataArray | None = None  # (invest_dim,)
     lifetime: xr.DataArray | None = None  # (invest_dim,) — NaN = forever
     prior_size: xr.DataArray | None = None  # (invest_dim,)
-    effects_per_size: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
-    effects_fixed: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
-    effects_per_size_periodic: xr.DataArray | None = None  # (invest_dim, effect, period?)
-    effects_fixed_periodic: xr.DataArray | None = None  # (invest_dim, effect, period?)
+    effects_per_size_at_build: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
+    effects_fixed_at_build: xr.DataArray | None = None  # (invest_dim, effect, period?) — once
+    effects_per_size_recurring: xr.DataArray | None = None  # (invest_dim, effect, period?)
+    effects_fixed_recurring: xr.DataArray | None = None  # (invest_dim, effect, period?)
 
     @classmethod
     def build(
@@ -231,10 +231,10 @@ class _InvestmentArrays:
             prior_sizes.append(inv.prior_size)
 
             for label, src_dict, dest_key in [
-                ('Investment.effects_per_size', inv.effects_per_size, 'eps'),
-                ('Investment.effects_fixed', inv.effects_fixed, 'ef'),
-                ('Investment.effects_per_size_periodic', inv.effects_per_size_periodic, 'eps_p'),
-                ('Investment.effects_fixed_periodic', inv.effects_fixed_periodic, 'ef_p'),
+                ('Investment.effects_per_size_at_build', inv.effects_per_size_at_build, 'eps'),
+                ('Investment.effects_fixed_at_build', inv.effects_fixed_at_build, 'ef'),
+                ('Investment.effects_per_size_recurring', inv.effects_per_size_recurring, 'eps_p'),
+                ('Investment.effects_fixed_recurring', inv.effects_fixed_recurring, 'ef_p'),
             ]:
                 arr = tmpl.zeros()
                 for ek, ev in src_dict.items():
@@ -251,10 +251,10 @@ class _InvestmentArrays:
             mandatory=xr.DataArray(np.array(mandatories), dims=[dim], coords=coords),
             lifetime=xr.DataArray(np.array(lifetimes), dims=[dim], coords=coords),
             prior_size=xr.DataArray(np.array(prior_sizes), dims=[dim], coords=coords),
-            effects_per_size=fast_concat(all_slices['eps'], invest_idx),
-            effects_fixed=fast_concat(all_slices['ef'], invest_idx),
-            effects_per_size_periodic=fast_concat(all_slices['eps_p'], invest_idx),
-            effects_fixed_periodic=fast_concat(all_slices['ef_p'], invest_idx),
+            effects_per_size_at_build=fast_concat(all_slices['eps'], invest_idx),
+            effects_fixed_at_build=fast_concat(all_slices['ef'], invest_idx),
+            effects_per_size_recurring=fast_concat(all_slices['eps_p'], invest_idx),
+            effects_fixed_recurring=fast_concat(all_slices['ef_p'], invest_idx),
         )
 
 
@@ -420,10 +420,10 @@ class FlowsData:
     invest_mandatory: xr.DataArray | None = None  # (invest_flow,)
     invest_lifetime: xr.DataArray | None = None  # (invest_flow,) — NaN = forever
     invest_prior_size: xr.DataArray | None = None  # (invest_flow,)
-    invest_effects_per_size: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
-    invest_effects_fixed: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
-    invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
-    invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_flow, effect, period?)
+    invest_effects_per_size_at_build: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
+    invest_effects_fixed_at_build: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
+    invest_effects_per_size_recurring: xr.DataArray | None = None  # (invest_flow, effect, period?)
+    invest_effects_fixed_recurring: xr.DataArray | None = None  # (invest_flow, effect, period?)
 
     def __post_init__(self) -> None:
         """Validate relative bounds: non-negative and lb <= ub."""
@@ -573,10 +573,10 @@ class FlowsData:
             invest_mandatory=inv.mandatory,
             invest_lifetime=inv.lifetime,
             invest_prior_size=inv.prior_size,
-            invest_effects_per_size=inv.effects_per_size,
-            invest_effects_fixed=inv.effects_fixed,
-            invest_effects_per_size_periodic=inv.effects_per_size_periodic,
-            invest_effects_fixed_periodic=inv.effects_fixed_periodic,
+            invest_effects_per_size_at_build=inv.effects_per_size_at_build,
+            invest_effects_fixed_at_build=inv.effects_fixed_at_build,
+            invest_effects_per_size_recurring=inv.effects_per_size_recurring,
+            invest_effects_fixed_recurring=inv.effects_fixed_recurring,
         )
 
 
@@ -798,55 +798,14 @@ def _detect_contribution_cycle(adjacency: dict[str, list[str]]) -> list[str] | N
 
 @dataclass
 class EffectsData:
-    min_total: xr.DataArray  # (effect,)
-    max_total: xr.DataArray  # (effect,)
+    min_bound: xr.DataArray  # (effect,) — weighted total bound
+    max_bound: xr.DataArray  # (effect,) — weighted total bound
+    min_per_period: xr.DataArray  # (effect,) — per-period bound
+    max_per_period: xr.DataArray  # (effect,) — per-period bound
     min_per_hour: xr.DataArray  # (effect, time)
     max_per_hour: xr.DataArray  # (effect, time)
-    is_objective: xr.DataArray  # (effect,)
-    objective_effect: str
-    cf_periodic: xr.DataArray | None = None  # (effect, source_effect, period?)
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
-    period_weights_periodic: xr.DataArray | None = None  # (effect, period)
-    period_weights_once: xr.DataArray | None = None  # (effect, period)
-
-    def __post_init__(self) -> None:
-        """Validate exactly one objective effect exists."""
-        n_obj = int(self.is_objective.sum())
-        if n_obj == 0:
-            raise ValueError('No objective effect found. Include an Effect with is_objective=True.')
-        if n_obj > 1:
-            raise ValueError(
-                f'Multiple objective effects: {list(self.is_objective.coords["effect"][self.is_objective].values)}. Only one is allowed.'
-            )
-
-    def objective_weights(
-        self,
-        global_period_weights: xr.DataArray | None,
-    ) -> tuple[xr.DataArray | int, xr.DataArray | int]:
-        """Resolve period weights for the objective effect's two domains.
-
-        Args:
-            global_period_weights: Default period weights from Dims (or None).
-
-        Returns:
-            (w_periodic, w_once) — weights for recurring and one-time domains.
-            Falls back to global_period_weights / 1 when no per-effect override.
-        """
-        k = self.objective_effect
-
-        if self.period_weights_periodic is not None and not self.period_weights_periodic.sel(effect=k).isnull().all():
-            w_periodic: xr.DataArray | int = self.period_weights_periodic.sel(effect=k)
-        elif global_period_weights is not None:
-            w_periodic = global_period_weights
-        else:
-            w_periodic = 1
-
-        if self.period_weights_once is not None and not self.period_weights_once.sel(effect=k).isnull().all():
-            w_once: xr.DataArray | int = self.period_weights_once.sel(effect=k)
-        else:
-            w_once = 1
-
-        return w_periodic, w_once
+    period_weights: xr.DataArray | None = None  # (effect, period)
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -866,7 +825,7 @@ class EffectsData:
             elif f.name in ds.attrs:
                 kwargs[f.name] = ds.attrs[f.name]
             # else: rely on dataclass default (e.g. None for optional fields)
-        return cls(**kwargs)  # type: ignore[arg-type]
+        return cls(**kwargs)  # type: ignore[arg-type, unused-ignore]
 
     @classmethod
     def build(
@@ -886,51 +845,47 @@ class EffectsData:
         effect_set = set(effect_ids)
         n = len(effects)
         n_time = len(time)
-        objective_effect = next(
-            (e.id for e in effects if e.is_objective),
-            None,
-        )
-        if objective_effect is None:
-            raise ValueError('No objective effect found. Include an Effect with is_objective=True.')
-
-        min_total = np.full(n, np.nan)
-        max_total = np.full(n, np.nan)
+        min_bound = np.full(n, np.nan)
+        max_bound = np.full(n, np.nan)
+        min_per_period = np.full(n, np.nan)
+        max_per_period = np.full(n, np.nan)
         min_per_hours: list[xr.DataArray] = []
         max_per_hours: list[xr.DataArray] = []
-        is_objective = np.zeros(n, dtype=bool)
 
         nan_time = xr.DataArray(np.full(n_time, np.nan), dims=['time'], coords={'time': time})
 
         has_contributions = False
         for i, e in enumerate(effects):
-            if e.minimum_total is not None:
-                min_total[i] = e.minimum_total
-            if e.maximum_total is not None:
-                max_total[i] = e.maximum_total
+            if e.minimum is not None:
+                min_bound[i] = e.minimum
+            if e.maximum is not None:
+                max_bound[i] = e.maximum
+            if e.minimum_per_period is not None:
+                min_per_period[i] = e.minimum_per_period
+            if e.maximum_per_period is not None:
+                max_per_period[i] = e.maximum_per_period
             min_per_hours.append(
                 as_dataarray(e.minimum_per_hour, {'time': time}) if e.minimum_per_hour is not None else nan_time
             )
             max_per_hours.append(
                 as_dataarray(e.maximum_per_hour, {'time': time}) if e.maximum_per_hour is not None else nan_time
             )
-            is_objective[i] = e.is_objective
-            if e.contribution_from or e.contribution_from_per_hour:
+            if e.contribution_from:
                 has_contributions = True
 
         # Build cross-effect contribution arrays
-        cf_periodic: xr.DataArray | None = None
         cf_temporal: xr.DataArray | None = None
         if has_contributions:
             # Self-reference check
             for e in effects:
-                for src_id in (*e.contribution_from, *e.contribution_from_per_hour):
+                for src_id in e.contribution_from:
                     if src_id == e.id:
                         raise ValueError(f'Effect {e.id!r} cannot reference itself in contribution_from')
 
             # Cycle check
             adjacency: dict[str, list[str]] = {eid: [] for eid in effect_ids}
             for e in effects:
-                for src_id in {*e.contribution_from, *e.contribution_from_per_hour}:
+                for src_id in e.contribution_from:
                     if src_id not in effect_set:
                         raise ValueError(f'Unknown effect {src_id!r} in contribution_from on {e.id!r}')
                     adjacency[e.id].append(src_id)
@@ -938,73 +893,45 @@ class EffectsData:
             if cycle is not None:
                 raise ValueError(f'Circular contribution_from dependency: {" -> ".join(cycle)}')
 
-            tmpl_p = _effect_template({'effect': effect_ids, 'source_effect': effect_ids}, period)
             tmpl_t = _effect_template({'effect': effect_ids, 'source_effect': effect_ids, 'time': time}, period)
-
-            periodic_mat = tmpl_p.zeros()
             temporal_mat = tmpl_t.zeros()
             for e in effects:
                 for src_id, factor in e.contribution_from.items():
                     if src_id not in effect_set:
                         raise ValueError(f'Unknown effect {src_id!r} in Effect.contribution_from on {e.id!r}')
-                    periodic_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_p.as_da_coords)
                     temporal_mat.loc[e.id, src_id] = as_dataarray(factor, tmpl_t.as_da_coords)
-                for src_id, factor_ts in e.contribution_from_per_hour.items():
-                    if src_id not in effect_set:
-                        raise ValueError(f'Unknown effect {src_id!r} in Effect.contribution_from_per_hour on {e.id!r}')
-                    temporal_mat.loc[e.id, src_id] = as_dataarray(factor_ts, tmpl_t.as_da_coords)
-            cf_periodic = periodic_mat
             cf_temporal = temporal_mat
 
         effect_idx = pd.Index(effect_ids, name='effect')
 
         # Per-effect period weights
-        pw_periodic: xr.DataArray | None = None
-        pw_once: xr.DataArray | None = None
+        pw: xr.DataArray | None = None
         if period is not None:
-            has_pw_periodic = any(e.period_weights_periodic is not None for e in effects)
-            has_pw_once = any(e.period_weights_once is not None for e in effects)
+            has_pw = any(e.period_weights is not None for e in effects)
             n_periods = len(period)
-            if has_pw_periodic:
+            if has_pw:
                 mat = np.full((n, n_periods), np.nan)
                 for i, e in enumerate(effects):
-                    if e.period_weights_periodic is not None:
-                        if len(e.period_weights_periodic) != n_periods:
-                            msg = f'Effect {e.id!r}: period_weights_periodic has {len(e.period_weights_periodic)} entries, expected {n_periods}'
+                    if e.period_weights is not None:
+                        if len(e.period_weights) != n_periods:
+                            msg = f'Effect {e.id!r}: period_weights has {len(e.period_weights)} entries, expected {n_periods}'
                             raise ValueError(msg)
-                        vals = np.asarray(e.period_weights_periodic, dtype=float)
+                        vals = np.asarray(e.period_weights, dtype=float)
                         if not np.all(np.isfinite(vals)) or not np.all(vals > 0):
-                            msg = f'Effect {e.id!r}: period_weights_periodic must be positive and finite, got {vals}'
+                            msg = f'Effect {e.id!r}: period_weights must be positive and finite, got {vals}'
                             raise ValueError(msg)
                         mat[i] = vals
-                pw_periodic = xr.DataArray(
-                    mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period}
-                )
-            if has_pw_once:
-                mat = np.full((n, n_periods), np.nan)
-                for i, e in enumerate(effects):
-                    if e.period_weights_once is not None:
-                        if len(e.period_weights_once) != n_periods:
-                            msg = f'Effect {e.id!r}: period_weights_once has {len(e.period_weights_once)} entries, expected {n_periods}'
-                            raise ValueError(msg)
-                        vals = np.asarray(e.period_weights_once, dtype=float)
-                        if not np.all(np.isfinite(vals)) or not np.all(vals > 0):
-                            msg = f'Effect {e.id!r}: period_weights_once must be positive and finite, got {vals}'
-                            raise ValueError(msg)
-                        mat[i] = vals
-                pw_once = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
+                pw = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
 
         return cls(
-            min_total=xr.DataArray(min_total, dims=['effect'], coords={'effect': effect_ids}),
-            max_total=xr.DataArray(max_total, dims=['effect'], coords={'effect': effect_ids}),
+            min_bound=xr.DataArray(min_bound, dims=['effect'], coords={'effect': effect_ids}),
+            max_bound=xr.DataArray(max_bound, dims=['effect'], coords={'effect': effect_ids}),
+            min_per_period=xr.DataArray(min_per_period, dims=['effect'], coords={'effect': effect_ids}),
+            max_per_period=xr.DataArray(max_per_period, dims=['effect'], coords={'effect': effect_ids}),
             min_per_hour=fast_concat(min_per_hours, effect_idx),
             max_per_hour=fast_concat(max_per_hours, effect_idx),
-            is_objective=xr.DataArray(is_objective, dims=['effect'], coords={'effect': effect_ids}),
-            objective_effect=objective_effect,
-            cf_periodic=cf_periodic,
             cf_temporal=cf_temporal,
-            period_weights_periodic=pw_periodic,
-            period_weights_once=pw_once,
+            period_weights=pw,
         )
 
 
@@ -1030,10 +957,10 @@ class StoragesData:
     invest_mandatory: xr.DataArray | None = None  # (invest_storage,)
     invest_lifetime: xr.DataArray | None = None  # (invest_storage,) — NaN = forever
     invest_prior_size: xr.DataArray | None = None  # (invest_storage,)
-    invest_effects_per_size: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
-    invest_effects_fixed: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
-    invest_effects_per_size_periodic: xr.DataArray | None = None  # (invest_storage, effect, period?)
-    invest_effects_fixed_periodic: xr.DataArray | None = None  # (invest_storage, effect, period?)
+    invest_effects_per_size_at_build: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
+    invest_effects_fixed_at_build: xr.DataArray | None = None  # (invest_storage, effect, period?) — once
+    invest_effects_per_size_recurring: xr.DataArray | None = None  # (invest_storage, effect, period?)
+    invest_effects_fixed_recurring: xr.DataArray | None = None  # (invest_storage, effect, period?)
 
     def __post_init__(self) -> None:
         """Validate capacity, efficiencies, and loss rates."""
@@ -1153,10 +1080,10 @@ class StoragesData:
             invest_mandatory=inv.mandatory,
             invest_lifetime=inv.lifetime,
             invest_prior_size=inv.prior_size,
-            invest_effects_per_size=inv.effects_per_size,
-            invest_effects_fixed=inv.effects_fixed,
-            invest_effects_per_size_periodic=inv.effects_per_size_periodic,
-            invest_effects_fixed_periodic=inv.effects_fixed_periodic,
+            invest_effects_per_size_at_build=inv.effects_per_size_at_build,
+            invest_effects_fixed_at_build=inv.effects_fixed_at_build,
+            invest_effects_per_size_recurring=inv.effects_per_size_recurring,
+            invest_effects_fixed_recurring=inv.effects_fixed_recurring,
         )
 
 

@@ -17,7 +17,8 @@ class TestEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -41,7 +42,8 @@ class TestEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True), Effect('co2', unit='kg')],
+            effects=[Effect('cost'), Effect('co2', unit='kg')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -53,7 +55,7 @@ class TestEffects:
         co2_total = float(result.effect_totals.sel(effect='co2').values)
         assert co2_total == pytest.approx(expected_co2, abs=1e-6)
 
-    def test_effect_maximum_total(self):
+    def test_effect_maximum(self):
         """Effect max_total constraint limits total emissions."""
 
         sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
@@ -65,7 +67,8 @@ class TestEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True), Effect('co2', maximum_total=co2_limit)],
+            effects=[Effect('cost'), Effect('co2', maximum=co2_limit)],
+            objective_effects='cost',
             ports=[
                 Port('cheap_src', imports=[cheap_dirty]),
                 Port('clean_src', imports=[expensive_clean]),
@@ -86,7 +89,8 @@ class TestEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -105,7 +109,8 @@ class TestContributionFrom:
             optimize(
                 timesteps=ts(3),
                 carriers=[Carrier('elec')],
-                effects=[Effect('cost', is_objective=True, contribution_from={'cost': 0.5})],
+                effects=[Effect('cost', contribution_from={'cost': 0.5})],
+                objective_effects='cost',
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             )
 
@@ -120,9 +125,10 @@ class TestContributionFrom:
                 timesteps=ts(3),
                 carriers=[Carrier('elec')],
                 effects=[
-                    Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                    Effect('cost', contribution_from={'co2': 50}),
                     Effect('co2', unit='kg', contribution_from={'cost': 0.01}),
                 ],
+                objective_effects='cost',
                 ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             )
 
@@ -141,9 +147,10 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -169,9 +176,10 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -195,10 +203,11 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),  # 0.3 kg_CO2/kWh_PE
                 Effect('pe', unit='kWh'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -211,8 +220,8 @@ class TestContributionFrom:
         assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
         assert result.objective == pytest.approx(cost_total, abs=1e-6)
 
-    def test_contribution_from_per_hour(self):
-        """Time-varying carbon price overrides scalar for per-timestep."""
+    def test_contribution_from_time_varying(self):
+        """Time-varying contribution_from uses per-timestep values for temporal."""
         demand = [50.0, 80.0, 60.0]
 
         source = Flow(
@@ -229,18 +238,17 @@ class TestContributionFrom:
             effects=[
                 Effect(
                     'cost',
-                    is_objective=True,
-                    contribution_from={'co2': 50},  # scalar for invest
-                    contribution_from_per_hour={'co2': carbon_prices},  # time-varying for ops
+                    contribution_from={'co2': carbon_prices},  # time-varying
                 ),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
         # per_ts[co2, t] = demand[t] * 0.5 (dt=1)
         # per_ts[cost, t] = carbon_price[t] * per_ts[co2, t]
-        # total[cost] = sum(per_ts[cost, t])  (no invest here)
+        # total[cost] = sum(per_ts[cost, t])  (no lump costs)
         expected = sum(d * 0.5 * p for d, p in zip(demand, carbon_prices, strict=True))
         assert result.objective == pytest.approx(expected, abs=1e-6)
 
@@ -259,9 +267,10 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -293,10 +302,11 @@ class TestContributionFrom:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
                 Effect('pe', unit='kWh'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 

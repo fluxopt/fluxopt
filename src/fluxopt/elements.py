@@ -73,10 +73,10 @@ class Investment:
         mandatory: If True, must build exactly once; if False, may build at most once.
         lifetime: Periods active after build; None = forever.
         prior_size: Pre-existing capacity available from period 0.
-        effects_per_size: One-time per-MW costs charged in the build period.
-        effects_fixed: One-time fixed costs charged in the build period.
-        effects_per_size_periodic: Recurring per-MW costs charged every active period.
-        effects_fixed_periodic: Recurring fixed costs charged every active period.
+        effects_per_size_at_build: One-time per-MW costs charged in the build period.
+        effects_fixed_at_build: One-time fixed costs charged in the build period.
+        effects_per_size_recurring: Recurring per-MW costs charged every active period.
+        effects_fixed_recurring: Recurring fixed costs charged every active period.
     """
 
     min_size: float
@@ -84,10 +84,10 @@ class Investment:
     mandatory: bool = True
     lifetime: int | None = None
     prior_size: float = 0.0
-    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_per_size_periodic: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed_periodic: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size_at_build: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed_at_build: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size_recurring: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_fixed_recurring: dict[str, TimeSeries] = field(default_factory=dict)
 
 
 @dataclass
@@ -153,15 +153,14 @@ class Flow:
 class Effect:
     id: str
     unit: str = ''
-    is_objective: bool = False
-    maximum_total: float | None = None  # Φ̄_k  [unit]
-    minimum_total: float | None = None  # Φ̲_k  [unit]
-    maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit]
-    minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit]
+    maximum: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
+    minimum: float | None = None  # Φ̲_k  [unit] — weighted total across all periods
+    maximum_per_period: float | None = None  # Φ̄_{k,p}  [unit] — each period independently
+    minimum_per_period: float | None = None  # Φ̲_{k,p}  [unit] — each period independently
+    maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
+    minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
     contribution_from: dict[str, TimeSeries] = field(default_factory=dict)
-    contribution_from_per_hour: dict[str, TimeSeries] = field(default_factory=dict)
-    period_weights_periodic: list[float] | None = None  # ω_periodic[p] — scales temporal+periodic
-    period_weights_once: list[float] | None = None  # ω_once[p] — scales once
+    period_weights: list[float] | None = None  # ω[p] — scales total across periods
 
 
 @dataclass

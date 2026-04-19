@@ -18,7 +18,8 @@ class TestSumToTotal:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -37,7 +38,8 @@ class TestSumToTotal:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('cheap_src', imports=[cheap]),
                 Port('exp_src', imports=[expensive]),
@@ -59,7 +61,8 @@ class TestSumToTotal:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -80,7 +83,8 @@ class TestProportionalSplit:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('cheap_src', imports=[cheap]),
                 Port('exp_src', imports=[expensive]),
@@ -108,9 +112,10 @@ class TestCrossEffects:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -140,9 +145,10 @@ class TestCrossEffects:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
-                Effect('co2', maximum_total=co2_limit),
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', maximum=co2_limit),
             ],
+            objective_effects='cost',
             ports=[
                 Port('dirty_src', imports=[dirty]),
                 Port('clean_src', imports=[clean]),
@@ -170,10 +176,11 @@ class TestCrossEffects:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
                 Effect('pe', unit='kWh'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -201,13 +208,14 @@ class TestSizing:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
-        grid_inv = float(contrib['periodic'].sel(contributor='grid(elec)', effect='cost').values)
-        demand_inv = float(contrib['periodic'].sel(contributor='demand(elec)', effect='cost').values)
+        grid_inv = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
+        demand_inv = float(contrib['lump'].sel(contributor='demand(elec)', effect='cost').values)
         # size=50 (min to meet demand) * effects_per_size=100
         expected_inv = 50 * 100
         assert grid_inv == pytest.approx(expected_inv, abs=1e-6)
@@ -230,7 +238,8 @@ class TestSizing:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -239,7 +248,7 @@ class TestSizing:
         assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
 
         # Grid has investment cost from fixed costs
-        grid_periodic = float(contrib['periodic'].sel(contributor='grid(elec)', effect='cost').values)
+        grid_periodic = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
         assert grid_periodic == pytest.approx(1000, abs=1e-6)
 
     def test_sizing_cross_effect_investment(self):
@@ -256,9 +265,10 @@ class TestSizing:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -267,7 +277,7 @@ class TestSizing:
         assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
 
         # Grid flow gets the investment cost (including cross-effect from CO2)
-        grid_inv_cost = float(contrib['periodic'].sel(contributor='grid(elec)', effect='cost').values)
+        grid_inv_cost = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
         invest_size = float(result.sizes.sel(flow='grid(elec)').values)
         invest_co2 = invest_size * 10
         expected_inv_cost = invest_co2 * 50
@@ -290,7 +300,8 @@ class TestStatus:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -320,7 +331,8 @@ class TestConverter:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('gas_grid', imports=[gas_supply]), Port('demand', exports=[heat_sink])],
             converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_flow)],
         )
@@ -350,7 +362,8 @@ class TestStorage:
         result = optimize(
             timesteps=ts(4),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             storages=[
                 Storage(
@@ -364,7 +377,7 @@ class TestStorage:
 
         contrib = result.stats.effect_contributions
         # Storage appears as a contributor in periodic
-        bat_inv = float(contrib['periodic'].sel(contributor='battery', effect='cost').values)
+        bat_inv = float(contrib['lump'].sel(contributor='battery', effect='cost').values)
         bat_capacity = float(result.storage_capacities.sel(storage='battery').values)
         assert bat_inv == pytest.approx(bat_capacity * 50, abs=1e-5)
 
@@ -385,9 +398,10 @@ class TestStorage:
             timesteps=ts(4),
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
             storages=[
                 Storage(
@@ -405,7 +419,7 @@ class TestStorage:
         assert total_from_contrib == pytest.approx(solver_total, abs=1e-6)
 
         # Storage has CO2 investment cost that gets priced into cost via cross-effect
-        bat_periodic_cost = float(contrib['periodic'].sel(contributor='battery', effect='cost').values)
+        bat_periodic_cost = float(contrib['lump'].sel(contributor='battery', effect='cost').values)
         bat_capacity = float(result.storage_capacities.sel(storage='battery').values)
         expected_co2_inv = bat_capacity * 5
         expected_cost_inv = expected_co2_inv * 50
@@ -422,7 +436,8 @@ class TestEdgeCases:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -438,7 +453,8 @@ class TestEdgeCases:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True), Effect('co2', unit='kg')],
+            effects=[Effect('cost'), Effect('co2', unit='kg')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 
@@ -457,7 +473,8 @@ class TestEdgeCases:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
 

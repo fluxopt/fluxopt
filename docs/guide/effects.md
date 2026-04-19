@@ -11,14 +11,16 @@ See [Effects (Math)](../math/effects.md) for the formulation.
 ```python
 from fluxopt import Effect
 
-# Objective effect (minimized)
-cost = Effect('cost', is_objective=True)
+# Cost effect (will be used as objective in optimize())
+cost = Effect('cost')
 
 # Tracked effect with a unit
 co2 = Effect('co2', unit='kg')
 ```
 
-Exactly one effect must have `is_objective=True`.
+The objective is specified in the `optimize()` call via the mandatory
+`objective_effects` argument, e.g. `objective_effects='cost'`. Pass a list to
+minimize a sum of effect totals, e.g. `objective_effects=['opex', 'capex']`.
 
 ## Linking Flows to Effects
 
@@ -45,10 +47,10 @@ Limit the total effect over the entire horizon:
 
 ```python
 # CO2 budget: max 1000 kg total
-co2 = Effect('co2', unit='kg', maximum_total=1000)
+co2 = Effect('co2', unit='kg', maximum=1000)
 
 # Cost floor (e.g., minimum revenue)
-revenue = Effect('revenue', minimum_total=500)
+revenue = Effect('revenue', minimum=500)
 ```
 
 ### Per-Hour Bounds
@@ -71,33 +73,30 @@ An effect can include a weighted contribution from another effect using
 `contribution_from`. This is useful for carbon pricing, primary energy factors,
 or any chain where one tracked quantity feeds into another.
 
-### Scalar (temporal + periodic)
+### Scalar (both domains)
 
 A scalar factor applies to **both** domains — temporal (per-timestep) and
-periodic (sizing, yearly costs):
+lump (sizing, yearly costs):
 
 ```python
 effects = [
-    Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+    Effect('cost', contribution_from={'co2': 50}),
     Effect('co2', unit='kg'),
 ]
 ```
 
 Here, every kg of CO2 adds 50 to cost — both for temporal emissions
-(from flow operation) and periodic emissions (e.g., from `Sizing.effects_per_size`).
+(from flow operation) and lump emissions (e.g., from `Sizing.effects_per_size`).
 
-### Time-Varying (temporal only)
+### Time-Varying
 
-Use `contribution_from_per_hour` for time-varying factors that override the
-scalar in the temporal domain:
+Use `TimeSeries` values in `contribution_from` for time-varying factors:
 
 ```python
 effects = [
     Effect(
         'cost',
-        is_objective=True,
-        contribution_from={'co2': 50},  # scalar for periodic domain
-        contribution_from_per_hour={'co2': [40, 50, 60]},  # time-varying for temporal domain
+        contribution_from={'co2': [40, 50, 60]},  # time-varying
     ),
     Effect('co2', unit='kg'),
 ]
@@ -109,7 +108,7 @@ Contributions chain transitively. A PE -> CO2 -> cost chain is modeled as:
 
 ```python
 effects = [
-    Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+    Effect('cost', contribution_from={'co2': 50}),
     Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
     Effect('pe', unit='kWh'),
 ]
@@ -139,15 +138,15 @@ print(result.effect_totals)
 # Temporal: per-timestep effect values as (effect, time) DataArray
 print(result.effects_temporal)
 
-# Periodic: sizing and fixed-cost effect values as (effect,) DataArray
-print(result.effects_periodic)
+# Lump: sizing and fixed-cost effect values as (effect,) DataArray
+print(result.effects_lump)
 ```
 
 ### Per-Contributor Breakdown
 
 `stats.effect_contributions` decomposes effect totals into per-contributor parts
 on a unified `contributor` dimension (flow IDs + storage IDs), matching the
-model's temporal/periodic domain structure:
+model's temporal/lump domain structure:
 
 ```python
 contrib = result.stats.effect_contributions
@@ -155,10 +154,10 @@ contrib = result.stats.effect_contributions
 # Per-timestep contributions (contributor, effect, time) — flows only
 contrib['temporal']
 
-# Periodic contributions (contributor, effect) — flows + storages
-contrib['periodic']
+# Lump contributions (contributor, effect) — flows + storages
+contrib['lump']
 
-# Total per contributor: temporal summed over time + periodic (contributor, effect)
+# Total per contributor: temporal summed over time + lump (contributor, effect)
 contrib['total']
 ```
 
@@ -189,14 +188,15 @@ result = optimize(
     timesteps=timesteps,
     carriers=[elec],
     effects=[
-        Effect('cost', is_objective=True),
-        Effect('co2', maximum_total=100),
+        Effect('cost'),
+        Effect('co2', maximum=100),
     ],
     ports=[
         Port('cheap', imports=[cheap_dirty]),
         Port('clean', imports=[expensive_clean]),
         Port('demand', exports=[demand]),
     ],
+    objective_effects='cost',
 )
 
 print(f"Total cost: {result.objective:.2f}")
@@ -209,10 +209,11 @@ print(result.effect_totals)
 |---|---|---|---|
 | `id` | `str` | required | Effect identifier |
 | `unit` | `str` | `''` | Unit label |
-| `is_objective` | `bool` | `False` | Whether this effect is minimized |
-| `maximum_total` | `float \| None` | `None` | Upper bound on total |
-| `minimum_total` | `float \| None` | `None` | Lower bound on total |
+| `maximum` | `float \| None` | `None` | Upper bound on weighted total across all periods |
+| `minimum` | `float \| None` | `None` | Lower bound on weighted total across all periods |
+| `maximum_per_period` | `float \| None` | `None` | Upper bound on each period independently |
+| `minimum_per_period` | `float \| None` | `None` | Lower bound on each period independently |
 | `maximum_per_hour` | `TimeSeries \| None` | `None` | Upper bound rate (per hour), scaled by `dt` |
 | `minimum_per_hour` | `TimeSeries \| None` | `None` | Lower bound rate (per hour), scaled by `dt` |
-| `contribution_from` | `dict[str, float]` | `{}` | Cross-effect factor (both domains) |
-| `contribution_from_per_hour` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (temporal domain only) |
+| `contribution_from` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (scalar or time-varying; lump uses `mean('time')`) |
+| `period_weights` | `list[float] \| None` | `None` | Per-period weights for total aggregation (overrides global `period_weights`) |

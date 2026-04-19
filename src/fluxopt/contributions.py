@@ -123,11 +123,11 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
     Returns:
         Dataset with:
         - ``temporal`` (contributor, effect, time) — per-timestep contributions
-        - ``periodic`` (contributor, effect) — periodic contributions (flows + storages)
-        - ``total`` (contributor, effect) — temporal summed over time + periodic
+        - ``lump`` (contributor, effect) — lump contributions (flows + storages)
+        - ``total`` (contributor, effect) — temporal summed over time + lump
     """
     flow_ids: list[str] = list(data.flows.effect_coeff.coords['flow'].values)
-    effect_ids: list[str] = list(data.effects.min_total.coords['effect'].values)
+    effect_ids: list[str] = list(data.effects.min_bound.coords['effect'].values)
     stor_ids: list[str] = list(data.storages.capacity.coords['storage'].values) if data.storages is not None else []
     all_ids = flow_ids + stor_ids
 
@@ -154,8 +154,8 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
     # Rename to contributor dim
     temporal = temporal_flow.rename({'flow': 'contributor'})
 
-    # --- Periodic: flow costs ---
-    flow_periodic = _compute_periodic(
+    # --- Lump: flow costs ---
+    flow_lump = _compute_periodic(
         data.flows.sizing_effects_per_size,
         data.flows.sizing_effects_fixed,
         data.flows.sizing_mandatory,
@@ -168,9 +168,9 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         'flow--size_indicator',
     )
 
-    # --- Periodic: storage costs ---
+    # --- Lump: storage costs ---
     if stor_ids:
-        stor_periodic = _compute_periodic(
+        stor_lump = _compute_periodic(
             data.storages.sizing_effects_per_size,  # type: ignore[union-attr]
             data.storages.sizing_effects_fixed,  # type: ignore[union-attr]
             data.storages.sizing_mandatory,  # type: ignore[union-attr]
@@ -182,16 +182,17 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
             'storage--capacity',
             'storage--size_indicator',
         )
-        periodic = xr.concat([flow_periodic, stor_periodic], dim='contributor')
+        lump = xr.concat([flow_lump, stor_lump], dim='contributor')
     else:
-        periodic = flow_periodic
+        lump = flow_lump
 
-    # Cross-effects on periodic via Leontief inverse
-    if data.effects.cf_periodic is not None:
-        periodic = _apply_leontief(_leontief(data.effects.cf_periodic), periodic)
+    # Cross-effects on lump via Leontief inverse (using mean of temporal cross-effect)
+    if data.effects.cf_temporal is not None:
+        cf_lump = data.effects.cf_temporal.mean('time')
+        lump = _apply_leontief(_leontief(cf_lump), lump)
 
-    # --- Total: temporal (weighted sum over time) + periodic ---
-    total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + periodic.reindex(
+    # --- Total: temporal (weighted sum over time) + lump ---
+    total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + lump.reindex(
         contributor=all_ids, fill_value=0.0
     )
 
@@ -204,4 +205,4 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
             f'Effect contributions do not sum to solver totals. Max deviation: {float(diff.max().values):.6g}'
         )
 
-    return xr.Dataset({'temporal': temporal, 'periodic': periodic, 'total': total})
+    return xr.Dataset({'temporal': temporal, 'lump': lump, 'total': total})

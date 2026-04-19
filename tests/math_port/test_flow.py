@@ -24,7 +24,8 @@ class TestFlowConstraints:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -69,7 +70,8 @@ class TestFlowConstraints:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',

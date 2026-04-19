@@ -20,7 +20,8 @@ class TestBoiler:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('grid', imports=[gas_flow]),
                 Port('demand', exports=[demand_flow]),
@@ -44,7 +45,8 @@ class TestBoiler:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('grid', imports=[gas_flow]),
                 Port('demand', exports=[demand_flow]),
@@ -72,7 +74,8 @@ class TestCHP:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('gas'), Carrier('elec'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('elec_demand', exports=[elec_demand]),

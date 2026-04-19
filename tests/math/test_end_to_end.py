@@ -31,7 +31,8 @@ class TestEndToEnd:
         result = optimize(
             timesteps=ts(4),
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
@@ -67,7 +68,8 @@ class TestEndToEnd:
         result = optimize(
             timesteps=ts(4),
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
@@ -89,7 +91,7 @@ class TestEndToEnd:
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -97,8 +99,7 @@ class TestEndToEnd:
         data.flows.fixed_profile.loc[{'flow': 'demand(elec)'}] = 0.7
 
         model = FlowSystem(data)
-        model.build()
-        result = model.solve()
+        result = model.optimize(objective_effects='cost')
 
         source_rates = result.flow_rate('grid(elec)').values
         for rate in source_rates:
@@ -113,7 +114,8 @@ class TestEndToEnd:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -129,8 +131,8 @@ class TestEndToEnd:
         assert 'effect' in result.effects_temporal.dims
         assert 'time' in result.effects_temporal.dims
 
-        # effects_periodic
-        assert 'effect' in result.effects_periodic.dims
+        # effects_lump
+        assert 'effect' in result.effects_lump.dims
 
     def test_int_timesteps(self):
         """Smoke test: int timesteps work end-to-end."""
@@ -145,7 +147,8 @@ class TestEndToEnd:
         result = optimize(
             timesteps=timesteps,
             carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),

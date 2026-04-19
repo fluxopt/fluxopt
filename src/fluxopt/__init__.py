@@ -20,6 +20,7 @@ def optimize(
     carriers: list[Carrier],
     effects: list[Effect],
     ports: list[Port],
+    objective_effects: str | list[str],
     converters: list[Converter] | None = None,
     storages: list[Storage] | None = None,
     dt: float | list[float] | None = None,
@@ -36,6 +37,7 @@ def optimize(
         carriers: Carrier declarations.
         effects: Effects to track (costs, emissions, etc.).
         ports: System boundary ports with imports/exports.
+        objective_effects: Effect name(s) to minimize. Sum of named effect totals.
         converters: Linear converters between carriers.
         storages: Energy storages.
         dt: Timestep duration in hours. Auto-derived if None.
@@ -58,7 +60,7 @@ def optimize(
         period_weights=period_weights,
     )
     model = FlowSystem(data)
-    return model.optimize(customize=customize, solver=solver, **kwargs)
+    return model.optimize(objective_effects=objective_effects, customize=customize, solver=solver, **kwargs)
 
 
 __all__ = [

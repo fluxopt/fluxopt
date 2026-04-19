@@ -25,7 +25,8 @@ class TestFlowSizing:
         result = optimize(
             ts(2),
             carriers=_heat,
-            effects=[Effect('costs', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -34,7 +35,7 @@ class TestFlowSizing:
                         Flow(
                             'Heat',
                             size=Sizing(10, 200, mandatory=True),
-                            effects_per_flow_hour={'costs': 1},
+                            effects_per_flow_hour={'cost': 1},
                         )
                     ],
                 ),
@@ -47,7 +48,7 @@ class TestFlowSizing:
     def test_optional_sizing_with_fixed_cost(self):
         """Optional invest with fixed cost.
 
-        Src: Sizing(10, 100, effects_fixed={'costs': 200}), 1€/MWh operational.
+        Src: Sizing(10, 100, effects_fixed={'cost': 200}), 1€/MWh operational.
         Backup: 5€/MWh, unsized.
         Demand = 50/ts * 2ts.
 
@@ -57,7 +58,8 @@ class TestFlowSizing:
         result = optimize(
             ts(2),
             carriers=_heat,
-            effects=[Effect('costs', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -65,12 +67,12 @@ class TestFlowSizing:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Sizing(10, 100, mandatory=False, effects_fixed={'costs': 200}),
-                            effects_per_flow_hour={'costs': 1},
+                            size=Sizing(10, 100, mandatory=False, effects_fixed={'cost': 200}),
+                            effects_per_flow_hour={'cost': 1},
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 5})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
             ],
         )
         assert_allclose(result.objective, 300.0, rtol=1e-5)
@@ -78,7 +80,7 @@ class TestFlowSizing:
         assert_allclose(indicator, 1.0, atol=1e-5)
 
     def test_fixed_size_binary_invest(self):
-        """Binary invest at fixed size: Sizing(80, 80, effects_fixed={'costs': 10}).
+        """Binary invest at fixed size: Sizing(80, 80, effects_fixed={'cost': 10}).
 
         Demand=50. Src operational=1€/MWh. Backup=2€/MWh.
         With invest: 10 + 50*1*2 = 110.
@@ -88,7 +90,8 @@ class TestFlowSizing:
         result = optimize(
             ts(2),
             carriers=_heat,
-            effects=[Effect('costs', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -96,12 +99,12 @@ class TestFlowSizing:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Sizing(80, 80, mandatory=False, effects_fixed={'costs': 10}),
-                            effects_per_flow_hour={'costs': 1},
+                            size=Sizing(80, 80, mandatory=False, effects_fixed={'cost': 10}),
+                            effects_per_flow_hour={'cost': 1},
                         )
                     ],
                 ),
-                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'costs': 2})]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'cost': 2})]),
             ],
         )
         assert_allclose(result.objective, 110.0, rtol=1e-5)
@@ -111,7 +114,7 @@ class TestFlowSizing:
     def test_per_size_effects(self):
         """Per-size investment cost.
 
-        Sizing(0, 200, mandatory=True, effects_per_size={'costs': 5}).
+        Sizing(0, 200, mandatory=True, effects_per_size={'cost': 5}).
         Demand=50/ts * 2ts. Operational=1€/MWh.
         Total = 5*size + 50*1*2. Solver minimizes → size=50.
         Total = 5*50 + 100 = 350.
@@ -119,7 +122,8 @@ class TestFlowSizing:
         result = optimize(
             ts(2),
             carriers=_heat,
-            effects=[Effect('costs', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -127,8 +131,8 @@ class TestFlowSizing:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Sizing(0, 200, mandatory=True, effects_per_size={'costs': 5}),
-                            effects_per_flow_hour={'costs': 1},
+                            size=Sizing(0, 200, mandatory=True, effects_per_size={'cost': 5}),
+                            effects_per_flow_hour={'cost': 1},
                         )
                     ],
                 ),
@@ -147,7 +151,8 @@ class TestFlowSizing:
         result = optimize(
             ts(2),
             carriers=_heat,
-            effects=[Effect('costs', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[25, 50])]),
                 Port(
@@ -157,7 +162,7 @@ class TestFlowSizing:
                             'Heat',
                             size=Sizing(0, 200, mandatory=True),
                             fixed_relative_profile=[0.5, 1.0],
-                            effects_per_flow_hour={'costs': 1},
+                            effects_per_flow_hour={'cost': 1},
                         )
                     ],
                 ),
@@ -170,15 +175,16 @@ class TestFlowSizing:
     def test_multiple_investable_merit_order(self):
         """Two investable sources with per-size cost, merit order picks cheapest.
 
-        Cheap: Sizing(0, 100, mandatory=True, effects_per_size={'costs': 0.01}), 1€/MWh.
-        Expensive: Sizing(0, 100, mandatory=True, effects_per_size={'costs': 0.01}), 5€/MWh.
+        Cheap: Sizing(0, 100, mandatory=True, effects_per_size={'cost': 0.01}), 1€/MWh.
+        Expensive: Sizing(0, 100, mandatory=True, effects_per_size={'cost': 0.01}), 5€/MWh.
         Demand=60. Cheap covers all → size=60, operational=120, invest=0.6 → total=120.6.
         Per-size cost incentivizes minimal size.
         """
         result = optimize(
             ts(2),
             carriers=_heat,
-            effects=[Effect('costs', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
                 Port(
@@ -186,8 +192,8 @@ class TestFlowSizing:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Sizing(0, 100, mandatory=True, effects_per_size={'costs': 0.01}),
-                            effects_per_flow_hour={'costs': 1},
+                            size=Sizing(0, 100, mandatory=True, effects_per_size={'cost': 0.01}),
+                            effects_per_flow_hour={'cost': 1},
                         )
                     ],
                 ),
@@ -196,8 +202,8 @@ class TestFlowSizing:
                     imports=[
                         Flow(
                             'Heat',
-                            size=Sizing(0, 100, mandatory=True, effects_per_size={'costs': 0.01}),
-                            effects_per_flow_hour={'costs': 5},
+                            size=Sizing(0, 100, mandatory=True, effects_per_size={'cost': 0.01}),
+                            effects_per_flow_hour={'cost': 5},
                         )
                     ],
                 ),
@@ -221,10 +227,11 @@ class TestStorageSizing:
         result = optimize(
             ts(3),
             carriers=_elec,
-            effects=[Effect('costs', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 50, 0])]),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'costs': [1, 10, 1]})]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [1, 10, 1]})]),
             ],
             storages=[
                 Storage(

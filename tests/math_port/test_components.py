@@ -94,7 +94,8 @@ class TestHeatPump:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',
@@ -126,7 +127,8 @@ class TestHeatPump:
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[
                 Port(
                     'Demand',

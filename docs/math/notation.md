@@ -22,8 +22,7 @@ Each symbol maps to a specific field or variable in the code.
 | \(P_{f,t(,p)}\) | `flow--rate[flow, time(, period)]` | \(\geq 0\) | MW | Flow rate |
 | \(E_{s,t(,p)}\) | `storage--level[storage, time(, period)]` | \(\geq 0\) | MWh | Stored energy |
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | `effect--temporal[effect, time(, period)]` | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
-| \(\Phi_{k(,p)}^{\text{periodic}}\) | `effect--periodic[effect(, period)]` | \(\mathbb{R}\) | varies | Periodic (recurring) effect |
-| \(\Phi_{k(,p)}^{\text{once}}\) | `effect--once[effect(, period)]` | \(\mathbb{R}\) | varies | One-time effect |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | `effect--lump[effect(, period)]` | \(\mathbb{R}\) | varies | Lump (sizing + one-time) effect |
 | \(\Phi_{k(,p)}\) | `effect--total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
 | \(S_{f(,p)}\) | `flow--size[flow(, period)]` | \(\geq 0\) | MW | Flow capacity |
 | \(y_{f(,p)}\) | `flow--size_indicator[flow(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (flow) |
@@ -52,11 +51,21 @@ Each symbol maps to a specific field or variable in the code.
 | \(\bar{e}_s\) | `Storage.relative_maximum_level` | \([0, 1]\) | — | Relative max SOC |
 | \(a_{f}\) | `Converter.conversion_factors` | \(\mathbb{R}\) | — | Conversion coefficient |
 | \(\alpha_{k,j}\) | `Effect.contribution_from` | \(\mathbb{R}\) | varies | Cross-effect factor (scalar) |
-| \(\alpha_{k,j,t}\) | `Effect.contribution_from_per_hour` | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying) |
+| \(\alpha_{k,j,t}\) | `Effect.contribution_from` (TimeSeries) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
+| \(\bar{\Phi}_k\) | `Effect.maximum` | \(\mathbb{R}\) | varies | Maximum aggregate (weighted sum across periods) |
+| \(\underline{\Phi}_k\) | `Effect.minimum` | \(\mathbb{R}\) | varies | Minimum aggregate (weighted sum across periods) |
+| \(\bar{\Phi}_k^{\text{per period}}\) | `Effect.maximum_per_period` | \(\mathbb{R}\) | varies | Maximum per period |
+| \(\underline{\Phi}_k^{\text{per period}}\) | `Effect.minimum_per_period` | \(\mathbb{R}\) | varies | Minimum per period |
+| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | `Effect.maximum_per_hour` | \(\mathbb{R}\) | varies/h | Maximum per hour (rate, scaled by \(\Delta t_t\)) |
+| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | `Effect.minimum_per_hour` | \(\mathbb{R}\) | varies/h | Minimum per hour (rate, scaled by \(\Delta t_t\)) |
 | \(S^-\) | `Sizing.min_size` | \(\geq 0\) | MW or MWh | Minimum invested size (flow or storage) |
 | \(S^+\) | `Sizing.max_size` | \(\geq 0\) | MW or MWh | Maximum invested size (flow or storage) |
-| \(\gamma_{f,k}\) | `Sizing.effects_per_size` | \(\mathbb{R}\) | varies | Per-size investment cost |
-| \(\phi_{f,k}\) | `Sizing.effects_fixed` | \(\mathbb{R}\) | varies | Fixed investment cost |
+| \(\gamma_{f,k}\) | `Sizing.effects_per_size` | \(\mathbb{R}\) | varies | Per-size investment cost (one-time, sized) |
+| \(\phi_{f,k}\) | `Sizing.effects_fixed` | \(\mathbb{R}\) | varies | Fixed investment cost (one-time, sized) |
+| \(\gamma^{\text{build}}_{f,k}\) | `Investment.effects_per_size_at_build` | \(\mathbb{R}\) | varies | Per-size CAPEX charged in the build period |
+| \(\phi^{\text{build}}_{f,k}\) | `Investment.effects_fixed_at_build` | \(\mathbb{R}\) | varies | Fixed CAPEX charged in the build period |
+| \(\gamma^{\text{rec}}_{f,k}\) | `Investment.effects_per_size_recurring` | \(\mathbb{R}\) | varies | Recurring per-size cost (each active period) |
+| \(\phi^{\text{rec}}_{f,k}\) | `Investment.effects_fixed_recurring` | \(\mathbb{R}\) | varies | Recurring fixed cost (each active period) |
 | \(D^{\text{up,min}}\) | `Status.min_uptime` | \(\geq 0\) | h | Minimum consecutive uptime |
 | \(D^{\text{up,max}}\) | `Status.max_uptime` | \(\geq 0\) | h | Maximum consecutive uptime |
 | \(D^{\text{down,min}}\) | `Status.min_downtime` | \(\geq 0\) | h | Minimum consecutive downtime |
@@ -66,8 +75,7 @@ Each symbol maps to a specific field or variable in the code.
 | \(w_t\) | weights | \(> 0\) | — | Timestep weight |
 | \(\Delta t_t\) | dt | \(> 0\) | h | Timestep duration |
 | \(\omega_p\) | `Dims.period_weights` | \(> 0\) | — | Global period weight (multi-period only) |
-| \(\omega^{\text{periodic}}_{k,p}\) | `Effect.period_weights_periodic` | \(> 0\) | — | Per-effect weight for recurring domain |
-| \(\omega^{\text{once}}_{k,p}\) | `Effect.period_weights_once` | \(> 0\) | — | Per-effect weight for one-time domain |
+| \(\omega_{k,p}\) | `Effect.period_weights` | \(> 0\) | — | Per-effect period weight |
 
 ## Naming Conventions
 

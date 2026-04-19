@@ -25,7 +25,8 @@ def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
     return optimize(
         timesteps=timesteps,
         carriers=[Carrier('elec')],
-        effects=[Effect('cost', is_objective=True)],
+        effects=[Effect('cost')],
+        objective_effects='cost',
         ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
     )
 
@@ -42,7 +43,8 @@ def _solve_with_storage(timesteps: list[datetime]) -> Result:
     return optimize(
         timesteps=timesteps,
         carriers=[Carrier('gas'), Carrier('heat')],
-        effects=[Effect('cost', is_objective=True)],
+        effects=[Effect('cost')],
+        objective_effects='cost',
         ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
@@ -84,8 +86,6 @@ class TestRoundtrip:
         assert list(loaded.data.flows.rel_lb.coords['flow'].values) == list(
             result.data.flows.rel_lb.coords['flow'].values
         )
-        # Effects attrs preserved
-        assert loaded.data.effects.objective_effect == result.data.effects.objective_effect
         # Storages dataset preserved
         assert loaded.data.storages is not None
         assert result.data.storages is not None
@@ -110,8 +110,7 @@ class TestRoundtrip:
         from fluxopt import FlowSystem
 
         model = FlowSystem(loaded.data)
-        model.build()
-        result2 = model.solve()
+        result2 = model.optimize(objective_effects='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 
 
@@ -124,7 +123,8 @@ class TestCarrierMetadataRoundtrip:
         result = optimize(
             timesteps=ts,
             carriers=[Carrier('elec', unit='kWh', color='#ff0000', description='Electrical energy')],
-            effects=[Effect('cost', is_objective=True)],
+            effects=[Effect('cost')],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
         )
         assert result.data is not None
@@ -149,30 +149,27 @@ class TestRoundtripContributionFrom:
             timesteps=ts,
             carriers=[Carrier('elec')],
             effects=[
-                Effect('cost', is_objective=True, contribution_from={'co2': 50}),
+                Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
+            objective_effects='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
         assert result.data is not None
-        assert result.data.effects.cf_periodic is not None
         assert result.data.effects.cf_temporal is not None
 
         result.to_netcdf(tmp_nc)
         loaded = Result.from_netcdf(tmp_nc)
 
         assert loaded.data is not None
-        assert loaded.data.effects.cf_periodic is not None
         assert loaded.data.effects.cf_temporal is not None
-        xr.testing.assert_equal(loaded.data.effects.cf_periodic, result.data.effects.cf_periodic)
         xr.testing.assert_equal(loaded.data.effects.cf_temporal, result.data.effects.cf_temporal)
 
         # Re-solve gives same objective
         from fluxopt import FlowSystem
 
         model = FlowSystem(loaded.data)
-        model.build()
-        result2 = model.solve()
+        result2 = model.optimize(objective_effects='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 
 
