@@ -137,10 +137,13 @@ For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
 | \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(w_t\) | Timestep weight | weights |
-| \(\bar{\Phi}_k\) | Maximum total | `Effect.maximum` |
-| \(\underline{\Phi}_k\) | Minimum total | `Effect.minimum` |
-| \(\bar{\Phi}_{k,t}\) | Maximum per hour | `Effect.maximum_per_hour` |
-| \(\underline{\Phi}_{k,t}\) | Minimum per hour | `Effect.minimum_per_hour` |
+| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | `Effect.maximum` |
+| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | `Effect.minimum` |
+| \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | `Effect.maximum_per_period` |
+| \(\underline{\Phi}_k^{\text{per period}}\) | Minimum per period | `Effect.minimum_per_period` |
+| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | `Effect.maximum_per_hour` |
+| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | `Effect.minimum_per_hour` |
+| \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | `Effect.period_weights` / global `period_weights` |
 
 See [Notation](notation.md) for the full symbol table.
 

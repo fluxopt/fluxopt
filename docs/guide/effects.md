@@ -18,8 +18,9 @@ cost = Effect('cost')
 co2 = Effect('co2', unit='kg')
 ```
 
-The objective is specified in the `optimize()` call via `objective_effects='cost'`
-(defaults to `'cost'`).
+The objective is specified in the `optimize()` call via the mandatory
+`objective_effects` argument, e.g. `objective_effects='cost'`. Pass a list to
+minimize a sum of effect totals, e.g. `objective_effects=['opex', 'capex']`.
 
 ## Linking Flows to Effects
 
@@ -208,8 +209,11 @@ print(result.effect_totals)
 |---|---|---|---|
 | `id` | `str` | required | Effect identifier |
 | `unit` | `str` | `''` | Unit label |
-| `maximum` | `float \| None` | `None` | Upper bound on total |
-| `minimum` | `float \| None` | `None` | Lower bound on total |
+| `maximum` | `float \| None` | `None` | Upper bound on weighted total across all periods |
+| `minimum` | `float \| None` | `None` | Lower bound on weighted total across all periods |
+| `maximum_per_period` | `float \| None` | `None` | Upper bound on each period independently |
+| `minimum_per_period` | `float \| None` | `None` | Lower bound on each period independently |
 | `maximum_per_hour` | `TimeSeries \| None` | `None` | Upper bound rate (per hour), scaled by `dt` |
 | `minimum_per_hour` | `TimeSeries \| None` | `None` | Lower bound rate (per hour), scaled by `dt` |
-| `contribution_from` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (both domains) |
+| `contribution_from` | `dict[str, TimeSeries]` | `{}` | Cross-effect factor (scalar or time-varying; lump uses `mean('time')`) |
+| `period_weights` | `list[float] \| None` | `None` | Per-period weights for total aggregation (overrides global `period_weights`) |

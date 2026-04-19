@@ -884,16 +884,23 @@ class FlowSystem:
 
         # Cross-effect lump: mean(cf_temporal, 'time')[k,j] * effect_lump[j]
         # Time-varying contribution_from values are averaged over time for the
-        # lump domain. Warn when this could surprise the user.
+        # lump domain. Warn per-(k,j) where the factor varies and the mean
+        # is non-zero (i.e. the cross-effect actually contributes).
         lump_rhs: Any = lump_direct
         if ds.cf_temporal is not None:
             cf_lump = ds.cf_temporal.mean('time')
-            time_varying = (ds.cf_temporal != ds.cf_temporal.mean('time')).any().item()
-            if time_varying and not isinstance(lump_direct, int):
+            varying = (ds.cf_temporal != cf_lump).any('time')  # (effect, source_effect)
+            non_trivial = varying & (cf_lump != 0)
+            if bool(non_trivial.any().item()) and not isinstance(lump_direct, int):
                 import warnings
 
+                pairs = [
+                    (str(non_trivial.coords['effect'].values[i]), str(non_trivial.coords['source_effect'].values[j]))
+                    for i, j in zip(*non_trivial.values.nonzero(), strict=True)
+                ]
+                pair_str = ', '.join(f'{k}<-{j}' for k, j in pairs)
                 warnings.warn(
-                    'Time-varying contribution_from is averaged over time for the lump domain. '
+                    f'Time-varying contribution_from for {pair_str} is averaged over time for the lump domain. '
                     "If this isn't what you want, split into separate effects.",
                     stacklevel=2,
                 )

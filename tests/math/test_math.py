@@ -19,7 +19,7 @@ from __future__ import annotations
 from conftest import ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, Port, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Storage, optimize
 
 # ---------------------------------------------------------------------------
 # Bus balance & dispatch
@@ -285,7 +285,6 @@ class TestEffects:
         2 periods (weights=1), demand=10 per ts. Per-period: Dirty<=8 (CO2 cap),
         Clean>=12. cost per period = 8+60 = 68. Objective = 2*68 = 136.
         """
-        from fluxopt import Carrier, Effect, Flow, Port, optimize
 
         result = optimize(
             ts(2),
@@ -310,7 +309,6 @@ class TestEffects:
         Dirty >= 15 per period, demand = 10 per period -> 5 excess to waste.
         cost = 15 per period, total = 30.
         """
-        from fluxopt import Carrier, Effect, Flow, Port, optimize
 
         result = optimize(
             ts(2),
@@ -335,7 +333,6 @@ class TestEffects:
         Per-period demand = 15 → all Dirty would give CO2=15 per period, sum=30.
         Capped at 20: Dirty=20 total, Clean=10. cost = 20*1 + 10*5 = 70.
         """
-        from fluxopt import Carrier, Effect, Flow, Port, optimize
 
         result = optimize(
             ts(3),
@@ -358,8 +355,6 @@ class TestEffects:
     def test_effect_time_varying_contribution_warns(self):
         """Time-varying contribution_from with non-trivial lump warns about mean('time')."""
         import warnings
-
-        from fluxopt import Carrier, Effect, Flow, Port, Sizing, optimize
 
         # Sizing on the source creates a non-trivial lump contribution to co2.
         # Time-varying contribution_from on cost causes the warning.
