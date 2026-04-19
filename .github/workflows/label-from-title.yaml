@@ -1,0 +1,37 @@
+name: Label from title
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request_target:
+    types: [opened, edited, reopened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Apply type label from Conventional Commits prefix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ github.event.issue.title || github.event.pull_request.title }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          KIND: ${{ github.event.issue.number && 'issue' || 'pr' }}
+        run: |
+          set -euo pipefail
+          prefix=$(printf '%s' "$TITLE" | sed -nE 's/^(feat|fix|refac|test|docs|chore|ci|build|perf)(\([^)]*\))?!?:.*/\1/p')
+          if [ -z "$prefix" ]; then
+            echo "No Conventional Commits prefix in title: $TITLE"
+            exit 0
+          fi
+          new="type:$prefix"
+          current=$(gh "$KIND" view "$NUMBER" --repo "$REPO" --json labels -q '.labels[].name' | grep '^type:' || true)
+          for l in $current; do
+            [ "$l" != "$new" ] && gh "$KIND" edit "$NUMBER" --repo "$REPO" --remove-label "$l" || true
+          done
+          gh "$KIND" edit "$NUMBER" --repo "$REPO" --add-label "$new"
+          echo "Applied $new to $KIND #$NUMBER"

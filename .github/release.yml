@@ -5,15 +5,16 @@ changelog:
         - breaking
     - title: Features
       labels:
-        - enhancement
-        - feature
+        - type:feat
     - title: Bug Fixes
       labels:
-        - bug
-        - fix
+        - type:fix
+    - title: Performance
+      labels:
+        - type:perf
     - title: Documentation
       labels:
-        - documentation
+        - type:docs
     - title: Other Changes
       labels:
         - "*"
@@ -21,3 +22,7 @@ changelog:
     labels:
       - skip-changelog
       - dependencies
+      - type:test
+      - type:ci
+      - type:build
+      - type:chore
