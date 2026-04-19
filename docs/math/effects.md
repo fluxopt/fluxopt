@@ -27,6 +27,8 @@ Each effect accumulates contributions from all flows at each timestep:
 \Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f \in \mathcal{F}} c_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{direct flow contributions}} + \underbrace{\sum_{j \in \mathcal{K}} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect contributions}} \quad \forall \, k, t
 \]
 
+<!-- verified-by: tests/math/test_doc_formulas.py::TestTemporalEquation::test_effect_temporal_equation -->
+
 The coefficient \(c_{f,k,t}\) specifies how much of effect \(k\) is produced per
 flow-hour of flow \(f\) (e.g., €/MWh for cost, kg/MWh for emissions).
 
