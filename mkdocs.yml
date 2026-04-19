@@ -97,16 +97,6 @@ plugins:
   - literate-nav:
       nav_file: SUMMARY.md
 
-  - redirects:
-      redirect_maps:
-        guide/getting-started.md: index.md
-        guide/flows.md: math/flows.md
-        guide/converters.md: math/converters.md
-        guide/storage.md: math/storage.md
-        guide/effects.md: math/effects.md
-        guide/sizing.md: math/sizing.md
-        guide/status.md: math/status.md
-
   - mkdocs-jupyter:
       include_source: true
       execute: true
