@@ -115,6 +115,7 @@ extend-fixable = ["B", "SIM", "RUF", "C4", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+"tests/math/test_doc_formulas.py" = ["S101", "N806"]  # uppercase vars mirror LaTeX symbols
 "scripts/**/*.py" = ["T201", "RUF003"]
 "docs/notebooks/*.ipynb" = ["T201", "RUF001", "RUF003"]
 

@@ -1,12 +1,14 @@
 """Structural verification of the equations in ``docs/math/``.
 
-Each test corresponds to one equation in the math docs and pins the
-**coefficients** linopy emits — not just the solved objective value.
-Renaming a term or forgetting a ``dt`` factor fails the test with a pointer
-to the equation it verifies.
+Each test pins one equation by comparing the linopy constraint to an
+**expected expression built from the model's own variables** — so the test
+body mirrors the LaTeX line-for-line.
 
-Convention: every equation verified here is annotated in the doc with
-``<!-- verified-by: tests/math/test_doc_formulas.py::<test_name> -->``.
+Convention: every equation verified here carries a sibling comment in the
+doc::
+
+    <!-- verified-by: tests/math/test_doc_formulas.py::<nodeid> -->
+
 ``tests/test_doc_anchors.py`` enforces that the anchor resolves.
 """
 
@@ -23,78 +25,109 @@ from fluxopt.model import FlowSystem
 from fluxopt.model_data import ModelData
 
 
-def _term_coeff(constraint: Any, row: dict[str, Any], var_label: int) -> float:
-    """Return the coefficient on ``var_label`` in a single row of a linopy constraint.
+def _coeff_dict(vars_arr: Any, coeffs_arr: Any) -> dict[int, float]:
+    """Collapse parallel (vars, coeffs) arrays into a ``{label: coeff}`` dict.
 
-    A linopy constraint stores ``coeffs`` and ``vars`` as parallel arrays indexed
-    by ``_term``. This looks up which term slot holds ``var_label`` in the given
-    row and returns the coefficient — or 0.0 if the variable does not appear.
+    Drops zero coefficients and linopy's ``-1`` padding sentinel. Sums
+    duplicate-label slots so expressions that list a variable twice
+    (e.g., after subtraction) canonicalize correctly.
     """
-    vars_row = constraint.vars.sel(row).values
-    coeffs_row = constraint.coeffs.sel(row).values
-    idx = np.where(vars_row == var_label)[0]
-    return float(coeffs_row[idx[0]]) if len(idx) else 0.0
+    result: dict[int, float] = {}
+    for v, c in zip(vars_arr.ravel().tolist(), coeffs_arr.ravel().tolist(), strict=True):
+        label = int(v)
+        if label == -1:
+            continue
+        result[label] = result.get(label, 0.0) + float(c)
+    return {k: v for k, v in result.items() if abs(v) > 1e-12}
 
 
-def _build(dt_hours: float = 2.0, cost_coeff: float = 30.0, co2_to_cost: float = 50.0) -> FlowSystem:
-    """Minimal 2-timestep system with a CO2 → cost cross-effect."""
-    timesteps = [datetime(2024, 1, 1, h * int(dt_hours)) for h in range(2)]
+def _label_names(model: Any) -> dict[int, str]:
+    """Build ``{label: human_name}`` map across all variables in the linopy model."""
+    names: dict[int, str] = {}
+    for vname, var in model.variables.items():
+        labels = var.labels
+        for flat_idx, label in enumerate(labels.values.ravel()):
+            if label == -1:
+                continue
+            # Recover the coord tuple for this flat index
+            multi_idx = np.unravel_index(flat_idx, labels.shape)
+            coord_str = ', '.join(
+                f'{d}={labels.coords[d].values[i]}' for d, i in zip(labels.dims, multi_idx, strict=True)
+            )
+            names[int(label)] = f'{vname}[{coord_str}]'
+    return names
+
+
+def _pretty(d: dict[int, float], name_map: dict[int, str]) -> str:
+    return '{' + ', '.join(f'{name_map.get(k, k)}: {v:g}' for k, v in sorted(d.items(), key=lambda kv: kv[0])) + '}'
+
+
+def assert_row_equation(constraint: Any, *, row: dict[str, Any], lhs: Any, rhs: Any = 0) -> None:
+    """Assert ``constraint`` at ``row`` represents the equation ``lhs = rhs``.
+
+    ``lhs`` and ``rhs`` are linopy expressions (or scalars) built from the same
+    model's variables. Both sides are rearranged to ``lhs - rhs = 0`` and
+    compared coefficient-by-coefficient against the stored constraint — so
+    the test body can mirror the equation as written in the docs, with no
+    manual sign-flipping.
+    """
+    expected_expr = lhs - rhs
+    expected = _coeff_dict(expected_expr.vars.values, expected_expr.coeffs.values)
+    actual = _coeff_dict(constraint.vars.sel(row).values, constraint.coeffs.sel(row).values)
+
+    if actual != pytest.approx(expected):
+        names = _label_names(constraint.model)
+        raise AssertionError(
+            f'Constraint row {row} does not match equation:\n'
+            f'  expected: {_pretty(expected, names)}\n'
+            f'  actual:   {_pretty(actual, names)}'
+        )
+    assert constraint.sign.sel(row).item() == '=', (
+        f'Expected equality constraint, got sign {constraint.sign.sel(row).item()!r}'
+    )
+    assert float(constraint.rhs.sel(row)) == pytest.approx(0.0)
+
+
+@pytest.fixture
+def model() -> FlowSystem:
+    """Two-timestep system: Src -> Demand, 30 EUR/MWh, 0.2 kg CO2/MWh, CO2 priced at 50 EUR/kg."""
+    timesteps = [datetime(2024, 1, 1, h * 2) for h in range(2)]
     data = ModelData.build(
         timesteps=timesteps,
         carriers=[Carrier('Heat')],
         effects=[
-            Effect('cost', contribution_from={'co2': co2_to_cost}),
+            Effect('cost', contribution_from={'co2': 50}),
             Effect('co2'),
         ],
         ports=[
             Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
-            Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': cost_coeff, 'co2': 0.2})]),
+            Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 30, 'co2': 0.2})]),
         ],
     )
-    model = FlowSystem(data)
-    model._objective_effects = ['cost']
-    model.build()
-    return model
+    m = FlowSystem(data)
+    m._objective_effects = ['cost']
+    m.build()
+    return m
 
 
 class TestTemporalEquation:
-    """Verifies ``docs/math/effects.md`` -- Phi^temporal_{k,t} equation.
+    """docs/math/effects.md — Temporal Domain.
 
     Phi^temporal_{k,t} = sum_f c_{f,k,t} * P_{f,t} * dt_t
                        + sum_j alpha_{k,j,t} * Phi^temporal_{j,t}
-
-    linopy rearranges this to ``effect_temporal - (sum_f c*dt*P + sum_j alpha*Phi_j) = 0``,
-    so LHS coefficients are ``+1`` on Phi_k, ``-c*dt`` on flows, ``-alpha`` on
-    source-effect variables; RHS is 0.
     """
 
-    def test_effect_temporal_equation(self) -> None:
-        dt = 2.0
-        cost_coeff = 30.0
-        alpha = 50.0
-        model = _build(dt_hours=dt, cost_coeff=cost_coeff, co2_to_cost=alpha)
+    def test_effect_temporal_equation(self, model: FlowSystem) -> None:
+        Phi = model.effect_temporal
+        P = model.flow_rate
+        t = model.data.dims.time.values[0]
+        dt = 2  # timestep duration [h]
+        c = 30  # Src cost coefficient [EUR/MWh]
+        alpha = 50  # carbon price [EUR/kg]
 
-        constraint = model.m.constraints['effect_temporal_eq']
-        t0 = model.data.dims.time.values[0]
-        row = {'effect': 'cost', 'time': t0}
-
-        et_cost = int(model.effect_temporal.labels.sel(effect='cost', time=t0).item())
-        et_co2 = int(model.effect_temporal.labels.sel(effect='co2', time=t0).item())
-        src = int(model.flow_rate.labels.sel(flow='Src(Heat)', time=t0).item())
-        demand = int(model.flow_rate.labels.sel(flow='Demand(Heat)', time=t0).item())
-
-        # Phi^temporal_{cost, t0}: coefficient on itself is +1
-        assert _term_coeff(constraint, row, et_cost) == pytest.approx(1.0)
-
-        # Flow term: -c_{Src,cost} * dt
-        assert _term_coeff(constraint, row, src) == pytest.approx(-cost_coeff * dt)
-
-        # Cross-effect term: -alpha_{cost,co2}
-        assert _term_coeff(constraint, row, et_co2) == pytest.approx(-alpha)
-
-        # Demand flow has no cost coefficient -- should not contribute
-        assert _term_coeff(constraint, row, demand) == pytest.approx(0.0)
-
-        # Equality constraint with RHS = 0
-        assert constraint.sign.sel(row).item() == '='
-        assert float(constraint.rhs.sel(row)) == pytest.approx(0.0)
+        assert_row_equation(
+            model.m.constraints['effect_temporal_eq'],
+            row={'effect': 'cost', 'time': t},
+            lhs=Phi.sel(effect='cost', time=t),
+            rhs=c * dt * P.sel(flow='Src(Heat)', time=t) + alpha * Phi.sel(effect='co2', time=t),
+        )
