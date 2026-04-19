@@ -34,7 +34,7 @@ def _leontief(cf: xr.DataArray) -> xr.DataArray:
     if np.any(np.linalg.matrix_rank(mat) < n):
         raise ValueError('Cross-effect matrix (I - C) is singular — check for circular contribution_from chains')
     inv = np.linalg.inv(mat)  # (..., n, n)
-    return xr.DataArray(inv, dims=ordered, coords=cf.coords)
+    return xr.DataArray(inv, dims=ordered, coords=cf.coords).transpose(*cf.dims)
 
 
 def _apply_leontief(
