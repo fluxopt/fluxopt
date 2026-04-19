@@ -279,6 +279,117 @@ class TestEffects:
         assert_allclose(co2, 25.0, rtol=1e-5)
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
+    def test_effect_maximum_per_period(self):
+        """CO2 maximum_per_period=8 caps each period independently.
+
+        2 periods (weights=1), demand=10 per ts. Per-period: Dirty<=8 (CO2 cap),
+        Clean>=12. cost per period = 8+60 = 68. Objective = 2*68 = 136.
+        """
+        from fluxopt import Carrier, Effect, Flow, Port, optimize
+
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost'), Effect('CO2', maximum_per_period=8)],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0})]),
+            ],
+            periods=[2020, 2025],
+            period_weights=[1, 1],
+        )
+        # Each period: total demand 20, Dirty<=8, Clean=12. cost = 8 + 60 = 68 per period.
+        assert_allclose(result.objective, 136.0, rtol=1e-5)
+
+    def test_effect_minimum_per_period(self):
+        """CO2 minimum_per_period=15 forces minimum emission each period.
+
+        2 periods (weights=1), demand=5 per ts. Each period needs >=15 CO2.
+        Dirty >= 15 per period, demand = 10 per period -> 5 excess to waste.
+        cost = 15 per period, total = 30.
+        """
+        from fluxopt import Carrier, Effect, Flow, Port, optimize
+
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost'), Effect('CO2', minimum_per_period=15)],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
+                waste('Heat'),
+            ],
+            periods=[2020, 2025],
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 30.0, rtol=1e-5)
+
+    def test_effect_maximum_multi_period_weighted(self):
+        """maximum bound across multi-period uses period_weights for the weighted sum.
+
+        2 periods, weights=[1,1], Effect.maximum=20. 3 timesteps x demand=5 per period.
+        Total CO2 cap = 1*co2[0] + 1*co2[1] <= 20.
+        Per-period demand = 15 → all Dirty would give CO2=15 per period, sum=30.
+        Capped at 20: Dirty=20 total, Clean=10. cost = 20*1 + 10*5 = 70.
+        """
+        from fluxopt import Carrier, Effect, Flow, Port, optimize
+
+        result = optimize(
+            ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost'), Effect('CO2', maximum=20)],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5, 5])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0})]),
+            ],
+            periods=[2020, 2025],
+            period_weights=[1, 1],
+        )
+        co2 = float(result.effect_totals.sel(effect='CO2').sum().item())
+        # Total CO2 (weighted by [1,1]) <= 20.
+        assert co2 <= 20 + 1e-5
+        assert_allclose(result.objective, 70.0, rtol=1e-5)
+
+    def test_effect_time_varying_contribution_warns(self):
+        """Time-varying contribution_from with non-trivial lump warns about mean('time')."""
+        import warnings
+
+        from fluxopt import Carrier, Effect, Flow, Port, Sizing, optimize
+
+        # Sizing on the source creates a non-trivial lump contribution to co2.
+        # Time-varying contribution_from on cost causes the warning.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            optimize(
+                ts(2),
+                carriers=[Carrier('Heat')],
+                effects=[
+                    Effect('cost', contribution_from={'co2': [1.0, 2.0]}),
+                    Effect('co2'),
+                ],
+                objective_effects='cost',
+                ports=[
+                    Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
+                    Port(
+                        'Source',
+                        imports=[
+                            Flow(
+                                'Heat',
+                                effects_per_flow_hour={'co2': 1},
+                                size=Sizing(min_size=10, max_size=10, mandatory=True, effects_per_size={'co2': 1.0}),
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        msgs = [str(w.message) for w in caught]
+        assert any('averaged over time' in m for m in msgs), f'Expected warning, got: {msgs}'
+
 
 # ---------------------------------------------------------------------------
 # Flow constraints

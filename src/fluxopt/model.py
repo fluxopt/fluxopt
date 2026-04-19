@@ -927,16 +927,14 @@ class FlowSystem:
         max_bound = ds.max_bound
         total_sum: Any
         if 'period' in self.effect_total.dims:
-            # Per-effect weights override global; default to 1 (unweighted)
+            # Multi-period: weighted sum across periods.
+            # Per-effect weights override global; both are always set in multi-period.
+            assert d.dims.period_weights is not None
             if ds.period_weights is not None:
-                # Use per-effect weights where available, fall back to global or 1
-                global_w = d.dims.period_weights if d.dims.period_weights is not None else 1
-                w_per_effect = ds.period_weights.fillna(global_w)
+                w_per_effect = ds.period_weights.fillna(d.dims.period_weights)
                 total_sum = (self.effect_total * w_per_effect).sum('period')
-            elif d.dims.period_weights is not None:
-                total_sum = (self.effect_total * d.dims.period_weights).sum('period')
             else:
-                total_sum = self.effect_total.sum('period')
+                total_sum = (self.effect_total * d.dims.period_weights).sum('period')
         else:
             total_sum = self.effect_total
         has_min = min_bound.notnull()
