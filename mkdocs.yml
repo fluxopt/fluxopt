@@ -99,7 +99,7 @@ plugins:
 
   - redirects:
       redirect_maps:
-        guide/getting-started.md: notebooks/01-quickstart.ipynb
+        guide/getting-started.md: index.md
         guide/flows.md: math/flows.md
         guide/converters.md: math/converters.md
         guide/storage.md: math/storage.md
