@@ -60,9 +60,17 @@ An effect can include a weighted fraction of another effect's value via
 `contribution_from`. This enables patterns like carbon pricing (CO₂ → cost)
 or transitive chains (PE → CO₂ → cost).
 
-The scalar factor \(\alpha_{k,j}\) from `contribution_from` applies to **both**
-domains. Time-varying values in `contribution_from` apply to the temporal domain only;
-the lump domain uses the scalar value.
+The factor \(\alpha_{k,j}\) from `contribution_from` accepts either a scalar
+or a `TimeSeries`:
+
+- **Scalar**: applied identically to both temporal and lump domains.
+- **TimeSeries** (time-varying): applied per-timestep in the temporal domain;
+  for the lump domain the arithmetic mean over time is used
+  (`cf_temporal.mean('time')` in `model.py`). A `UserWarning` is emitted when
+  a time-varying factor is averaged for a non-trivial lump contribution.
+
+If you need different cross-effect factors for the two domains, split into
+separate effects.
 
 ### Validation
 
@@ -71,21 +79,36 @@ Self-references (\(\alpha_{k,k}\)) and circular dependencies
 
 ## Total Aggregation
 
-The total effect combines both domains:
+The total effect for each period \(p\) combines both domains:
 
 \[
-\Phi_{k(,p)} = \sum_{t \in \mathcal{T}} \Phi_{k,t(,p)}^{\text{temporal}} \cdot w_t + \Phi_{k(,p)}^{\text{lump}} \quad \forall \, k \in \mathcal{K}
+\Phi_{k,p} = \sum_{t \in \mathcal{T}} \Phi_{k,t,p}^{\text{temporal}} \cdot w_t + \Phi_{k,p}^{\text{lump}} \quad \forall \, k \in \mathcal{K}, \; p \in \mathcal{P}
 \]
 
 Weights \(w_t\) allow scaling timesteps (e.g., a representative week scaled to a year).
+Single-period models drop the \(p\) index.
 
-## Total Bounds
+## Bounds
 
-Upper and lower bounds on the total effect over the entire horizon:
+Three levels of bound granularity, all per-effect:
+
+**Per-hour bounds** (`maximum_per_hour` / `minimum_per_hour`) — see [Per-Hour Bounds](#per-hour-bounds) below.
+
+**Per-period bounds** (`maximum_per_period` / `minimum_per_period`) — each period independently:
 
 \[
-\underline{\Phi}_k \leq \Phi_k \leq \bar{\Phi}_k
+\underline{\Phi}_k^{\text{per period}} \leq \Phi_{k,p} \leq \bar{\Phi}_k^{\text{per period}} \quad \forall \, p
 \]
+
+**Aggregate bounds** (`maximum` / `minimum`) — weighted sum across all periods, where
+\(\omega_{k,p}\) is `Effect.period_weights` (falling back to global `period_weights`, then 1):
+
+\[
+\underline{\Phi}_k \leq \sum_{p \in \mathcal{P}} \omega_{k,p} \cdot \Phi_{k,p} \leq \bar{\Phi}_k
+\]
+
+For physical quantities (e.g., total CO₂ across all years), `period_weights` should
+typically encode the period duration so the aggregate is a true physical sum.
 
 This is useful for emission caps or budget constraints.
 

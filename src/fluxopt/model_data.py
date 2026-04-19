@@ -825,7 +825,7 @@ class EffectsData:
             elif f.name in ds.attrs:
                 kwargs[f.name] = ds.attrs[f.name]
             # else: rely on dataclass default (e.g. None for optional fields)
-        return cls(**kwargs)
+        return cls(**kwargs)  # type: ignore[arg-type, unused-ignore]
 
     @classmethod
     def build(

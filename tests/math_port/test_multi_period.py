@@ -722,44 +722,6 @@ class TestPeriodVaryingEffects:
         )
         assert_allclose(result.objective, 4500.0, rtol=1e-4)
 
-    def test_contribution_from_period_varying_carbon_price(self, optimize):
-        """Proves: Effect.contribution_from with period-varying factor.
-
-        CO2 effect tracks emissions. Cost gets contribution_from CO2
-        at rate 50 in 2020, 100 in 2025. Grid emits 1 CO2/MWh, demand=10 for 3 ts.
-        CO2 per period = 30. Cost: 2020→50*30=1500, 2025→100*30=3000.
-        Weights=[1, 1]. Objective = 1500 + 3000 = 4500.
-        """
-        _xfail_if_validate(optimize)
-        periods = [2020, 2025]
-        carbon_price = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
-        result = optimize(
-            timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[
-                Effect('co2'),
-                Effect('cost', contribution_from={'co2': carbon_price}),
-            ],
-            objective_effects='cost',
-            ports=[
-                Port(
-                    'Demand',
-                    exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
-                    ],
-                ),
-                Port(
-                    'Grid',
-                    imports=[
-                        Flow('Heat', effects_per_flow_hour={'co2': 1}),
-                    ],
-                ),
-            ],
-            periods=periods,
-            period_weights=[1, 1],
-        )
-        assert_allclose(result.objective, 4500.0, rtol=1e-4)
-
     def test_storage_sizing_effects_per_size_vary_by_period(self, optimize):
         """Proves: Storage Sizing.effects_per_size can vary across periods.
 

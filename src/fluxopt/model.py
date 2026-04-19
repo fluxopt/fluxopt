@@ -883,9 +883,20 @@ class FlowSystem:
                 lump_direct = lump_direct + (ef_once * self.invest_build).sum('flow')
 
         # Cross-effect lump: mean(cf_temporal, 'time')[k,j] * effect_lump[j]
+        # Time-varying contribution_from values are averaged over time for the
+        # lump domain. Warn when this could surprise the user.
         lump_rhs: Any = lump_direct
         if ds.cf_temporal is not None:
             cf_lump = ds.cf_temporal.mean('time')
+            time_varying = (ds.cf_temporal != ds.cf_temporal.mean('time')).any().item()
+            if time_varying and not isinstance(lump_direct, int):
+                import warnings
+
+                warnings.warn(
+                    'Time-varying contribution_from is averaged over time for the lump domain. '
+                    "If this isn't what you want, split into separate effects.",
+                    stacklevel=2,
+                )
             source_p = self.effect_lump.rename({'effect': 'source_effect'})
             cross = (cf_lump * source_p).sum('source_effect')
             lump_rhs = cross + lump_direct  # linopy expr must be left operand
@@ -909,11 +920,25 @@ class FlowSystem:
             self.m.add_constraints(self.effect_total <= max_pp, name='effect_max_per_period', mask=has_max_pp)
 
         # Weighted total bounds (across all periods)
-        # In single-period: effect_total has no period dim, bound applies directly
-        # In multi-period: sum across periods first
+        # Single-period: effect_total has no period dim, bound applies directly.
+        # Multi-period: weighted sum across periods, using per-effect period_weights
+        # if set, else global period_weights, else unweighted.
         min_bound = ds.min_bound  # (effect,) — NaN = unbounded
         max_bound = ds.max_bound
-        total_sum = self.effect_total.sum('period') if 'period' in self.effect_total.dims else self.effect_total
+        total_sum: Any
+        if 'period' in self.effect_total.dims:
+            # Per-effect weights override global; default to 1 (unweighted)
+            if ds.period_weights is not None:
+                # Use per-effect weights where available, fall back to global or 1
+                global_w = d.dims.period_weights if d.dims.period_weights is not None else 1
+                w_per_effect = ds.period_weights.fillna(global_w)
+                total_sum = (self.effect_total * w_per_effect).sum('period')
+            elif d.dims.period_weights is not None:
+                total_sum = (self.effect_total * d.dims.period_weights).sum('period')
+            else:
+                total_sum = self.effect_total.sum('period')
+        else:
+            total_sum = self.effect_total
         has_min = min_bound.notnull()
         if has_min.any():
             self.m.add_constraints(total_sum >= min_bound, name='effect_min_bound', mask=has_min)
