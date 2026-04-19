@@ -51,13 +51,13 @@ include = ["src/fluxopt/", "LICENSE", "README.md"]
 
 [dependency-groups]
 dev = [
-    "mypy==1.19.1",
+    "mypy==1.20.1",
     "pandas-stubs==3.0.0.260204",
     "pre-commit==4.5.1",
     "pytest==9.0.2",
     "pytest-cov==7.0.0",
     "pytest-xdist==3.8.0",
-    "ruff==0.15.7",
+    "ruff==0.15.11",
 ]
 docs = [
     "plotly>=6",
