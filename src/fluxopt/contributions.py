@@ -1,8 +1,8 @@
 """Per-contributor effect breakdown.
 
 Decomposes solver effect totals into per-contributor (flow/storage) parts,
-split into temporal (per-timestep) and periodic (sizing, fixed costs) domains — matching
-the model's own temporal/periodic structure.
+split into temporal (per-timestep) and lump (sizing + investment costs) domains —
+matching the model's own temporal/lump structure.
 
 Cross-effects use the Leontief inverse: total = (I - C)^-1 * direct,
 where C is the cross-effect coefficient matrix.
@@ -16,7 +16,7 @@ import numpy as np
 import xarray as xr
 
 if TYPE_CHECKING:
-    from fluxopt.model_data import ModelData
+    from fluxopt.model_data import FlowsData, ModelData
 
 
 def _leontief(cf: xr.DataArray) -> xr.DataArray:
@@ -51,7 +51,7 @@ def _apply_leontief(
     return result
 
 
-def _compute_periodic(
+def _compute_sizing_lump(
     effects_per_size: xr.DataArray | None,
     effects_fixed: xr.DataArray | None,
     mandatory: xr.DataArray | None,
@@ -63,7 +63,7 @@ def _compute_periodic(
     size_var: str,
     indicator_var: str,
 ) -> xr.DataArray:
-    """Compute periodic contributions for flows or storages.
+    """Compute Sizing lump contributions for flows or storages.
 
     Args:
         effects_per_size: Per-unit sizing costs ``(sizing_dim, effect)`` or None.
@@ -107,6 +107,40 @@ def _compute_periodic(
             term = ef_mand.reindex({entity_dim: contributor_ids}, fill_value=0.0)
             result = result + term.rename({entity_dim: 'contributor'})
 
+    return result
+
+
+def _compute_investment_lump(
+    fds: FlowsData,
+    solution: xr.Dataset,
+    flow_ids: list[str],
+    effect_ids: list[str],
+) -> xr.DataArray:
+    """Compute Investment lump contributions per (flow, effect).
+
+    Each of the 4 Investment cost parameters multiplies a different solver
+    variable, but all accumulate into the same lump bucket per flow.
+    """
+    result = xr.DataArray(
+        np.zeros((len(flow_ids), len(effect_ids))),
+        dims=['contributor', 'effect'],
+        coords={'contributor': flow_ids, 'effect': effect_ids},
+    )
+    pairs = [
+        (fds.invest_effects_per_size_at_build, 'invest--size_at_build'),
+        (fds.invest_effects_fixed_at_build, 'invest--build'),
+        (fds.invest_effects_per_size_recurring, 'flow--size'),  # selected to invest flows
+        (fds.invest_effects_fixed_recurring, 'invest--active'),
+    ]
+    for coeff, var_name in pairs:
+        if coeff is None:
+            continue
+        c = coeff.rename({'invest_flow': 'flow'})
+        var = solution[var_name]
+        if var_name == 'flow--size':
+            var = var.sel(flow=list(coeff.coords['invest_flow'].values))
+        term = (c * var).reindex(flow=flow_ids, fill_value=0.0)
+        result = result + term.rename({'flow': 'contributor'})
     return result
 
 
@@ -154,8 +188,8 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
     # Rename to contributor dim
     temporal = temporal_flow.rename({'flow': 'contributor'})
 
-    # --- Lump: flow costs ---
-    flow_lump = _compute_periodic(
+    # --- Lump: flow sizing costs ---
+    flow_lump = _compute_sizing_lump(
         data.flows.sizing_effects_per_size,
         data.flows.sizing_effects_fixed,
         data.flows.sizing_mandatory,
@@ -168,9 +202,12 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         'flow--size_indicator',
     )
 
-    # --- Lump: storage costs ---
+    # --- Lump: flow investment costs (at_build + recurring) ---
+    flow_lump = flow_lump + _compute_investment_lump(data.flows, solution, flow_ids, effect_ids)
+
+    # --- Lump: storage sizing costs ---
     if stor_ids:
-        stor_lump = _compute_periodic(
+        stor_lump = _compute_sizing_lump(
             data.storages.sizing_effects_per_size,  # type: ignore[union-attr]
             data.storages.sizing_effects_fixed,  # type: ignore[union-attr]
             data.storages.sizing_mandatory,  # type: ignore[union-attr]

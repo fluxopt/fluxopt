@@ -9,7 +9,7 @@ from numpy.testing import assert_allclose
 from fluxopt import Carrier, Effect, Flow, Investment, Port, Sizing, Status, Storage
 
 _VALIDATE = 'optimize->save->reload->validate'
-_XFAIL_REASON = 'effect_contributions does not yet support investment/period decomposition (#84)'
+_XFAIL_REASON = 'effect_contributions Leontief inverse fails for period-varying contribution_from (#134)'
 
 
 def _xfail_if_validate(optimize: object) -> None:
@@ -157,7 +157,6 @@ class TestInvestment:
         total[p=0]=130, total[p=1]=30, total[p=2]=30.
         Objective = 5*130 + 5*30 + 5*30 = 950.
         """
-        _xfail_if_validate(optimize)
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
@@ -316,7 +315,6 @@ class TestInvestment:
         Mandatory build → built in period 0. Lump = 100 in p=0, 0 in p=1.
         Objective = 5*100 + 5*0 = 500.
         """
-        _xfail_if_validate(optimize)
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
@@ -352,7 +350,6 @@ class TestInvestment:
         Recurring O&M = 2/MW/period, size=10 MW. 2 periods, weights=[5, 5].
         Periodic cost per period = 2*10 = 20. Weighted: 5*20 + 5*20 = 200.
         """
-        _xfail_if_validate(optimize)
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
@@ -466,7 +463,6 @@ class TestPeriodVaryingEffects:
         Active in both periods. Periodic cost = O&M * size.
         2020: 1*10=10, 2025: 3*10=30. Weights=[1, 1]. Objective = 10 + 30 = 40.
         """
-        _xfail_if_validate(optimize)
         periods = [2020, 2025]
         om_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
         result = optimize(
@@ -502,7 +498,6 @@ class TestPeriodVaryingEffects:
         Investment(10, 10), fixed periodic cost varies: 5 in 2020, 15 in 2025.
         Active in both periods. Weights=[1, 1]. Objective = 5 + 15 = 20.
         """
-        _xfail_if_validate(optimize)
         periods = [2020, 2025]
         cost_by_period = xr.DataArray([5.0, 15.0], dims=['period'], coords={'period': periods})
         result = optimize(
@@ -539,7 +534,6 @@ class TestPeriodVaryingEffects:
         Mandatory build → builds in cheapest period (2020). Once cost = 10*10 = 100.
         Weights=[1, 1]. Objective = 100.
         """
-        _xfail_if_validate(optimize)
         periods = [2020, 2025]
         capex_by_period = xr.DataArray([10.0, 20.0], dims=['period'], coords={'period': periods})
         result = optimize(
@@ -576,7 +570,6 @@ class TestPeriodVaryingEffects:
         Mandatory build → builds in cheapest period (2020). Once cost = 50.
         Weights=[1, 1]. Objective = 50.
         """
-        _xfail_if_validate(optimize)
         periods = [2020, 2025]
         capex_by_period = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
         result = optimize(
