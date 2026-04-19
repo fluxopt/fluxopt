@@ -183,3 +183,44 @@ class TestSolutionDataset:
         assert isinstance(ds, xr.Dataset)
         assert 'flow--rate' in ds
         assert ds.attrs['objective'] == pytest.approx(result.objective)
+
+
+class TestContributionsRoundtrip:
+    def test_contributions_serialized(self, tmp_nc: Path) -> None:
+        """Pre-computed contributions survive a NetCDF roundtrip."""
+        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
+        assert result.contributions is not None
+
+        result.to_netcdf(tmp_nc)
+        loaded = Result.from_netcdf(tmp_nc)
+
+        assert loaded.contributions is not None
+        xr.testing.assert_allclose(loaded.contributions['temporal'], result.contributions['temporal'])
+        xr.testing.assert_allclose(loaded.contributions['lump'], result.contributions['lump'])
+        xr.testing.assert_allclose(loaded.contributions['total'], result.contributions['total'])
+
+    def test_old_file_without_contributions(self, tmp_nc: Path) -> None:
+        """Loading a file without contributions group falls back gracefully and warns."""
+        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
+        # Write without contributions (simulate old format)
+        result.solution.to_netcdf(tmp_nc, mode='w', engine='netcdf4')
+        result.data.to_netcdf(tmp_nc)
+
+        with pytest.warns(UserWarning, match="no 'contributions' group"):
+            loaded = Result.from_netcdf(tmp_nc)
+        assert loaded.contributions is None
+        # Fallback re-derivation still works
+        contrib = loaded.stats.effect_contributions
+        assert 'temporal' in contrib
+
+    def test_roundtrip_does_not_warn(self, tmp_nc: Path) -> None:
+        """Loading a file with cached contributions does not emit the missing-group warning."""
+        import warnings
+
+        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
+        result.to_netcdf(tmp_nc)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', UserWarning)
+            loaded = Result.from_netcdf(tmp_nc)
+        assert loaded.contributions is not None

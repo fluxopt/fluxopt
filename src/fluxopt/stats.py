@@ -63,6 +63,9 @@ class StatsAccessor:
         Returns:
             Dataset with ``temporal``, ``lump``, and ``total`` DataArrays.
         """
+        if self._result.contributions is not None:
+            return self._result.contributions
+
         from fluxopt.contributions import compute_effect_contributions
 
         return compute_effect_contributions(self._result.solution, self._result.data, cross_effects=False)
