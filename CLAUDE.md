@@ -66,7 +66,20 @@ Optional scope: `feat(storage): add cyclic constraint`.
 
 - **Commit messages**: `feat: add TimeIndex alias` (imperative, lowercase after colon)
 - **PR titles**: same format — `refac: clarify timestep input vs internal types`
+- **Issue titles**: same format — `fix: wrong cost on cyclic storage`
 - No period at end, max ~70 chars
+
+## Labels
+
+- **`type:*`** — Conventional Commits type. Auto-applied from issue/PR title by
+  `.github/workflows/label-from-title.yaml`. Only `feat`, `fix`, `docs`, `perf`
+  get a label; other prefixes (`refac`, `test`, `ci`, `build`, `chore`) no-op.
+- **`area:*`** — subsystem. Applied manually during triage.
+  `area:api` (user-facing types, ergonomics), `area:model` (optimization math
+  and data model), `area:io` (serialization, loading, saving),
+  `area:viz` (plots, stats).
+- **Meta**: `good first issue`, `help wanted` (unprefixed — GitHub's
+  contributors page recognizes these exact strings).
 
 ## Math Documentation
 
