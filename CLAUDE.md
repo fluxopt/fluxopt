@@ -75,9 +75,17 @@ Optional scope: `feat(storage): add cyclic constraint`.
   `.github/workflows/label-from-title.yaml`. Only `feat`, `fix`, `docs`, `perf`
   get a label; other prefixes (`refac`, `test`, `ci`, `build`, `chore`) no-op.
 - **`area:*`** — subsystem. Applied manually during triage.
-  `area:api` (user-facing types, ergonomics), `area:model` (optimization math
-  and data model), `area:io` (serialization, loading, saving),
-  `area:viz` (plots, stats).
+  - `area:api` — cross-cutting naming, user-facing types, ergonomics
+  - `area:flow` — Flow, Port
+  - `area:converter` — Converter, part-load behavior
+  - `area:storage` — Storage elements
+  - `area:status` — on/off behavior, startup, min run time
+  - `area:sizing` — Sizing / Investment, capacity optimization
+  - `area:effects` — Effect system, objectives, contributions
+  - `area:multi-period` — Periods, rolling horizon, scenarios, TSA
+  - `area:io` — serialization, loading, saving
+  - `area:new` — novel concept not yet fitting an existing area (temporary
+    flag; recategorize when a new area emerges)
 - **Meta**: `good first issue`, `help wanted` (unprefixed — GitHub's
   contributors page recognizes these exact strings).
 
