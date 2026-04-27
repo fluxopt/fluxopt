@@ -1386,6 +1386,9 @@ class ModelData:
         comp_status_items: list[tuple[str, Status, list[str]]] = [
             (s.id, s.status, [s.charging.id, s.discharging.id]) for s in stor_list if s.status is not None
         ]
+        comp_status_items.extend(
+            (c.id, c.status, [f.id for f in (*c.inputs, *c.outputs)]) for c in converters if c.status is not None
+        )
 
         flows_data = FlowsData.build(
             flows,

@@ -265,8 +265,8 @@ class Storage:
         relative_minimum_level: Min SOC as fraction of capacity.
         relative_maximum_level: Max SOC as fraction of capacity.
         status: Component-level on/off behavior gating both charging and
-            discharging. Forbids flow-level ``status`` and
-            ``fixed_relative_profile`` on the child flows.
+            discharging. Forbids flow-level ``status`` on the child flows
+            (the two switches would have no defined precedence).
     """
 
     id: str
@@ -301,11 +301,5 @@ class Storage:
                     msg = (
                         f'Storage {self.id!r}: flow {f.short_id!r} cannot have flow-level '
                         f'status when Storage.status is set; the component status already gates both flows'
-                    )
-                    raise ValueError(msg)
-                if f.fixed_relative_profile is not None:
-                    msg = (
-                        f'Storage {self.id!r}: flow {f.short_id!r} cannot have '
-                        f'fixed_relative_profile when Storage.status is set'
                     )
                     raise ValueError(msg)
