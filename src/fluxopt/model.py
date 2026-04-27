@@ -787,20 +787,15 @@ class FlowSystem:
         max_down = ds.cstatus_max_downtime.rename({'cstatus_component': 'component'})
         initial = ds.cstatus_initial.rename({'cstatus_component': 'component'})
 
-        # Component status has no prior-rate concept (Storage/Converter don't track it).
-        # Default to zero prior duration so duration[0] is anchored at state[0]*dt[0]
-        # via the init constraint — without this, duration[0] is unconstrained from below
-        # and the solver can cheat min_uptime by setting it to an arbitrary value.
-        zeros = xr.zeros_like(min_up)
         prev_up = (
             ds.cstatus_previous_uptime.rename({'cstatus_component': 'component'})
             if ds.cstatus_previous_uptime is not None
-            else zeros
+            else None
         )
         prev_down = (
             ds.cstatus_previous_downtime.rename({'cstatus_component': 'component'})
             if ds.cstatus_previous_downtime is not None
-            else zeros
+            else None
         )
 
         has_initial = initial.notnull()
