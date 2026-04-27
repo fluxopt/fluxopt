@@ -951,9 +951,10 @@ class FlowSystem:
             self._piecewise[conv_id] = formulation
 
             # Availability constraint: scale upper envelope, not the curve.
+            # Use max-over-breakpoint, not last — SOS2 allows non-monotonic breakpoints.
             ref_expr = pairs[0][0]
             ref_idx = pair_indices[0]
-            max_bp = pw.breakpoints.isel(pw_pair=ref_idx, breakpoint=-1)  # (time,)
+            max_bp = pw.breakpoints.isel(pw_pair=ref_idx).max('breakpoint')  # (time,)
             if active is not None:
                 self.m.add_constraints(
                     ref_expr <= avail * max_bp * active,

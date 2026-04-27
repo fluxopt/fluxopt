@@ -121,30 +121,39 @@ class TestPiecewise:
     def test_segment_selection_picks_efficient_region(self, optimize):
         """Solver picks the more-efficient segment when demand fits.
 
-        Curve: [0, 30, 100] gas → [0, 30, 70] heat. Slope_lo=1.0, slope_hi=0.4 .
+        Curve: [0, 30, 100] gas → [0, 30, 70] heat. Slope_lo=1.0, slope_hi≈0.571.
         Demand=20 → fits in low segment with slope=1 → fuel=20.
-        Demand=70 → forces high segment → fuel = 30 + (70-30)/0.4 = 30 + 100 = 130.
-        Two timesteps, one of each, run separately.
+        Demand=50 → forces high segment → fuel = 30 + (50-30)*70/40 = 65.
         """
-        result_low = optimize(
-            timesteps=ts(2),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
-            objective_effects='cost',
-            ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([20, 0]))]),
-                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
-            ],
-            converters=[
-                Converter(
-                    'Boiler',
-                    inputs=[Flow('Gas', short_id='fuel')],
-                    outputs=[Flow('Heat', size=100)],
-                    conversion=ConversionCurve({'fuel': [0, 30, 100], 'Heat': [0, 30, 70]}),
-                ),
-            ],
-        )
+
+        def _run(demand_value: float):
+            return optimize(
+                timesteps=ts(2),
+                carriers=[Carrier('Gas'), Carrier('Heat')],
+                effects=[Effect('cost')],
+                objective_effects='cost',
+                ports=[
+                    Port(
+                        'Demand',
+                        exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([demand_value, 0]))],
+                    ),
+                    Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                ],
+                converters=[
+                    Converter(
+                        'Boiler',
+                        inputs=[Flow('Gas', short_id='fuel')],
+                        outputs=[Flow('Heat', size=100)],
+                        conversion=ConversionCurve({'fuel': [0, 30, 100], 'Heat': [0, 30, 70]}),
+                    ),
+                ],
+            )
+
+        result_low = _run(20.0)
         assert_allclose(result_low.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
+
+        result_high = _run(50.0)
+        assert_allclose(result_high.effect_totals.sel(effect='cost').item(), 65.0, rtol=1e-5)
 
     def test_three_flow_chp_joint(self, optimize):
         """3-flow CHP curve with shared interpolation weights.
@@ -243,7 +252,16 @@ class TestPiecewiseStatus:
         # Startup cost is high — solver may keep on=1 throughout (free at boundaries).
         # Either way, Heat must be exactly 5 at t=1 and 0 at t=0,2.
         heat = result.solution['flow--rate'].sel(flow='Boiler(Heat)').values
+        fuel = result.solution['flow--rate'].sel(flow='Boiler(fuel)').values
+        on = result.solution['component--on'].sel(component='Boiler').values
         assert_allclose(heat, [0, 5, 0], atol=1e-5)
+        # Status gating: when on=0, every curve flow is pinned to bp_0 (zero here).
+        for t in range(3):
+            if on[t] < 0.5:
+                assert fuel[t] < 1e-5, f't={t}: fuel={fuel[t]} but on={on[t]}'
+                assert heat[t] < 1e-5, f't={t}: heat={heat[t]} but on={on[t]}'
+        # Demand at t=1 forces on=1.
+        assert on[1] > 0.5
 
     def test_status_running_cost(self, optimize):
         """effects_per_running_hour accrues per timestep when on=1."""
@@ -269,6 +287,8 @@ class TestPiecewiseStatus:
             ],
         )
         # Running cost is high — solver must keep on=0 except at t=1 (forced by demand).
-        # fuel at t=1 = 5/0.9. Cost = fuel + 100 * (one running hour).
+        # fuel at t=1 = 5/0.9. Cost = fuel*1 + 100 * (one running hour).
         on = result.solution['component--on'].sel(component='Boiler').values
-        assert on.sum() >= 1  # must be on at t=1 to deliver demand
+        assert_allclose(on, [0, 1, 0], atol=1e-5)
+        expected_cost = 5.0 / 0.9 + 100.0
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), expected_cost, rtol=1e-5)
