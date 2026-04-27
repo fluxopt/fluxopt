@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -17,8 +16,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from fluxopt.model_data import ModelData
-
-logger = logging.getLogger(__name__)
 
 
 class FlowSystem:
@@ -510,18 +507,12 @@ class FlowSystem:
                 bt = str(ds.bound_type.sel(flow=fid).values)
                 size_val = ds.size.sel(flow=fid).values
                 if np.isnan(size_val):
-                    # Unsized flow — no direct gating possible (no upper bound to scale by on).
-                    # Storage forbids this in __post_init__. For Converter, inputs are commonly
-                    # unsized and gated transitively through the conversion equation
-                    # (e.g. boiler fuel * eta = heat; when heat=0 by on=0, fuel=0).
-                    logger.info(
-                        'Component %r: governed flow %r is unsized — no direct on/off gating '
-                        'constraint added. Relying on transitive gating via the conversion equation. '
-                        'Verify the flow appears in conversion_factors.',
-                        comp_id,
-                        fid,
-                    )
-                    continue
+                    # Unsized flow — no upper bound to scale by on, so no gating constraint
+                    # can be added. Callers (Storage.__post_init__, future ConversionCurve)
+                    # must ensure governed flows are sized; this is a defensive invariant
+                    # check.
+                    msg = f'Component {comp_id!r}: governed flow {fid!r} is unsized'
+                    raise ValueError(msg)
                 size = float(size_val)
                 rl = ds.rel_lb.sel(flow=fid)
                 ru = ds.rel_ub.sel(flow=fid)

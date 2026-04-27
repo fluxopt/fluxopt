@@ -7,7 +7,7 @@ from fluxopt.elements import qualified_id
 from fluxopt.types import IdList
 
 if TYPE_CHECKING:
-    from fluxopt.elements import Flow, Status
+    from fluxopt.elements import Flow
     from fluxopt.types import TimeSeries
 
 
@@ -44,22 +44,12 @@ class Converter:
     Conversion equation (per equation index)::
 
         sum_f(a_f * P_{f,t}) = 0   for all t
-
-    Args:
-        id: Converter id.
-        inputs: Input flows.
-        outputs: Output flows.
-        conversion_factors: One dict per equation; ``{flow_short_id: a_f}``.
-        status: Component-level on/off behavior gating all input and output
-            flows together. Forbids flow-level ``status`` on the child flows
-            (the two switches would have no defined precedence).
     """
 
     id: str
     inputs: list[Flow] | IdList[Flow]
     outputs: list[Flow] | IdList[Flow]
     conversion_factors: list[dict[str, TimeSeries]] = field(default_factory=list)  # a_f
-    status: Status | None = None
     _short_to_id: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -67,14 +57,6 @@ class Converter:
         self.inputs = _qualify_flows(self.id, list(self.inputs))
         self.outputs = _qualify_flows(self.id, list(self.outputs))
         self._short_to_id = {f.short_id: f.id for f in (*self.inputs, *self.outputs)}
-        if self.status is not None:
-            for f in (*self.inputs, *self.outputs):
-                if f.status is not None:
-                    msg = (
-                        f'Converter {self.id!r}: flow {f.short_id!r} cannot have flow-level '
-                        f'status when Converter.status is set; the component status already gates all flows'
-                    )
-                    raise ValueError(msg)
 
     @classmethod
     def _single_io(cls, id: str, coefficient: TimeSeries, input_flow: Flow, output_flow: Flow) -> Converter:
