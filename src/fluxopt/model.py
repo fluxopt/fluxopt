@@ -56,6 +56,7 @@ class FlowSystem:
         self.data = data
         self.m = Model()
         self._objective_effects: list[str] = []
+        self._piecewise: dict[str, Any] = {}  # conv_id -> linopy.PiecewiseFormulation
 
     def _add_variables(
         self,
@@ -105,6 +106,7 @@ class FlowSystem:
         # Phase 4: System
         self._create_balance()
         self._create_converter_constraints()
+        self._create_piecewise_constraints()
         self._create_storage()
         self._create_effects()
         self._set_objective()
@@ -492,8 +494,15 @@ class FlowSystem:
 
         ds = self.data.flows
         sizing_ids = self._sizing_flow_ids()
+        # Piecewise converters: their flows are already gated via the
+        # add_piecewise_formulation `active=` parameter (when active=0, all
+        # auxiliary weights -> 0 -> all curve flows pinned to 0). No extra
+        # per-flow gating needed.
+        piecewise_comps = set(self.data.piecewise.converter_ids()) if self.data.piecewise is not None else set()
 
         for comp_id, flow_ids in self._governed_flows_map().items():
+            if comp_id in piecewise_comps:
+                continue
             on = self.component_on.sel(component=comp_id)  # (time, period?)
             for fid in flow_ids:
                 if fid in sizing_ids:
@@ -887,6 +896,75 @@ class FlowSystem:
         # Broadcast eq_mask (converter, eq_idx) to (converter, eq_idx, time)
         mask_3d = ds.eq_mask.expand_dims(time=ds.pair_coeff.coords['time'])
         self.m.add_constraints(lhs == 0, name='conversion', mask=mask_3d)
+
+    def _create_piecewise_constraints(self) -> None:
+        """Create piecewise-linear conversion constraints via linopy's piecewise API.
+
+        For each converter with ``ConversionCurve``: builds one
+        ``add_piecewise_formulation`` call linking all curve flows through
+        shared interpolation weights. The optional ``ConversionCurve.status``
+        wires in the existing ``component_on`` binary as the ``active`` gate.
+        Per-converter availability is enforced separately as
+        ``flow_rate <= avail * max_bp * active``.
+        """
+        from typing import cast
+
+        from linopy.piecewise import add_piecewise_formulation
+
+        from fluxopt.types import PiecewiseMethod
+
+        pw = self.data.piecewise
+        if pw is None:
+            return
+
+        for conv_id in pw.converter_ids():
+            method = cast('PiecewiseMethod', str(pw.method.sel(pw_converter=conv_id).values))
+            avail = pw.availability.sel(pw_converter=conv_id)  # (time,)
+            has_status = bool(pw.has_status.sel(pw_converter=conv_id).values)
+
+            active = self.component_on.sel(component=conv_id) if has_status and self.component_on is not None else None
+
+            mask = pw.pair_converter.values == conv_id
+            pair_indices = np.where(mask)[0]
+
+            pairs: list[tuple[Any, ...]] = []
+            for idx in pair_indices:
+                fid = str(pw.pair_flow.values[idx])
+                bound = str(pw.pair_bound.values[idx])
+                # Wrap as LinearExpression and drop the per-flow scalar coord so
+                # linopy can broadcast pairs without merge conflicts on 'flow'.
+                expr = (1.0 * self.flow_rate.sel(flow=fid)).drop_vars('flow', errors='ignore')
+                bps = (
+                    pw.breakpoints.isel(pw_pair=idx)
+                    .drop_vars('pw_pair', errors='ignore')
+                    .rename({'breakpoint': '_breakpoint'})
+                )
+                pairs.append((expr, bps) if bound == '==' else (expr, bps, bound))
+
+            formulation = add_piecewise_formulation(
+                self.m,
+                *pairs,
+                method=method,
+                active=active,
+                name=f'pw_{conv_id}',
+            )
+            self._piecewise[conv_id] = formulation
+
+            # Availability constraint: scale upper envelope, not the curve.
+            # Use max-over-breakpoint, not last — SOS2 allows non-monotonic breakpoints.
+            ref_expr = pairs[0][0]
+            ref_idx = pair_indices[0]
+            max_bp = pw.breakpoints.isel(pw_pair=ref_idx).max('breakpoint')  # (time,)
+            if active is not None:
+                self.m.add_constraints(
+                    ref_expr <= avail * max_bp * active,
+                    name=f'pw_avail_{conv_id}',
+                )
+            else:
+                self.m.add_constraints(
+                    ref_expr <= avail * max_bp,
+                    name=f'pw_avail_{conv_id}',
+                )
 
     def _create_effects(self) -> None:
         """Effect tracking: temporal and lump domains."""

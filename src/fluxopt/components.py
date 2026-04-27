@@ -7,7 +7,7 @@ from fluxopt.elements import qualified_id
 from fluxopt.types import IdList
 
 if TYPE_CHECKING:
-    from fluxopt.elements import Flow
+    from fluxopt.elements import ConversionCurve, Flow
     from fluxopt.types import TimeSeries
 
 
@@ -39,24 +39,61 @@ class Port:
 
 @dataclass
 class Converter:
-    """Linear conversion between input and output flows.
+    """Conversion between input and output flows.
 
-    Conversion equation (per equation index)::
+    Two mutually exclusive modes:
 
-        sum_f(a_f * P_{f,t}) = 0   for all t
+    - **Linear** — ``conversion_factors=[{flow_short_id: a_f}, ...]``,
+      one dict per equation; constraint ``sum_f(a_f * P_{f,t}) = 0``.
+    - **Piecewise** — ``conversion=ConversionCurve(...)``; the solver
+      interpolates between breakpoints, optionally with on/off via
+      ``ConversionCurve.status``.
+
+    Args:
+        id: Converter id.
+        inputs: Input flows.
+        outputs: Output flows.
+        conversion_factors: Linear-mode equations. Empty when
+            ``conversion`` is set.
+        conversion: Piecewise-mode curve. ``None`` for linear mode.
     """
 
     id: str
     inputs: list[Flow] | IdList[Flow]
     outputs: list[Flow] | IdList[Flow]
     conversion_factors: list[dict[str, TimeSeries]] = field(default_factory=list)  # a_f
+    conversion: ConversionCurve | None = None
     _short_to_id: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Qualify flow ids and build short→qualified mapping."""
+        """Qualify flow ids and validate mode exclusivity."""
         self.inputs = _qualify_flows(self.id, list(self.inputs))
         self.outputs = _qualify_flows(self.id, list(self.outputs))
         self._short_to_id = {f.short_id: f.id for f in (*self.inputs, *self.outputs)}
+
+        if self.conversion is not None:
+            if self.conversion_factors:
+                msg = (
+                    f'Converter {self.id!r}: cannot set both conversion_factors and conversion '
+                    f'(they are mutually exclusive linear vs piecewise modes)'
+                )
+                raise ValueError(msg)
+            curve_flows = {flow for flow, _, _ in self.conversion._iter_normalized()}
+            unknown = curve_flows - set(self._short_to_id)
+            if unknown:
+                msg = (
+                    f'Converter {self.id!r}: ConversionCurve references unknown flow short_ids '
+                    f'{sorted(unknown)}; known: {sorted(self._short_to_id)}'
+                )
+                raise ValueError(msg)
+            if self.conversion.status is not None:
+                for f in (*self.inputs, *self.outputs):
+                    if f.status is not None:
+                        msg = (
+                            f'Converter {self.id!r}: flow {f.short_id!r} cannot have flow-level '
+                            f'status when ConversionCurve.status is set'
+                        )
+                        raise ValueError(msg)
 
     @classmethod
     def _single_io(cls, id: str, coefficient: TimeSeries, input_flow: Flow, output_flow: Flow) -> Converter:

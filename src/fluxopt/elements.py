@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from fluxopt.types import TimeSeries
+    from fluxopt.types import PiecewiseMethod, TimeSeries
 
 PENALTY_EFFECT_ID = 'penalty'
 
@@ -310,3 +310,105 @@ class Storage:
                         f'the rate (no upper bound to scale)'
                     )
                     raise ValueError(msg)
+
+
+_CurveTuple = tuple[str, 'list[TimeSeries]'] | tuple[str, 'list[TimeSeries]', Literal['==', '<=', '>=']]
+
+
+@dataclass
+class ConversionCurve:
+    """Piecewise-linear conversion linking N flows.
+
+    Wraps :func:`linopy.piecewise.add_piecewise_formulation`. All flows
+    share interpolation weights — every operating point lies on the same
+    piece of the curve.
+
+    Two input forms:
+
+    - **Dict** — equality-only, terse for the common case::
+
+          ConversionCurve({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
+
+    - **List of tuples** — supports per-flow inequality bounds::
+
+          ConversionCurve(
+              [
+                  ('fuel', [0, 50, 100]),
+                  ('Heat', [0, 45, 70], '>='),
+              ]
+          )
+
+    See: docs/math/converters.md
+
+    Args:
+        points: Per-flow breakpoints. Either ``{flow: [bp...]}`` (equality
+            only) or a list of ``(flow, [bp...])`` / ``(flow, [bp...], '<='|'>=')``
+            tuples. Need >=2 flows; all breakpoint lists must share the same
+            length (>=2). At most one tuple may carry a non-equality bound,
+            and only when exactly two flows are present.
+        method: Formulation. ``"auto"`` picks LP (2 flows + bounded +
+            matching convexity), else incremental (monotonic) or sos2.
+            Override with ``"sos2"`` / ``"incremental"`` / ``"lp"``.
+        status: Component-level on/off behavior gating the curve.
+        availability: Time-varying scaling of the upper breakpoint.
+    """
+
+    points: dict[str, list[TimeSeries]] | list[_CurveTuple]
+    method: PiecewiseMethod = 'auto'
+    status: Status | None = None
+    availability: TimeSeries = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate normalized breakpoints and bound combinations."""
+        flows_pts_bounds = list(self._iter_normalized())
+
+        if len(flows_pts_bounds) < 2:
+            msg = f'ConversionCurve needs >=2 flows, got {len(flows_pts_bounds)}'
+            raise ValueError(msg)
+
+        n = len(flows_pts_bounds[0][1])
+        if n < 2:
+            msg = f'ConversionCurve needs >=2 breakpoints per flow, got {n}'
+            raise ValueError(msg)
+
+        if any(len(pts) != n for _, pts, _ in flows_pts_bounds):
+            lengths = {flow: len(pts) for flow, pts, _ in flows_pts_bounds}
+            msg = f'ConversionCurve breakpoint lists must all have the same length, got {lengths}'
+            raise ValueError(msg)
+
+        flows = [flow for flow, _, _ in flows_pts_bounds]
+        if len(set(flows)) != len(flows):
+            dupes = [f for f in flows if flows.count(f) > 1]
+            msg = f'ConversionCurve has duplicate flow ids: {sorted(set(dupes))}'
+            raise ValueError(msg)
+
+        nonequal = [b for _, _, b in flows_pts_bounds if b != '==']
+        if len(nonequal) > 1:
+            msg = f'At most one bounded flow per ConversionCurve, got {len(nonequal)}'
+            raise ValueError(msg)
+        if nonequal and len(flows_pts_bounds) > 2:
+            msg = f'Inequality bounds require exactly 2 flows, got {len(flows_pts_bounds)}'
+            raise ValueError(msg)
+        if self.method == 'lp' and not nonequal:
+            msg = "method='lp' requires one flow with bound '<=' or '>='"
+            raise ValueError(msg)
+
+    def _iter_normalized(
+        self,
+    ) -> list[tuple[str, list[TimeSeries], Literal['==', '<=', '>=']]]:
+        """Return the curve as a list of ``(flow, breakpoints, bound)`` tuples."""
+        if isinstance(self.points, dict):
+            return [(flow, list(pts), '==') for flow, pts in self.points.items()]
+        result: list[tuple[str, list[TimeSeries], Literal['==', '<=', '>=']]] = []
+        for i, t in enumerate(self.points):
+            if len(t) == 2:
+                result.append((t[0], list(t[1]), '=='))
+            elif len(t) == 3:
+                if t[2] not in ('==', '<=', '>='):
+                    msg = f'ConversionCurve tuple {i} has invalid bound {t[2]!r}; expected one of (==, <=, >=)'
+                    raise ValueError(msg)
+                result.append((t[0], list(t[1]), t[2]))
+            else:
+                msg = f'ConversionCurve tuple {i} has length {len(t)}; expected 2 or 3'
+                raise ValueError(msg)
+        return result
