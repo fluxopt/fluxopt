@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Effect, Flow, Port, Status, Storage
+from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, Storage
 
 from .conftest import ts
 
@@ -63,6 +63,31 @@ class TestStorageStatusValidation:
             status=Status(),
         )
         assert s.status is not None
+
+    def test_sized_flow_with_status_raises_at_build(self):
+        """Sizing/Investment on a governed flow is not yet supported and raises clearly."""
+        from fluxopt import FlowSystem, ModelData
+
+        data = ModelData.build(
+            timesteps=ts(3),
+            carriers=[Carrier('Elec')],
+            effects=[Effect('cost')],
+            ports=[Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))])],
+            storages=[
+                Storage(
+                    'Bat',
+                    charging=Flow('Elec', size=Sizing(min_size=0, max_size=20)),
+                    discharging=Flow('Elec', size=10),
+                    capacity=100,
+                    prior_level=0,
+                    cyclic=False,
+                    status=Status(),
+                ),
+            ],
+        )
+        fs = FlowSystem(data)
+        with pytest.raises(NotImplementedError, match='Sizing/Investment'):
+            fs.build()
 
 
 class TestStorageComponentStatus:
@@ -191,3 +216,42 @@ class TestStorageComponentStatus:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
         on_hours = result.solution['component--on'].sel(component='Bat').values
         assert on_hours.sum() == 0
+
+    def test_fixed_profile_with_status_solves(self, optimize):
+        """Profile-bound governed flow with component Status applies the
+        ``P = size * profile * on`` equality constraint.
+
+        Charging is pinned to a fixed schedule. Solver picks on=1 where the
+        profile is non-zero (else infeasible by bus balance) and may pick on=0
+        elsewhere — the equality constraint allows P=0 when on=0.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Elec')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+            ],
+            storages=[
+                Storage(
+                    'Bat',
+                    charging=Flow('Elec', size=10, fixed_relative_profile=np.array([0.5, 0.5, 0])),
+                    discharging=Flow('Elec', size=10),
+                    capacity=100,
+                    prior_level=0,
+                    cyclic=False,
+                    status=Status(),
+                ),
+            ],
+        )
+        # Grid pays for charge (5 MWh = 5 * 1 €/MWh = 5) plus demand (5 MWh = 5).
+        # Plus any discharge gap. Charging is forced by profile when on=1.
+        assert result.effect_totals.sel(effect='cost').item() >= 5.0
+        # Charging actual rate must match profile when on=1 (and be 0 when on=0)
+        on = result.solution['component--on'].sel(component='Bat').values
+        charge = result.solution['flow--rate'].sel(flow='Bat(charge)').values
+        for t in range(3):
+            expected = 0.5 * 10 * on[t] if t < 2 else 0.0
+            assert_allclose(charge[t], expected, atol=1e-6)

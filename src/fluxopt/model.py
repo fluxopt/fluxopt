@@ -506,11 +506,10 @@ class FlowSystem:
                 fr = self.flow_rate.sel(flow=fid)
                 bt = str(ds.bound_type.sel(flow=fid).values)
                 size_val = ds.size.sel(flow=fid).values
-                if np.isnan(size_val):
-                    # Unsized flow — no upper bound to scale by on, so no gating constraint
-                    # can be added. Callers (Storage.__post_init__, future ConversionCurve)
-                    # must ensure governed flows are sized; this is a defensive invariant
-                    # check.
+                if np.isnan(size_val):  # pragma: no cover
+                    # Defensive invariant check — callers (Storage.__post_init__, future
+                    # ConversionCurve) ensure governed flows are sized. Reaching this branch
+                    # means an invariant was violated upstream.
                     msg = f'Component {comp_id!r}: governed flow {fid!r} is unsized'
                     raise ValueError(msg)
                 size = float(size_val)
@@ -522,6 +521,12 @@ class FlowSystem:
                 elif bt == 'profile':
                     fp = ds.fixed_profile.sel(flow=fid)
                     self.m.add_constraints(fr == size * fp * on, name=f'flow_fix_cstatus_{fid}')
+                else:  # pragma: no cover
+                    # Defensive — only 'bounded' / 'profile' / 'unsized' exist today,
+                    # and 'unsized' is caught above. Reaching this branch means a new
+                    # bound_type was introduced without updating this dispatch.
+                    msg = f'Component {comp_id!r}: governed flow {fid!r} has unsupported bound_type {bt!r}'
+                    raise ValueError(msg)
 
     def _constrain_sizing(self) -> None:
         """Constrain sizing variables: S in [min, max] gated by indicator."""
