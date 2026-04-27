@@ -42,6 +42,11 @@ class FlowSystem:
     flow_startup: Variable | None = None
     flow_shutdown: Variable | None = None
 
+    # Component-level status variables — None when no component status is configured
+    component_on: Variable | None = None
+    component_startup: Variable | None = None
+    component_shutdown: Variable | None = None
+
     def __init__(self, data: ModelData) -> None:
         """Initialize the flow system optimization model.
 
@@ -86,14 +91,17 @@ class FlowSystem:
         self._create_sizing_variables()
         self._create_investment_variables()
         self._create_status_variables()
+        self._create_component_status_variables()
         # Phase 2: Flow rate constraints
         self._constrain_flow_rates_plain()
         self._constrain_flow_rates_sizing()
         self._constrain_flow_rates_status()
+        self._constrain_flow_rates_component_status()
         # Phase 3: Feature constraints
         self._constrain_sizing()
         self._constrain_investment()
         self._constrain_status()
+        self._constrain_component_status()
         # Phase 4: System
         self._create_balance()
         self._create_converter_constraints()
@@ -272,6 +280,35 @@ class FlowSystem:
             return set()
         return set(ds.status_min_uptime.coords['status_flow'].values)
 
+    def _create_component_status_variables(self) -> None:
+        """Create binary on/off variables for components with Status."""
+        ds = self.data.flows
+        if ds.cstatus_min_uptime is None:
+            return
+
+        comp_ids = ds.cstatus_min_uptime.coords['cstatus_component'].values
+        comp_coord = xr.DataArray(comp_ids, dims=['component'])
+        tp = {'component': comp_coord, **self.data.dims.coords(time=True, period=True)}
+
+        self.component_on = self._add_variables(binary=True, coords=tp, name='component--on')
+        self.component_startup = self._add_variables(binary=True, coords=tp, name='component--startup')
+        self.component_shutdown = self._add_variables(binary=True, coords=tp, name='component--shutdown')
+
+    def _governed_flows_map(self) -> dict[str, list[str]]:
+        """Return ``{component_id: [flow_ids governed]}`` from data, or empty."""
+        gf = self.data.flows.cstatus_governed_flows
+        if gf is None:
+            return {}
+        result: dict[str, list[str]] = {}
+        for comp_id in gf.coords['cstatus_component'].values:
+            row = gf.sel(cstatus_component=comp_id).values
+            result[str(comp_id)] = [str(f) for f in row if str(f)]
+        return result
+
+    def _component_status_flow_ids(self) -> set[str]:
+        """Return ids of flows governed by component-level Status, or empty set."""
+        return {fid for fids in self._governed_flows_map().values() for fid in fids}
+
     def _sizing_flow_ids(self) -> set[str]:
         """Return ids of sizing flows, or empty set."""
         if self.flow_size is None:
@@ -286,7 +323,8 @@ class FlowSystem:
         ds = self.data.flows
         sizing_ids = self._sizing_flow_ids()
         status_ids = self._status_flow_ids()
-        exclude = sizing_ids | status_ids
+        cstatus_ids = self._component_status_flow_ids()
+        exclude = sizing_ids | status_ids | cstatus_ids
 
         size = ds.size
         rel_lb = ds.rel_lb
@@ -439,6 +477,46 @@ class FlowSystem:
         # on <= S: prevents on=1 when size=0, which would incorrectly
         # charge running/startup costs for a non-existent unit.
         self.m.add_constraints(on <= fs, name='flow_on_requires_size')
+
+    def _constrain_flow_rates_component_status(self) -> None:
+        """Apply gating constraints for flows governed by component-level Status.
+
+        For each component with Status and each governed flow:
+          bounded:  size * rel_lb * on <= P <= size * rel_ub * on
+          profile:  P == size * profile * on
+
+        Sizing/Investment governed flows are not yet supported and raise.
+        """
+        if self.component_on is None:
+            return
+
+        ds = self.data.flows
+        sizing_ids = self._sizing_flow_ids()
+
+        for comp_id, flow_ids in self._governed_flows_map().items():
+            on = self.component_on.sel(component=comp_id)  # (time, period?)
+            for fid in flow_ids:
+                if fid in sizing_ids:
+                    msg = (
+                        f'Component {comp_id!r}: governed flow {fid!r} has Sizing/Investment, '
+                        f'which is not yet supported with component-level status'
+                    )
+                    raise NotImplementedError(msg)
+
+                fr = self.flow_rate.sel(flow=fid)
+                bt = str(ds.bound_type.sel(flow=fid).values)
+                size_val = ds.size.sel(flow=fid).values
+                if np.isnan(size_val):
+                    continue
+                size = float(size_val)
+                rl = ds.rel_lb.sel(flow=fid)
+                ru = ds.rel_ub.sel(flow=fid)
+                if bt == 'bounded':
+                    self.m.add_constraints(fr >= size * rl * on, name=f'flow_lb_cstatus_{fid}')
+                    self.m.add_constraints(fr <= size * ru * on, name=f'flow_ub_cstatus_{fid}')
+                elif bt == 'profile':
+                    fp = ds.fixed_profile.sel(flow=fid)
+                    self.m.add_constraints(fr == size * fp * on, name=f'flow_fix_cstatus_{fid}')
 
     def _constrain_sizing(self) -> None:
         """Constrain sizing variables: S in [min, max] gated by indicator."""
@@ -689,6 +767,78 @@ class FlowSystem:
                 previous=prev_down,
             )
 
+    def _constrain_component_status(self) -> None:
+        """Add switch transition and duration tracking constraints for component status."""
+        if self.component_on is None:
+            return
+        assert self.component_startup is not None
+        assert self.component_shutdown is not None
+
+        ds = self.data.flows
+        assert ds.cstatus_min_uptime is not None
+        assert ds.cstatus_max_uptime is not None
+        assert ds.cstatus_min_downtime is not None
+        assert ds.cstatus_max_downtime is not None
+        assert ds.cstatus_initial is not None
+
+        min_up = ds.cstatus_min_uptime.rename({'cstatus_component': 'component'})
+        max_up = ds.cstatus_max_uptime.rename({'cstatus_component': 'component'})
+        min_down = ds.cstatus_min_downtime.rename({'cstatus_component': 'component'})
+        max_down = ds.cstatus_max_downtime.rename({'cstatus_component': 'component'})
+        initial = ds.cstatus_initial.rename({'cstatus_component': 'component'})
+
+        prev_up = (
+            ds.cstatus_previous_uptime.rename({'cstatus_component': 'component'})
+            if ds.cstatus_previous_uptime is not None
+            else None
+        )
+        prev_down = (
+            ds.cstatus_previous_downtime.rename({'cstatus_component': 'component'})
+            if ds.cstatus_previous_downtime is not None
+            else None
+        )
+
+        has_initial = initial.notnull()
+        previous_state = initial.sel(component=initial.coords['component'][has_initial]) if has_initial.any() else None
+
+        add_switch_transitions(
+            self.m,
+            self.component_on,
+            self.component_startup,
+            self.component_shutdown,
+            name='cstatus',
+            element_dim='component',
+            previous_state=previous_state,
+        )
+
+        dt = self.data.dims.dt
+
+        has_any_up = min_up.notnull().any() | max_up.notnull().any()
+        if has_any_up:
+            add_duration_tracking(
+                self.m,
+                self.component_on,
+                dt,
+                name='c_uptime',
+                element_dim='component',
+                minimum=min_up,
+                maximum=max_up,
+                previous=prev_up,
+            )
+
+        has_any_down = min_down.notnull().any() | max_down.notnull().any()
+        if has_any_down:
+            add_duration_tracking(
+                self.m,
+                1 - self.component_on,
+                dt,
+                name='c_downtime',
+                element_dim='component',
+                minimum=min_down,
+                maximum=max_down,
+                previous=prev_down,
+            )
+
     def _create_balance(self) -> None:
         """Create carrier balance: ``sum_f(coeff * P) = 0`` for all carriers and timesteps."""
         d = self.data
@@ -766,6 +916,20 @@ class FlowSystem:
             es = d.flows.status_effects_startup.rename({'status_flow': 'flow'})
             if (es != 0).any():
                 temporal_rhs = temporal_rhs + (es * self.flow_startup).sum('flow')
+
+        # Component-level status running costs
+        if d.flows.cstatus_effects_running is not None:
+            assert self.component_on is not None
+            cer = d.flows.cstatus_effects_running.rename({'cstatus_component': 'component'})
+            if (cer != 0).any():
+                temporal_rhs = temporal_rhs + (cer * self.component_on * d.dims.dt).sum('component')
+
+        # Component-level status startup costs
+        if d.flows.cstatus_effects_startup is not None:
+            assert self.component_startup is not None
+            ces = d.flows.cstatus_effects_startup.rename({'cstatus_component': 'component'})
+            if (ces != 0).any():
+                temporal_rhs = temporal_rhs + (ces * self.component_startup).sum('component')
 
         # Cross-effect temporal: cf_temporal[k,j,t] * effect_temporal[j,t]
         if ds.cf_temporal is not None:
