@@ -223,6 +223,14 @@ class Result:
             sol_vars['component--startup'] = model.component_startup.solution
         if model.component_shutdown is not None:
             sol_vars['component--shutdown'] = model.component_shutdown.solution
+
+        # Piecewise auxiliary variables (from linopy.add_piecewise_formulation).
+        # Stored under their linopy-generated names so they survive IO roundtrip.
+        for formulation in model._piecewise.values():
+            for var_name in formulation.variable_names:
+                if var_name not in sol_vars:
+                    sol_vars[var_name] = model.m.variables[var_name].solution
+
         # Include custom variables added after build()
         for var_name in model.m.variables:
             if var_name not in model._builtin_var_names and var_name not in sol_vars:

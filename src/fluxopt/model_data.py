@@ -65,6 +65,7 @@ _NC_GROUPS = {
     'converters': 'model/conv',
     'effects': 'model/effects',
     'storages': 'model/stor',
+    'piecewise': 'model/pw',
 }
 
 
@@ -766,10 +767,14 @@ class ConvertersData:
     def build(cls, converters: list[Converter], time: TimeIndex) -> Self | None:
         """Build ConvertersData with sparse pair-based conversion coefficients.
 
+        Only linear converters are included; piecewise converters
+        (``conversion is not None``) live in :class:`PiecewiseData`.
+
         Args:
             converters: Converter definitions.
             time: Time index.
         """
+        converters = [c for c in converters if c.conversion is None]
         if not converters:
             return None
 
@@ -813,6 +818,105 @@ class ConvertersData:
                 dims=['converter', 'eq_idx'],
                 coords={'converter': conv_ids, 'eq_idx': eq_idx_list},
             ),
+        )
+
+
+@dataclass
+class PiecewiseData:
+    """Piecewise-linear conversion data for converters with ``ConversionCurve``.
+
+    Stored sparsely as one row per (converter, flow) pair; the ``method``
+    and ``availability`` arrays index by ``pw_converter``.
+    """
+
+    breakpoints: xr.DataArray  # (pw_pair, breakpoint, time)
+    pair_converter: xr.DataArray  # (pw_pair,) — converter id
+    pair_flow: xr.DataArray  # (pw_pair,) — qualified flow id
+    pair_bound: xr.DataArray  # (pw_pair,) — '==' / '<=' / '>='
+    method: xr.DataArray  # (pw_converter,) — 'auto' / 'sos2' / 'incremental' / 'lp'
+    availability: xr.DataArray  # (pw_converter, time)
+    has_status: xr.DataArray  # (pw_converter,) — bool
+
+    def to_dataset(self) -> xr.Dataset:
+        """Serialize to xr.Dataset."""
+        return _to_dataset(self)
+
+    @classmethod
+    def from_dataset(cls, ds: xr.Dataset) -> Self:
+        """Deserialize from xr.Dataset.
+
+        Args:
+            ds: Dataset with piecewise variables.
+        """
+        return cls(
+            breakpoints=ds['breakpoints'],
+            pair_converter=ds['pair_converter'],
+            pair_flow=ds['pair_flow'],
+            pair_bound=ds['pair_bound'],
+            method=ds['method'],
+            availability=ds['availability'],
+            has_status=ds['has_status'],
+        )
+
+    def converter_ids(self) -> list[str]:
+        """Return list of piecewise converter ids in original order."""
+        return list(self.method.coords['pw_converter'].values)
+
+    @classmethod
+    def build(cls, converters: list[Converter], time: TimeIndex) -> Self | None:
+        """Build PiecewiseData from converters with ``ConversionCurve``.
+
+        Args:
+            converters: Converter definitions; only those with
+                ``conversion is not None`` are processed.
+            time: Time index for breakpoint and availability arrays.
+        """
+        converters = [c for c in converters if c.conversion is not None]
+        if not converters:
+            return None
+
+        conv_ids: list[str] = []
+        methods: list[str] = []
+        avail_slices: list[xr.DataArray] = []
+        has_statuses: list[bool] = []
+
+        pair_conv_ids: list[str] = []
+        pair_flow_ids: list[str] = []
+        pair_bounds: list[str] = []
+        bp_slices: list[xr.DataArray] = []
+
+        for conv in converters:
+            assert conv.conversion is not None
+            curve = conv.conversion
+            conv_ids.append(conv.id)
+            methods.append(curve.method)
+            avail_slices.append(as_dataarray(curve.availability, {'time': time}))
+            has_statuses.append(curve.status is not None)
+
+            for short, pts, bound in curve._iter_normalized():
+                qid = conv._short_to_id[short]
+                bp_arrays = [as_dataarray(bp, {'time': time}) for bp in pts]
+                bp_idx = pd.Index(range(len(bp_arrays)), name='breakpoint')
+                bp_da = fast_concat(bp_arrays, bp_idx)
+                pair_conv_ids.append(conv.id)
+                pair_flow_ids.append(qid)
+                pair_bounds.append(bound)
+                bp_slices.append(bp_da)
+
+        pair_idx = pd.Index(range(len(bp_slices)), name='pw_pair')
+        breakpoints_da = fast_concat(bp_slices, pair_idx)
+
+        conv_idx = pd.Index(conv_ids, name='pw_converter')
+        availability = fast_concat(avail_slices, conv_idx)
+
+        return cls(
+            breakpoints=breakpoints_da,
+            pair_converter=xr.DataArray(pair_conv_ids, dims=['pw_pair']),
+            pair_flow=xr.DataArray(pair_flow_ids, dims=['pw_pair']),
+            pair_bound=xr.DataArray(pair_bounds, dims=['pw_pair']),
+            method=xr.DataArray(methods, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
+            availability=availability,
+            has_status=xr.DataArray(has_statuses, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
         )
 
 
@@ -1275,10 +1379,11 @@ class Dims:
 class ModelData:
     flows: FlowsData
     carriers: CarriersData
-    converters: ConvertersData | None  # None when no converters
+    converters: ConvertersData | None  # None when no linear converters
     effects: EffectsData
     storages: StoragesData | None  # None when no storages
     dims: Dims
+    piecewise: PiecewiseData | None = None  # None when no piecewise converters
 
     def to_netcdf(self, path: str | Path, *, mode: Literal['w', 'a'] = 'a') -> None:
         """Write model data as NetCDF groups under ``/model/``.
@@ -1288,12 +1393,16 @@ class ModelData:
             mode: Write mode ('w' to overwrite, 'a' to append).
         """
         p = Path(path)
-        dataset_fields: dict[str, FlowsData | CarriersData | ConvertersData | EffectsData | StoragesData | None] = {
+        dataset_fields: dict[
+            str,
+            FlowsData | CarriersData | ConvertersData | EffectsData | StoragesData | PiecewiseData | None,
+        ] = {
             'flows': self.flows,
             'carriers': self.carriers,
             'converters': self.converters,
             'effects': self.effects,
             'storages': self.storages,
+            'piecewise': self.piecewise,
         }
         current_mode = mode
         for name, obj in dataset_fields.items():
@@ -1327,6 +1436,7 @@ class ModelData:
         converters = ConvertersData.from_dataset(datasets['converters']) if datasets['converters'].data_vars else None
         effects = EffectsData.from_dataset(datasets['effects'])
         storages = StoragesData.from_dataset(datasets['storages']) if datasets['storages'].data_vars else None
+        piecewise = PiecewiseData.from_dataset(datasets['piecewise']) if datasets['piecewise'].data_vars else None
 
         return cls(
             flows=flows,
@@ -1335,6 +1445,7 @@ class ModelData:
             effects=effects,
             storages=storages,
             dims=Dims.from_dataset(meta),
+            piecewise=piecewise,
         )
 
     @classmethod
@@ -1386,6 +1497,11 @@ class ModelData:
         comp_status_items: list[tuple[str, Status, list[str]]] = [
             (s.id, s.status, [s.charging.id, s.discharging.id]) for s in stor_list if s.status is not None
         ]
+        comp_status_items.extend(
+            (c.id, c.conversion.status, [f.id for f in (*c.inputs, *c.outputs)])
+            for c in converters
+            if c.conversion is not None and c.conversion.status is not None
+        )
 
         flows_data = FlowsData.build(
             flows,
@@ -1399,6 +1515,7 @@ class ModelData:
         converters_data = ConvertersData.build(converters, time)
         effects_data = EffectsData.build(effects, time, period=period_idx)
         storages_data = StoragesData.build(stor_list, time, dims.dt, effects, period=period_idx)
+        piecewise_data = PiecewiseData.build(converters, time)
 
         return cls(
             flows=flows_data,
@@ -1407,6 +1524,7 @@ class ModelData:
             effects=effects_data,
             storages=storages_data,
             dims=dims,
+            piecewise=piecewise_data,
         )
 
 

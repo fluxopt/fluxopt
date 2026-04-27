@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Protocol, overload, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, overload, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -16,6 +16,9 @@ type Timesteps = list[datetime] | list[int] | pd.DatetimeIndex | pd.Index
 
 # -- Internal types (after normalization) ------------------------------
 type TimeIndex = pd.DatetimeIndex | pd.Index
+
+# -- Piecewise formulation method (mirrors linopy.add_piecewise_formulation) --
+type PiecewiseMethod = Literal['auto', 'sos2', 'incremental', 'lp']
 
 
 @runtime_checkable
