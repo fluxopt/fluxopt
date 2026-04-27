@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -16,6 +17,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from fluxopt.model_data import ModelData
+
+logger = logging.getLogger(__name__)
 
 
 class FlowSystem:
@@ -511,6 +514,13 @@ class FlowSystem:
                     # Storage forbids this in __post_init__. For Converter, inputs are commonly
                     # unsized and gated transitively through the conversion equation
                     # (e.g. boiler fuel * eta = heat; when heat=0 by on=0, fuel=0).
+                    logger.info(
+                        'Component %r: governed flow %r is unsized — no direct on/off gating '
+                        'constraint added. Relying on transitive gating via the conversion equation. '
+                        'Verify the flow appears in conversion_factors.',
+                        comp_id,
+                        fid,
+                    )
                     continue
                 size = float(size_val)
                 rl = ds.rel_lb.sel(flow=fid)
