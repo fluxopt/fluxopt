@@ -12,6 +12,7 @@ nav:
     - Multi-Period: notebooks/04-multi-period.ipynb
     - Investment: notebooks/05-investment.ipynb
     - Status: notebooks/06-status.ipynb
+    - Piecewise: notebooks/07-piecewise.ipynb
   - Math:
     - Notation: math/notation.md
     - Objective: math/objective.md

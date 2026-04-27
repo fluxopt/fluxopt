@@ -130,3 +130,151 @@ weather data). Pass a list or array instead of a scalar:
 cop_profile = [3.2, 3.5, 3.8, 3.1]  # one value per timestep
 Converter.heat_pump("hp", cop=cop_profile, electrical_flow=el, source_flow=src, thermal_flow=th)
 ```
+
+# Piecewise Conversion
+
+For non-linear efficiency curves, varying COP, part-load behaviour, or
+combined-heat-and-power with non-constant ratios, set `conversion=ConversionCurve(...)`
+on the `Converter` instead of `conversion_factors`.
+
+## Formulation
+
+A `ConversionCurve` defines breakpoints \(b_{f,k}\) for each flow \(f\) at \(K\)
+piece-vertices \(k = 0, \dots, K-1\). At every timestep, a vector of
+non-negative interpolation weights \(\lambda_{k,t}\) selects the operating
+point on the curve:
+
+\[
+\sum_{k} \lambda_{k,t} = 1, \qquad \lambda_{k,t} \ge 0
+\]
+
+with at most two adjacent weights non-zero (SOS2 condition for a contiguous
+curve, enforced by `linopy.add_piecewise_formulation`).
+
+For each curve flow \(f\), the rate is the corresponding weighted breakpoint
+sum:
+
+\[
+P_{f,t} \; \diamond_f \; \sum_{k} \lambda_{k,t} \cdot b_{f,k}
+\]
+
+where the relation \(\diamond_f \in \{=, \le, \ge\}\) is set per flow via the
+optional third tuple element. The default is equality (`==`); at most one
+flow may carry an inequality sign, and only with exactly two flows.
+
+## Methods
+
+`linopy` auto-dispatches the formulation:
+
+| Method | When | Aux variables |
+|---|---|---|
+| `lp` | Two flows, one bounded, matching-curvature curve | None — pure tangent-line constraints |
+| `incremental` | Strictly monotonic breakpoints | One binary per piece |
+| `sos2` | Otherwise | One \(\lambda\) per breakpoint, SOS2 |
+
+Override with `method="sos2"` / `"incremental"` / `"lp"` if needed.
+
+## Status gating
+
+When `ConversionCurve.status` is set, the curve is gated by a binary
+\(\delta_{c,t}\) (see [Status](status.md)) passed as `active=` to the linopy
+formulation:
+
+- All-equality curves: \(\delta = 0\) forces every \(\lambda\) to zero, which
+  pins all curve flows to \(b_{f,0}\) (typically zero).
+- Inequality curves: \(\delta = 0\) drives the bounded side to zero; the
+  output's own lower bound (default \(P_f \ge 0\)) closes the loop for
+  non-negative outputs.
+
+## Availability
+
+A separate envelope constraint scales the upper breakpoint by a per-timestep
+availability \(\alpha_t \in [0, 1]\):
+
+\[
+P_{f^{\star},t} \le \alpha_t \cdot b_{f^{\star},K-1} \cdot \delta_{c,t}
+\]
+
+where \(f^{\star}\) is the first flow in the curve.
+
+## Parameters
+
+| Symbol | Description | Reference |
+|---|---|---|
+| \(b_{f,k}\) | Breakpoint values per flow | `ConversionCurve.points` |
+| \(\lambda_{k,t}\) | Interpolation weights | linopy auxiliaries |
+| \(\diamond_f\) | Curve relation | tuple bound `'=='` / `'<='` / `'>='` |
+| \(\delta_{c,t}\) | On/off binary | `ConversionCurve.status` |
+| \(\alpha_t\) | Availability scaling | `ConversionCurve.availability` |
+
+## Examples
+
+### Boiler with part-load efficiency
+
+A gas boiler runs at 90% efficiency between 0 and 50 MW (slope 0.9), then drops
+to 50% efficiency from 50 to 100 MW (slope 0.5):
+
+```python
+Converter(
+    'Boiler',
+    inputs=[Flow('Gas', short_id='fuel')],
+    outputs=[Flow('Heat', size=100)],
+    conversion=ConversionCurve({
+        'fuel': [0, 50, 100],
+        'Heat': [0, 45, 70],
+    }),
+)
+```
+
+### CHP with joint N-flow curve
+
+A CHP plant with three flows linked by shared interpolation weights — every
+operating point lies on the same piece of the curve:
+
+```python
+Converter(
+    'CHP',
+    inputs=[Flow('Gas', short_id='fuel')],
+    outputs=[Flow('Power', size=100), Flow('Heat', size=100)],
+    conversion=ConversionCurve({
+        'fuel':  [0, 30, 60, 100],
+        'Power': [0, 10, 22,  40],
+        'Heat':  [0, 15, 30,  45],
+    }),
+)
+```
+
+### Convex curve via LP fast path
+
+A monotonic-convex fuel curve (efficiency drops at high load) with an
+inequality bound — solver picks `method='lp'` automatically and uses pure
+tangent-line constraints (no SOS2 binaries):
+
+```python
+Converter(
+    'Boiler',
+    inputs=[Flow('Gas', short_id='fuel')],
+    outputs=[Flow('Heat', size=100)],
+    conversion=ConversionCurve(
+        [
+            ('Heat', [0, 30, 60, 100]),
+            ('fuel', [0, 36, 84, 170], '>='),
+        ],
+        method='auto',
+    ),
+)
+```
+
+### With on/off and startup costs
+
+```python
+Converter(
+    'Boiler',
+    inputs=[Flow('Gas', short_id='fuel')],
+    outputs=[Flow('Heat', size=100)],
+    conversion=ConversionCurve(
+        {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
+        status=Status(min_uptime=3, effects_per_startup={'cost': 50}),
+    ),
+)
+```
