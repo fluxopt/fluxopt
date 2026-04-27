@@ -264,6 +264,9 @@ class Storage:
         cyclic: If True, end level must equal start level.
         relative_minimum_level: Min SOC as fraction of capacity.
         relative_maximum_level: Max SOC as fraction of capacity.
+        status: Component-level on/off behavior gating both charging and
+            discharging. Forbids flow-level ``status`` on the child flows
+            (the two switches would have no defined precedence).
     """
 
     id: str
@@ -277,6 +280,7 @@ class Storage:
     cyclic: bool = True  # E_{s,first} == E_{s,last}
     relative_minimum_level: TimeSeries = 0.0  # e̲_s  [-]
     relative_maximum_level: TimeSeries = 1.0  # ē_s  [-]
+    status: Status | None = None
 
     def __post_init__(self) -> None:
         """Validate carrier match, rename colliding flow ids, and qualify."""
@@ -291,3 +295,18 @@ class Storage:
             self.discharging.short_id = 'discharge'
         self.charging.id = qualified_id(self.id, self.charging.short_id)
         self.discharging.id = qualified_id(self.id, self.discharging.short_id)
+        if self.status is not None:
+            for f in (self.charging, self.discharging):
+                if f.status is not None:
+                    msg = (
+                        f'Storage {self.id!r}: flow {f.short_id!r} cannot have flow-level '
+                        f'status when Storage.status is set; the component status already gates both flows'
+                    )
+                    raise ValueError(msg)
+                if f.size is None:
+                    msg = (
+                        f'Storage {self.id!r}: flow {f.short_id!r} must have a size when '
+                        f'Storage.status is set — without it, the on/off binary cannot gate '
+                        f'the rate (no upper bound to scale)'
+                    )
+                    raise ValueError(msg)

@@ -260,15 +260,16 @@ class _InvestmentArrays:
 
 @dataclass
 class _StatusArrays:
-    min_uptime: xr.DataArray | None = None  # (status_flow,)
-    max_uptime: xr.DataArray | None = None  # (status_flow,)
-    min_downtime: xr.DataArray | None = None  # (status_flow,)
-    max_downtime: xr.DataArray | None = None  # (status_flow,)
-    initial: xr.DataArray | None = None  # (status_flow,) — NaN = free
-    effects_running: xr.DataArray | None = None  # (status_flow, effect, time, period?)
-    effects_startup: xr.DataArray | None = None  # (status_flow, effect, time, period?)
-    previous_uptime: xr.DataArray | None = None  # (status_flow,) — hours, NaN = no prior
-    previous_downtime: xr.DataArray | None = None  # (status_flow,) — hours, NaN = no prior
+    min_uptime: xr.DataArray | None = None  # (dim,)
+    max_uptime: xr.DataArray | None = None  # (dim,)
+    min_downtime: xr.DataArray | None = None  # (dim,)
+    max_downtime: xr.DataArray | None = None  # (dim,)
+    initial: xr.DataArray | None = None  # (dim,) — NaN = free
+    effects_running: xr.DataArray | None = None  # (dim, effect, time, period?)
+    effects_startup: xr.DataArray | None = None  # (dim, effect, time, period?)
+    previous_uptime: xr.DataArray | None = None  # (dim,) — hours, NaN = no prior
+    previous_downtime: xr.DataArray | None = None  # (dim,) — hours, NaN = no prior
+    governed_flows: xr.DataArray | None = None  # (dim, governed_idx) — only for component status
 
     def __post_init__(self) -> None:
         """Validate durations >= 0 and max >= min where both given."""
@@ -306,17 +307,21 @@ class _StatusArrays:
         prior_rates_map: dict[str, list[float]] | None = None,
         dt: float = 1.0,
         period: pd.Index | None = None,
+        governed_flows_map: dict[str, list[str]] | None = None,
     ) -> Self:
         """Validate Status objects and collect into DataArrays.
 
         Args:
-            items: Pairs of (flow_id, Status).
+            items: Pairs of (id, Status).
             effect_ids: Known effect ids for validation.
             time: Time index for effect arrays.
             dim: Dimension name for the resulting arrays.
-            prior_rates_map: Flow id to prior flow rates (MW) before horizon.
+            prior_rates_map: Item id to prior flow rates (MW) before horizon.
             dt: Scalar timestep duration in hours for prior duration computation.
             period: Period index for period-varying effects.
+            governed_flows_map: Item id to ids of flows the status governs.
+                Only populated for component-level status; emits a 2D
+                ``(dim, governed_idx)`` string array.
         """
         from fluxopt.constraints.status import compute_previous_duration
 
@@ -376,6 +381,19 @@ class _StatusArrays:
         prev_up_arr = np.array(prev_ups)
         prev_down_arr = np.array(prev_downs)
 
+        governed: xr.DataArray | None = None
+        if governed_flows_map:
+            max_n = max(len(governed_flows_map.get(i, [])) for i in ids)
+            if max_n > 0:
+                rows = [
+                    governed_flows_map.get(i, []) + [''] * (max_n - len(governed_flows_map.get(i, []))) for i in ids
+                ]
+                governed = xr.DataArray(
+                    np.array(rows, dtype=object),
+                    dims=[dim, 'governed_idx'],
+                    coords={dim: ids},
+                )
+
         return cls(
             min_uptime=xr.DataArray(np.array(min_ups), dims=[dim], coords=coords),
             max_uptime=xr.DataArray(np.array(max_ups), dims=[dim], coords=coords),
@@ -390,6 +408,7 @@ class _StatusArrays:
             previous_downtime=xr.DataArray(prev_down_arr, dims=[dim], coords=coords)
             if not np.all(np.isnan(prev_down_arr))
             else None,
+            governed_flows=governed,
         )
 
 
@@ -424,6 +443,16 @@ class FlowsData:
     invest_effects_fixed_at_build: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
     invest_effects_per_size_recurring: xr.DataArray | None = None  # (invest_flow, effect, period?)
     invest_effects_fixed_recurring: xr.DataArray | None = None  # (invest_flow, effect, period?)
+    cstatus_min_uptime: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_max_uptime: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_min_downtime: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_max_downtime: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_initial: xr.DataArray | None = None  # (cstatus_component,) — NaN = free
+    cstatus_effects_running: xr.DataArray | None = None  # (cstatus_component, effect, time, period?)
+    cstatus_effects_startup: xr.DataArray | None = None  # (cstatus_component, effect, time, period?)
+    cstatus_previous_uptime: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_previous_downtime: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_governed_flows: xr.DataArray | None = None  # (cstatus_component, governed_idx) — qualified flow ids
 
     def __post_init__(self) -> None:
         """Validate relative bounds: non-negative and lb <= ub."""
@@ -458,6 +487,7 @@ class FlowsData:
         effects: list[Effect],
         dt: float = 1.0,
         period: pd.Index | None = None,
+        component_status_items: list[tuple[str, Status, list[str]]] | None = None,
     ) -> Self:
         """Build FlowsData from element objects.
 
@@ -469,6 +499,10 @@ class FlowsData:
             period: Period index for multi-period models. When provided,
                 ``effect_coeff`` gains a ``period`` dimension so that
                 ``effects_per_flow_hour`` values can vary across periods.
+            component_status_items: Component-level status entries as
+                ``(component_id, Status, [governed flow ids])``. Each entry
+                produces an on/startup/shutdown binary keyed by the
+                component, gating all listed flows together.
         """
         from fluxopt.elements import Investment, Sizing
 
@@ -547,6 +581,15 @@ class FlowsData:
             status_items, effect_ids, time, dim='status_flow', prior_rates_map=prior_rates_map, dt=dt, period=period
         )
 
+        cst = _StatusArrays.build(
+            [(cid, s) for cid, s, _ in (component_status_items or [])],
+            effect_ids,
+            time,
+            dim='cstatus_component',
+            period=period,
+            governed_flows_map={cid: gov for cid, _, gov in (component_status_items or [])} or None,
+        )
+
         return cls(
             bound_type=xr.DataArray(bound_type, dims=['flow'], coords={'flow': flow_ids}),
             rel_lb=fast_concat(rel_lbs, flow_idx),
@@ -577,6 +620,16 @@ class FlowsData:
             invest_effects_fixed_at_build=inv.effects_fixed_at_build,
             invest_effects_per_size_recurring=inv.effects_per_size_recurring,
             invest_effects_fixed_recurring=inv.effects_fixed_recurring,
+            cstatus_min_uptime=cst.min_uptime,
+            cstatus_max_uptime=cst.max_uptime,
+            cstatus_min_downtime=cst.min_downtime,
+            cstatus_max_downtime=cst.max_downtime,
+            cstatus_initial=cst.initial,
+            cstatus_effects_running=cst.effects_running,
+            cstatus_effects_startup=cst.effects_startup,
+            cstatus_previous_uptime=cst.previous_uptime,
+            cstatus_previous_downtime=cst.previous_downtime,
+            cstatus_governed_flows=cst.governed_flows,
         )
 
 
@@ -1329,7 +1382,19 @@ class ModelData:
         # Scalar dt for prior duration computation (use first timestep)
         dt_scalar = float(dims.dt.values[0])
         period_idx = pd.Index(dims.period.values) if dims.period is not None else None
-        flows_data = FlowsData.build(flows, time, effects, dt=dt_scalar, period=period_idx)
+
+        comp_status_items: list[tuple[str, Status, list[str]]] = [
+            (s.id, s.status, [s.charging.id, s.discharging.id]) for s in stor_list if s.status is not None
+        ]
+
+        flows_data = FlowsData.build(
+            flows,
+            time,
+            effects,
+            dt=dt_scalar,
+            period=period_idx,
+            component_status_items=comp_status_items,
+        )
         carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
         effects_data = EffectsData.build(effects, time, period=period_idx)

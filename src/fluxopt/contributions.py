@@ -181,6 +181,31 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
         es = data.flows.status_effects_startup.rename({'status_flow': 'flow'})
         temporal_flow = temporal_flow + (es * solution['flow--startup']).reindex(flow=flow_ids, fill_value=0.0)
 
+    # Component-level status: attribute running and startup costs to first governed flow
+    if data.flows.cstatus_governed_flows is not None:
+        gf = data.flows.cstatus_governed_flows
+        first_flow_per_comp = {
+            str(comp_id): str(gf.sel(cstatus_component=comp_id).values[0])
+            for comp_id in gf.coords['cstatus_component'].values
+            if str(gf.sel(cstatus_component=comp_id).values[0])
+        }
+
+        if data.flows.cstatus_effects_running is not None and 'component--on' in solution:
+            cer = data.flows.cstatus_effects_running.rename({'cstatus_component': 'component'})
+            comp_temporal = cer * solution['component--on'] * dt  # (component, effect, time)
+            for comp_id, fid in first_flow_per_comp.items():
+                if fid in flow_ids:
+                    add = comp_temporal.sel(component=comp_id).drop_vars('component')
+                    temporal_flow.loc[{'flow': fid}] = temporal_flow.sel(flow=fid) + add
+
+        if data.flows.cstatus_effects_startup is not None and 'component--startup' in solution:
+            ces = data.flows.cstatus_effects_startup.rename({'cstatus_component': 'component'})
+            comp_startup = ces * solution['component--startup']  # (component, effect, time)
+            for comp_id, fid in first_flow_per_comp.items():
+                if fid in flow_ids:
+                    add = comp_startup.sel(component=comp_id).drop_vars('component')
+                    temporal_flow.loc[{'flow': fid}] = temporal_flow.sel(flow=fid) + add
+
     # Cross-effects on temporal via Leontief inverse
     if data.effects.cf_temporal is not None:
         temporal_flow = _apply_leontief(_leontief(data.effects.cf_temporal), temporal_flow)
