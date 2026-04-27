@@ -303,3 +303,10 @@ class Storage:
                         f'status when Storage.status is set; the component status already gates both flows'
                     )
                     raise ValueError(msg)
+                if f.size is None:
+                    msg = (
+                        f'Storage {self.id!r}: flow {f.short_id!r} must have a size when '
+                        f'Storage.status is set — without it, the on/off binary cannot gate '
+                        f'the rate (no upper bound to scale)'
+                    )
+                    raise ValueError(msg)

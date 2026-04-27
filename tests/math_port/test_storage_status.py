@@ -26,6 +26,23 @@ class TestStorageStatusValidation:
         s = Storage('Bat', Flow('Elec'), Flow('Elec'), capacity=10)
         assert s.status is None
 
+    def test_unsized_flow_forbidden(self):
+        """Storage flows must be sized when component Status is set.
+
+        Without a size, the on/off binary has no upper bound to scale by, so
+        the flow can't be gated. Unlike Converter inputs (which are gated
+        transitively through the conversion equation), Storage charge/discharge
+        are independent flows with no such coupling.
+        """
+        with pytest.raises(ValueError, match='must have a size'):
+            Storage(
+                'Bat',
+                charging=Flow('Elec'),  # no size
+                discharging=Flow('Elec', size=10),
+                capacity=100,
+                status=Status(),
+            )
+
     def test_fixed_profile_compatible(self):
         """fixed_relative_profile on a storage flow is allowed with component Status.
 

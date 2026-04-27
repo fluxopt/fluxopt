@@ -507,6 +507,10 @@ class FlowSystem:
                 bt = str(ds.bound_type.sel(flow=fid).values)
                 size_val = ds.size.sel(flow=fid).values
                 if np.isnan(size_val):
+                    # Unsized flow — no direct gating possible (no upper bound to scale by on).
+                    # Storage forbids this in __post_init__. For Converter, inputs are commonly
+                    # unsized and gated transitively through the conversion equation
+                    # (e.g. boiler fuel * eta = heat; when heat=0 by on=0, fuel=0).
                     continue
                 size = float(size_val)
                 rl = ds.rel_lb.sel(flow=fid)
