@@ -222,6 +222,42 @@
   border-radius: 0 2px 2px 0;
   margin: 0;
   width: 100%;
+  cursor: pointer;                       /* signals click-to-copy */
+  position: relative;                    /* anchor for the .copied ::after badge */
+  transition: border-left-color 150ms, box-shadow 150ms, background 200ms;
+}
+
+.jupyter-wrapper .jp-CodeCell .highlight-ipynb:hover {
+  border-left-color: #0ea5e9;            /* sky-500 — brighten on hover */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Copy confirmation: subtle gray-tinted background flash + "Copied!" badge */
+.jupyter-wrapper .jp-CodeCell .highlight-ipynb.copied {
+  background: rgba(0, 0, 0, 0.04);       /* barely-there gray overlay */
+}
+
+.jupyter-wrapper .jp-CodeCell .highlight-ipynb.copied::after {
+  content: 'Copied!';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  padding: 0.5em 1.4em;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.1em;
+  font-weight: 600;
+  border-radius: 4px;
+  pointer-events: none;
+  animation: copied-fade 700ms ease-out forwards;
+}
+
+@keyframes copied-fade {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
 
 .jupyter-wrapper .jp-CodeCell .highlight-ipynb pre {
@@ -299,6 +335,20 @@
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-CodeCell .highlight-ipynb {
   background: #2a2a2a;
   border-left-color: #38bdf8;            /* sky-400 — brighter accent for dark bg */
+}
+
+[data-md-color-scheme="slate"] .jupyter-wrapper .jp-CodeCell .highlight-ipynb:hover {
+  border-left-color: #7dd3fc;            /* sky-300 — brighter still on hover */
+  box-shadow: 0 1px 4px rgba(255, 255, 255, 0.06);
+}
+
+[data-md-color-scheme="slate"] .jupyter-wrapper .jp-CodeCell .highlight-ipynb.copied {
+  background: rgba(255, 255, 255, 0.05); /* subtle light overlay on dark */
+}
+
+[data-md-color-scheme="slate"] .jupyter-wrapper .jp-CodeCell .highlight-ipynb.copied::after {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
 }
 
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-InputPrompt {

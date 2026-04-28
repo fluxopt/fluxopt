@@ -1,6 +1,8 @@
-// Strip "In " / "Out" prefixes from notebook prompts, keep only [N]:
-// Subscribes to Material's instant-nav lifecycle when available so it
-// re-runs on every page transition, not just initial load.
+// Strip "In " / "Out" prefixes from notebook prompts (keep only [N]:),
+// and make the whole input code block clickable to copy.
+//
+// Subscribes to Material's `document$` instant-nav lifecycle when available
+// so both behaviours re-attach on every page transition.
 
 function stripPromptPrefixes() {
   document.querySelectorAll('.jp-InputPrompt, .jp-OutputPrompt').forEach((el) => {
@@ -13,8 +15,34 @@ function stripPromptPrefixes() {
   });
 }
 
+function attachClickToCopy() {
+  document.querySelectorAll('.jp-CodeCell .highlight-ipynb').forEach((block) => {
+    if (block.dataset.copyAttached) return;
+    block.dataset.copyAttached = '1';
+    block.addEventListener('click', (event) => {
+      // Don't fire if the user is selecting text (or just clicked a link inside)
+      if (window.getSelection().toString().length > 0) return;
+      if (event.target.closest('a')) return;
+
+      const codeEl = block.querySelector('pre');
+      if (!codeEl) return;
+      const text = codeEl.innerText;
+
+      navigator.clipboard.writeText(text).then(() => {
+        block.classList.add('copied');
+        setTimeout(() => block.classList.remove('copied'), 600);
+      }).catch(() => {});
+    });
+  });
+}
+
+function init() {
+  stripPromptPrefixes();
+  attachClickToCopy();
+}
+
 if (typeof document$ !== 'undefined') {
-  document$.subscribe(stripPromptPrefixes);
+  document$.subscribe(init);
 } else {
-  document.addEventListener('DOMContentLoaded', stripPromptPrefixes);
+  document.addEventListener('DOMContentLoaded', init);
 }
