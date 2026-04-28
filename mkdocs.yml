@@ -14,9 +14,9 @@ nav:
     - 5. Multi-Period & Investment: notebooks/05-multi-period.ipynb
     - 6. Piecewise: notebooks/06-piecewise.ipynb
   - Examples:
-    - Heat System with Storage: notebooks/02-heat-system.ipynb
-    - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
-    - Investment: notebooks/05-investment.ipynb
+    - Heat System with Storage: notebooks/examples/heat-system.ipynb
+    - Multi-Node Heat: notebooks/examples/multi-node-heat.ipynb
+    - Investment: notebooks/examples/investment.ipynb
   - Math:
     - Notation: math/notation.md
     - Objective: math/objective.md
