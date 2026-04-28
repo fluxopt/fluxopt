@@ -472,11 +472,31 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 }
 
 .jupyter-wrapper .jp-MarkdownCell .jp-InputPrompt {
-  display: none;
+  display: none !important;
 }
 
 .jupyter-wrapper .jp-MarkdownCell .jp-InputArea {
   display: block;
+}
+
+/* JupyterLab's `.jp-MarkdownOutput { padding-left: var(--jp-code-padding) }`
+   is supposed to be overridden by mkdocs-jupyter's later `padding: 0`, but
+   we force it here to keep markdown content (esp. headings) flush left in
+   every cascade scenario. */
+.jupyter-wrapper .jp-MarkdownCell .jp-MarkdownOutput,
+.jupyter-wrapper .jp-MarkdownCell .jp-RenderedHTMLCommon {
+  padding: 0;
+}
+
+.jupyter-wrapper .jp-MarkdownCell h1,
+.jupyter-wrapper .jp-MarkdownCell h2,
+.jupyter-wrapper .jp-MarkdownCell h3,
+.jupyter-wrapper .jp-MarkdownCell h4,
+.jupyter-wrapper .jp-MarkdownCell h5,
+.jupyter-wrapper .jp-MarkdownCell h6 {
+  margin-left: 0;
+  padding-left: 0;
+  text-indent: 0;
 }
 
 /* Numbered prompts: monospace gutter — input sky (#0284c7), output muted
