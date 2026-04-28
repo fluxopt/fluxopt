@@ -65,30 +65,33 @@ Energy system optimization with [linopy](https://github.com/PyPSA/linopy) — de
 
 </div>
 
-## Quick Example
 
-A gas boiler covers a heat demand, minimizing fuel cost:
 
 ```python
+# A gas boiler covers a heat demand, minimizing fuel cost
 from datetime import datetime
 from fluxopt import Carrier, Converter, Effect, Flow, Port, optimize
 
-timesteps = [datetime(2024, 1, 1, h) for h in range(4)]
-
-gas = Carrier('gas')
-heat = Carrier('heat')
-
-gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
-fuel = Flow('gas', size=300)
-heat_out = Flow('heat', size=200)
-demand = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-
 result = optimize(
-    timesteps=timesteps,
-    carriers=[gas, heat],
+    timesteps=[datetime(2024, 1, 1, h) for h in range(4)],
+    carriers=[Carrier('gas'), Carrier('heat')],
     effects=[Effect('cost')],
-    ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
-    converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_out)],
+    ports=[
+        Port('grid', imports=[
+            Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
+        ]),
+        Port('demand', exports=[
+            Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+        ])
+    ],
+    converters=[
+        Converter.boiler(
+            'boiler',
+            thermal_efficiency=0.9,
+            fuel_flow=Flow('gas', size=300),
+            thermal_flow=Flow('heat', size=200)
+        )
+    ],
     objective_effects='cost',
 )
 

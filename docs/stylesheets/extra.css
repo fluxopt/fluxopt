@@ -33,7 +33,9 @@
 
 [data-md-color-scheme="slate"] {
   --md-code-fg-color: #f8f8f2;
-  --md-code-bg-color: #272822;
+  /* Derived from slate body bg hsla(var(--md-hue), 15%, 14%, 1):
+     same hue, less saturated (6%), brighter (18%). Subtle slate hint, mostly gray. */
+  --md-code-bg-color: hsla(var(--md-hue), 6%, 18%, 1);
 
   /* Material code blocks — classic Monokai */
   --md-code-hl-keyword-color:     #f92672;   /* hot pink */
@@ -130,10 +132,10 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
   color: #7dd3fc;                          /* sky-300 */
 }
 
-/* TOC active item: Material binds .md-nav__link--active to --md-typeset-a-color,
-   which defaults to --md-primary-fg-color (slate-700 in our palette). That makes
-   the selected header invisible (slate-on-white in light, slate-on-dark in dark).
-   Re-bind to our sky link colors and add a left rule + tint for visual punch. */
+/* TOC + nav active item: Material binds .md-nav__link--active to
+   --md-typeset-a-color, which defaults to --md-primary-fg-color (slate-700).
+   That makes the selected item near-invisible (slate-on-white in light,
+   slate-on-dark in dark). Re-bind to our sky link colors. */
 :root,
 [data-md-color-scheme="default"] {
   --md-typeset-a-color: #0284c7;           /* sky-600 — matches link color */
@@ -143,15 +145,40 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
   --md-typeset-a-color: #38bdf8;           /* sky-400 — matches link color */
 }
 
+/* macOS-style nav items (left sidebar + right TOC): rounded pill on hover and
+   active, no harsh borders. Inspired by PyData Sphinx / Furo nav treatments. */
+.md-nav__link {
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  margin: 0.05rem -0.5rem;
+  transition: background 100ms, color 100ms;
+}
+
+.md-nav__link:hover {
+  background: rgba(2, 132, 199, 0.07);     /* sky-600 tint */
+  color: var(--md-typeset-a-color);
+}
+
+[data-md-color-scheme="slate"] .md-nav__link:hover {
+  background: rgba(56, 189, 248, 0.10);    /* sky-400 tint */
+}
+
 .md-nav__link--active {
-  font-weight: 600;
-  border-left: 2px solid #0284c7;
-  padding-left: 0.4rem;
-  margin-left: -0.4rem;
+  background: rgba(2, 132, 199, 0.10);
+  font-weight: 500;
 }
 
 [data-md-color-scheme="slate"] .md-nav__link--active {
-  border-left-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.14);
+}
+
+/* Material fades .md-nav__link--passed (already-scrolled-past TOC items + the
+   previous nav page) to --md-default-fg-color--light, which in slate is 56%
+   opacity → unreadable. Keep some fade but make it legible. */
+.md-nav__link--passed,
+.md-nav__link--passed code {
+  color: var(--md-default-fg-color);
+  opacity: 0.85;
 }
 
 /* --- Layout: wider content, denser sidebars --- */
@@ -219,19 +246,21 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 }
 
 .md-typeset .highlight.copied::after {
-  content: 'Copied!';
+  content: '✓ Copied!';
   position: absolute;
   top: 50%;
   left: 50%;
-  padding: 0.5em 1.4em;
-  background: rgba(0, 0, 0, 0.7);
+  padding: 0.65em 1.6em;
+  background: #0284c7;                     /* sky-600 — brand color, vivid */
   color: #ffffff;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 1.1em;
-  font-weight: 600;
-  border-radius: 4px;
+  font-size: 1.35em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(2, 132, 199, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
   pointer-events: none;
-  animation: copied-fade 700ms ease-out forwards;
+  animation: copied-fade 900ms ease-out forwards;
 }
 
 [data-md-color-scheme="slate"] .md-typeset .highlight {
@@ -284,6 +313,114 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 .md-typeset .landing {
   max-width: 64rem;
   margin: 0 auto;
+}
+
+/* Landing-page section headings: centered, with breathing room */
+.md-typeset .landing h2 {
+  text-align: center;
+  margin: 2.4rem 0 1rem;
+}
+
+/* Landing-page code blocks: macOS-window treatment with traffic-light dots.
+   Title-bar space is created by padding-top on .highlight; the dots are drawn
+   in a single ::before via box-shadow (red dot + 2 shadow-offset dots).
+   Always-dark: locally redefine the Monokai dark palette so the showcase reads
+   like a terminal screenshot, regardless of the site's color scheme. */
+.md-typeset .landing > .highlight {
+  position: relative;
+  max-width: 40rem;                        /* match regular code-block width */
+  margin: 0 auto 1.5rem;
+  padding-top: 1.9rem;
+  border-left: none;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  /* Linear gradient: top 1.9rem = title bar (uses --md-primary-fg-color so it
+     always matches the "Get Started" / .md-button--primary background, whether
+     the user is on auto/indigo or our custom slate palette). Below = code area
+     (derived from site bg, brighter + less saturated). Confines the title-bar
+     color to the top only — no "footer" bleed at the bottom. */
+  background: linear-gradient(
+    to bottom,
+    var(--md-primary-fg-color) 0,
+    var(--md-primary-fg-color) 1.9rem,
+    hsla(var(--md-hue), 6%, 18%, 1) 1.9rem,
+    hsla(var(--md-hue), 6%, 18%, 1) 100%
+  );
+  box-shadow:
+    0 0 24px rgba(2, 132, 199, 0.18),      /* sky glow */
+    0 8px 28px rgba(0, 0, 0, 0.18);        /* drop shadow */
+  overflow: hidden;
+
+  /* Force Monokai dark, locally — overrides whatever scheme is active. */
+  --md-code-fg-color: #f8f8f2;
+  --md-code-bg-color: hsla(var(--md-hue), 6%, 18%, 1);    /* matches global dark code bg */
+  --md-code-hl-keyword-color:     #f92672;
+  --md-code-hl-string-color:      #e6db74;
+  --md-code-hl-number-color:      #ae81ff;
+  --md-code-hl-function-color:    #a6e22e;
+  --md-code-hl-comment-color:     #75715e;
+  --md-code-hl-name-color:        #f8f8f2;
+  --md-code-hl-operator-color:    #f92672;
+  --md-code-hl-punctuation-color: #f8f8f2;
+  --md-code-hl-constant-color:    #ae81ff;
+  --md-code-hl-special-color:     #a6e22e;
+  --md-code-hl-variable-color:    #fd971f;
+  --md-code-hl-generic-color:     #f8f8f2;
+}
+
+.md-typeset .landing > .highlight::before {
+  content: '';
+  position: absolute;
+  top: 0.65rem;
+  left: 0.85rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: #ff5f57;                     /* close — red */
+  box-shadow:
+    1.05rem 0 0 #febc2e,                   /* minimize — yellow */
+    2.10rem 0 0 #28c840;                   /* zoom — green */
+}
+
+/* Title-bar label centered in the title strip. :not(.copied) so the
+   "Copied!" badge can take over the ::after slot during click feedback. */
+.md-typeset .landing > .highlight:not(.copied)::after {
+  content: '✨ Quick Start';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.75);
+  font-family: var(--md-text-font);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+
+.md-typeset .landing > .highlight:hover {
+  border-color: rgba(2, 132, 199, 0.4);
+  box-shadow:
+    0 0 36px rgba(2, 132, 199, 0.32),
+    0 10px 32px rgba(0, 0, 0, 0.22);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .landing > .highlight {
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 0 28px rgba(56, 189, 248, 0.18),     /* sky-400 glow on dark */
+    0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .landing > .highlight:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  box-shadow:
+    0 0 40px rgba(56, 189, 248, 0.32),
+    0 10px 32px rgba(0, 0, 0, 0.5);
 }
 
 /* Button row spacing — scoped to the landing hero where button rows actually appear */
@@ -404,19 +541,21 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 }
 
 .jupyter-wrapper .jp-CodeCell .highlight-ipynb.copied::after {
-  content: 'Copied!';
+  content: '✓ Copied!';
   position: absolute;
   top: 50%;
   left: 50%;
-  padding: 0.5em 1.4em;
-  background: rgba(0, 0, 0, 0.7);
+  padding: 0.65em 1.6em;
+  background: #0284c7;                     /* sky-600 — brand color, vivid */
   color: #ffffff;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 1.1em;
-  font-weight: 600;
-  border-radius: 4px;
+  font-size: 1.35em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(2, 132, 199, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
   pointer-events: none;
-  animation: copied-fade 700ms ease-out forwards;
+  animation: copied-fade 900ms ease-out forwards;
 }
 
 @keyframes copied-fade {
@@ -512,8 +651,9 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 }
 
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-CodeCell .highlight-ipynb.copied::after {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  background: #38bdf8;                     /* sky-400 — brighter for dark bg */
+  color: #0c1620;                          /* dark text on bright sky bg for max contrast */
+  box-shadow: 0 4px 22px rgba(56, 189, 248, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.2) inset;
 }
 
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-InputPrompt {
