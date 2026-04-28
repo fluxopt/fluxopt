@@ -130,6 +130,30 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
   color: #7dd3fc;                          /* sky-300 */
 }
 
+/* TOC active item: Material binds .md-nav__link--active to --md-typeset-a-color,
+   which defaults to --md-primary-fg-color (slate-700 in our palette). That makes
+   the selected header invisible (slate-on-white in light, slate-on-dark in dark).
+   Re-bind to our sky link colors and add a left rule + tint for visual punch. */
+:root,
+[data-md-color-scheme="default"] {
+  --md-typeset-a-color: #0284c7;           /* sky-600 — matches link color */
+}
+
+[data-md-color-scheme="slate"] {
+  --md-typeset-a-color: #38bdf8;           /* sky-400 — matches link color */
+}
+
+.md-nav__link--active {
+  font-weight: 600;
+  border-left: 2px solid #0284c7;
+  padding-left: 0.4rem;
+  margin-left: -0.4rem;
+}
+
+[data-md-color-scheme="slate"] .md-nav__link--active {
+  border-left-color: #38bdf8;
+}
+
 /* --- Layout: wider content, denser sidebars --- */
 
 :root {
