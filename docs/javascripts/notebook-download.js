@@ -9,7 +9,7 @@
 function injectNotebookDownload() {
   const wrapper = document.querySelector('.jupyter-wrapper');
   if (!wrapper) return;
-  if (wrapper.parentNode.querySelector('.notebook-download')) return;
+  if (wrapper.querySelector(':scope > .notebook-download')) return;
 
   const path = window.location.pathname.replace(/\/$/, '');
   const slug = path.split('/').pop();
@@ -21,7 +21,8 @@ function injectNotebookDownload() {
   link.download = `${slug}.ipynb`;
   link.title = 'Download notebook (.ipynb)';
   link.innerHTML = '<span class="notebook-download__icon">↓</span> Download notebook';
-  wrapper.parentNode.insertBefore(link, wrapper);
+  // Insert as first child so absolute positioning anchors to the wrapper.
+  wrapper.insertBefore(link, wrapper.firstChild);
 }
 
 if (typeof document$ !== 'undefined') {

@@ -694,15 +694,21 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 
 /* --- Download notebook button --- */
 
-/* Injected by notebook-download.js as the first child of <article>, before
-   the .jupyter-wrapper. Floated right so the notebook's H1 can sit next to
-   it without consuming a whole row. */
+/* Injected by notebook-download.js as the first child of .jupyter-wrapper.
+   Absolute-positioned in the wrapper's top-right corner so it never affects
+   the layout of cells below it. */
+.jupyter-wrapper {
+  position: relative;
+}
+
 .notebook-download {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  float: right;
-  margin: 0.2rem 0 0.4rem 0.6rem;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
   padding: 0.3em 0.75em;
   font-size: 0.72rem;
   font-weight: 500;
