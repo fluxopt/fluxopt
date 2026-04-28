@@ -691,3 +691,49 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-OutputArea-output {
   border-left-color: #475569;       /* slate-600 — subtle on dark bg */
 }
+
+/* --- Download notebook button --- */
+
+/* Injected by notebook-download.js as the first child of <article>, before
+   the .jupyter-wrapper. Floated right so the notebook's H1 can sit next to
+   it without consuming a whole row. */
+.notebook-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  float: right;
+  margin: 0.2rem 0 0.4rem 0.6rem;
+  padding: 0.3em 0.75em;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #0284c7;                          /* sky-600 — matches link color */
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background 150ms, color 150ms, border-color 150ms;
+}
+
+.notebook-download:hover {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+.notebook-download__icon {
+  font-size: 0.95em;
+  line-height: 1;
+}
+
+[data-md-color-scheme="slate"] .notebook-download {
+  color: #38bdf8;                          /* sky-400 — brighter for dark bg */
+  background: rgba(56, 189, 248, 0.10);
+  border-color: rgba(56, 189, 248, 0.28);
+}
+
+[data-md-color-scheme="slate"] .notebook-download:hover {
+  background: #38bdf8;
+  border-color: #38bdf8;
+  color: #0c1620;                          /* dark text on bright sky bg */
+}
