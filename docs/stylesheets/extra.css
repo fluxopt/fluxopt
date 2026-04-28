@@ -1,3 +1,92 @@
+/* --- Syntax highlighting: Monokai Light + Monokai Dark ---
+ *
+ * TWO sets of variables to override:
+ *   --md-code-hl-*-color     → Material's markdown code blocks (.highlight)
+ *   --jp-mirror-editor-*-color → notebook code blocks (.highlight-ipynb)
+ *
+ * Notebook code uses JupyterLab's CSS variables, NOT Material's. Both must
+ * be overridden together to keep colors consistent across the whole site.
+ *
+ * Light = darkened-Monokai variant (dark hues on light bg for readability);
+ * Dark = classic Monokai.
+ */
+
+:root,
+[data-md-color-scheme="default"] {
+  --md-code-fg-color: #272822;
+  --md-code-bg-color: #fafafa;
+
+  /* Material code blocks — Monokai (darkened for light bg) */
+  --md-code-hl-keyword-color:     #d11f72;   /* darkened pink */
+  --md-code-hl-string-color:      #998800;   /* mustard yellow */
+  --md-code-hl-number-color:      #6f42c1;   /* purple */
+  --md-code-hl-function-color:    #4d8d04;   /* green */
+  --md-code-hl-comment-color:     #75715e;   /* olive-gray */
+  --md-code-hl-name-color:        #272822;   /* default text */
+  --md-code-hl-operator-color:    #d11f72;   /* pink */
+  --md-code-hl-punctuation-color: #272822;
+  --md-code-hl-constant-color:    #6f42c1;   /* purple — None, True, False */
+  --md-code-hl-special-color:     #4d8d04;   /* green — decorators */
+  --md-code-hl-variable-color:    #d35400;   /* burnt orange */
+  --md-code-hl-generic-color:     #272822;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-code-fg-color: #f8f8f2;
+  --md-code-bg-color: #272822;
+
+  /* Material code blocks — classic Monokai */
+  --md-code-hl-keyword-color:     #f92672;   /* hot pink */
+  --md-code-hl-string-color:      #e6db74;   /* yellow */
+  --md-code-hl-number-color:      #ae81ff;   /* purple */
+  --md-code-hl-function-color:    #a6e22e;   /* green */
+  --md-code-hl-comment-color:     #75715e;   /* olive-gray */
+  --md-code-hl-name-color:        #f8f8f2;   /* default text */
+  --md-code-hl-operator-color:    #f92672;   /* pink */
+  --md-code-hl-punctuation-color: #f8f8f2;
+  --md-code-hl-constant-color:    #ae81ff;   /* purple — None, True, False */
+  --md-code-hl-special-color:     #a6e22e;   /* green — decorators */
+  --md-code-hl-variable-color:    #fd971f;   /* orange */
+  --md-code-hl-generic-color:     #f8f8f2;
+}
+
+/* JupyterLab vars: must be set ON .jupyter-wrapper because that element
+   re-defines them locally (e.g. --jp-mirror-editor-keyword-color: #008000).
+   Prefix with `body` (where Material puts the scheme attribute) to outrank
+   mkdocs-jupyter's inline `[data-md-color-scheme=slate] .jupyter-wrapper`,
+   which otherwise wins on cascade order. */
+body[data-md-color-scheme="default"] .jupyter-wrapper {
+  --jp-mirror-editor-keyword-color:     #d11f72;
+  --jp-mirror-editor-string-color:      #998800;
+  --jp-mirror-editor-number-color:      #6f42c1;
+  --jp-mirror-editor-builtin-color:     #4d8d04;
+  --jp-mirror-editor-comment-color:     #75715e;
+  --jp-mirror-editor-operator-color:    #d11f72;
+  --jp-mirror-editor-punctuation-color: #272822;
+  --jp-mirror-editor-variable-color:    #d35400;
+  --jp-mirror-editor-meta-color:        #4d8d04;
+  --jp-mirror-editor-bracket-color:     #272822;
+  --jp-mirror-editor-property-color:    #272822;
+  --jp-mirror-editor-attribute-color:   #d11f72;
+  --jp-mirror-editor-tag-color:         #d11f72;
+}
+
+body[data-md-color-scheme="slate"] .jupyter-wrapper {
+  --jp-mirror-editor-keyword-color:     #f92672;
+  --jp-mirror-editor-string-color:      #e6db74;
+  --jp-mirror-editor-number-color:      #ae81ff;
+  --jp-mirror-editor-builtin-color:     #a6e22e;
+  --jp-mirror-editor-comment-color:     #75715e;
+  --jp-mirror-editor-operator-color:    #f92672;
+  --jp-mirror-editor-punctuation-color: #f8f8f2;
+  --jp-mirror-editor-variable-color:    #fd971f;
+  --jp-mirror-editor-meta-color:        #a6e22e;
+  --jp-mirror-editor-bracket-color:     #f8f8f2;
+  --jp-mirror-editor-property-color:    #f8f8f2;
+  --jp-mirror-editor-attribute-color:   #f92672;
+  --jp-mirror-editor-tag-color:         #f92672;
+}
+
 /* --- Custom palette: soft dark slate primary + sky accent --- */
 
 :root,
@@ -269,7 +358,7 @@
 }
 
 .jupyter-wrapper .jp-CodeCell .highlight-ipynb {
-  background: #f5f5f5;
+  background: var(--md-code-bg-color);   /* matches Material's other code blocks */
   border: none;
   border-left: 2px solid #0284c7;        /* sky-600 accent stripe */
   border-radius: 0 2px 2px 0;
@@ -386,7 +475,6 @@
 
 /* Dark mode tone-down */
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-CodeCell .highlight-ipynb {
-  background: #2a2a2a;
   border-left-color: #38bdf8;            /* sky-400 — brighter accent for dark bg */
 }
 
