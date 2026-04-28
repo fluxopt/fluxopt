@@ -6,25 +6,27 @@ edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
-  - Notebooks:
-    - Quickstart: notebooks/01-quickstart.ipynb
-    - Heat System: notebooks/02-heat-system.ipynb
-    - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
-    - Multi-Period: notebooks/04-multi-period.ipynb
-    - Investment: notebooks/05-investment.ipynb
-    - Status: notebooks/06-status.ipynb
-    - Piecewise: notebooks/07-piecewise.ipynb
-  - Math:
-    - Notation: math/notation.md
-    - Objective: math/objective.md
-    - Carrier Balance: math/carrier-balance.md
-    - Flows: math/flows.md
-    - Converters: math/converters.md
-    - Storage: math/storage.md
-    - Effects: math/effects.md
-    - Sizing: math/sizing.md
-    - Status: math/status.md
+  - User Guide:
+    - Tutorials:
+      - Quickstart: notebooks/01-quickstart.ipynb
+      - Heat System: notebooks/02-heat-system.ipynb
+      - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
+      - Multi-Period: notebooks/04-multi-period.ipynb
+      - Investment: notebooks/05-investment.ipynb
+      - Status: notebooks/06-status.ipynb
+      - Piecewise: notebooks/07-piecewise.ipynb
+    - Math:
+      - Notation: math/notation.md
+      - Objective: math/objective.md
+      - Carrier Balance: math/carrier-balance.md
+      - Flows: math/flows.md
+      - Converters: math/converters.md
+      - Storage: math/storage.md
+      - Effects: math/effects.md
+      - Sizing: math/sizing.md
+      - Status: math/status.md
   - API Reference: api/
+  - Contributing: contributing.md
   - Changelog: changelog.md
 
 theme:
