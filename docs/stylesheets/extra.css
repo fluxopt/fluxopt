@@ -144,9 +144,9 @@
  * on specificity against the inlined Jupyter Lab stylesheet.
  */
 
-/* Cell rhythm: tight, minimal */
+/* Cell rhythm: as tight as possible without cramping */
 .jupyter-wrapper .jp-Cell {
-  margin: 0 0 0.35em 0;
+  margin: 0;
   padding: 0;
 }
 
@@ -218,13 +218,14 @@
 .jupyter-wrapper .jp-CodeCell .highlight-ipynb {
   background: #f5f5f5;
   border: none;
-  border-radius: 2px;
+  border-left: 2px solid #0284c7;        /* sky-600 accent stripe */
+  border-radius: 0 2px 2px 0;
   margin: 0;
   width: 100%;
 }
 
 .jupyter-wrapper .jp-CodeCell .highlight-ipynb pre {
-  padding: 0.4em 0.75em;
+  padding: 0.3em 0.6em;
   margin: 0;
   line-height: 1.45;
   background: transparent;
@@ -262,17 +263,17 @@
   line-height: 1.4;
 }
 
-/* Markdown cells: tight heading spacing */
+/* Markdown cells: aggressive heading spacing — let cells breathe via prompt gutter */
 .jupyter-wrapper .jp-MarkdownCell .md-typeset h2 {
-  margin: 1em 0 0.35em;
+  margin: 0.3em 0 0.15em;
 }
 
 .jupyter-wrapper .jp-MarkdownCell .md-typeset h3 {
-  margin: 0.7em 0 0.25em;
+  margin: 0.25em 0 0.1em;
 }
 
 .jupyter-wrapper .jp-MarkdownCell .md-typeset p {
-  margin: 0.4em 0;
+  margin: 0.3em 0;
 }
 
 /* Hide non-functional UI elements */
@@ -288,6 +289,7 @@
 /* Dark mode tone-down */
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-CodeCell .highlight-ipynb {
   background: #2a2a2a;
+  border-left-color: #38bdf8;            /* sky-400 — brighter accent for dark bg */
 }
 
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-InputPrompt {
