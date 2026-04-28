@@ -488,8 +488,11 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 .jupyter-wrapper .jp-InputPrompt,
 .jupyter-wrapper .jp-OutputPrompt {
   display: block !important;
-  flex: 0 0 2.5em !important;
-  min-width: 0 !important;
+  /* ch-based gutter sized for post-JS "[NN]:" / "[NNN]:" — the JS strips the
+     "In " / "Out" prefixes within milliseconds, so we optimise for the
+     steady-state look. Pre-JS may briefly overflow leftward into the margin. */
+  flex: 0 0 5ch !important;
+  min-width: 5ch !important;
   padding: 0.4em 0.5em 0 0 !important;
   font-family: 'Fira Code', monospace;
   font-size: 0.78em;
