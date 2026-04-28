@@ -7,10 +7,12 @@ edit_uri: edit/main/docs/
 nav:
   - Home: index.md
   - Tutorials:
-    - Quickstart: notebooks/01-quickstart.ipynb
-    - Multi-Period: notebooks/04-multi-period.ipynb
-    - Status: notebooks/06-status.ipynb
-    - Piecewise: notebooks/07-piecewise.ipynb
+    - 1. Quickstart: notebooks/01-quickstart.ipynb
+    - 2. Storage: notebooks/02-storage.ipynb
+    - 3. Status: notebooks/03-status.ipynb
+    - 4. Sizing: notebooks/04-sizing.ipynb
+    - 5. Multi-Period & Investment: notebooks/05-multi-period.ipynb
+    - 6. Piecewise: notebooks/06-piecewise.ipynb
   - Examples:
     - Heat System with Storage: notebooks/02-heat-system.ipynb
     - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
