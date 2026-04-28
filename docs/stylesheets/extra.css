@@ -479,7 +479,8 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
   display: block;
 }
 
-/* Numbered prompts: monospace gutter — input blue, output red (Jupyter convention).
+/* Numbered prompts: monospace gutter — input sky (#0284c7), output muted
+   slate (#cbd5e1) to keep the output secondary.
    The "In " / "Out" prefixes are stripped by javascripts/notebook-prompts.js;
    only the bracketed number remains.
    !important needed because JupyterLab's `:not(.jp-mod-active)` rule has
