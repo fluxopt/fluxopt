@@ -99,10 +99,35 @@ jobs:
       - name: Build MkDocs
         run: uv run mkdocs build --strict
 
+  notebooks:
+    name: Test notebooks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: uv sync --group dev --group docs
+
+      - name: Run nbval on notebooks
+        # --dist loadfile keeps each notebook's cells on a single xdist worker
+        # so the kernel state is shared cell-to-cell.
+        run: uv run pytest --nbval-lax --dist loadfile docs/notebooks/
+
   ci-success:
     name: CI Success
     if: always()
-    needs: [lint, typecheck, test, docs]
+    needs: [lint, typecheck, test, docs, notebooks]
     runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
