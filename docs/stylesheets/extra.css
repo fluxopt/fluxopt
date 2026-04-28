@@ -120,8 +120,8 @@
   margin: 0 auto;
 }
 
-/* Button row spacing */
-.md-typeset .md-button + .md-button {
+/* Button row spacing — scoped to the landing hero where button rows actually appear */
+.md-typeset .hero .md-button + .md-button {
   margin-left: 0.5rem;
 }
 
