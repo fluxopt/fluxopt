@@ -16,13 +16,19 @@ function stripPromptPrefixes() {
 }
 
 function attachClickToCopy() {
-  document.querySelectorAll('.jp-CodeCell .highlight-ipynb').forEach((block) => {
+  // Notebook code cells AND markdown code fences (skip inline `code` and
+  // mkdocstrings .doc-signature — neither is meant for copy-the-block UX)
+  const blocks = document.querySelectorAll(
+    '.jp-CodeCell .highlight-ipynb, .md-typeset .highlight'
+  );
+  blocks.forEach((block) => {
     if (block.dataset.copyAttached) return;
+    if (block.closest('.doc-signature')) return;
     block.dataset.copyAttached = '1';
     block.addEventListener('click', (event) => {
       // Don't fire if the user is selecting text (or just clicked a link inside)
       if (window.getSelection().toString().length > 0) return;
-      if (event.target.closest('a')) return;
+      if (event.target.closest('a, button')) return;
 
       const codeEl = block.querySelector('pre');
       if (!codeEl) return;
@@ -30,7 +36,7 @@ function attachClickToCopy() {
 
       navigator.clipboard.writeText(text).then(() => {
         block.classList.add('copied');
-        setTimeout(() => block.classList.remove('copied'), 600);
+        setTimeout(() => block.classList.remove('copied'), 700);
       }).catch(() => {});
     });
   });
