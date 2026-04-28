@@ -37,24 +37,21 @@ theme:
   # favicon: assets/favicon.png
 
   palette:
-    - media: "(prefers-color-scheme)"
+    # Dark first = default for new visitors (no auto/system-pref entry).
+    # Icon represents the CURRENT scheme — moon when active is dark,
+    # sun when active is light. The `name` describes the toggle action.
+    - scheme: slate
+      primary: custom
+      accent: custom
       toggle:
-        icon: material/brightness-auto
+        icon: material/brightness-4
         name: Switch to light mode
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
+    - scheme: default
       primary: custom
       accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: custom
-      accent: custom
-      toggle:
-        icon: material/brightness-4
-        name: Switch to system preference
 
   font:
     text: Roboto
