@@ -200,7 +200,7 @@
 }
 
 .jupyter-wrapper .jp-OutputPrompt {
-  color: #d62728 !important;       /* classic Jupyter red */
+  color: #cbd5e1 !important;       /* slate-300 — muted, secondary to input */
 }
 
 /* Input area: subtle bg, no border, tight padding */
@@ -252,6 +252,8 @@
   min-width: 0;
   background: none;
   margin: 0;
+  border-left: 2px solid #cbd5e1;       /* muted stripe pairs visually with input */
+  padding-left: 0.6em;
 }
 
 .jupyter-wrapper .jp-RenderedText pre {
@@ -263,16 +265,23 @@
   line-height: 1.4;
 }
 
-/* Markdown cells: aggressive heading spacing — let cells breathe via prompt gutter */
-.jupyter-wrapper .jp-MarkdownCell .md-typeset h2 {
+/* Markdown cells: aggressive heading spacing.
+   `.md-typeset` is on <article> (ancestor of the notebook) — putting it
+   inside the chain after .jp-MarkdownCell never matches. Drop it and rely
+   on .jupyter-wrapper for specificity over Material's `.md-typeset h2`. */
+.jupyter-wrapper .jp-MarkdownCell h2 {
   margin: 0.3em 0 0.15em;
 }
 
-.jupyter-wrapper .jp-MarkdownCell .md-typeset h3 {
+.jupyter-wrapper .jp-MarkdownCell h3 {
   margin: 0.25em 0 0.1em;
 }
 
-.jupyter-wrapper .jp-MarkdownCell .md-typeset p {
+.jupyter-wrapper .jp-MarkdownCell h1 {
+  margin: 0.4em 0 0.2em;
+}
+
+.jupyter-wrapper .jp-MarkdownCell p {
   margin: 0.3em 0;
 }
 
@@ -297,5 +306,9 @@
 }
 
 [data-md-color-scheme="slate"] .jupyter-wrapper .jp-OutputPrompt {
-  color: #ff6b6b !important;       /* salmon for dark bg */
+  color: #64748b !important;       /* slate-500 — readable muted on dark bg */
+}
+
+[data-md-color-scheme="slate"] .jupyter-wrapper .jp-OutputArea-output {
+  border-left-color: #475569;       /* slate-600 — subtle on dark bg */
 }
