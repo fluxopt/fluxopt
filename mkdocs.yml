@@ -2,6 +2,7 @@ site_name: fluxopt
 site_description: Energy system optimization with linopy
 repo_url: https://github.com/FBumann/fluxopt
 repo_name: FBumann/fluxopt
+edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
@@ -30,6 +31,9 @@ theme:
   name: material
   language: en
 
+  # logo: assets/logo.svg       # placeholder — text-only header for now
+  # favicon: assets/favicon.png
+
   palette:
     - media: "(prefers-color-scheme)"
       toggle:
@@ -37,15 +41,15 @@ theme:
         name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: teal
-      accent: cyan
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: teal
-      accent: cyan
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to system preference
@@ -58,22 +62,30 @@ theme:
     repo: fontawesome/brands/github
 
   features:
+    - header.autohide
     - navigation.instant
+    - navigation.instant.progress
     - navigation.tracking
     - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.prune
+    - navigation.indexes
     - navigation.top
     - navigation.footer
     - toc.follow
     - search.suggest
     - search.highlight
+    - search.share
     - content.code.copy
     - content.code.select
+    - content.tabs.link
 
 markdown_extensions:
   - admonition
   - attr_list
   - def_list
   - footnotes
+  - md_in_html
   - tables
   - toc:
       permalink: true
@@ -87,6 +99,9 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.tabbed:
       alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 plugins:
   - search
@@ -110,6 +125,12 @@ plugins:
       handlers:
         python:
           paths: [src]
+          inventories:
+            - https://docs.python.org/3/objects.inv
+            - https://numpy.org/doc/stable/objects.inv
+            - https://docs.xarray.dev/en/stable/objects.inv
+            - https://pandas.pydata.org/docs/objects.inv
+            - https://linopy.readthedocs.io/en/latest/objects.inv
           options:
             docstring_style: google
             docstring_section_style: table
@@ -119,10 +140,16 @@ plugins:
             show_root_heading: true
             show_signature: true
             show_signature_annotations: true
+            signature_crossrefs: true
             separate_signature: true
             line_length: 80
             modernize_annotations: true
             merge_init_into_class: true
+            summary: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_source: true
+            parameter_headings: true
 
 extra_css:
   - stylesheets/extra.css

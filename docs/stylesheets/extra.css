@@ -1,3 +1,142 @@
+/* --- Custom palette: soft dark slate primary + sky accent --- */
+
+:root,
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: #334155;          /* slate-700 — soft dark header */
+  --md-primary-fg-color--light: #475569;   /* slate-600 */
+  --md-primary-fg-color--dark: #1e293b;    /* slate-800 — hover/active */
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+}
+
+/* Light-mode accent: deeper sky for contrast on white */
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: #0284c7;           /* sky-600 */
+  --md-accent-fg-color--transparent: rgba(2, 132, 199, 0.1);
+  --md-accent-bg-color: #ffffff;
+  --md-accent-bg-color--light: #ffffffb3;
+}
+
+/* Dark-mode accent: brighter sky for contrast on slate background */
+[data-md-color-scheme="slate"][data-md-color-accent="custom"] {
+  --md-accent-fg-color: #38bdf8;           /* sky-400 — brighter for dark bg */
+  --md-accent-fg-color--transparent: rgba(56, 189, 248, 0.15);
+}
+
+/* Light-mode resting link: brighter than the accent for prominence.
+   Hover keeps the accent (sky-600) for darken-on-hover affordance. */
+.md-typeset a {
+  color: #0284c7;                          /* sky-600 */
+}
+
+.md-typeset a:hover {
+  color: #0ea5e9;                          /* sky-500 — brighten on hover */
+}
+
+[data-md-color-scheme="slate"] .md-typeset a {
+  color: #38bdf8;                          /* sky-400 */
+}
+
+[data-md-color-scheme="slate"] .md-typeset a:hover {
+  color: #7dd3fc;                          /* sky-300 */
+}
+
+/* --- Layout: wider content, denser sidebars --- */
+
+:root {
+  --md-grid-max-width: 80rem;  /* default 61rem — let content breathe */
+}
+
+.md-grid {
+  max-width: var(--md-grid-max-width);
+}
+
+/* Narrower sidebars — defaults are 12.1rem each.
+   Both kept visible (no toc.integrate) so the per-page TOC stays on the right. */
+.md-sidebar--primary {
+  width: 11rem;
+}
+
+.md-sidebar--secondary {
+  width: 10rem;
+}
+
+/* Tighter heading spacing in long-form content */
+.md-typeset h1 {
+  margin: 0 0 1rem;
+  font-weight: 600;
+}
+
+.md-typeset h2 {
+  margin: 1.6em 0 0.6em;
+}
+
+.md-typeset h3 {
+  margin: 1.2em 0 0.4em;
+}
+
+/* Slightly denser code blocks */
+.md-typeset pre > code {
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+/* --- Landing page --- */
+
+/* Centered hero: tagline, badges, CTA buttons */
+.md-typeset .hero {
+  max-width: 42rem;
+  margin: 2rem auto 1rem;
+  text-align: center;
+}
+
+.md-typeset .hero h1 {
+  margin-bottom: 0.6rem;
+  font-size: 2.6rem;
+  font-weight: 700;
+}
+
+.md-typeset .hero p {
+  font-size: 1.1rem;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Badge row: tight, centered, no paragraph spacing */
+.md-typeset .hero p:has(img) {
+  margin: 0.6rem 0 1.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+}
+
+.md-typeset .hero img {
+  margin: 0;
+}
+
+/* Landing-page content (cards, code, etc.) — narrower than full grid */
+.md-typeset .landing {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+/* Button row spacing */
+.md-typeset .md-button + .md-button {
+  margin-left: 0.5rem;
+}
+
+/* Grid card hover lift — small polish */
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid > .card {
+  transition: border-color 125ms, box-shadow 125ms;
+}
+
+.md-typeset .grid.cards > ul > li:hover,
+.md-typeset .grid > .card:hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
 /* --- Notebook styling (inspired by nbsphinx / PyData theme) --- */
 
 /* Hide prompts — code vs output distinguished by background.
