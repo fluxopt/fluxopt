@@ -120,6 +120,8 @@ plugins:
       execute: true
       remove_tag_config:
         remove_input_tags: ["hide-input"]
+        remove_all_outputs_tags: ["hide-output"]
+        remove_cell_tags: ["hide-cell"]
 
   - mkdocstrings:
       default_handler: python
