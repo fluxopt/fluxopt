@@ -11,7 +11,21 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
 # -- User input types --------------------------------------------------
-type TimeSeries = float | int | list[float] | np.ndarray | pd.Series | xr.DataArray
+type Variate = float | int | list[float] | np.ndarray | pd.Series | pd.DataFrame | xr.DataArray
+"""Any input that varies over a subset of the model's variate dims (``time``,
+optionally ``period``, eventually ``scenario``).
+
+- Scalar: broadcast to all variate dims.
+- 1-D (``list``/``ndarray``): matched to a coord by length (must be unambiguous).
+- 1-D (``pd.Series``): index name selects the dim if set; else matched by length.
+- 2-D (``pd.DataFrame``): ``index.name`` and ``columns.name`` must match target dims.
+- n-D (``xr.DataArray``): dims must be a subset of the target; coords must match exactly.
+
+Per-field reach (which dims a particular field can vary over) is documented on
+the field itself; ``as_dataarray`` enforces that user input only uses dims the
+caller declared in *coords*.
+"""
+
 type Timesteps = list[datetime] | list[int] | pd.DatetimeIndex | pd.Index
 
 # -- Internal types (after normalization) ------------------------------
@@ -112,19 +126,29 @@ def fast_concat(arrays: list[xr.DataArray], dim: pd.Index) -> xr.DataArray:
 
 
 def as_dataarray(
-    value: TimeSeries,
+    value: Variate,
     coords: Mapping[str, Any],
     *,
     name: str = 'value',
     broadcast: bool = True,
 ) -> xr.DataArray:
-    """Convert a TimeSeries to a DataArray aligned to given coordinates.
+    """Convert a Variate to a DataArray aligned to given coordinates.
+
+    Pipeline: ``convert → validate dims → validate coord values → broadcast``.
+
+    See :data:`Variate` for accepted inputs. Pandas inputs (``Series``,
+    ``DataFrame``) follow the same convention as ``linopy.as_dataarray``: the
+    axis ``name`` attribute selects the corresponding target dim. For
+    ``ndarray``/``list``, the dim is selected by length (must be unambiguous).
+    For ``DataArray``, dims must be a subset of *coords* and coord values must
+    match exactly — alignment errors are surfaced loudly, not silently masked.
 
     Args:
-        value: Scalar, list, ndarray, Series, or DataArray.
-        coords: Target coordinates, e.g. ``{"time": idx}``.
+        value: Scalar, list, ndarray, Series, DataFrame, or DataArray.
+        coords: Target coordinates, e.g. ``{"time": idx, "period": pidx}``.
+            Used both as the reach declaration and as alignment targets.
         name: Name for the resulting DataArray.
-        broadcast: Expand result to span all dimensions in coords.
+        broadcast: Expand result to span all dimensions in *coords*.
     """
     coord_idx = {k: v if isinstance(v, pd.Index) else pd.Index(v) for k, v in coords.items()}
 
@@ -140,43 +164,83 @@ def as_dataarray(
             name=name,
         )
 
-    # --- existing DataArray: align + optionally broadcast ---
+    # --- 1) Convert to DataArray ---
+    da: xr.DataArray
     if isinstance(value, xr.DataArray):
-        foreign = [str(d) for d in value.dims if d not in coord_idx]
-        if foreign:
+        da = value
+    elif isinstance(value, (pd.Series, pd.DataFrame)):
+        # Mirror linopy: pandas axes already carry coords; use axis.name as dim.
+        # Fall back to length-matching only when no axis is named.
+        named = [a.name for a in value.axes if a.name is not None]
+        if len(named) == value.ndim:
+            da = xr.DataArray(value)
+        elif value.ndim == 1 and not named:
+            return _from_unnamed_1d(np.asarray(value.values, dtype=float), coord_idx, name, broadcast)
+        else:
             raise ValueError(
-                f'DataArray has dims {foreign} not in target coords {list(coord_idx)}. '
-                f'Rename before calling as_dataarray().'
+                f'{type(value).__name__} requires axis.name set on every axis '
+                f'(got {[a.name for a in value.axes]!r}). '
+                f"Set e.g. df.index.name='time', df.columns.name='period'."
             )
-        da = value.rename(name)
-        if broadcast:
-            for dim, idx in coord_idx.items():
-                if dim not in da.dims:
-                    da = da.expand_dims({dim: idx})
-            da = da.transpose(*coord_idx)
-        return da
-
-    # --- 1D: list / ndarray / Series ---
-    if isinstance(value, pd.Series):
-        arr = value.values.astype(float)
     elif isinstance(value, np.ndarray):
-        arr = value.astype(float)
+        if value.ndim != 1:
+            raise ValueError(
+                f'np.ndarray must be 1-D (got ndim={value.ndim}); pass an xr.DataArray '
+                f'or pd.DataFrame with named axes for higher-dim inputs.'
+            )
+        return _from_unnamed_1d(value, coord_idx, name, broadcast)
     elif isinstance(value, list):
-        arr = np.array(value, dtype=float)
+        return _from_unnamed_1d(np.asarray(value, dtype=float), coord_idx, name, broadcast)
     else:
-        raise TypeError(f'Unsupported TimeSeries type: {type(value)}')
+        raise TypeError(f'Unsupported Variate type: {type(value)}')
 
+    # --- 2) Validate dims are a subset of the target ---
+    foreign = [str(d) for d in da.dims if d not in coord_idx]
+    if foreign:
+        raise ValueError(
+            f'{type(value).__name__} has dims {foreign} not in target coords {list(coord_idx)}. '
+            f'Rename before calling as_dataarray().'
+        )
+
+    # --- 3) Validate coord values match exactly (close the alignment gap) ---
+    for d in da.dims:
+        dim_name = str(d)
+        if d in da.coords and not pd.Index(da.coords[d].values).equals(coord_idx[dim_name]):
+            raise ValueError(
+                f'Coord mismatch on dim {dim_name!r}: input coord does not equal target. '
+                f"Use the same index as the model's {dim_name}."
+            )
+
+    da = da.rename(name)
+    if broadcast:
+        for dim, idx in coord_idx.items():
+            if dim not in da.dims:
+                da = da.expand_dims({dim: idx})
+        da = da.transpose(*coord_idx)
+    return da
+
+
+def _from_unnamed_1d(arr: np.ndarray, coord_idx: dict[str, pd.Index], name: str, broadcast: bool) -> xr.DataArray:
+    """Length-match an unnamed 1-D array to a single target coord.
+
+    Tie-breaking: ``time`` wins over other dims when multiple match. Pass a
+    named ``pd.Series`` or ``xr.DataArray`` to override.
+    """
+    arr = arr.astype(float)
     n = len(arr)
     matches = [k for k, v in coord_idx.items() if len(v) == n]
     if len(matches) == 0:
         lengths = ', '.join(f'{k}({len(v)})' for k, v in coord_idx.items())
         raise ValueError(f'Length {n} does not match any coordinate: {lengths}')
-    if len(matches) > 1:
+    if len(matches) > 1 and 'time' in matches:
+        dim = 'time'
+    elif len(matches) > 1:
         raise ValueError(
             f'Length {n} matches multiple coordinates: {matches}. '
-            f'Pass an xr.DataArray with explicit dims to disambiguate.'
+            f'Pass an xr.DataArray, named pd.Series/DataFrame to disambiguate.'
         )
-    dim = matches[0]
+    else:
+        dim = matches[0]
     da = xr.DataArray(arr, dims=[dim], coords={dim: coord_idx[dim]}, name=name)
     if broadcast:
         for d, idx in coord_idx.items():

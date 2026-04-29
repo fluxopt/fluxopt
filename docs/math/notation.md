@@ -63,7 +63,7 @@ The broadcast hierarchy:
   \(\mathrm{S}^-\) become \(\bar{\mathrm{P}}_{f,p}\) etc. in multi-period models.
   Variables already reflect this in the table above (e.g.
   \(P_{f,t(,p)}\)).
-- **Time (\(t\))** — only fields typed `TimeSeries` accept this: bounds
+- **Time (\(t\))** — only fields typed `Variate` accept this: bounds
   \(\underline{\mathrm{p}}_{f,t}, \bar{\mathrm{p}}_{f,t}\), profiles \(\pi_{f,t}\),
   efficiencies \(\eta^c_s, \eta^d_s\), losses \(\delta_s\), conversion
   coefficients \(\mathrm{a}_{f,i}\), effect / running / startup costs
@@ -95,7 +95,7 @@ omit unless we're discussing multi-period dynamics specifically.
 | \(\bar{\mathrm{e}}_s\) | [`Storage.relative_maximum_level`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_maximum_level)) | \([0, 1]\) | — | Relative max SOC |
 | \(\mathrm{a}_{f,i}\) | [`Converter.conversion_factors`](../api/fluxopt/components.md#fluxopt.components.Converter(conversion_factors)) | \(\mathbb{R}\) | — | Conversion coefficient (per flow, per equation) |
 | \(\alpha_{k,j}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) | \(\mathbb{R}\) | varies | Cross-effect factor (scalar) |
-| \(\alpha_{k,j,t}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (TimeSeries) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
+| \(\alpha_{k,j,t}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (Variate) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
 | \(\bar{\Phi}_k\) | [`Effect.maximum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum)) | \(\mathbb{R}\) | varies | Maximum aggregate (weighted sum across periods) |
 | \(\underline{\Phi}_k\) | [`Effect.minimum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum)) | \(\mathbb{R}\) | varies | Minimum aggregate (weighted sum across periods) |
 | \(\bar{\Phi}_k^{\text{per period}}\) | [`Effect.maximum_per_period`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum_per_period)) | \(\mathbb{R}\) | varies | Maximum per period |

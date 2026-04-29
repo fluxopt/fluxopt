@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from fluxopt.types import PiecewiseMethod, TimeSeries
+    from fluxopt.types import PiecewiseMethod, Variate
 
 PENALTY_EFFECT_ID = 'penalty'
 
@@ -65,8 +65,8 @@ class Sizing:
     min_size: float
     max_size: float
     mandatory: bool = True
-    effects_per_size: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size: dict[str, Variate] = field(default_factory=dict)
+    effects_fixed: dict[str, Variate] = field(default_factory=dict)
 
 
 @dataclass
@@ -94,10 +94,10 @@ class Investment:
     mandatory: bool = True
     lifetime: int | None = None
     prior_size: float = 0.0
-    effects_per_size_at_build: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed_at_build: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_per_size_recurring: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_fixed_recurring: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_size_at_build: dict[str, Variate] = field(default_factory=dict)
+    effects_fixed_at_build: dict[str, Variate] = field(default_factory=dict)
+    effects_per_size_recurring: dict[str, Variate] = field(default_factory=dict)
+    effects_fixed_recurring: dict[str, Variate] = field(default_factory=dict)
 
 
 @dataclass
@@ -122,8 +122,8 @@ class Status:
     max_uptime: float | None = None  # [h]
     min_downtime: float | None = None  # [h]
     max_downtime: float | None = None  # [h]
-    effects_per_running_hour: dict[str, TimeSeries] = field(default_factory=dict)
-    effects_per_startup: dict[str, TimeSeries] = field(default_factory=dict)
+    effects_per_running_hour: dict[str, Variate] = field(default_factory=dict)
+    effects_per_startup: dict[str, Variate] = field(default_factory=dict)
 
 
 @dataclass(eq=False)
@@ -169,10 +169,10 @@ class Flow:
     id: str = field(init=False, default='')
     node: str | None = None
     size: float | Sizing | Investment | None = None  # P̄_f  [MW]
-    relative_minimum: TimeSeries = 0.0  # p̲_f  [-]
-    relative_maximum: TimeSeries = 1.0  # p̄_f  [-]
-    fixed_relative_profile: TimeSeries | None = None  # π_f  [-]
-    effects_per_flow_hour: dict[str, TimeSeries] = field(default_factory=dict)  # c_{f,k}  [varies]
+    relative_minimum: Variate = 0.0  # p̲_f  [-]
+    relative_maximum: Variate = 1.0  # p̄_f  [-]
+    fixed_relative_profile: Variate | None = None  # π_f  [-]
+    effects_per_flow_hour: dict[str, Variate] = field(default_factory=dict)  # c_{f,k}  [varies]
     status: Status | None = None
     prior_rates: list[float] | None = None  # flow rates before horizon [MW]
 
@@ -229,9 +229,9 @@ class Effect:
     minimum: float | None = None  # Φ̲_k  [unit] — weighted total across all periods
     maximum_per_period: float | None = None  # Φ̄_{k,p}  [unit] — each period independently
     minimum_per_period: float | None = None  # Φ̲_{k,p}  [unit] — each period independently
-    maximum_per_hour: TimeSeries | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
-    minimum_per_hour: TimeSeries | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
-    contribution_from: dict[str, TimeSeries] = field(default_factory=dict)
+    maximum_per_hour: Variate | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
+    minimum_per_hour: Variate | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
+    contribution_from: dict[str, Variate] = field(default_factory=dict)
     period_weights: list[float] | None = None  # ω[p] — scales total across periods
 
 
@@ -273,13 +273,13 @@ class Storage:
     charging: Flow
     discharging: Flow
     capacity: float | Sizing | Investment | None = None  # Ē_s  [MWh]
-    eta_charge: TimeSeries = 1.0  # η^c_s  [-]
-    eta_discharge: TimeSeries = 1.0  # η^d_s  [-]
-    relative_loss_per_hour: TimeSeries = 0.0  # δ_s  [1/h]
+    eta_charge: Variate = 1.0  # η^c_s  [-]
+    eta_discharge: Variate = 1.0  # η^d_s  [-]
+    relative_loss_per_hour: Variate = 0.0  # δ_s  [1/h]
     prior_level: float | None = None  # E_{s,0}  [MWh]
     cyclic: bool = True  # E_{s,first} == E_{s,last}
-    relative_minimum_level: TimeSeries = 0.0  # e̲_s  [-]
-    relative_maximum_level: TimeSeries = 1.0  # ē_s  [-]
+    relative_minimum_level: Variate = 0.0  # e̲_s  [-]
+    relative_maximum_level: Variate = 1.0  # ē_s  [-]
     status: Status | None = None
 
     def __post_init__(self) -> None:
@@ -312,7 +312,7 @@ class Storage:
                     raise ValueError(msg)
 
 
-_CurveTuple = tuple[str, 'list[TimeSeries]'] | tuple[str, 'list[TimeSeries]', Literal['==', '<=', '>=']]
+_CurveTuple = tuple[str, 'list[Variate]'] | tuple[str, 'list[Variate]', Literal['==', '<=', '>=']]
 
 
 @dataclass
@@ -353,10 +353,10 @@ class PiecewiseConversion:
         availability: Time-varying scaling of the upper breakpoint.
     """
 
-    points: dict[str, list[TimeSeries]] | list[_CurveTuple]
+    points: dict[str, list[Variate]] | list[_CurveTuple]
     method: PiecewiseMethod = 'auto'
     status: Status | None = None
-    availability: TimeSeries = 1.0
+    availability: Variate = 1.0
 
     def __post_init__(self) -> None:
         """Validate normalized breakpoints and bound combinations."""
@@ -395,11 +395,11 @@ class PiecewiseConversion:
 
     def _iter_normalized(
         self,
-    ) -> list[tuple[str, list[TimeSeries], Literal['==', '<=', '>=']]]:
+    ) -> list[tuple[str, list[Variate], Literal['==', '<=', '>=']]]:
         """Return the curve as a list of ``(flow, breakpoints, bound)`` tuples."""
         if isinstance(self.points, dict):
             return [(flow, list(pts), '==') for flow, pts in self.points.items()]
-        result: list[tuple[str, list[TimeSeries], Literal['==', '<=', '>=']]] = []
+        result: list[tuple[str, list[Variate], Literal['==', '<=', '>=']]] = []
         for i, t in enumerate(self.points):
             if len(t) == 2:
                 result.append((t[0], list(t[1]), '=='))

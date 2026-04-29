@@ -19,8 +19,8 @@ from fluxopt.results import Result
 from fluxopt.types import (
     IdList,
     TimeIndex,
-    TimeSeries,
     Timesteps,
+    Variate,
     as_dataarray,
 )
 
@@ -91,8 +91,8 @@ __all__ = [
     'Status',
     'Storage',
     'TimeIndex',
-    'TimeSeries',
     'Timesteps',
+    'Variate',
     'as_dataarray',
     'optimize',
 ]

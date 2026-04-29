@@ -61,10 +61,10 @@ An effect can include a weighted fraction of another effect's value via
 or transitive chains (PE → CO₂ → cost).
 
 The factor \(\alpha_{k,j}\) from `contribution_from` accepts either a scalar
-or a `TimeSeries`:
+or a `Variate`:
 
 - **Scalar**: applied identically to both temporal and lump domains.
-- **TimeSeries** (time-varying): applied per-timestep in the temporal domain;
+- **Variate** (time-varying): applied per-timestep in the temporal domain;
   for the lump domain the arithmetic mean over time is used
   (`cf_temporal.mean('time')` in `model.py`). A `UserWarning` is emitted when
   a time-varying factor is averaged for a non-trivial lump contribution.
@@ -137,7 +137,7 @@ For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
 | \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(effects_per_flow_hour)) |
-| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (TimeSeries) |
+| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (Variate) |
 | \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (scalar) |
 | \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
