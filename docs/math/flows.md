@@ -91,7 +91,7 @@ where \(c_{f,k,t}\) is the effect coefficient per flow-hour
 | \(\bar{p}_{f,t}\) | Relative upper bound | `Flow.relative_maximum` |
 | \(\pi_{f,t}\) | Fixed relative profile | `Flow.fixed_relative_profile` |
 | \(c_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
-| \(\Delta t_t\) | Timestep duration | dt |
+| \(\Delta t_t\) | Timestep duration (h) | dt |
 
 See [Notation](notation.md) for the full symbol table.
 
