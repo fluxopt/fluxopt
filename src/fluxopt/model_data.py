@@ -939,7 +939,7 @@ class PiecewiseData:
             all_flows_zero = is_zero.isel(pw_pair=mask).all('pw_pair')  # (breakpoint, time)
             if bool(all_flows_zero.any().item()):
                 warnings.warn(
-                    f'ConversionCurve on converter {str(conv_id)!r} has Status, '
+                    f'PiecewiseConversion on converter {str(conv_id)!r} has Status, '
                     'but the curve includes a (0, ..., 0) breakpoint. The '
                     'optimizer can sit at zero with status=on, decoupling the '
                     'binary from the actual operating state — Status features '

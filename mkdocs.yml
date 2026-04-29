@@ -6,25 +6,28 @@ edit_uri: edit/main/docs/
 
 nav:
   - Home: index.md
-  - User Guide:
-    - Tutorials:
-      - Quickstart: notebooks/01-quickstart.ipynb
-      - Heat System: notebooks/02-heat-system.ipynb
-      - Multi-Node Heat: notebooks/03-multi-node-heat.ipynb
-      - Multi-Period: notebooks/04-multi-period.ipynb
-      - Investment: notebooks/05-investment.ipynb
-      - Status: notebooks/06-status.ipynb
-      - Piecewise: notebooks/07-piecewise.ipynb
-    - Math:
-      - Notation: math/notation.md
-      - Objective: math/objective.md
-      - Carrier Balance: math/carrier-balance.md
-      - Flows: math/flows.md
-      - Converters: math/converters.md
-      - Storage: math/storage.md
-      - Effects: math/effects.md
-      - Sizing: math/sizing.md
-      - Status: math/status.md
+  - Tutorials:
+    - 1. Quickstart: notebooks/01-quickstart.ipynb
+    - 2. Storage: notebooks/02-storage.ipynb
+    - 3. Status: notebooks/03-status.ipynb
+    - 4. Piecewise: notebooks/04-piecewise.ipynb
+    - 5. Effects: notebooks/05-effects.ipynb
+    - 6. Sizing: notebooks/06-sizing.ipynb
+    - 7. Multi-Period & Investment: notebooks/07-multi-period.ipynb
+  - Examples:
+    - Heat System with Storage: notebooks/examples/heat-system.ipynb
+    - Multi-Node Heat: notebooks/examples/multi-node-heat.ipynb
+    - Investment: notebooks/examples/investment.ipynb
+  - Math:
+    - Notation: math/notation.md
+    - Objective: math/objective.md
+    - Carrier Balance: math/carrier-balance.md
+    - Flows: math/flows.md
+    - Converters: math/converters.md
+    - Storage: math/storage.md
+    - Effects: math/effects.md
+    - Sizing: math/sizing.md
+    - Status: math/status.md
   - API Reference: api/
   - Contributing: contributing.md
   - Changelog: changelog.md
@@ -118,6 +121,8 @@ plugins:
       execute: true
       remove_tag_config:
         remove_input_tags: ["hide-input"]
+        remove_all_outputs_tags: ["hide-output"]
+        remove_cell_tags: ["hide-cell"]
 
   - mkdocstrings:
       default_handler: python
@@ -156,6 +161,7 @@ extra_css:
 extra_javascript:
   - javascripts/mathjax.js
   - javascripts/notebook-prompts.js
+  - javascripts/notebook-download.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 watch:
