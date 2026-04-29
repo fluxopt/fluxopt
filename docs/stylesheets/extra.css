@@ -791,8 +791,8 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
     box-shadow: -0.4rem 0 0 0 transparent;
   }
   25%, 65% {
-    background-color: rgba(255, 213, 79, 0.55);
-    box-shadow: -0.4rem 0 0 0 rgba(255, 213, 79, 0.9);
+    background-color: rgba(2, 132, 199, 0.35);    /* sky-600 — matches accent */
+    box-shadow: -0.4rem 0 0 0 rgba(2, 132, 199, 0.75);
   }
   45% {
     background-color: transparent;
@@ -802,7 +802,7 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 
 @keyframes target-row-flash {
   0%, 100% { background-color: transparent; }
-  25%, 65% { background-color: rgba(255, 213, 79, 0.5); }
+  25%, 65% { background-color: rgba(2, 132, 199, 0.3); }
   45% { background-color: transparent; }
 }
 
@@ -820,8 +820,8 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
     box-shadow: -0.4rem 0 0 0 transparent;
   }
   25%, 65% {
-    background-color: rgba(255, 213, 79, 0.3);
-    box-shadow: -0.4rem 0 0 0 rgba(255, 213, 79, 0.75);
+    background-color: rgba(56, 189, 248, 0.22);   /* sky-400 — matches dark accent */
+    box-shadow: -0.4rem 0 0 0 rgba(56, 189, 248, 0.65);
   }
   45% {
     background-color: transparent;
@@ -831,6 +831,6 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 
 @keyframes target-row-flash-dark {
   0%, 100% { background-color: transparent; }
-  25%, 65% { background-color: rgba(255, 213, 79, 0.22); }
+  25%, 65% { background-color: rgba(56, 189, 248, 0.18); }
   45% { background-color: transparent; }
 }

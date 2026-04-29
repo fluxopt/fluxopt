@@ -68,8 +68,8 @@ The broadcast hierarchy:
   efficiencies \(\eta^c_s, \eta^d_s\), losses \(\delta_s\), conversion
   coefficients \(\mathrm{a}_{f,i}\), effect / running / startup costs
   \(\mathrm{c}_{f,k,t}, \mathrm{r}_{f,k,t}, \mathrm{u}_{f,k,t}\), cross-effects \(\alpha_{k,j,t}\).
-- **Build period (\(p_b\))** — investment-domain coefficients only:
-  \(\gamma^{\text{build}}_{f,k}, \phi^{\text{rec}}_{f,k}\), …
+- **Build period (\(p_b\))** — at-build investment coefficients only:
+  \(\gamma^{\text{build}}_{f,k}, \phi^{\text{build}}_{f,k}\), …
 
 When a formula shows a \(t\) subscript on a parameter, it's because
 time variation is structurally meaningful for that constraint (e.g. a

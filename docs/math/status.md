@@ -25,9 +25,9 @@ With fixed size, the on/off indicator gates the flow rate bounds:
 \]
 
 When \(\sigma_{f,t} = 0\): \(P_{f,t} = 0\). When \(\sigma_{f,t} = 1\):
-\(P_{f,t} \in [\bar{\mathrm{P}}_f \underline{\mathrm{p}}, \bar{\mathrm{P}}_f \bar{\mathrm{p}}]\).
+\(P_{f,t} \in [\bar{\mathrm{P}}_f \underline{\mathrm{p}}_{f,t}, \bar{\mathrm{P}}_f \bar{\mathrm{p}}_{f,t}]\).
 
-This gives the semi-continuous behavior \(\{0\} \cup [\underline{\mathrm{P}}, \bar{\mathrm{P}}]\).
+This gives the semi-continuous behavior \(\{0\} \cup [\underline{\mathrm{P}}_{f,t}, \bar{\mathrm{P}}_{f,t}]\).
 
 ## Switch Transitions
 
