@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.7-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.6-alpha.0...v0.0.7-alpha.0) (2026-04-29)
+
+
+### Features
+
+* add component-level status on Storage ([#145](https://github.com/FBumann/fluxopt/issues/145)) ([a536e4f](https://github.com/FBumann/fluxopt/commit/a536e4f3e40801392271e9881f57276bec2f260a))
+* cache per-contributor effect contributions in Result ([#140](https://github.com/FBumann/fluxopt/issues/140)) ([2f9b8d0](https://github.com/FBumann/fluxopt/commit/2f9b8d048541f01686269b6418b6b81f4bc7f82a))
+* piecewise conversion via linopy add_piecewise_formulation ([#147](https://github.com/FBumann/fluxopt/issues/147)) ([bf25e39](https://github.com/FBumann/fluxopt/commit/bf25e3999add3ff9a3bff056bf9af558499404fb))
+
+
+### Bug Fixes
+
+* **ci:** let config control prerelease default, dispatch overrides ([#111](https://github.com/FBumann/fluxopt/issues/111)) ([aadf16c](https://github.com/FBumann/fluxopt/commit/aadf16c6602d763dfd51da8856d240219248f38b))
+* exclude highspy 1.14.0 due to MIP presolve bug and temporarilly the nevest xarray version ([#129](https://github.com/FBumann/fluxopt/issues/129)) ([2f753e4](https://github.com/FBumann/fluxopt/commit/2f753e4c8883cfdc99dfd12a0d1446638dda266a))
+* include Investment costs in compute_effect_contributions ([#135](https://github.com/FBumann/fluxopt/issues/135)) ([6bc2d4b](https://github.com/FBumann/fluxopt/commit/6bc2d4b76352066794193a66d1373018a3aa98ce))
+* scale effect per-hour bounds by timestep duration ([#127](https://github.com/FBumann/fluxopt/issues/127)) ([3473d9c](https://github.com/FBumann/fluxopt/commit/3473d9c1d3776d8f64bb24038ccebea4404b3368))
+* use xarray-native comparison in effect_contributions validation ([#139](https://github.com/FBumann/fluxopt/issues/139)) ([e34d7f7](https://github.com/FBumann/fluxopt/commit/e34d7f7264a5f0c5643884459f52c0184831a394))
+
 ## [0.0.6-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.5-alpha.0...v0.0.6-alpha.0) (2026-03-14)
 
 
