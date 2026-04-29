@@ -26,7 +26,7 @@ The sign convention uses coefficients: \(+1\) for flows producing into the carri
 |---|---|---|
 | \(\mathcal{F}_b^{\text{out}}\) | Flows producing into carrier \(b\) | `carrier_coeff[f.id] = +1` (port imports, converter outputs, storage discharging) |
 | \(\mathcal{F}_b^{\text{in}}\) | Flows consuming from carrier \(b\) | `carrier_coeff[f.id] = -1` (port exports, converter inputs, storage charging) |
-| \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \((b\!:\!n)\) | Compound carrier-node coordinate | e.g., `heat:A`, `heat:B` |
 | \(\mathcal{F}_{b:n}\) | Flows assigned to node \(n\) of carrier \(b\) | Subset of \(\mathcal{F}_b\) with matching `node` |
 | \(\text{coeff}_{b:n,f}\) | Coefficient of flow \(f\) in node \(n\)'s balance | `+1` or `-1`, same convention as single-node |
@@ -38,7 +38,7 @@ See [Notation](notation.md) for the full symbol table.
 A thermal carrier with a boiler output (3 MW) and a demand input (3 MW):
 
 \[
-\underbrace{P_{\text{boiler\_th},t}}_{+1 \times 3} + \underbrace{(-1) \cdot P_{\text{demand},t}}_{-1 \times 3} = 0 \quad \checkmark
+\underbrace{P_{\text{boilerHeat},t}}_{+1 \times 3} + \underbrace{(-1) \cdot P_{\text{demand},t}}_{-1 \times 3} = 0 \quad \checkmark
 \]
 
 ## Multi-Node Carriers
@@ -73,17 +73,6 @@ Two independent heat nodes A and B, each with its own supply and demand:
 Node A's supply serves only node A's demand. Node B is balanced independently.
 
 ### Usage
-
-```python
-from fluxopt import Flow, Port
-
-# Flows declare their node
-supply_a = Flow('heat', node='A', size=100)
-demand_a = Flow('heat', node='A', size=100, fixed_relative_profile=[0.5])
-
-supply_b = Flow('heat', node='B', size=100)
-demand_b = Flow('heat', node='B', size=100, fixed_relative_profile=[0.8])
-```
 
 The flow id auto-includes the node: `Flow('heat', node='A')` gets `id='heat:A'`,
 which qualifies to `src_a(heat:A)` after component qualification.

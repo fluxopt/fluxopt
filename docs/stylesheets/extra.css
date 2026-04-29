@@ -766,3 +766,71 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
   border-color: #38bdf8;
   color: #0c1620;                          /* dark text on bright sky bg */
 }
+
+/* --- Anchor target highlight ---
+ * When the URL has a #hash, the matching element gets :target. Flash the
+ * background once on arrival so it's obvious where the page jumped to.
+ *
+ * Class/method headings (h2/h3 outside tables) get a left-border flash.
+ * Parameter headings live inside <td> cells of a docstring table — there
+ * the h3 has constrained layout so its own background is barely visible.
+ * The :has(:target) selector lights the entire <tr> instead, which is
+ * much more legible for parameters. */
+.md-content :target {
+  animation: target-flash 1.5s ease-in-out;
+  scroll-margin-top: 4rem;
+}
+
+.md-content tr:has(:target) {
+  animation: target-row-flash 1.5s ease-in-out;
+}
+
+@keyframes target-flash {
+  0%, 100% {
+    background-color: transparent;
+    box-shadow: -0.4rem 0 0 0 transparent;
+  }
+  25%, 65% {
+    background-color: rgba(2, 132, 199, 0.35);    /* sky-600 — matches accent */
+    box-shadow: -0.4rem 0 0 0 rgba(2, 132, 199, 0.75);
+  }
+  45% {
+    background-color: transparent;
+    box-shadow: -0.4rem 0 0 0 transparent;
+  }
+}
+
+@keyframes target-row-flash {
+  0%, 100% { background-color: transparent; }
+  25%, 65% { background-color: rgba(2, 132, 199, 0.3); }
+  45% { background-color: transparent; }
+}
+
+[data-md-color-scheme="slate"] .md-content :target {
+  animation: target-flash-dark 1.5s ease-in-out;
+}
+
+[data-md-color-scheme="slate"] .md-content tr:has(:target) {
+  animation: target-row-flash-dark 1.5s ease-in-out;
+}
+
+@keyframes target-flash-dark {
+  0%, 100% {
+    background-color: transparent;
+    box-shadow: -0.4rem 0 0 0 transparent;
+  }
+  25%, 65% {
+    background-color: rgba(56, 189, 248, 0.22);   /* sky-400 — matches dark accent */
+    box-shadow: -0.4rem 0 0 0 rgba(56, 189, 248, 0.65);
+  }
+  45% {
+    background-color: transparent;
+    box-shadow: -0.4rem 0 0 0 transparent;
+  }
+}
+
+@keyframes target-row-flash-dark {
+  0%, 100% { background-color: transparent; }
+  25%, 65% { background-color: rgba(56, 189, 248, 0.18); }
+  45% { background-color: transparent; }
+}

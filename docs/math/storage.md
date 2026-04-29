@@ -19,16 +19,6 @@ where:
 - \(\delta_s \in [0, 1]\) — self-discharge rate per hour
 - \(\Delta t_t\) — timestep duration in hours
 
-```python
-battery = Storage(
-    'battery', charging=charge, discharging=discharge,
-    capacity=100.0,
-    eta_charge=0.95,        # 95% charging efficiency
-    eta_discharge=0.95,     # 95% discharging efficiency
-    relative_loss_per_hour=0.001,  # 0.1%/h self-discharge
-)
-```
-
 The charge state has \(|\mathcal{T}| + 1\) values (one before each timestep plus one
 after the last timestep).
 
@@ -37,17 +27,8 @@ after the last timestep).
 The charge state is bounded by relative SOC limits scaled by the storage capacity:
 
 \[
-\bar{E}_s \cdot \underline{e}_s \leq E_{s,t} \leq \bar{E}_s \cdot \bar{e}_s \quad \forall \, s, t
+\bar{\mathrm{E}}_s \cdot \underline{\mathrm{e}}_s \leq E_{s,t} \leq \bar{\mathrm{E}}_s \cdot \bar{\mathrm{e}}_s \quad \forall \, s, t
 \]
-
-```python
-battery = Storage(
-    'battery', charging=charge, discharging=discharge,
-    capacity=100.0,
-    relative_minimum_level=0.2,  # never below 20%
-    relative_maximum_level=0.9,  # never above 90%
-)
-```
 
 ## Initial & Cyclic Conditions
 
@@ -68,34 +49,26 @@ E_{s,t_{\text{end}}} = E_{s,t_0}
 
 This ensures the storage ends at the same level it started.
 
-```python
-# Fixed initial level (absolute MWh), no cyclic constraint
-battery = Storage(..., prior_level=50.0, cyclic=False)
-
-# Unconstrained initial level (optimizer chooses), cyclic (default)
-battery = Storage(..., prior_level=None, cyclic=True)
-```
-
 ## Parameters
 
 | Symbol | Description | Reference |
 |---|---|---|
 | \(E_{s,t}\) | Stored energy variable | `storage--level[storage, time]` |
-| \(P^{\text{c}}_{s,t}\) | Charging flow rate | `flow_rate[charge_flow, time]` |
-| \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `flow_rate[discharge_flow, time]` |
-| \(\bar{E}_s\) | Storage capacity | `Storage.capacity` |
-| \(\eta^{\text{c}}_s\) | Charging efficiency | `Storage.eta_charge` |
-| \(\eta^{\text{d}}_s\) | Discharging efficiency | `Storage.eta_discharge` |
-| \(\delta_s\) | Self-discharge rate | `Storage.relative_loss_per_hour` |
-| \(\underline{e}_s\) | Relative min SOC | `Storage.relative_minimum_level` |
-| \(\bar{e}_s\) | Relative max SOC | `Storage.relative_maximum_level` |
+| \(P^{\text{c}}_{s,t}\) | Charging flow rate | `flow--rate[charge_flow, time]` |
+| \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `flow--rate[discharge_flow, time]` |
+| \(\bar{\mathrm{E}}_s\) | Storage capacity | [`Storage.capacity`](../api/fluxopt/elements.md#fluxopt.elements.Storage(capacity)) |
+| \(\eta^{\text{c}}_s\) | Charging efficiency | [`Storage.eta_charge`](../api/fluxopt/elements.md#fluxopt.elements.Storage(eta_charge)) |
+| \(\eta^{\text{d}}_s\) | Discharging efficiency | [`Storage.eta_discharge`](../api/fluxopt/elements.md#fluxopt.elements.Storage(eta_discharge)) |
+| \(\delta_s\) | Self-discharge rate | [`Storage.relative_loss_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_loss_per_hour)) |
+| \(\underline{\mathrm{e}}_s\) | Relative min SOC | [`Storage.relative_minimum_level`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_minimum_level)) |
+| \(\bar{\mathrm{e}}_s\) | Relative max SOC | [`Storage.relative_maximum_level`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_maximum_level)) |
 | \(\Delta t_t\) | Timestep duration | dt |
 
 See [Notation](notation.md) for the full symbol table.
 
 ## Example
 
-A battery with \(\bar{E} = 10\) MWh, \(\eta^{\text{c}} = 0.95\),
+A battery with \(\bar{\mathrm{E}} = 10\) MWh, \(\eta^{\text{c}} = 0.95\),
 \(\eta^{\text{d}} = 0.95\), \(\delta = 0.001\)/h, \(\Delta t = 1\) h:
 
 Starting at \(E_0 = 5\) MWh, charging at \(P^{\text{c}} = 2\) MW:

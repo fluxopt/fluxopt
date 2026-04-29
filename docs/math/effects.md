@@ -11,7 +11,7 @@ how they are weighted in multi-period optimization:
 
 | Domain | Dims | What goes here | Multi-period weighting |
 |---|---|---|---|
-| **Temporal** | `(effect, time)` | Flow costs, running costs, startup costs — anything that varies per timestep | Summed over time (× \(w_t\)), then weighted by `period_weights` |
+| **Temporal** | `(effect, time)` | Flow costs, running costs, startup costs — anything that varies per timestep | Summed over time (× \(\mathrm{w}_t\)), then weighted by `period_weights` |
 | **Lump** | `(effect,)` | Sizing costs, fixed O&M, one-time CAPEX — anything not per-timestep | Weighted by \(\omega_{k,p}\) (defaults to global `period_weights`) |
 
 All domains support cross-effect chains via `contribution_from`.
@@ -24,10 +24,10 @@ See [Objective](objective.md) for how the domains are weighted in the objective.
 Each effect accumulates contributions from all flows at each timestep:
 
 \[
-\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f \in \mathcal{F}} c_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{direct flow contributions}} + \underbrace{\sum_{j \in \mathcal{K}} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect contributions}} \quad \forall \, k, t
+\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f \in \mathcal{F}} \mathrm{c}_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{direct flow contributions}} + \underbrace{\sum_{j \in \mathcal{K}} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect contributions}} \quad \forall \, k, t
 \]
 
-The coefficient \(c_{f,k,t}\) specifies how much of effect \(k\) is produced per
+The coefficient \(\mathrm{c}_{f,k,t}\) specifies how much of effect \(k\) is produced per
 flow-hour of flow \(f\) (e.g., €/MWh for cost, kg/MWh for emissions).
 
 The cross-effect factor \(\alpha_{k,j,t}\) can be time-varying or constant
@@ -69,34 +69,12 @@ or a `TimeSeries`:
   (`cf_temporal.mean('time')` in `model.py`). A `UserWarning` is emitted when
   a time-varying factor is averaged for a non-trivial lump contribution.
 
-```python
-# Scalar: 50 €/kg CO2 in both domains
-effects = [
-    Effect('cost', contribution_from={'co2': 50}),
-    Effect('co2', unit='kg'),
-]
-
-# Time-varying factor
-effects = [
-    Effect('cost', contribution_from={'co2': [40, 50, 60]}),
-    Effect('co2', unit='kg'),
-]
-```
-
 If you need different cross-effect factors for the two domains, split into
 separate effects.
 
 ### Transitive Chains
 
 Contributions chain transitively. A PE → CO₂ → cost chain is modeled as:
-
-```python
-effects = [
-    Effect('cost', contribution_from={'co2': 50}),
-    Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
-    Effect('pe', unit='kWh'),
-]
-```
 
 ### Validation
 
@@ -109,10 +87,10 @@ effects = [
 The total effect for each period \(p\) combines both domains:
 
 \[
-\Phi_{k,p} = \sum_{t \in \mathcal{T}} \Phi_{k,t,p}^{\text{temporal}} \cdot w_t + \Phi_{k,p}^{\text{lump}} \quad \forall \, k \in \mathcal{K}, \; p \in \mathcal{P}
+\Phi_{k,p} = \sum_{t \in \mathcal{T}} \Phi_{k,t,p}^{\text{temporal}} \cdot \mathrm{w}_t + \Phi_{k,p}^{\text{lump}} \quad \forall \, k \in \mathcal{K}, \; p \in \mathcal{P}
 \]
 
-Weights \(w_t\) allow scaling timesteps (e.g., a representative week scaled to a year).
+Weights \(\mathrm{w}_t\) allow scaling timesteps (e.g., a representative week scaled to a year).
 Single-period models drop the \(p\) index.
 
 ## Bounds
@@ -139,14 +117,6 @@ typically encode the period duration so the aggregate is a true physical sum.
 
 This is useful for emission caps or budget constraints:
 
-```python
-# CO2 budget: max 1000 kg total
-co2 = Effect('co2', unit='kg', maximum=1000)
-
-# Cost floor (e.g., minimum revenue)
-revenue = Effect('revenue', minimum=500)
-```
-
 ## Per-Hour Bounds
 
 The per-hour bounds are **rates** (e.g., kg/h, €/h) that scale with the timestep
@@ -159,34 +129,26 @@ duration \(\Delta t_t\). This ensures the constraint is resolution-independent:
 For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
 400 kg of emissions in that timestep:
 
-```python
-# Max 50 kg CO2 per hour — allows 200 kg in a 4h timestep
-co2 = Effect('co2', unit='kg', maximum_per_hour=50)
-
-# Time-varying per-hour bound
-co2 = Effect('co2', unit='kg', maximum_per_hour=[50, 40, 60, 50])
-```
-
 ## Parameters
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect_temporal[effect, time(, period)]` |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect_lump[effect(, period)]` |
-| \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
-| \(c_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
-| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | `Effect.contribution_from` (TimeSeries) |
-| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | `Effect.contribution_from` (scalar) |
-| \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect--temporal[effect, time(, period)]` |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
+| \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(effects_per_flow_hour)) |
+| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (TimeSeries) |
+| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (scalar) |
+| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
-| \(w_t\) | Timestep weight | weights |
-| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | `Effect.maximum` |
-| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | `Effect.minimum` |
-| \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | `Effect.maximum_per_period` |
-| \(\underline{\Phi}_k^{\text{per period}}\) | Minimum per period | `Effect.minimum_per_period` |
-| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | `Effect.maximum_per_hour` |
-| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | `Effect.minimum_per_hour` |
-| \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | `Effect.period_weights` / global `period_weights` |
+| \(\mathrm{w}_t\) | Timestep weight | weights |
+| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.maximum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum)) |
+| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | [`Effect.minimum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum)) |
+| \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | [`Effect.maximum_per_period`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum_per_period)) |
+| \(\underline{\Phi}_k^{\text{per period}}\) | Minimum per period | [`Effect.minimum_per_period`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum_per_period)) |
+| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.maximum_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum_per_hour)) |
+| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.minimum_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum_per_hour)) |
+| \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect(period_weights)) / global `period_weights` |
 
 See [Notation](notation.md) for the full symbol table.
 
@@ -196,18 +158,7 @@ See [Notation](notation.md) for the full symbol table.
 
 A system with two effects — cost (objective) and CO₂ (capped at 1000 kg):
 
-```python
-effects = [
-    Effect("cost", unit="€"),
-    Effect("CO2", unit="kg", maximum=1000),
-]
-```
-
 A gas flow with both effect coefficients:
-
-```python
-gas_flow = Flow("gas", bus="gas_bus", effects_per_flow_hour={"cost": 30, "CO2": 0.2})
-```
 
 At timestep \(t\) with \(P_{\text{gas},t} = 5\) MW and \(\Delta t = 1\) h:
 
@@ -218,17 +169,10 @@ At timestep \(t\) with \(P_{\text{gas},t} = 5\) MW and \(\Delta t = 1\) h:
 
 CO₂ priced at 50 €/t into the cost effect:
 
-```python
-effects = [
-    Effect("cost", contribution_from={"co2": 50}),
-    Effect("co2", unit="kg"),
-]
-```
-
 With \(\alpha_{\text{cost,co2}} = 50\), the per-timestep cost becomes:
 
 \[
-\Phi_{\text{cost},t} = c_{\text{cost}} \cdot P_t \cdot \Delta t + 50 \cdot \Phi_{\text{co2},t}
+\Phi_{\text{cost},t} = \mathrm{c}_{\text{cost}} \cdot P_t \cdot \Delta t + 50 \cdot \Phi_{\text{co2},t}
 \]
 
 The CO₂ total itself is **not** affected — `contribution_from` is one-directional.

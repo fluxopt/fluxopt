@@ -3,6 +3,14 @@ site_description: Energy system optimization with linopy
 repo_url: https://github.com/FBumann/fluxopt
 repo_name: FBumann/fluxopt
 edit_uri: edit/main/docs/
+strict: true
+
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn
 
 nav:
   - Home: index.md
@@ -65,8 +73,8 @@ theme:
 
   features:
     - header.autohide
-    - navigation.instant
-    - navigation.instant.progress
+    # navigation.instant left off — MathJax fails to re-typeset on
+    # no-math → math swaps, and no documented reset recipe fixes it.
     - navigation.tracking
     - navigation.tabs
     - navigation.tabs.sticky

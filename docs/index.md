@@ -125,7 +125,7 @@ print(result.flow_rates)
 
     Auto-generated from source — every public class, every parameter.
 
-    [:octicons-arrow-right-24: API](api/fluxopt/)
+    [:octicons-arrow-right-24: API](api/fluxopt/index.md)
 
 </div>
 
