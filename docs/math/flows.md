@@ -31,14 +31,6 @@ bounded by relative minimum and maximum profiles:
 By default, \(\underline{p}_{f,t} = 0\) and \(\bar{p}_{f,t} = 1\), so the bounds
 simplify to \(0 \leq P_{f,t} \leq \bar{P}_f\).
 
-```python
-# Minimum load 30%, maximum 100% → [30, 100] MW
-f = Flow('heat', size=100, relative_minimum=0.3)
-
-# Time-varying maximum
-f = Flow('heat', size=100, relative_maximum=[1.0, 0.8, 0.6, 1.0])
-```
-
 ### Unsized Flows
 
 When no capacity is specified (\(\bar{P}_f = \infty\)), the flow is unbounded above:
@@ -128,5 +120,5 @@ A gas flow with cost coefficient \(c = 0.04\) €/MWh, rate \(P = 5\) MW,
 duration \(\Delta t = 1\) h:
 
 \[
-0.04 \times 5 \times 1 = 0.2 \; \text{€}
+\underbrace{0.04}_{c_{f,k,t}} \times \underbrace{5}_{P_{f,t}} \times \underbrace{1}_{\Delta t_t} = 0.2 \; \text{€}
 \]
