@@ -275,11 +275,11 @@ class Result:
             # Sanity-check at solve time: applying cross-effects must reproduce
             # the solver's effect--total. Result discarded; caches stay direct.
             _with_cross_effects(contributions, model.data, solution)
-        except Exception:
+        except Exception as exc:
             import warnings
 
             warnings.warn(
-                'Failed to compute effect contributions during solve; '
+                f'Failed to compute effect contributions during solve ({exc!r}); '
                 'result.contributions will be None (re-derive via result.stats.effect_contributions)',
                 stacklevel=2,
             )
