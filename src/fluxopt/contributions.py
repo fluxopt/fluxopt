@@ -259,7 +259,11 @@ def _apply_cross_effects(
 
 
 def _validate_against_solver(total: xr.DataArray, solution: xr.Dataset) -> None:
-    """Sanity check: per-contributor totals must sum to solver ``effect--total``."""
+    """Sanity check: per-contributor totals must sum to solver ``effect--total``.
+
+    Comparison is positional — coordinate misordering or mismatch is a real
+    pipeline bug that should fail loudly here rather than be silently aligned.
+    """
     solver = solution['effect--total']
     computed = total.sum('contributor')
     if not np.allclose(computed.values, solver.values, atol=1e-6):

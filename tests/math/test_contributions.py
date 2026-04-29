@@ -721,3 +721,33 @@ class TestComputeEffectContributionsAPI:
         xr.testing.assert_allclose(via_function['total'], via_stats['total'])
         xr.testing.assert_allclose(via_function['temporal'], via_stats['temporal'])
         xr.testing.assert_allclose(via_function['lump'], via_stats['lump'])
+
+    def test_direct_call_no_cross_effects(self):
+        """Calling compute_effect_contributions(cross_effects=False) yields the same
+        direct result as accessing result.stats.effect_contributions_direct.
+
+        This locks in the public-API contract for direct mode — if the stats
+        accessor ever grows post-processing on top of the function call, this
+        test catches the drift.
+        """
+        from fluxopt.contributions import compute_effect_contributions
+
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        via_function = compute_effect_contributions(result.solution, result.data, cross_effects=False)
+        via_stats = result.stats.effect_contributions_direct
+        xr.testing.assert_allclose(via_function['total'], via_stats['total'])
+        xr.testing.assert_allclose(via_function['temporal'], via_stats['temporal'])
+        xr.testing.assert_allclose(via_function['lump'], via_stats['lump'])
