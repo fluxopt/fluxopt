@@ -727,6 +727,13 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
   color: #ffffff;
 }
 
+@media (max-width: 640px) {
+  .notebook-download {
+    position: static;
+    margin-bottom: 0.75em;
+  }
+}
+
 .notebook-download__icon {
   font-size: 0.95em;
   line-height: 1;
