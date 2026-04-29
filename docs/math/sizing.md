@@ -123,9 +123,9 @@ for the constraints.
 | \(S_f\) | Flow capacity variable | `flow--size[flow]` |
 | \(S_s\) | Storage capacity variable | `storage--capacity[storage]` |
 | \(y_f\), \(y_s\) | Binary invest indicator | `flow--size_indicator`, `storage--size_indicator` |
-| \(\mathrm{S}^-\) | Minimum size | `Sizing.min_size` |
-| \(\mathrm{S}^+\) | Maximum size | `Sizing.max_size` |
-| \(\gamma_{f,k}\) | Per-size investment cost | `Sizing.effects_per_size` |
-| \(\phi_{f,k}\) | Fixed investment cost | `Sizing.effects_fixed` |
+| \(\mathrm{S}^-\) | Minimum size | [`Sizing.min_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(min_size)) |
+| \(\mathrm{S}^+\) | Maximum size | [`Sizing.max_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(max_size)) |
+| \(\gamma_{f,k}\) | Per-size investment cost | [`Sizing.effects_per_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_per_size)) |
+| \(\phi_{f,k}\) | Fixed investment cost | [`Sizing.effects_fixed`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_fixed)) |
 
 See [Notation](notation.md) for the full symbol table.

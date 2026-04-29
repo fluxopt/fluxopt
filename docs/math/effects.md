@@ -136,19 +136,19 @@ For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect--temporal[effect, time(, period)]` |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
-| \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
-| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | `Effect.contribution_from` (TimeSeries) |
-| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | `Effect.contribution_from` (scalar) |
+| \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(effects_per_flow_hour)) |
+| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (TimeSeries) |
+| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (scalar) |
 | \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
-| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | `Effect.maximum` |
-| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | `Effect.minimum` |
-| \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | `Effect.maximum_per_period` |
-| \(\underline{\Phi}_k^{\text{per period}}\) | Minimum per period | `Effect.minimum_per_period` |
-| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | `Effect.maximum_per_hour` |
-| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | `Effect.minimum_per_hour` |
-| \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | `Effect.period_weights` / global `period_weights` |
+| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.maximum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum)) |
+| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | [`Effect.minimum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum)) |
+| \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | [`Effect.maximum_per_period`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum_per_period)) |
+| \(\underline{\Phi}_k^{\text{per period}}\) | Minimum per period | [`Effect.minimum_per_period`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum_per_period)) |
+| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.maximum_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum_per_hour)) |
+| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.minimum_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum_per_hour)) |
+| \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect(period_weights)) / global `period_weights` |
 
 See [Notation](notation.md) for the full symbol table.
 

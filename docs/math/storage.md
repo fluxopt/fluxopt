@@ -56,12 +56,12 @@ This ensures the storage ends at the same level it started.
 | \(E_{s,t}\) | Stored energy variable | `storage--level[storage, time]` |
 | \(P^{\text{c}}_{s,t}\) | Charging flow rate | `flow--rate[charge_flow, time]` |
 | \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `flow--rate[discharge_flow, time]` |
-| \(\bar{\mathrm{E}}_s\) | Storage capacity | `Storage.capacity` |
-| \(\eta^{\text{c}}_s\) | Charging efficiency | `Storage.eta_charge` |
-| \(\eta^{\text{d}}_s\) | Discharging efficiency | `Storage.eta_discharge` |
-| \(\delta_s\) | Self-discharge rate | `Storage.relative_loss_per_hour` |
-| \(\underline{\mathrm{e}}_s\) | Relative min SOC | `Storage.relative_minimum_level` |
-| \(\bar{\mathrm{e}}_s\) | Relative max SOC | `Storage.relative_maximum_level` |
+| \(\bar{\mathrm{E}}_s\) | Storage capacity | [`Storage.capacity`](../api/fluxopt/elements.md#fluxopt.elements.Storage(capacity)) |
+| \(\eta^{\text{c}}_s\) | Charging efficiency | [`Storage.eta_charge`](../api/fluxopt/elements.md#fluxopt.elements.Storage(eta_charge)) |
+| \(\eta^{\text{d}}_s\) | Discharging efficiency | [`Storage.eta_discharge`](../api/fluxopt/elements.md#fluxopt.elements.Storage(eta_discharge)) |
+| \(\delta_s\) | Self-discharge rate | [`Storage.relative_loss_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_loss_per_hour)) |
+| \(\underline{\mathrm{e}}_s\) | Relative min SOC | [`Storage.relative_minimum_level`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_minimum_level)) |
+| \(\bar{\mathrm{e}}_s\) | Relative max SOC | [`Storage.relative_maximum_level`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_maximum_level)) |
 | \(\Delta t_t\) | Timestep duration | dt |
 
 See [Notation](notation.md) for the full symbol table.

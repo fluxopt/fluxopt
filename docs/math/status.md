@@ -184,12 +184,12 @@ An additional constraint prevents the unit from being "on" with zero size:
 | \(\tau^-_{f,t}\) | Shutdown indicator | `flow--shutdown[flow, time]` |
 | \(\mathrm{D}^{\text{up}}_{f,t}\) | Consecutive uptime | `uptime[flow, time]` |
 | \(\mathrm{D}^{\text{down}}_{f,t}\) | Consecutive downtime | `downtime[flow, time]` |
-| \(\mathrm{D}^{\text{up,min}}\) | Minimum uptime | `Status.min_uptime` |
-| \(\mathrm{D}^{\text{up,max}}\) | Maximum uptime | `Status.max_uptime` |
-| \(\mathrm{D}^{\text{down,min}}\) | Minimum downtime | `Status.min_downtime` |
-| \(\mathrm{D}^{\text{down,max}}\) | Maximum downtime | `Status.max_downtime` |
-| \(\mathrm{r}_{f,k,t}\) | Running cost coefficient | `Status.effects_per_running_hour` |
-| \(\mathrm{u}_{f,k,t}\) | Startup cost coefficient | `Status.effects_per_startup` |
+| \(\mathrm{D}^{\text{up,min}}\) | Minimum uptime | [`Status.min_uptime`](../api/fluxopt/elements.md#fluxopt.elements.Status(min_uptime)) |
+| \(\mathrm{D}^{\text{up,max}}\) | Maximum uptime | [`Status.max_uptime`](../api/fluxopt/elements.md#fluxopt.elements.Status(max_uptime)) |
+| \(\mathrm{D}^{\text{down,min}}\) | Minimum downtime | [`Status.min_downtime`](../api/fluxopt/elements.md#fluxopt.elements.Status(min_downtime)) |
+| \(\mathrm{D}^{\text{down,max}}\) | Maximum downtime | [`Status.max_downtime`](../api/fluxopt/elements.md#fluxopt.elements.Status(max_downtime)) |
+| \(\mathrm{r}_{f,k,t}\) | Running cost coefficient | [`Status.effects_per_running_hour`](../api/fluxopt/elements.md#fluxopt.elements.Status(effects_per_running_hour)) |
+| \(\mathrm{u}_{f,k,t}\) | Startup cost coefficient | [`Status.effects_per_startup`](../api/fluxopt/elements.md#fluxopt.elements.Status(effects_per_startup)) |
 | \(M\) | Big-M (horizon length) | computed |
 
 See [Notation](notation.md) for the full symbol table.

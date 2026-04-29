@@ -95,7 +95,7 @@ omit unless we're discussing multi-period dynamics specifically.
 | \(\bar{\mathrm{e}}_s\) | [`Storage.relative_maximum_level`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_maximum_level)) | \([0, 1]\) | — | Relative max SOC |
 | \(\mathrm{a}_{f,i}\) | [`Converter.conversion_factors`](../api/fluxopt/components.md#fluxopt.components.Converter(conversion_factors)) | \(\mathbb{R}\) | — | Conversion coefficient (per flow, per equation) |
 | \(\alpha_{k,j}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) | \(\mathbb{R}\) | varies | Cross-effect factor (scalar) |
-| \(\alpha_{k,j,t}\) | `Effect.contribution_from` (TimeSeries) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
+| \(\alpha_{k,j,t}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (TimeSeries) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
 | \(\bar{\Phi}_k\) | [`Effect.maximum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum)) | \(\mathbb{R}\) | varies | Maximum aggregate (weighted sum across periods) |
 | \(\underline{\Phi}_k\) | [`Effect.minimum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum)) | \(\mathbb{R}\) | varies | Minimum aggregate (weighted sum across periods) |
 | \(\bar{\Phi}_k^{\text{per period}}\) | [`Effect.maximum_per_period`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum_per_period)) | \(\mathbb{R}\) | varies | Maximum per period |
@@ -118,7 +118,7 @@ omit unless we're discussing multi-period dynamics specifically.
 | \(\mathrm{u}_{f,k,t}\) | [`Status.effects_per_startup`](../api/fluxopt/elements.md#fluxopt.elements.Status(effects_per_startup)) | \(\mathbb{R}\) | varies | Startup cost coefficient |
 | \(\mathrm{w}_t\) | weights | \(> 0\) | — | Timestep weight |
 | \(\Delta t_t\) | dt | \(> 0\) | h | Timestep duration |
-| \(\omega_p\) | `Dims.period_weights` | \(> 0\) | — | Global period weight (multi-period only) |
+| \(\omega_p\) | [`optimize(period_weights=...)`](../api/fluxopt/index.md#fluxopt.optimize(period_weights)) | \(> 0\) | — | Global period weight (multi-period only) |
 | \(\omega_{k,p}\) | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect(period_weights)) | \(> 0\) | — | Per-effect period weight |
 
 ## Naming Conventions
