@@ -37,35 +37,32 @@ Each symbol maps to a specific field or variable in the code.
 ## Indexing Convention
 
 Symbol subscripts show only the indices the formulation **structurally
-requires** — i.e. the dims a constraint iterates over and that change
-its meaning. Most parameters may also **broadcast over time (and
-period)** in the API: anywhere a field is typed `TimeSeries`, you can
-pass a scalar (broadcast) or an array (per-timestep). To keep formulas
-readable, we don't decorate every parameter with every dimension it
-*can* take.
+requires** — the dims a constraint iterates over and that change its
+meaning. Most parameters may also **broadcast over additional dims**
+in the API; we don't decorate the symbols with every dim they *could*
+take, because that turns formulas into pyramids of subscripts.
 
-A rough taxonomy of the parameters below:
+The broadcast hierarchy:
 
-- **Inherently scalar** (per object — flow, storage, converter):
-  nominal capacity \(\bar{P}_f\), storage capacity \(\bar{E}_s\),
-  sizing bounds \(S^-, S^+\), min/max run durations
-  \(D^{\text{up,min}}, D^{\text{down,max}}, …\). These don't have a
-  meaningful time dependence.
-- **May broadcast over \(t\)** (`TimeSeries` in the API):
-  efficiencies \(\eta^c_s, \eta^d_s\), self-discharge \(\delta_s\),
-  conversion coefficients \(a_{f,i}\), bounds and profiles
-  \(\underline{p}_{f,t}, \bar{p}_{f,t}, \pi_{f,t}\), effect / running /
-  startup costs \(c_{f,k,t}, r_{f,k,t}, u_{f,k,t}\), cross-effects
-  \(\alpha_{k,j,t}\). We show the \(t\) index only where it's
-  structurally important to the constraint (e.g. profiles, where time
-  variation is the whole point).
-- **Per period only** (multi-period models): period weights
-  \(\omega_p, \omega_{k,p}\); investment-domain coefficients
-  (\(\gamma^{\text{build}}_{f,k}, \phi^{\text{rec}}_{f,k}, …\)) attach
-  to a build period rather than to time.
+- **Period (\(p\))** and **scenario** (when added) — almost every
+  parameter accepts these: even "scalar" things like \(\bar{P}_f\),
+  \(D^{\text{up,min}}\), or \(S^-\) become \(\bar{P}_{f,p}\) etc. in
+  multi-period models. Variables already reflect this in the table
+  above (e.g. \(P_{f,t(,p)}\)).
+- **Time (\(t\))** — only fields typed `TimeSeries` accept this: bounds
+  \(\underline{p}_{f,t}, \bar{p}_{f,t}\), profiles \(\pi_{f,t}\),
+  efficiencies \(\eta^c_s, \eta^d_s\), losses \(\delta_s\), conversion
+  coefficients \(a_{f,i}\), effect / running / startup costs
+  \(c_{f,k,t}, r_{f,k,t}, u_{f,k,t}\), cross-effects \(\alpha_{k,j,t}\).
+- **Build period (\(p_b\))** — investment-domain coefficients only:
+  \(\gamma^{\text{build}}_{f,k}, \phi^{\text{rec}}_{f,k}\), …
 
-Absence of a \(t\) subscript on a parameter doesn't mean it must be
-scalar — check the API field's type.
+When a formula shows a \(t\) subscript on a parameter, it's because
+time variation is structurally meaningful for that constraint (e.g. a
+fixed profile is meaningless without time). Parameters without a \(t\)
+subscript may still be time-varying when the API field accepts it —
+the constraint just reads it pointwise. The same applies for \(p\):
+omit unless we're discussing multi-period dynamics specifically.
 
 ## Parameters
 
