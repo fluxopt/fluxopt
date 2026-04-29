@@ -385,7 +385,7 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
 /* Title-bar label centered in the title strip. :not(.copied) so the
    "Copied!" badge can take over the ::after slot during click feedback. */
 .md-typeset .landing > .highlight:not(.copied)::after {
-  content: '✨ Quick Start';
+  content: '🚀 Quick Start';
   position: absolute;
   top: 0;
   left: 0;
@@ -394,10 +394,10 @@ body[data-md-color-scheme="slate"] .jupyter-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.85);
   font-family: var(--md-text-font);
-  font-size: 0.78rem;
-  font-weight: 500;
+  font-size: 0.92rem;
+  font-weight: 700;
   letter-spacing: 0.01em;
   pointer-events: none;
 }
