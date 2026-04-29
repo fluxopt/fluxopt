@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Self
@@ -909,7 +910,7 @@ class PiecewiseData:
         conv_idx = pd.Index(conv_ids, name='pw_converter')
         availability = fast_concat(avail_slices, conv_idx)
 
-        return cls(
+        data = cls(
             breakpoints=breakpoints_da,
             pair_converter=xr.DataArray(pair_conv_ids, dims=['pw_pair']),
             pair_flow=xr.DataArray(pair_flow_ids, dims=['pw_pair']),
@@ -918,6 +919,37 @@ class PiecewiseData:
             availability=availability,
             has_status=xr.DataArray(has_statuses, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
         )
+        data._warn_redundant_status()
+        return data
+
+    def _warn_redundant_status(self) -> None:
+        """Warn for converters where Status is set but the curve includes a
+        (0, ..., 0) breakpoint at any (breakpoint, timestep) position.
+
+        Wherever an all-flows-zero breakpoint exists, the optimizer can sit
+        at zero with ``active=1`` already — the binary tracks startup events
+        for cost accounting at that timestep, but doesn't gate the operating
+        range.
+        """
+        atol = 1e-9
+        is_zero = abs(self.breakpoints) <= atol  # (pw_pair, breakpoint, time)
+        for conv_id in self.converter_ids():
+            if not bool(self.has_status.sel(pw_converter=conv_id).item()):
+                continue
+            mask = self.pair_converter.values == conv_id
+            all_flows_zero = is_zero.isel(pw_pair=mask).all('pw_pair')  # (breakpoint, time)
+            if bool(all_flows_zero.any().item()):
+                warnings.warn(
+                    f'ConversionCurve on converter {str(conv_id)!r} has Status, '
+                    'but the curve includes a (0, ..., 0) breakpoint. Status '
+                    'will track startup events for cost accounting, but the '
+                    'binary does not gate the operating range — the optimizer '
+                    'can already produce zero by sitting at that breakpoint. '
+                    'Drop the zero breakpoint if you want Status to express '
+                    'off-vs-on.',
+                    UserWarning,
+                    stacklevel=4,
+                )
 
 
 def _detect_contribution_cycle(adjacency: dict[str, list[str]]) -> list[str] | None:
