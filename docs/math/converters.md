@@ -1,9 +1,15 @@
-# Linear Conversion
+# Converters
 
-## Formulation
+A `Converter` couples its input and output flows. fluxopt offers two
+conversion modes: a **linear** form (constant coefficients per equation)
+and a **piecewise-linear** form (`PiecewiseConversion`) for part-load
+efficiency, varying COP, or non-constant heat-to-power ratios.
 
-A `Converter` enforces linear coupling between its input and output flows.
-Each conversion equation requires:
+## Linear Conversion
+
+### Formulation
+
+Each conversion equation enforces a linear coupling between flows:
 
 \[
 \sum_{f} a_{f} \cdot P_{f,t} = 0 \quad \forall \, \text{converter}, \; \text{eq\_idx}, \; t \in \mathcal{T}
@@ -11,9 +17,10 @@ Each conversion equation requires:
 
 where \(a_f\) is the conversion coefficient for flow \(f\). A converter can have
 multiple equations (one per row in `conversion_factors`), allowing multi-output
-devices like CHP plants.
+devices like CHP plants. Coefficients can also be time-varying — pass a list
+or array instead of a scalar.
 
-## Parameters
+### Parameters
 
 | Symbol | Description | Reference |
 |---|---|---|
@@ -22,9 +29,9 @@ devices like CHP plants.
 
 See [Notation](notation.md) for the full symbol table.
 
-## Examples
+### Examples
 
-### Boiler
+#### Boiler
 
 A gas boiler with thermal efficiency \(\eta_{\text{th}} = 0.9\):
 
@@ -38,7 +45,7 @@ A gas boiler with thermal efficiency \(\eta_{\text{th}} = 0.9\):
 
 So 10 MW gas input produces 9 MW thermal output.
 
-### Power-to-Heat
+#### Power-to-Heat
 
 An electric resistance heater with efficiency \(\eta = 0.99\):
 
@@ -46,7 +53,7 @@ An electric resistance heater with efficiency \(\eta = 0.99\):
 \eta \cdot P_{\text{el},t} - P_{\text{th},t} = 0
 \]
 
-### Heat Pump
+#### Heat Pump
 
 A heat pump with COP = 3.5 has **two** conversion equations — COP definition
 and energy balance:
@@ -62,7 +69,7 @@ P_{\text{el},t} + P_{\text{src},t} - P_{\text{th},t} = 0
 So 1 MW electrical input draws 2.5 MW from the environment and produces
 3.5 MW thermal output.
 
-### CHP (Combined Heat and Power)
+#### CHP (Combined Heat and Power)
 
 A CHP with \(\eta_{\text{el}} = 0.4\) and \(\eta_{\text{th}} = 0.5\) has **two**
 conversion equations:
@@ -77,25 +84,13 @@ conversion equations:
 
 So 10 MW fuel input produces 4 MW electrical + 5 MW thermal.
 
-### Custom Equations
-
-For devices not covered by factory methods, pass `conversion_factors` directly.
-Each dict in the list is one equation, mapping flow short ids to coefficients:
-
-This enforces: \(0.5 \cdot P_a + 0.3 \cdot P_b - P_c = 0\).
-
-### Time-Varying Coefficients
-
-Conversion coefficients can be time-varying (e.g., a heat pump with hourly COP from
-weather data). Pass a list or array instead of a scalar:
-
-# Piecewise Conversion
+## Piecewise Conversion
 
 For non-linear efficiency curves, varying COP, part-load behaviour, or
 combined-heat-and-power with non-constant ratios, set `conversion=PiecewiseConversion(...)`
 on the `Converter` instead of `conversion_factors`.
 
-## Formulation
+### Formulation
 
 A `PiecewiseConversion` defines breakpoints \(b_{f,k}\) for each flow \(f\) at \(K\)
 piece-vertices \(k = 0, \dots, K-1\). At every timestep, a vector of
@@ -120,7 +115,7 @@ where the relation \(\diamond_f \in \{=, \le, \ge\}\) is set per flow via the
 optional third tuple element. The default is equality (`==`); at most one
 flow may carry an inequality sign, and only with exactly two flows.
 
-## Methods
+### Methods
 
 `linopy` auto-dispatches the formulation:
 
@@ -132,7 +127,7 @@ flow may carry an inequality sign, and only with exactly two flows.
 
 Override with `method="sos2"` / `"incremental"` / `"lp"` if needed.
 
-## Status gating
+### Status gating
 
 When `PiecewiseConversion.status` is set, the curve is gated by a binary
 \(\delta_{c,t}\) (see [Status](status.md)) passed as `active=` to the linopy
@@ -144,7 +139,7 @@ formulation:
   output's own lower bound (default \(P_f \ge 0\)) closes the loop for
   non-negative outputs.
 
-## Availability
+### Availability
 
 A separate envelope constraint scales the upper breakpoint by a per-timestep
 availability \(\alpha_t \in [0, 1]\):
@@ -155,7 +150,7 @@ P_{f^{\star},t} \le \alpha_t \cdot b_{f^{\star},K-1} \cdot \delta_{c,t}
 
 where \(f^{\star}\) is the first flow in the curve.
 
-## Parameters
+### Parameters
 
 | Symbol | Description | Reference |
 |---|---|---|
@@ -164,23 +159,3 @@ where \(f^{\star}\) is the first flow in the curve.
 | \(\diamond_f\) | Curve relation | tuple bound `'=='` / `'<='` / `'>='` |
 | \(\delta_{c,t}\) | On/off binary | `PiecewiseConversion.status` |
 | \(\alpha_t\) | Availability scaling | `PiecewiseConversion.availability` |
-
-## Examples
-
-### Boiler with part-load efficiency
-
-A gas boiler runs at 90% efficiency between 0 and 50 MW (slope 0.9), then drops
-to 50% efficiency from 50 to 100 MW (slope 0.5):
-
-### CHP with joint N-flow curve
-
-A CHP plant with three flows linked by shared interpolation weights — every
-operating point lies on the same piece of the curve:
-
-### Convex curve via LP fast path
-
-A monotonic-convex fuel curve (efficiency drops at high load) with an
-inequality bound — solver picks `method='lp'` automatically and uses pure
-tangent-line constraints (no SOS2 binaries):
-
-### With on/off and startup costs
