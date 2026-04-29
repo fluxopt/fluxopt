@@ -224,3 +224,38 @@ class TestContributionsRoundtrip:
             warnings.simplefilter('error', UserWarning)
             loaded = Result.from_netcdf(tmp_nc)
         assert loaded.contributions is not None
+
+    def test_netcdf_group_structure(self, tmp_nc: Path) -> None:
+        """The saved file has a 'contributions' NetCDF group with temporal/lump/total
+        variables on the (contributor, effect[, time]) dims — verified by opening
+        the group directly, independent of Result.from_netcdf."""
+        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
+        assert result.contributions is not None
+        result.to_netcdf(tmp_nc)
+
+        # Main group (solution) loads without specifying group=
+        solution = xr.load_dataset(tmp_nc)
+        assert 'flow--rate' in solution
+
+        # The contributions group is its own NetCDF group on the same file.
+        contrib = xr.load_dataset(tmp_nc, group='contributions')
+        assert set(contrib.data_vars) == {'temporal', 'lump', 'total'}
+        assert set(contrib['temporal'].dims) == {'contributor', 'effect', 'time'}
+        assert set(contrib['lump'].dims) == {'contributor', 'effect'}
+        assert set(contrib['total'].dims) == {'contributor', 'effect'}
+
+    def test_from_model_warns_and_falls_back_when_compute_fails(self, monkeypatch) -> None:
+        """If compute_effect_contributions raises during solve, from_model emits a
+        warning and sets result.contributions to None — lazy re-derivation still
+        works via the stats accessor."""
+        import fluxopt.contributions as contributions_mod
+
+        def _raise(*args, **kwargs):
+            raise RuntimeError('synthetic failure for test')
+
+        monkeypatch.setattr(contributions_mod, 'compute_effect_contributions', _raise)
+
+        with pytest.warns(UserWarning, match='Failed to compute effect contributions'):
+            result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
+
+        assert result.contributions is None
