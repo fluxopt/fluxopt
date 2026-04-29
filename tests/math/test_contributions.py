@@ -507,6 +507,30 @@ class TestDirectContributions:
         xr.testing.assert_allclose(with_cross['lump'], direct['lump'])
         xr.testing.assert_allclose(with_cross['total'], direct['total'])
 
+    def test_direct_and_with_cross_differ_when_contribution_from_present(self):
+        """Sanity invariant: when contribution_from is set, the two views must
+        disagree on at least one (contributor, effect) — otherwise the direct
+        accessor is silently returning the with-cross result (or vice versa)."""
+
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        with_cross = result.stats.effect_contributions
+        direct = result.stats.effect_contributions_direct
+        assert not direct['total'].equals(with_cross['total'])
+        assert not direct['temporal'].equals(with_cross['temporal'])
+
     def test_direct_strips_carbon_tax_propagation(self):
         """Direct cost = direct flow cost only, ignoring CO₂→cost cross-effect."""
 
