@@ -5,6 +5,8 @@ auto-selects between LP (convex/concave 2-flow inequality), incremental
 (monotonic), and SOS2 formulations.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
@@ -292,3 +294,76 @@ class TestPiecewiseStatus:
         assert_allclose(on, [0, 1, 0], atol=1e-5)
         expected_cost = 5.0 / 0.9 + 100.0
         assert_allclose(result.effect_totals.sel(effect='cost').item(), expected_cost, rtol=1e-5)
+
+
+class TestRedundantStatusWarning:
+    """Warn when ConversionCurve has Status alongside an all-flows-zero breakpoint."""
+
+    def _build_with_curve(self, curve: ConversionCurve):
+        """Build ModelData with a single piecewise converter using `curve`."""
+        from fluxopt.model_data import ModelData
+
+        return ModelData.build(
+            timesteps=ts(3),
+            carriers=[Carrier('Gas'), Carrier('Heat')],
+            effects=[Effect('cost')],
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
+                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+            ],
+            converters=[
+                Converter(
+                    'Boiler',
+                    inputs=[Flow('Gas', short_id='fuel')],
+                    outputs=[Flow('Heat', size=100)],
+                    conversion=curve,
+                )
+            ],
+        )
+
+    def test_warns_when_zero_breakpoint_with_status(self):
+        """Curve with (0, 0) first breakpoint AND Status -> warn."""
+        curve = ConversionCurve(
+            {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
+            status=Status(effects_per_startup={'cost': 1}),
+        )
+        with pytest.warns(UserWarning, match=r'Boiler.*\(0, \.\.\., 0\) breakpoint'):
+            self._build_with_curve(curve)
+
+    def test_warns_when_zero_breakpoint_not_first(self):
+        """All-zero point anywhere in the curve (not just first) -> warn (SOS2 allows non-monotonic)."""
+        curve = ConversionCurve(
+            {'fuel': [50, 0, 100], 'Heat': [45, 0, 70]},
+            method='sos2',
+            status=Status(effects_per_startup={'cost': 1}),
+        )
+        with pytest.warns(UserWarning, match=r'Boiler.*\(0, \.\.\., 0\) breakpoint'):
+            self._build_with_curve(curve)
+
+    def test_no_warn_when_curve_avoids_zero(self):
+        """Curve that never hits all-flows-zero -> no warning, even with Status."""
+        curve = ConversionCurve(
+            {'fuel': [30, 70, 100], 'Heat': [22.5, 58.5, 78.5]},
+            status=Status(effects_per_startup={'cost': 1}),
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', UserWarning)
+            self._build_with_curve(curve)
+
+    def test_no_warn_without_status(self):
+        """No Status -> no warning, even when curve includes (0, 0)."""
+        curve = ConversionCurve({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', UserWarning)
+            self._build_with_curve(curve)
+
+    def test_no_warn_when_only_one_flow_zero(self):
+        """Only one flow is zero at a breakpoint (not all) -> no warning."""
+        # heat=0 at first bp but fuel=10 -> the curve doesn't include the origin.
+        curve = ConversionCurve(
+            {'fuel': [10, 50, 100], 'Heat': [0, 45, 70]},
+            status=Status(effects_per_startup={'cost': 1}),
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', UserWarning)
+            self._build_with_curve(curve)
