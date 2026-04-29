@@ -927,9 +927,8 @@ class PiecewiseData:
         (0, ..., 0) breakpoint at any (breakpoint, timestep) position.
 
         When that's the case, the optimizer can sit at zero with ``active=1``,
-        so the on/off binary is decoupled from the actual operating state.
-        Startup tracking, ``min_uptime``, and ``effects_per_running_hour``
-        will not behave as expected.
+        so the on/off binary is decoupled from the actual operating state and
+        Status features will not behave as expected.
         """
         atol = 1e-9
         is_zero = abs(self.breakpoints) <= atol  # (pw_pair, breakpoint, time)
@@ -943,10 +942,8 @@ class PiecewiseData:
                     f'ConversionCurve on converter {str(conv_id)!r} has Status, '
                     'but the curve includes a (0, ..., 0) breakpoint. The '
                     'optimizer can sit at zero with status=on, decoupling the '
-                    'binary from the actual operating state — so startup '
-                    'tracking, min_uptime, and effects_per_running_hour will '
-                    'not behave as expected. If you want Status to work as '
-                    'expected, drop the zero breakpoint so the only way to '
+                    'binary from the actual operating state. If you want Status to work '
+                    'as expected, drop the zero breakpoints so the only way to '
                     'produce zero is status=off.',
                     UserWarning,
                     stacklevel=4,
