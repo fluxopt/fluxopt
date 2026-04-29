@@ -36,11 +36,18 @@ Each symbol maps to a specific field or variable in the code.
 
 ## Indexing Convention
 
-Symbol subscripts show only the indices the formulation **structurally
-requires** — the dims a constraint iterates over and that change its
-meaning. Most parameters may also **broadcast over additional dims**
-in the API; we don't decorate the symbols with every dim they *could*
-take, because that turns formulas into pyramids of subscripts.
+**Variables** (the table above) are shown with **all** dimensions they
+live on. There's no broadcasting for decision variables — every
+\((\text{flow}, \text{time}, \ldots)\) cell is its own variable. The
+`(,p)` notation marks the period dim as optional (present in
+multi-period models, absent otherwise); scenarios would add `(,s)`.
+
+**Parameters** are different. Symbol subscripts show only the indices
+the formulation **structurally requires** — the dims a constraint
+iterates over and that change its meaning. Most parameters also
+**broadcast over additional dims** in the API; we don't decorate the
+symbols with every dim they *could* take, because that turns formulas
+into pyramids of subscripts.
 
 The broadcast hierarchy:
 
