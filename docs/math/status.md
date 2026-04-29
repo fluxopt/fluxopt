@@ -10,9 +10,9 @@ variables enforce minimum and maximum consecutive up- and downtime.
 
 | Symbol | Code | Domain | Description |
 |---|---|---|---|
-| \(\sigma_{f,t}\) | `flow_on[flow, time]` | \(\{0, 1\}\) | On/off indicator |
-| \(\tau^+_{f,t}\) | `flow_startup[flow, time]` | \(\{0, 1\}\) | Startup event indicator |
-| \(\tau^-_{f,t}\) | `flow_shutdown[flow, time]` | \(\{0, 1\}\) | Shutdown event indicator |
+| \(\sigma_{f,t}\) | `flow--on[flow, time]` | \(\{0, 1\}\) | On/off indicator |
+| \(\tau^+_{f,t}\) | `flow--startup[flow, time]` | \(\{0, 1\}\) | Startup event indicator |
+| \(\tau^-_{f,t}\) | `flow--shutdown[flow, time]` | \(\{0, 1\}\) | Shutdown event indicator |
 | \(\mathrm{D}^{\text{up}}_{f,t}\) | `uptime[flow, time]` | \(\geq 0\) | Consecutive uptime [h] |
 | \(\mathrm{D}^{\text{down}}_{f,t}\) | `downtime[flow, time]` | \(\geq 0\) | Consecutive downtime [h] |
 
@@ -179,9 +179,9 @@ An additional constraint prevents the unit from being "on" with zero size:
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\sigma_{f,t}\) | On/off binary | `flow_on[flow, time]` |
-| \(\tau^+_{f,t}\) | Startup indicator | `flow_startup[flow, time]` |
-| \(\tau^-_{f,t}\) | Shutdown indicator | `flow_shutdown[flow, time]` |
+| \(\sigma_{f,t}\) | On/off binary | `flow--on[flow, time]` |
+| \(\tau^+_{f,t}\) | Startup indicator | `flow--startup[flow, time]` |
+| \(\tau^-_{f,t}\) | Shutdown indicator | `flow--shutdown[flow, time]` |
 | \(\mathrm{D}^{\text{up}}_{f,t}\) | Consecutive uptime | `uptime[flow, time]` |
 | \(\mathrm{D}^{\text{down}}_{f,t}\) | Consecutive downtime | `downtime[flow, time]` |
 | \(\mathrm{D}^{\text{up,min}}\) | Minimum uptime | `Status.min_uptime` |

@@ -26,7 +26,7 @@ The sign convention uses coefficients: \(+1\) for flows producing into the carri
 |---|---|---|
 | \(\mathcal{F}_b^{\text{out}}\) | Flows producing into carrier \(b\) | `carrier_coeff[f.id] = +1` (port imports, converter outputs, storage discharging) |
 | \(\mathcal{F}_b^{\text{in}}\) | Flows consuming from carrier \(b\) | `carrier_coeff[f.id] = -1` (port exports, converter inputs, storage charging) |
-| \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \((b\!:\!n)\) | Compound carrier-node coordinate | e.g., `heat:A`, `heat:B` |
 | \(\mathcal{F}_{b:n}\) | Flows assigned to node \(n\) of carrier \(b\) | Subset of \(\mathcal{F}_b\) with matching `node` |
 | \(\text{coeff}_{b:n,f}\) | Coefficient of flow \(f\) in node \(n\)'s balance | `+1` or `-1`, same convention as single-node |

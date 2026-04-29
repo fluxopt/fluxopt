@@ -54,8 +54,8 @@ This ensures the storage ends at the same level it started.
 | Symbol | Description | Reference |
 |---|---|---|
 | \(E_{s,t}\) | Stored energy variable | `storage--level[storage, time]` |
-| \(P^{\text{c}}_{s,t}\) | Charging flow rate | `flow_rate[charge_flow, time]` |
-| \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `flow_rate[discharge_flow, time]` |
+| \(P^{\text{c}}_{s,t}\) | Charging flow rate | `flow--rate[charge_flow, time]` |
+| \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `flow--rate[discharge_flow, time]` |
 | \(\bar{\mathrm{E}}_s\) | Storage capacity | `Storage.capacity` |
 | \(\eta^{\text{c}}_s\) | Charging efficiency | `Storage.eta_charge` |
 | \(\eta^{\text{d}}_s\) | Discharging efficiency | `Storage.eta_discharge` |

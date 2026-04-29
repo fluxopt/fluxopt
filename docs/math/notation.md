@@ -24,9 +24,9 @@ Each symbol maps to a specific field or variable in the code.
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | `effect--temporal[effect, time(, period)]` | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | `effect--lump[effect(, period)]` | \(\mathbb{R}\) | varies | Lump (sizing + one-time) effect |
 | \(\Phi_{k(,p)}\) | `effect--total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
-| \(S_{f(,p)}\) | `flow--size[flow(, period)]` | \(\geq 0\) | MW | Flow capacity |
+| \(S_{f(,p)}\) | `flow--size[flow(, period)]` | \(\geq 0\) | MW | Invested flow capacity |
 | \(y_{f(,p)}\) | `flow--size_indicator[flow(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (flow) |
-| \(S_{s(,p)}\) | `storage--capacity[storage(, period)]` | \(\geq 0\) | MWh | Storage capacity |
+| \(S_{s(,p)}\) | `storage--capacity[storage(, period)]` | \(\geq 0\) | MWh | Invested storage capacity |
 | \(y_{s(,p)}\) | `storage--size_indicator[storage(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (storage) |
 | \(\sigma_{f,t(,p)}\) | `flow--on[flow, time(, period)]` | \(\{0, 1\}\) | — | On/off indicator |
 | \(\tau^+_{f,t(,p)}\) | `flow--startup[flow, time(, period)]` | \(\{0, 1\}\) | — | Startup event indicator |
@@ -104,8 +104,8 @@ omit unless we're discussing multi-period dynamics specifically.
 | \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | [`Effect.minimum_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum_per_hour)) | \(\mathbb{R}\) | varies/h | Minimum per hour (rate, scaled by \(\Delta t_t\)) |
 | \(\mathrm{S}^-\) | [`Sizing.min_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(min_size)) | \(\geq 0\) | MW or MWh | Minimum invested size (flow or storage) |
 | \(\mathrm{S}^+\) | [`Sizing.max_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(max_size)) | \(\geq 0\) | MW or MWh | Maximum invested size (flow or storage) |
-| \(\gamma_{f,k}\) | [`Sizing.effects_per_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_per_size)) | \(\mathbb{R}\) | varies | Per-size investment cost (one-time, sized) |
-| \(\phi_{f,k}\) | [`Sizing.effects_fixed`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_fixed)) | \(\mathbb{R}\) | varies | Fixed investment cost (one-time, sized) |
+| \(\gamma_{f,k}\), \(\gamma_{s,k}\) | [`Sizing.effects_per_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_per_size)) | \(\mathbb{R}\) | varies | Per-size investment cost (flow or storage; one-time, sized) |
+| \(\phi_{f,k}\), \(\phi_{s,k}\) | [`Sizing.effects_fixed`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_fixed)) | \(\mathbb{R}\) | varies | Fixed investment cost (flow or storage; one-time, sized) |
 | \(\gamma^{\text{build}}_{f,k}\) | [`Investment.effects_per_size_at_build`](../api/fluxopt/elements.md#fluxopt.elements.Investment(effects_per_size_at_build)) | \(\mathbb{R}\) | varies | Per-size CAPEX charged in the build period |
 | \(\phi^{\text{build}}_{f,k}\) | [`Investment.effects_fixed_at_build`](../api/fluxopt/elements.md#fluxopt.elements.Investment(effects_fixed_at_build)) | \(\mathbb{R}\) | varies | Fixed CAPEX charged in the build period |
 | \(\gamma^{\text{rec}}_{f,k}\) | [`Investment.effects_per_size_recurring`](../api/fluxopt/elements.md#fluxopt.elements.Investment(effects_per_size_recurring)) | \(\mathbb{R}\) | varies | Recurring per-size cost (each active period) |
@@ -133,6 +133,7 @@ parameter that bounds it.
 | Italic (default math mode) | Decision variables | \(P\) (flow rate), \(E\) (stored energy), \(S\) (size) |
 | Upright (`\mathrm{}`) | Parameters | \(\mathrm{c}_{f,k,t}\) (cost coefficient), \(\bar{\mathrm{P}}_f\) (capacity), \(\mathrm{a}_{f,i}\) (conversion coefficient) |
 | Overbar / underbar | Bound (paired with the variable's letter) | \(\bar{\mathrm{P}}\) (upper bound on \(P\)), \(\underline{\mathrm{P}}\) (lower bound) |
+| Lowercase variant | Relative bound (fraction of size/capacity) | \(\bar{\mathrm{p}}_{f,t}\), \(\underline{\mathrm{p}}_{f,t}\) (fraction of \(\bar{\mathrm{P}}_f\)); \(\bar{\mathrm{e}}_s\), \(\underline{\mathrm{e}}_s\) (fraction of \(\bar{\mathrm{E}}_s\)) |
 | Greek | Parameters with established physical meaning | \(\eta\) (efficiency), \(\delta\) (loss), \(\pi\) (profile), \(\gamma\) (per-size cost) |
 | Subscripts | Indexing | \(f\) (flow), \(t\) (time), \(s\) (storage), \(b\) (bus), \(k\) (effect), \(j\) (source effect) |
 | Superscripts | Qualification | \(\eta^{\text{c}}\) (charge), \(\eta^{\text{d}}\) (discharge) |

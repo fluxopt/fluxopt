@@ -10,10 +10,10 @@ dispatch simultaneously.
 
 | Symbol | Code | Domain | Description |
 |---|---|---|---|
-| \(S_f\) | `flow_size[flow]` | \(\geq 0\) | Invested flow capacity |
-| \(y_f\) | `flow_size_indicator[flow]` | \(\{0, 1\}\) | Binary: invest yes/no (optional only) |
-| \(S_s\) | `storage_capacity[storage]` | \(\geq 0\) | Invested storage capacity |
-| \(y_s\) | `storage_size_indicator[storage]` | \(\{0, 1\}\) | Binary: invest yes/no (optional only) |
+| \(S_f\) | `flow--size[flow]` | \(\geq 0\) | Invested flow capacity |
+| \(y_f\) | `flow--size_indicator[flow]` | \(\{0, 1\}\) | Binary: invest yes/no (optional only) |
+| \(S_s\) | `storage--capacity[storage]` | \(\geq 0\) | Invested storage capacity |
+| \(y_s\) | `storage--size_indicator[storage]` | \(\{0, 1\}\) | Binary: invest yes/no (optional only) |
 
 ## Mandatory Sizing
 
@@ -120,9 +120,9 @@ for the constraints.
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(S_f\) | Flow capacity variable | `flow_size[flow]` |
-| \(S_s\) | Storage capacity variable | `storage_capacity[storage]` |
-| \(y_f\), \(y_s\) | Binary invest indicator | `flow_size_indicator`, `storage_size_indicator` |
+| \(S_f\) | Flow capacity variable | `flow--size[flow]` |
+| \(S_s\) | Storage capacity variable | `storage--capacity[storage]` |
+| \(y_f\), \(y_s\) | Binary invest indicator | `flow--size_indicator`, `storage--size_indicator` |
 | \(\mathrm{S}^-\) | Minimum size | `Sizing.min_size` |
 | \(\mathrm{S}^+\) | Maximum size | `Sizing.max_size` |
 | \(\gamma_{f,k}\) | Per-size investment cost | `Sizing.effects_per_size` |

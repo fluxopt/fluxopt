@@ -133,13 +133,13 @@ For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect_temporal[effect, time(, period)]` |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect_lump[effect(, period)]` |
-| \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect--temporal[effect, time(, period)]` |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
 | \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | `Effect.contribution_from` (TimeSeries) |
 | \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | `Effect.contribution_from` (scalar) |
-| \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | `Effect.maximum` |

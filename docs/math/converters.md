@@ -28,7 +28,7 @@ over \(t\) in the API — see [Indexing Convention](notation.md#indexing-convent
 |---|---|---|
 | \(\mathrm{a}_{f,i}\) | Conversion coefficient | `Converter.conversion_factors` |
 | \(i\) | Equation index within a converter | row in `conversion_factors` |
-| \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 
 See [Notation](notation.md) for the full symbol table.
 
@@ -134,13 +134,13 @@ Override with `method="sos2"` / `"incremental"` / `"lp"` if needed.
 
 ### Status gating
 
-When `PiecewiseConversion.status` is set, the curve is gated by a binary
-\(\delta_{c,t}\) (see [Status](status.md)) passed as `active=` to the linopy
-formulation:
+When `PiecewiseConversion.status` is set, the curve is gated by the converter's
+on/off binary \(\sigma_{c,t}\) (see [Status](status.md)) passed as `active=` to
+the linopy formulation:
 
-- All-equality curves: \(\delta = 0\) forces every \(\lambda\) to zero, which
-  pins all curve flows to \(\mathrm{b}_{f,0}\) (typically zero).
-- Inequality curves: \(\delta = 0\) drives the bounded side to zero; the
+- All-equality curves: \(\sigma_{c,t} = 0\) forces every \(\lambda\) to zero,
+  which pins all curve flows to \(\mathrm{b}_{f,0}\) (typically zero).
+- Inequality curves: \(\sigma_{c,t} = 0\) drives the bounded side to zero; the
   output's own lower bound (default \(P_f \ge 0\)) closes the loop for
   non-negative outputs.
 
@@ -150,7 +150,7 @@ A separate envelope constraint scales the upper breakpoint by a per-timestep
 availability \(\alpha_t \in [0, 1]\):
 
 \[
-P_{f^{\star},t} \le \alpha_t \cdot \mathrm{b}_{f^{\star},K-1} \cdot \delta_{c,t}
+P_{f^{\star},t} \le \alpha_t \cdot \mathrm{b}_{f^{\star},K-1} \cdot \sigma_{c,t}
 \]
 
 where \(f^{\star}\) is the first flow in the curve.
@@ -162,5 +162,5 @@ where \(f^{\star}\) is the first flow in the curve.
 | \(\mathrm{b}_{f,k}\) | Breakpoint values per flow | `PiecewiseConversion.points` |
 | \(\lambda_{k,t}\) | Interpolation weights | linopy auxiliaries |
 | \(\diamond_f\) | Curve relation | tuple bound `'=='` / `'<='` / `'>='` |
-| \(\delta_{c,t}\) | On/off binary | `PiecewiseConversion.status` |
+| \(\sigma_{c,t}\) | On/off binary | `PiecewiseConversion.status` |
 | \(\alpha_t\) | Availability scaling | `PiecewiseConversion.availability` |
