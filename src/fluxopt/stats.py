@@ -52,6 +52,22 @@ class StatsAccessor:
         return coeff * self._result.flow_rates
 
     @cached_property
+    def effect_contributions_direct(self) -> xr.Dataset:
+        """Per-contributor effect breakdown *without* cross-effect propagation.
+
+        Each contributor only carries effects it directly emits —
+        ``contribution_from`` chains are ignored. Useful for attributing
+        physical quantities (e.g. raw CO₂ emissions) without conflating them
+        with priced-in monetary effects.
+
+        Returns:
+            Dataset with ``temporal``, ``lump``, and ``total`` DataArrays.
+        """
+        from fluxopt.contributions import compute_effect_contributions
+
+        return compute_effect_contributions(self._result.solution, self._result.data, cross_effects=False)
+
+    @cached_property
     def effect_contributions(self) -> xr.Dataset:
         """Per-contributor effect breakdown with cross-effects propagated.
 
@@ -68,28 +84,16 @@ class StatsAccessor:
         charged the full priced-in cost. The contributions are validated
         against solver totals; a ``ValueError`` is raised if they don't match.
 
-        For the *direct* view (no cross-effect propagation), see
-        :attr:`effect_contributions_direct`.
+        Built on top of :attr:`effect_contributions_direct` — when both views
+        are accessed, the heavy direct computation runs only once.
 
         Returns:
             Dataset with ``temporal``, ``lump``, and ``total`` DataArrays.
         """
-        from fluxopt.contributions import compute_effect_contributions
+        from fluxopt.contributions import _with_cross_effects
 
-        return compute_effect_contributions(self._result.solution, self._result.data, cross_effects=True)
-
-    @cached_property
-    def effect_contributions_direct(self) -> xr.Dataset:
-        """Per-contributor effect breakdown *without* cross-effect propagation.
-
-        Same shape as :attr:`effect_contributions`, but each contributor only
-        carries effects it directly emits — ``contribution_from`` chains are
-        ignored. Useful for attributing physical quantities (e.g. raw CO₂
-        emissions) without conflating them with priced-in monetary effects.
-
-        Returns:
-            Dataset with ``temporal``, ``lump``, and ``total`` DataArrays.
-        """
-        from fluxopt.contributions import compute_effect_contributions
-
-        return compute_effect_contributions(self._result.solution, self._result.data, cross_effects=False)
+        return _with_cross_effects(
+            self.effect_contributions_direct,
+            self._result.data,
+            self._result.solution,
+        )

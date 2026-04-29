@@ -258,6 +258,52 @@ def _apply_cross_effects(
     return temporal_out, lump_out
 
 
+def _validate_against_solver(total: xr.DataArray, solution: xr.Dataset) -> None:
+    """Sanity check: per-contributor totals must sum to solver ``effect--total``."""
+    solver = solution['effect--total']
+    computed = total.sum('contributor')
+    if not np.allclose(computed.values, solver.values, atol=1e-6):
+        diff = abs(computed - solver)
+        raise ValueError(
+            f'Effect contributions do not sum to solver totals. Max deviation: {float(diff.max().values):.6g}'
+        )
+
+
+def _finalize(
+    temporal: xr.DataArray,
+    lump: xr.DataArray,
+    all_ids: list[str],
+    data: ModelData,
+) -> xr.Dataset:
+    """Combine temporal + lump into the public ``(temporal, lump, total)`` Dataset."""
+    total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + lump.reindex(
+        contributor=all_ids, fill_value=0.0
+    )
+    return xr.Dataset({'temporal': temporal, 'lump': lump, 'total': total})
+
+
+def _with_cross_effects(direct: xr.Dataset, data: ModelData, solution: xr.Dataset) -> xr.Dataset:
+    """Apply Leontief cross-effects on top of a precomputed direct contributions Dataset.
+
+    Validates the resulting totals against solver ``effect--total``. When the model has
+    no ``contribution_from`` chains, the direct Dataset is already the with-cross
+    answer — we just validate and return it.
+
+    Args:
+        direct: Output of :func:`compute_effect_contributions` with ``cross_effects=False``.
+        data: Model data the ``direct`` was built from.
+        solution: Solved variable dataset (used for validation).
+    """
+    if data.effects.cf_temporal is None:
+        _validate_against_solver(direct['total'], solution)
+        return direct
+    temporal, lump = _apply_cross_effects(direct['temporal'], direct['lump'], data)
+    all_ids = list(direct['total'].coords['contributor'].values)
+    out = _finalize(temporal, lump, all_ids, data)
+    _validate_against_solver(out['total'], solution)
+    return out
+
+
 def compute_effect_contributions(
     solution: xr.Dataset,
     data: ModelData,
@@ -289,21 +335,7 @@ def compute_effect_contributions(
             match solver totals (a sanity check on the breakdown).
     """
     temporal, lump, all_ids = _compute_direct(solution, data)
+    direct = _finalize(temporal, lump, all_ids, data)
     if cross_effects:
-        temporal, lump = _apply_cross_effects(temporal, lump, data)
-
-    total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + lump.reindex(
-        contributor=all_ids, fill_value=0.0
-    )
-
-    if cross_effects:
-        # Solver totals already include cross-effects; only validate in this branch.
-        solver = solution['effect--total']
-        computed = total.sum('contributor')
-        if not np.allclose(computed.values, solver.values, atol=1e-6):
-            diff = abs(computed - solver)
-            raise ValueError(
-                f'Effect contributions do not sum to solver totals. Max deviation: {float(diff.max().values):.6g}'
-            )
-
-    return xr.Dataset({'temporal': temporal, 'lump': lump, 'total': total})
+        return _with_cross_effects(direct, data, solution)
+    return direct
