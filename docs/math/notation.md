@@ -34,6 +34,39 @@ Each symbol maps to a specific field or variable in the code.
 | \(D^{\text{up}}_{f,t(,p)}\) | `uptime[flow, time(, period)]` | \(\geq 0\) | h | Consecutive uptime |
 | \(D^{\text{down}}_{f,t(,p)}\) | `downtime[flow, time(, period)]` | \(\geq 0\) | h | Consecutive downtime |
 
+## Indexing Convention
+
+Symbol subscripts show only the indices the formulation **structurally
+requires** — i.e. the dims a constraint iterates over and that change
+its meaning. Most parameters may also **broadcast over time (and
+period)** in the API: anywhere a field is typed `TimeSeries`, you can
+pass a scalar (broadcast) or an array (per-timestep). To keep formulas
+readable, we don't decorate every parameter with every dimension it
+*can* take.
+
+A rough taxonomy of the parameters below:
+
+- **Inherently scalar** (per object — flow, storage, converter):
+  nominal capacity \(\bar{P}_f\), storage capacity \(\bar{E}_s\),
+  sizing bounds \(S^-, S^+\), min/max run durations
+  \(D^{\text{up,min}}, D^{\text{down,max}}, …\). These don't have a
+  meaningful time dependence.
+- **May broadcast over \(t\)** (`TimeSeries` in the API):
+  efficiencies \(\eta^c_s, \eta^d_s\), self-discharge \(\delta_s\),
+  conversion coefficients \(a_{f,i}\), bounds and profiles
+  \(\underline{p}_{f,t}, \bar{p}_{f,t}, \pi_{f,t}\), effect / running /
+  startup costs \(c_{f,k,t}, r_{f,k,t}, u_{f,k,t}\), cross-effects
+  \(\alpha_{k,j,t}\). We show the \(t\) index only where it's
+  structurally important to the constraint (e.g. profiles, where time
+  variation is the whole point).
+- **Per period only** (multi-period models): period weights
+  \(\omega_p, \omega_{k,p}\); investment-domain coefficients
+  (\(\gamma^{\text{build}}_{f,k}, \phi^{\text{rec}}_{f,k}, …\)) attach
+  to a build period rather than to time.
+
+Absence of a \(t\) subscript on a parameter doesn't mean it must be
+scalar — check the API field's type.
+
 ## Parameters
 
 | Symbol | Code | Domain | Unit | Description |
@@ -49,7 +82,7 @@ Each symbol maps to a specific field or variable in the code.
 | \(\delta_s\) | `Storage.relative_loss_per_hour` | \([0, 1]\) | 1/h | Self-discharge rate |
 | \(\underline{e}_s\) | `Storage.relative_minimum_level` | \([0, 1]\) | — | Relative min SOC |
 | \(\bar{e}_s\) | `Storage.relative_maximum_level` | \([0, 1]\) | — | Relative max SOC |
-| \(a_{f}\) | `Converter.conversion_factors` | \(\mathbb{R}\) | — | Conversion coefficient |
+| \(a_{f,i}\) | `Converter.conversion_factors` | \(\mathbb{R}\) | — | Conversion coefficient (per flow, per equation) |
 | \(\alpha_{k,j}\) | `Effect.contribution_from` | \(\mathbb{R}\) | varies | Cross-effect factor (scalar) |
 | \(\alpha_{k,j,t}\) | `Effect.contribution_from` (TimeSeries) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
 | \(\bar{\Phi}_k\) | `Effect.maximum` | \(\mathbb{R}\) | varies | Maximum aggregate (weighted sum across periods) |

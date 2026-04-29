@@ -14,20 +14,19 @@ load-dependent heat-to-power ratios.
 Each conversion equation enforces a linear coupling between flows:
 
 \[
-\sum_{f} a_{f,i,t} \cdot P_{f,t} = 0 \quad \forall \, \text{converter}, \; i, \; t \in \mathcal{T}
+\sum_{f} a_{f,i} \cdot P_{f,t} = 0 \quad \forall \, \text{converter}, \; i, \; t \in \mathcal{T}
 \]
 
-where \(a_{f,i,t}\) is the conversion coefficient for flow \(f\) in equation \(i\)
-at time \(t\). A converter can have multiple equations (one per row in
-`conversion_factors`), allowing multi-output devices like CHP plants. Each
-coefficient may differ per equation **and** per timestep — pass a list or
-array instead of a scalar in any dict entry.
+where \(a_{f,i}\) is the conversion coefficient for flow \(f\) in equation \(i\).
+A converter can have multiple equations (one per row in `conversion_factors`),
+allowing multi-output devices like CHP plants. Coefficients may also broadcast
+over \(t\) in the API — see [Indexing Convention](notation.md#indexing-convention).
 
 ### Parameters
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(a_{f,i,t}\) | Conversion coefficient | `Converter.conversion_factors` |
+| \(a_{f,i}\) | Conversion coefficient | `Converter.conversion_factors` |
 | \(i\) | Equation index within a converter | row in `conversion_factors` |
 | \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
 
