@@ -4,8 +4,14 @@ Decomposes solver effect totals into per-contributor (flow/storage) parts,
 split into temporal (per-timestep) and lump (sizing + investment costs) domains —
 matching the model's own temporal/lump structure.
 
-Cross-effects use the Leontief inverse: total = (I - C)^-1 * direct,
-where C is the cross-effect coefficient matrix.
+Two views are supported via the ``cross_effects`` parameter on
+``compute_effect_contributions``:
+
+- **with cross-effects** (default): propagates ``contribution_from`` chains
+  via the Leontief inverse — ``total = (I - C)^-1 * direct`` — so each
+  contributor is charged the full priced-in cost (e.g. CO₂ → cost).
+- **direct**: skips Leontief; each contributor shows only effects it
+  directly emits.
 """
 
 from __future__ import annotations
@@ -144,21 +150,11 @@ def _compute_investment_lump(
     return result
 
 
-def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Dataset:
-    """Compute per-contributor effect breakdown from solved values.
+def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray, xr.DataArray, list[str]]:
+    """Compute direct (no cross-effect propagation) per-contributor temporal and lump.
 
-    Decomposes solver totals into per-contributor parts on a unified
-    ``contributor`` dimension (flow IDs + storage IDs).
-
-    Args:
-        solution: Solved variable dataset from ``Result.solution``.
-        data: Model data used to build the optimization.
-
-    Returns:
-        Dataset with:
-        - ``temporal`` (contributor, effect, time) — per-timestep contributions
-        - ``lump`` (contributor, effect) — lump contributions (flows + storages)
-        - ``total`` (contributor, effect) — temporal summed over time + lump
+    Returns ``(temporal, lump, all_ids)`` where each contributor's effects are
+    only those it directly emits — independent of ``contribution_from`` chains.
     """
     flow_ids: list[str] = list(data.flows.effect_coeff.coords['flow'].values)
     effect_ids: list[str] = list(data.effects.min_bound.coords['effect'].values)
@@ -206,11 +202,6 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
                     add = comp_startup.sel(component=comp_id).drop_vars('component')
                     temporal_flow.loc[{'flow': fid}] = temporal_flow.sel(flow=fid) + add
 
-    # Cross-effects on temporal via Leontief inverse
-    if data.effects.cf_temporal is not None:
-        temporal_flow = _apply_leontief(_leontief(data.effects.cf_temporal), temporal_flow)
-
-    # Rename to contributor dim
     temporal = temporal_flow.rename({'flow': 'contributor'})
 
     # --- Lump: flow sizing costs ---
@@ -248,23 +239,71 @@ def compute_effect_contributions(solution: xr.Dataset, data: ModelData) -> xr.Da
     else:
         lump = flow_lump
 
-    # Cross-effects on lump via Leontief inverse (using mean of temporal cross-effect)
-    if data.effects.cf_temporal is not None:
-        cf_lump = data.effects.cf_temporal.mean('time')
-        lump = _apply_leontief(_leontief(cf_lump), lump)
+    return temporal, lump, all_ids
 
-    # --- Total: temporal (weighted sum over time) + lump ---
+
+def _apply_cross_effects(
+    temporal: xr.DataArray, lump: xr.DataArray, data: ModelData
+) -> tuple[xr.DataArray, xr.DataArray]:
+    """Propagate effects along ``contribution_from`` chains via Leontief inverse.
+
+    Time-varying ``contribution_from`` is averaged over time for the lump domain
+    (mirroring the model's own treatment in ``model.py``).
+    """
+    if data.effects.cf_temporal is None:
+        return temporal, lump
+    temporal_out = _apply_leontief(_leontief(data.effects.cf_temporal), temporal)
+    cf_lump = data.effects.cf_temporal.mean('time')
+    lump_out = _apply_leontief(_leontief(cf_lump), lump)
+    return temporal_out, lump_out
+
+
+def compute_effect_contributions(
+    solution: xr.Dataset,
+    data: ModelData,
+    *,
+    cross_effects: bool = True,
+) -> xr.Dataset:
+    """Compute per-contributor effect breakdown from solved values.
+
+    Decomposes effect totals into per-contributor parts on a unified
+    ``contributor`` dimension (flow IDs + storage IDs).
+
+    Args:
+        solution: Solved variable dataset from ``Result.solution``.
+        data: Model data used to build the optimization.
+        cross_effects: When True (default), propagates effects along
+            ``contribution_from`` chains via the Leontief inverse so each
+            contributor is charged the full priced-in cost (e.g. CO₂ → cost).
+            When False, returns *direct* contributions only — each contributor
+            shows only effects it directly emits, ignoring cross-effects.
+
+    Returns:
+        Dataset with:
+        - ``temporal`` (contributor, effect, time) — per-timestep contributions
+        - ``lump`` (contributor, effect) — lump contributions (flows + storages)
+        - ``total`` (contributor, effect) — temporal summed over time + lump
+
+    Raises:
+        ValueError: if ``cross_effects=True`` and the contributions don't
+            match solver totals (a sanity check on the breakdown).
+    """
+    temporal, lump, all_ids = _compute_direct(solution, data)
+    if cross_effects:
+        temporal, lump = _apply_cross_effects(temporal, lump, data)
+
     total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + lump.reindex(
         contributor=all_ids, fill_value=0.0
     )
 
-    # --- Validate: contributions must sum to solver effect totals ---
-    solver = solution['effect--total']
-    computed = total.sum('contributor')
-    if not np.allclose(computed.values, solver.values, atol=1e-6):
-        diff = abs(computed - solver)
-        raise ValueError(
-            f'Effect contributions do not sum to solver totals. Max deviation: {float(diff.max().values):.6g}'
-        )
+    if cross_effects:
+        # Solver totals already include cross-effects; only validate in this branch.
+        solver = solution['effect--total']
+        computed = total.sum('contributor')
+        if not np.allclose(computed.values, solver.values, atol=1e-6):
+            diff = abs(computed - solver)
+            raise ValueError(
+                f'Effect contributions do not sum to solver totals. Max deviation: {float(diff.max().values):.6g}'
+            )
 
     return xr.Dataset({'temporal': temporal, 'lump': lump, 'total': total})
