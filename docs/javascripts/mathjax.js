@@ -11,15 +11,11 @@ window.MathJax = {
   },
 };
 
-// On every instant-nav page swap, re-typeset math — but only after MathJax
-// has finished its initial startup. Without the startup.promise gate we hit
-// a race on first navigations where MathJax isn't ready yet and typesetPromise
-// silently fails, leaving raw \(...\) on the page until a hard reload.
+// Re-typeset on every instant-nav page swap. mkdocs-material docs use
+// exactly this form. Avoid typesetClear()/texReset() — they can strip
+// rendered math before typesetPromise() finishes, leaving blanks.
 document$.subscribe(() => {
-  if (typeof MathJax === "undefined" || !MathJax.startup) return;
-  MathJax.startup.promise.then(() => {
-    MathJax.typesetClear();
-    MathJax.texReset();
-    return MathJax.typesetPromise();
-  });
+  if (typeof MathJax !== "undefined" && MathJax.typesetPromise) {
+    MathJax.typesetPromise();
+  }
 });
