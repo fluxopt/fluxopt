@@ -657,3 +657,67 @@ class TestDirectContributions:
         assert grid_direct_co2_lump == pytest.approx(invest_size * 10, abs=1e-6)
         # No direct sizing cost — only CO₂ → cost via cross-effect, which direct strips
         assert grid_direct_cost_lump == pytest.approx(0.0, abs=1e-6)
+
+
+class TestValidateAgainstSolver:
+    """The validation helper raises when per-contributor totals don't sum to solver totals."""
+
+    def test_raises_on_mismatch(self):
+        from fluxopt.contributions import _validate_against_solver
+
+        total = xr.DataArray(
+            [[1.0, 2.0], [3.0, 4.0]],
+            dims=['contributor', 'effect'],
+            coords={'contributor': ['a', 'b'], 'effect': ['cost', 'co2']},
+        )
+        solution = xr.Dataset(
+            {
+                'effect--total': xr.DataArray([100.0, 200.0], dims=['effect'], coords={'effect': ['cost', 'co2']}),
+            }
+        )
+        with pytest.raises(ValueError, match='Effect contributions do not sum to solver totals'):
+            _validate_against_solver(total, solution)
+
+    def test_passes_on_exact_match(self):
+        from fluxopt.contributions import _validate_against_solver
+
+        total = xr.DataArray(
+            [[1.0, 2.0], [3.0, 4.0]],
+            dims=['contributor', 'effect'],
+            coords={'contributor': ['a', 'b'], 'effect': ['cost', 'co2']},
+        )
+        solution = xr.Dataset(
+            {
+                'effect--total': xr.DataArray([4.0, 6.0], dims=['effect'], coords={'effect': ['cost', 'co2']}),
+            }
+        )
+        _validate_against_solver(total, solution)  # no exception
+
+
+class TestComputeEffectContributionsAPI:
+    """Public ``compute_effect_contributions`` works directly (not just via stats)."""
+
+    def test_direct_call_with_cross_effects(self):
+        """Calling compute_effect_contributions(cross_effects=True) yields the same
+        with-cross result as accessing result.stats.effect_contributions."""
+        from fluxopt.contributions import compute_effect_contributions
+
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        via_function = compute_effect_contributions(result.solution, result.data, cross_effects=True)
+        via_stats = result.stats.effect_contributions
+        xr.testing.assert_allclose(via_function['total'], via_stats['total'])
+        xr.testing.assert_allclose(via_function['temporal'], via_stats['temporal'])
+        xr.testing.assert_allclose(via_function['lump'], via_stats['lump'])

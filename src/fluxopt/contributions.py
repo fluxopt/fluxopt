@@ -247,11 +247,11 @@ def _apply_cross_effects(
 ) -> tuple[xr.DataArray, xr.DataArray]:
     """Propagate effects along ``contribution_from`` chains via Leontief inverse.
 
-    Time-varying ``contribution_from`` is averaged over time for the lump domain
-    (mirroring the model's own treatment in ``model.py``).
+    Caller must ensure ``data.effects.cf_temporal is not None``. Time-varying
+    ``contribution_from`` is averaged over time for the lump domain (mirroring
+    the model's own treatment in ``model.py``).
     """
-    if data.effects.cf_temporal is None:
-        return temporal, lump
+    assert data.effects.cf_temporal is not None
     temporal_out = _apply_leontief(_leontief(data.effects.cf_temporal), temporal)
     cf_lump = data.effects.cf_temporal.mean('time')
     lump_out = _apply_leontief(_leontief(cf_lump), lump)
