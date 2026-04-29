@@ -123,11 +123,19 @@ omit unless we're discussing multi-period dynamics specifically.
 
 ## Naming Conventions
 
+**Italic letters denote decision variables; upright (`\mathrm{}`) letters
+denote parameters** — following ISO 80000-2. So \(P_{f,t}\) (italic) is the
+flow rate variable, while \(\bar{\mathrm{P}}_f\) (upright with overbar) is the
+parameter that bounds it.
+
 | Convention | Meaning | Example |
 |---|---|---|
-| Uppercase Latin | Decision variables | \(P\) (power/flow rate), \(E\) (stored energy) |
-| Lowercase Latin | Relative/dimensionless parameters | \(\underline{p}\) (rel. min), \(\bar{p}\) (rel. max) |
-| Greek | Physical properties | \(\eta\) (efficiency), \(\delta\) (loss rate) |
-| Overbar / underbar | Bounds | \(\bar{P}\) (capacity), \(\underline{P}\) (lower bound) |
+| Italic (default math mode) | Decision variables | \(P\) (flow rate), \(E\) (stored energy), \(S\) (size) |
+| Upright (`\mathrm{}`) | Parameters | \(\mathrm{c}_{f,k,t}\) (cost coefficient), \(\bar{\mathrm{P}}_f\) (capacity), \(\mathrm{a}_{f,i}\) (conversion coefficient) |
+| Overbar / underbar | Bound (paired with the variable's letter) | \(\bar{\mathrm{P}}\) (upper bound on \(P\)), \(\underline{\mathrm{P}}\) (lower bound) |
+| Greek | Parameters with established physical meaning | \(\eta\) (efficiency), \(\delta\) (loss), \(\pi\) (profile), \(\gamma\) (per-size cost) |
 | Subscripts | Indexing | \(f\) (flow), \(t\) (time), \(s\) (storage), \(b\) (bus), \(k\) (effect), \(j\) (source effect) |
 | Superscripts | Qualification | \(\eta^{\text{c}}\) (charge), \(\eta^{\text{d}}\) (discharge) |
+
+Greek letters render with their conventional shape regardless of `\mathrm{}`,
+so we use them as-is for parameters without further wrapping.
