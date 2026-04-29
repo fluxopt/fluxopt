@@ -27,7 +27,7 @@ after the last timestep).
 The charge state is bounded by relative SOC limits scaled by the storage capacity:
 
 \[
-\bar{E}_s \cdot \underline{e}_s \leq E_{s,t} \leq \bar{E}_s \cdot \bar{e}_s \quad \forall \, s, t
+\bar{\mathrm{E}}_s \cdot \underline{\mathrm{e}}_s \leq E_{s,t} \leq \bar{\mathrm{E}}_s \cdot \bar{\mathrm{e}}_s \quad \forall \, s, t
 \]
 
 ## Initial & Cyclic Conditions
@@ -56,19 +56,19 @@ This ensures the storage ends at the same level it started.
 | \(E_{s,t}\) | Stored energy variable | `storage--level[storage, time]` |
 | \(P^{\text{c}}_{s,t}\) | Charging flow rate | `flow_rate[charge_flow, time]` |
 | \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `flow_rate[discharge_flow, time]` |
-| \(\bar{E}_s\) | Storage capacity | `Storage.capacity` |
+| \(\bar{\mathrm{E}}_s\) | Storage capacity | `Storage.capacity` |
 | \(\eta^{\text{c}}_s\) | Charging efficiency | `Storage.eta_charge` |
 | \(\eta^{\text{d}}_s\) | Discharging efficiency | `Storage.eta_discharge` |
 | \(\delta_s\) | Self-discharge rate | `Storage.relative_loss_per_hour` |
-| \(\underline{e}_s\) | Relative min SOC | `Storage.relative_minimum_level` |
-| \(\bar{e}_s\) | Relative max SOC | `Storage.relative_maximum_level` |
+| \(\underline{\mathrm{e}}_s\) | Relative min SOC | `Storage.relative_minimum_level` |
+| \(\bar{\mathrm{e}}_s\) | Relative max SOC | `Storage.relative_maximum_level` |
 | \(\Delta t_t\) | Timestep duration | dt |
 
 See [Notation](notation.md) for the full symbol table.
 
 ## Example
 
-A battery with \(\bar{E} = 10\) MWh, \(\eta^{\text{c}} = 0.95\),
+A battery with \(\bar{\mathrm{E}} = 10\) MWh, \(\eta^{\text{c}} = 0.95\),
 \(\eta^{\text{d}} = 0.95\), \(\delta = 0.001\)/h, \(\Delta t = 1\) h:
 
 Starting at \(E_0 = 5\) MWh, charging at \(P^{\text{c}} = 2\) MW:

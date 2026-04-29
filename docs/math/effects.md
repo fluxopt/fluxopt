@@ -11,7 +11,7 @@ how they are weighted in multi-period optimization:
 
 | Domain | Dims | What goes here | Multi-period weighting |
 |---|---|---|---|
-| **Temporal** | `(effect, time)` | Flow costs, running costs, startup costs — anything that varies per timestep | Summed over time (× \(w_t\)), then weighted by `period_weights` |
+| **Temporal** | `(effect, time)` | Flow costs, running costs, startup costs — anything that varies per timestep | Summed over time (× \(\mathrm{w}_t\)), then weighted by `period_weights` |
 | **Lump** | `(effect,)` | Sizing costs, fixed O&M, one-time CAPEX — anything not per-timestep | Weighted by \(\omega_{k,p}\) (defaults to global `period_weights`) |
 
 All domains support cross-effect chains via `contribution_from`.
@@ -24,10 +24,10 @@ See [Objective](objective.md) for how the domains are weighted in the objective.
 Each effect accumulates contributions from all flows at each timestep:
 
 \[
-\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f \in \mathcal{F}} c_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{direct flow contributions}} + \underbrace{\sum_{j \in \mathcal{K}} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect contributions}} \quad \forall \, k, t
+\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f \in \mathcal{F}} \mathrm{c}_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{direct flow contributions}} + \underbrace{\sum_{j \in \mathcal{K}} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect contributions}} \quad \forall \, k, t
 \]
 
-The coefficient \(c_{f,k,t}\) specifies how much of effect \(k\) is produced per
+The coefficient \(\mathrm{c}_{f,k,t}\) specifies how much of effect \(k\) is produced per
 flow-hour of flow \(f\) (e.g., €/MWh for cost, kg/MWh for emissions).
 
 The cross-effect factor \(\alpha_{k,j,t}\) can be time-varying or constant
@@ -87,10 +87,10 @@ Contributions chain transitively. A PE → CO₂ → cost chain is modeled as:
 The total effect for each period \(p\) combines both domains:
 
 \[
-\Phi_{k,p} = \sum_{t \in \mathcal{T}} \Phi_{k,t,p}^{\text{temporal}} \cdot w_t + \Phi_{k,p}^{\text{lump}} \quad \forall \, k \in \mathcal{K}, \; p \in \mathcal{P}
+\Phi_{k,p} = \sum_{t \in \mathcal{T}} \Phi_{k,t,p}^{\text{temporal}} \cdot \mathrm{w}_t + \Phi_{k,p}^{\text{lump}} \quad \forall \, k \in \mathcal{K}, \; p \in \mathcal{P}
 \]
 
-Weights \(w_t\) allow scaling timesteps (e.g., a representative week scaled to a year).
+Weights \(\mathrm{w}_t\) allow scaling timesteps (e.g., a representative week scaled to a year).
 Single-period models drop the \(p\) index.
 
 ## Bounds
@@ -136,12 +136,12 @@ For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect_temporal[effect, time(, period)]` |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect_lump[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
-| \(c_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
+| \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
 | \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | `Effect.contribution_from` (TimeSeries) |
 | \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | `Effect.contribution_from` (scalar) |
 | \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
-| \(w_t\) | Timestep weight | weights |
+| \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | `Effect.maximum` |
 | \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | `Effect.minimum` |
 | \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | `Effect.maximum_per_period` |
@@ -172,7 +172,7 @@ CO₂ priced at 50 €/t into the cost effect:
 With \(\alpha_{\text{cost,co2}} = 50\), the per-timestep cost becomes:
 
 \[
-\Phi_{\text{cost},t} = c_{\text{cost}} \cdot P_t \cdot \Delta t + 50 \cdot \Phi_{\text{co2},t}
+\Phi_{\text{cost},t} = \mathrm{c}_{\text{cost}} \cdot P_t \cdot \Delta t + 50 \cdot \Phi_{\text{co2},t}
 \]
 
 The CO₂ total itself is **not** affected — `contribution_from` is one-directional.

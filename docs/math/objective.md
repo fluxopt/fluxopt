@@ -18,7 +18,7 @@ Without periods, the objective is simply:
 With periods \(p \in \mathcal{P}\), the objective weights each period's total effect:
 
 \[
-\min \; \sum_{p \in \mathcal{P}} \omega_{k^*,p} \cdot \left(\sum_t \Phi_{k^*,t,p}^{\text{temporal}} \cdot w_t + \Phi_{k^*,p}^{\text{lump}}\right)
+\min \; \sum_{p \in \mathcal{P}} \omega_{k^*,p} \cdot \left(\sum_t \Phi_{k^*,t,p}^{\text{temporal}} \cdot \mathrm{w}_t + \Phi_{k^*,p}^{\text{lump}}\right)
 \]
 
 - \(\omega_{k,p}\) defaults to the global `period_weights` (inferred from
@@ -32,14 +32,14 @@ flat weights for emissions).
 The total effect per period combines both domains:
 
 \[
-\Phi_{k(,p)} = \sum_{t \in \mathcal{T}} \Phi_{k,t(,p)}^{\text{temporal}} \cdot w_t + \Phi_{k(,p)}^{\text{lump}}
+\Phi_{k(,p)} = \sum_{t \in \mathcal{T}} \Phi_{k,t(,p)}^{\text{temporal}} \cdot \mathrm{w}_t + \Phi_{k(,p)}^{\text{lump}}
 \]
 
 The **temporal** domain accumulates flow contributions, running costs,
 startup costs, and cross-effect contributions per timestep:
 
 \[
-\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f} c_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{flow}} + \underbrace{\sum_{f} r_{f,k,t} \cdot \sigma_{f,t} \cdot \Delta t_t}_{\text{running}} + \underbrace{\sum_{f} u_{f,k,t} \cdot \tau^+_{f,t}}_{\text{startup}} + \underbrace{\sum_{j} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect}}
+\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f} \mathrm{c}_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{flow}} + \underbrace{\sum_{f} \mathrm{r}_{f,k,t} \cdot \sigma_{f,t} \cdot \Delta t_t}_{\text{running}} + \underbrace{\sum_{f} \mathrm{u}_{f,k,t} \cdot \tau^+_{f,t}}_{\text{startup}} + \underbrace{\sum_{j} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect}}
 \]
 
 The **lump** domain accumulates sizing costs, fixed costs, one-time costs, and cross-effect contributions:
@@ -56,10 +56,10 @@ full formulations of each term.
 | Symbol | Description | Reference |
 |---|---|---|
 | \(k^*\) | Objective effect | `optimize(objective_effects='cost')` |
-| \(c_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
+| \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | `Flow.effects_per_flow_hour` |
 | \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
-| \(w_t\) | Timestep weight | weights |
+| \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\omega_{k,p}\) | Period weight | `Effect.period_weights` (fallback: `Dims.period_weights`) |
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Temporal (per-timestep) effect variable | `effect--temporal[effect, time(, period)]` |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
@@ -73,7 +73,7 @@ See [Notation](notation.md) for the full symbol table.
 
 Consider a gas boiler over 3 timesteps (\(\Delta t = 1\,\text{h}\), \(w = 1\)):
 
-| \(t\) | \(P_{\text{gas},t}\) (MW) | \(c_{\text{gas,cost}}\) (€/MWh) | \(\Phi_{\text{cost},t}^{\text{temporal}}\) (€) |
+| \(t\) | \(P_{\text{gas},t}\) (MW) | \(\mathrm{c}_{\text{gas,cost}}\) (€/MWh) | \(\Phi_{\text{cost},t}^{\text{temporal}}\) (€) |
 |---|---|---|---|
 | 1 | 2.0 | 30 | \(30 \times 2.0 \times 1 = 60\) |
 | 2 | 3.0 | 30 | \(30 \times 3.0 \times 1 = 90\) |

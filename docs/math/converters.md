@@ -14,10 +14,10 @@ load-dependent heat-to-power ratios.
 Each conversion equation enforces a linear coupling between flows:
 
 \[
-\sum_{f} a_{f,i} \cdot P_{f,t} = 0 \quad \forall \, \text{converter}, \; i, \; t \in \mathcal{T}
+\sum_{f} \mathrm{a}_{f,i} \cdot P_{f,t} = 0 \quad \forall \, \text{converter}, \; i, \; t \in \mathcal{T}
 \]
 
-where \(a_{f,i}\) is the conversion coefficient for flow \(f\) in equation \(i\).
+where \(\mathrm{a}_{f,i}\) is the conversion coefficient for flow \(f\) in equation \(i\).
 A converter can have multiple equations (one per row in `conversion_factors`),
 allowing multi-output devices like CHP plants. Coefficients may also broadcast
 over \(t\) in the API — see [Indexing Convention](notation.md#indexing-convention).
@@ -26,7 +26,7 @@ over \(t\) in the API — see [Indexing Convention](notation.md#indexing-convent
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(a_{f,i}\) | Conversion coefficient | `Converter.conversion_factors` |
+| \(\mathrm{a}_{f,i}\) | Conversion coefficient | `Converter.conversion_factors` |
 | \(i\) | Equation index within a converter | row in `conversion_factors` |
 | \(P_{f,t}\) | Flow rate variable | `flow_rate[flow, time]` |
 
@@ -97,7 +97,7 @@ use the linear form with time-varying `conversion_factors`.)
 
 ### Formulation
 
-A `PiecewiseConversion` defines breakpoints \(b_{f,k}\) for each flow \(f\) at \(K\)
+A `PiecewiseConversion` defines breakpoints \(\mathrm{b}_{f,k}\) for each flow \(f\) at \(K\)
 piece-vertices \(k = 0, \dots, K-1\). At every timestep, a vector of
 non-negative interpolation weights \(\lambda_{k,t}\) selects the operating
 point on the curve:
@@ -113,7 +113,7 @@ For each curve flow \(f\), the rate is the corresponding weighted breakpoint
 sum:
 
 \[
-P_{f,t} \; \diamond_f \; \sum_{k} \lambda_{k,t} \cdot b_{f,k}
+P_{f,t} \; \diamond_f \; \sum_{k} \lambda_{k,t} \cdot \mathrm{b}_{f,k}
 \]
 
 where the relation \(\diamond_f \in \{=, \le, \ge\}\) is set per flow via the
@@ -139,7 +139,7 @@ When `PiecewiseConversion.status` is set, the curve is gated by a binary
 formulation:
 
 - All-equality curves: \(\delta = 0\) forces every \(\lambda\) to zero, which
-  pins all curve flows to \(b_{f,0}\) (typically zero).
+  pins all curve flows to \(\mathrm{b}_{f,0}\) (typically zero).
 - Inequality curves: \(\delta = 0\) drives the bounded side to zero; the
   output's own lower bound (default \(P_f \ge 0\)) closes the loop for
   non-negative outputs.
@@ -150,7 +150,7 @@ A separate envelope constraint scales the upper breakpoint by a per-timestep
 availability \(\alpha_t \in [0, 1]\):
 
 \[
-P_{f^{\star},t} \le \alpha_t \cdot b_{f^{\star},K-1} \cdot \delta_{c,t}
+P_{f^{\star},t} \le \alpha_t \cdot \mathrm{b}_{f^{\star},K-1} \cdot \delta_{c,t}
 \]
 
 where \(f^{\star}\) is the first flow in the curve.
@@ -159,7 +159,7 @@ where \(f^{\star}\) is the first flow in the curve.
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(b_{f,k}\) | Breakpoint values per flow | `PiecewiseConversion.points` |
+| \(\mathrm{b}_{f,k}\) | Breakpoint values per flow | `PiecewiseConversion.points` |
 | \(\lambda_{k,t}\) | Interpolation weights | linopy auxiliaries |
 | \(\diamond_f\) | Curve relation | tuple bound `'=='` / `'<='` / `'>='` |
 | \(\delta_{c,t}\) | On/off binary | `PiecewiseConversion.status` |
