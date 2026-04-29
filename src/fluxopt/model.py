@@ -517,7 +517,7 @@ class FlowSystem:
                 size_val = ds.size.sel(flow=fid).values
                 if np.isnan(size_val):  # pragma: no cover
                     # Defensive invariant check — callers (Storage.__post_init__, future
-                    # ConversionCurve) ensure governed flows are sized. Reaching this branch
+                    # PiecewiseConversion) ensure governed flows are sized. Reaching this branch
                     # means an invariant was violated upstream.
                     msg = f'Component {comp_id!r}: governed flow {fid!r} is unsized'
                     raise ValueError(msg)
@@ -900,9 +900,9 @@ class FlowSystem:
     def _create_piecewise_constraints(self) -> None:
         """Create piecewise-linear conversion constraints via linopy's piecewise API.
 
-        For each converter with ``ConversionCurve``: builds one
+        For each converter with ``PiecewiseConversion``: builds one
         ``add_piecewise_formulation`` call linking all curve flows through
-        shared interpolation weights. The optional ``ConversionCurve.status``
+        shared interpolation weights. The optional ``PiecewiseConversion.status``
         wires in the existing ``component_on`` binary as the ``active`` gate.
         Per-converter availability is enforced separately as
         ``flow_rate <= avail * max_bp * active``.

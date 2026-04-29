@@ -7,7 +7,7 @@ from fluxopt.elements import qualified_id
 from fluxopt.types import IdList
 
 if TYPE_CHECKING:
-    from fluxopt.elements import ConversionCurve, Flow
+    from fluxopt.elements import Flow, PiecewiseConversion
     from fluxopt.types import TimeSeries
 
 
@@ -45,9 +45,9 @@ class Converter:
 
     - **Linear** — ``conversion_factors=[{flow_short_id: a_f}, ...]``,
       one dict per equation; constraint ``sum_f(a_f * P_{f,t}) = 0``.
-    - **Piecewise** — ``conversion=ConversionCurve(...)``; the solver
+    - **Piecewise** — ``conversion=PiecewiseConversion(...)``; the solver
       interpolates between breakpoints, optionally with on/off via
-      ``ConversionCurve.status``.
+      ``PiecewiseConversion.status``.
 
     Args:
         id: Converter id.
@@ -62,7 +62,7 @@ class Converter:
     inputs: list[Flow] | IdList[Flow]
     outputs: list[Flow] | IdList[Flow]
     conversion_factors: list[dict[str, TimeSeries]] = field(default_factory=list)  # a_f
-    conversion: ConversionCurve | None = None
+    conversion: PiecewiseConversion | None = None
     _short_to_id: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -82,7 +82,7 @@ class Converter:
             unknown = curve_flows - set(self._short_to_id)
             if unknown:
                 msg = (
-                    f'Converter {self.id!r}: ConversionCurve references unknown flow short_ids '
+                    f'Converter {self.id!r}: PiecewiseConversion references unknown flow short_ids '
                     f'{sorted(unknown)}; known: {sorted(self._short_to_id)}'
                 )
                 raise ValueError(msg)
@@ -91,7 +91,7 @@ class Converter:
                     if f.status is not None:
                         msg = (
                             f'Converter {self.id!r}: flow {f.short_id!r} cannot have flow-level '
-                            f'status when ConversionCurve.status is set'
+                            f'status when PiecewiseConversion.status is set'
                         )
                         raise ValueError(msg)
 
