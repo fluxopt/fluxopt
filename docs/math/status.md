@@ -100,23 +100,11 @@ Maximum duration is enforced as an upper bound on the duration variable itself.
 Duration values are in **hours**. With sub-hourly timesteps (e.g., `dt=0.5`),
 a `min_uptime=2` means the unit must stay on for 4 consecutive timesteps.
 
-```python
-Status(min_uptime=3, max_uptime=8, min_downtime=2)
-```
-
 ### Previous Duration Carryover
 
 `Flow.prior_rates` provides the flow rates from timesteps **before** the
 optimization horizon. This lets the solver know the initial on/off state
 and how long the unit has been running or idle:
-
-```python
-# Unit was running at 80 MW in the previous timestep
-Flow('heat', size=100, status=Status(min_uptime=3), prior_rates=[80])
-
-# Unit was off in the previous 2 timesteps
-Flow('heat', size=100, status=Status(min_downtime=2), prior_rates=[0, 0])
-```
 
 The prior rates determine:
 
@@ -149,11 +137,6 @@ A per-hour cost while the unit is on, independent of the flow rate:
 
 where \(r_{f,k,t}\) is `Status.effects_per_running_hour[k]`.
 
-```python
-# 5 €/h while running (regardless of load)
-Flow('heat', size=100, status=Status(effects_per_running_hour={'cost': 5}))
-```
-
 ### Startup Costs
 
 A one-time cost charged each time the unit switches from off to on:
@@ -163,11 +146,6 @@ A one-time cost charged each time the unit switches from off to on:
 \]
 
 where \(u_{f,k,t}\) is `Status.effects_per_startup[k]`.
-
-```python
-# 50 € per startup event
-Flow('heat', size=100, status=Status(effects_per_startup={'cost': 50}))
-```
 
 Both feed into the [per-timestep effect equation](effects.md).
 

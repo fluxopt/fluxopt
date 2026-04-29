@@ -69,34 +69,12 @@ or a `TimeSeries`:
   (`cf_temporal.mean('time')` in `model.py`). A `UserWarning` is emitted when
   a time-varying factor is averaged for a non-trivial lump contribution.
 
-```python
-# Scalar: 50 €/kg CO2 in both domains
-effects = [
-    Effect('cost', contribution_from={'co2': 50}),
-    Effect('co2', unit='kg'),
-]
-
-# Time-varying factor
-effects = [
-    Effect('cost', contribution_from={'co2': [40, 50, 60]}),
-    Effect('co2', unit='kg'),
-]
-```
-
 If you need different cross-effect factors for the two domains, split into
 separate effects.
 
 ### Transitive Chains
 
 Contributions chain transitively. A PE → CO₂ → cost chain is modeled as:
-
-```python
-effects = [
-    Effect('cost', contribution_from={'co2': 50}),
-    Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
-    Effect('pe', unit='kWh'),
-]
-```
 
 ### Validation
 
@@ -139,14 +117,6 @@ typically encode the period duration so the aggregate is a true physical sum.
 
 This is useful for emission caps or budget constraints:
 
-```python
-# CO2 budget: max 1000 kg total
-co2 = Effect('co2', unit='kg', maximum=1000)
-
-# Cost floor (e.g., minimum revenue)
-revenue = Effect('revenue', minimum=500)
-```
-
 ## Per-Hour Bounds
 
 The per-hour bounds are **rates** (e.g., kg/h, €/h) that scale with the timestep
@@ -158,14 +128,6 @@ duration \(\Delta t_t\). This ensures the constraint is resolution-independent:
 
 For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
 400 kg of emissions in that timestep:
-
-```python
-# Max 50 kg CO2 per hour — allows 200 kg in a 4h timestep
-co2 = Effect('co2', unit='kg', maximum_per_hour=50)
-
-# Time-varying per-hour bound
-co2 = Effect('co2', unit='kg', maximum_per_hour=[50, 40, 60, 50])
-```
 
 ## Parameters
 
@@ -196,18 +158,7 @@ See [Notation](notation.md) for the full symbol table.
 
 A system with two effects — cost (objective) and CO₂ (capped at 1000 kg):
 
-```python
-effects = [
-    Effect("cost", unit="€"),
-    Effect("CO2", unit="kg", maximum=1000),
-]
-```
-
 A gas flow with both effect coefficients:
-
-```python
-gas_flow = Flow("gas", bus="gas_bus", effects_per_flow_hour={"cost": 30, "CO2": 0.2})
-```
 
 At timestep \(t\) with \(P_{\text{gas},t} = 5\) MW and \(\Delta t = 1\) h:
 
@@ -217,13 +168,6 @@ At timestep \(t\) with \(P_{\text{gas},t} = 5\) MW and \(\Delta t = 1\) h:
 ### Carbon pricing via `contribution_from`
 
 CO₂ priced at 50 €/t into the cost effect:
-
-```python
-effects = [
-    Effect("cost", contribution_from={"co2": 50}),
-    Effect("co2", unit="kg"),
-]
-```
 
 With \(\alpha_{\text{cost,co2}} = 50\), the per-timestep cost becomes:
 

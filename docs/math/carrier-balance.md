@@ -74,16 +74,5 @@ Node A's supply serves only node A's demand. Node B is balanced independently.
 
 ### Usage
 
-```python
-from fluxopt import Flow, Port
-
-# Flows declare their node
-supply_a = Flow('heat', node='A', size=100)
-demand_a = Flow('heat', node='A', size=100, fixed_relative_profile=[0.5])
-
-supply_b = Flow('heat', node='B', size=100)
-demand_b = Flow('heat', node='B', size=100, fixed_relative_profile=[0.8])
-```
-
 The flow id auto-includes the node: `Flow('heat', node='A')` gets `id='heat:A'`,
 which qualifies to `src_a(heat:A)` after component qualification.

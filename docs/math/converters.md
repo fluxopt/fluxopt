@@ -38,11 +38,6 @@ A gas boiler with thermal efficiency \(\eta_{\text{th}} = 0.9\):
 
 So 10 MW gas input produces 9 MW thermal output.
 
-```python
-Converter.boiler("boiler", thermal_efficiency=0.9, fuel_flow=gas, thermal_flow=th)
-# conversion_factors = [{gas.id: 0.9, th.id: -1}]
-```
-
 ### Power-to-Heat
 
 An electric resistance heater with efficiency \(\eta = 0.99\):
@@ -50,11 +45,6 @@ An electric resistance heater with efficiency \(\eta = 0.99\):
 \[
 \eta \cdot P_{\text{el},t} - P_{\text{th},t} = 0
 \]
-
-```python
-Converter.power2heat("p2h", efficiency=0.99, electrical_flow=el, thermal_flow=th)
-# conversion_factors = [{el.id: 0.99, th.id: -1}]
-```
 
 ### Heat Pump
 
@@ -72,11 +62,6 @@ P_{\text{el},t} + P_{\text{src},t} - P_{\text{th},t} = 0
 So 1 MW electrical input draws 2.5 MW from the environment and produces
 3.5 MW thermal output.
 
-```python
-Converter.heat_pump("hp", cop=3.5, electrical_flow=el, source_flow=src, thermal_flow=th)
-# conversion_factors = [{el.id: 3.5, th.id: -1}, {el.id: 1, src.id: 1, th.id: -1}]
-```
-
 ### CHP (Combined Heat and Power)
 
 A CHP with \(\eta_{\text{el}} = 0.4\) and \(\eta_{\text{th}} = 0.5\) has **two**
@@ -92,32 +77,10 @@ conversion equations:
 
 So 10 MW fuel input produces 4 MW electrical + 5 MW thermal.
 
-```python
-Converter.chp("chp", eta_el=0.4, eta_th=0.5,
-                     fuel_flow=fuel, electrical_flow=el, thermal_flow=th)
-# conversion_factors = [
-#     {fuel.id: 0.4, el.id: -1},
-#     {fuel.id: 0.5, th.id: -1},
-# ]
-```
-
 ### Custom Equations
 
 For devices not covered by factory methods, pass `conversion_factors` directly.
 Each dict in the list is one equation, mapping flow short ids to coefficients:
-
-```python
-in1 = Flow('a', size=100)
-in2 = Flow('b', size=100)
-out = Flow('c', size=100)
-
-conv = Converter(
-    id='custom',
-    inputs=[in1, in2],
-    outputs=[out],
-    conversion_factors=[{'a': 0.5, 'b': 0.3, 'c': -1}],
-)
-```
 
 This enforces: \(0.5 \cdot P_a + 0.3 \cdot P_b - P_c = 0\).
 
@@ -125,11 +88,6 @@ This enforces: \(0.5 \cdot P_a + 0.3 \cdot P_b - P_c = 0\).
 
 Conversion coefficients can be time-varying (e.g., a heat pump with hourly COP from
 weather data). Pass a list or array instead of a scalar:
-
-```python
-cop_profile = [3.2, 3.5, 3.8, 3.1]  # one value per timestep
-Converter.heat_pump("hp", cop=cop_profile, electrical_flow=el, source_flow=src, thermal_flow=th)
-```
 
 # Piecewise Conversion
 
@@ -214,35 +172,10 @@ where \(f^{\star}\) is the first flow in the curve.
 A gas boiler runs at 90% efficiency between 0 and 50 MW (slope 0.9), then drops
 to 50% efficiency from 50 to 100 MW (slope 0.5):
 
-```python
-Converter(
-    'Boiler',
-    inputs=[Flow('Gas', short_id='fuel')],
-    outputs=[Flow('Heat', size=100)],
-    conversion=PiecewiseConversion({
-        'fuel': [0, 50, 100],
-        'Heat': [0, 45, 70],
-    }),
-)
-```
-
 ### CHP with joint N-flow curve
 
 A CHP plant with three flows linked by shared interpolation weights — every
 operating point lies on the same piece of the curve:
-
-```python
-Converter(
-    'CHP',
-    inputs=[Flow('Gas', short_id='fuel')],
-    outputs=[Flow('Power', size=100), Flow('Heat', size=100)],
-    conversion=PiecewiseConversion({
-        'fuel':  [0, 30, 60, 100],
-        'Power': [0, 10, 22,  40],
-        'Heat':  [0, 15, 30,  45],
-    }),
-)
-```
 
 ### Convex curve via LP fast path
 
@@ -250,31 +183,4 @@ A monotonic-convex fuel curve (efficiency drops at high load) with an
 inequality bound — solver picks `method='lp'` automatically and uses pure
 tangent-line constraints (no SOS2 binaries):
 
-```python
-Converter(
-    'Boiler',
-    inputs=[Flow('Gas', short_id='fuel')],
-    outputs=[Flow('Heat', size=100)],
-    conversion=PiecewiseConversion(
-        [
-            ('Heat', [0, 30, 60, 100]),
-            ('fuel', [0, 36, 84, 170], '>='),
-        ],
-        method='auto',
-    ),
-)
-```
-
 ### With on/off and startup costs
-
-```python
-Converter(
-    'Boiler',
-    inputs=[Flow('Gas', short_id='fuel')],
-    outputs=[Flow('Heat', size=100)],
-    conversion=PiecewiseConversion(
-        {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
-        status=Status(min_uptime=3, effects_per_startup={'cost': 50}),
-    ),
-)
-```
