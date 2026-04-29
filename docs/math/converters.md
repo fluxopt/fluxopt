@@ -1,9 +1,11 @@
 # Converters
 
 A `Converter` couples its input and output flows. fluxopt offers two
-conversion modes: a **linear** form (constant coefficients per equation)
-and a **piecewise-linear** form (`PiecewiseConversion`) for part-load
-efficiency, varying COP, or non-constant heat-to-power ratios.
+conversion modes: a **linear** form (coefficients fixed against the
+operating point — they may still vary in time) and a
+**piecewise-linear** form (`PiecewiseConversion`) for behaviour that
+depends on the operating point itself — part-load efficiency curves,
+load-dependent heat-to-power ratios.
 
 ## Linear Conversion
 
@@ -12,7 +14,7 @@ efficiency, varying COP, or non-constant heat-to-power ratios.
 Each conversion equation enforces a linear coupling between flows:
 
 \[
-\sum_{f} a_{f} \cdot P_{f,t} = 0 \quad \forall \, \text{converter}, \; \text{eq\_idx}, \; t \in \mathcal{T}
+\sum_{f} a_{f} \cdot P_{f,t} = 0 \quad \forall \, \text{conversion equation}, \; t \in \mathcal{T}
 \]
 
 where \(a_f\) is the conversion coefficient for flow \(f\). A converter can have
@@ -86,9 +88,11 @@ So 10 MW fuel input produces 4 MW electrical + 5 MW thermal.
 
 ## Piecewise Conversion
 
-For non-linear efficiency curves, varying COP, part-load behaviour, or
-combined-heat-and-power with non-constant ratios, set `conversion=PiecewiseConversion(...)`
-on the `Converter` instead of `conversion_factors`.
+When efficiency or coupling depends on the **operating point itself** —
+part-load curves, load-dependent heat-to-power ratios — set
+`conversion=PiecewiseConversion(...)` on the `Converter` instead of
+`conversion_factors`. (For coefficients that vary with *time but not load*,
+use the linear form with time-varying `conversion_factors`.)
 
 ### Formulation
 

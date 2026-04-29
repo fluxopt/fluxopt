@@ -75,7 +75,7 @@ Investment costs contribute to effect totals. For each effect \(k\):
 Cost proportional to the invested size (e.g. €/MW):
 
 \[
-\Phi_k^{\text{invest,per\_size}} = \sum_{f} \gamma_{f,k} \cdot S_f + \sum_{s} \gamma_{s,k} \cdot S_s
+\Phi_k^{\text{invest,perSize}} = \sum_{f} \gamma_{f,k} \cdot S_f + \sum_{s} \gamma_{s,k} \cdot S_s
 \]
 
 where \(\gamma_{f,k}\) is `Sizing.effects_per_size[k]`.
@@ -96,7 +96,7 @@ where \(\phi_{f,k}\) is `Sizing.effects_fixed[k]`. Only applies when
 The direct investment contribution to effect \(k\) is:
 
 \[
-\Phi_k^{\text{invest}} = \Phi_k^{\text{invest,per\_size}} + \Phi_k^{\text{invest,fixed}}
+\Phi_k^{\text{invest}} = \Phi_k^{\text{invest,perSize}} + \Phi_k^{\text{invest,fixed}}
 \]
 
 This feeds into the [effect total](effects.md) equation and can be further

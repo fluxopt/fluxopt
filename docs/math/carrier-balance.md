@@ -38,7 +38,7 @@ See [Notation](notation.md) for the full symbol table.
 A thermal carrier with a boiler output (3 MW) and a demand input (3 MW):
 
 \[
-\underbrace{P_{\text{boiler\_th},t}}_{+1 \times 3} + \underbrace{(-1) \cdot P_{\text{demand},t}}_{-1 \times 3} = 0 \quad \checkmark
+\underbrace{P_{\text{boilerHeat},t}}_{+1 \times 3} + \underbrace{(-1) \cdot P_{\text{demand},t}}_{-1 \times 3} = 0 \quad \checkmark
 \]
 
 ## Multi-Node Carriers
@@ -65,8 +65,8 @@ Two independent heat nodes A and B, each with its own supply and demand:
 
 \[
 \begin{aligned}
-\text{Node A:}\quad & P_{\text{src\_a(heat:A)},t} - P_{\text{sink\_a(heat:A)},t} = 0 \\
-\text{Node B:}\quad & P_{\text{src\_b(heat:B)},t} - P_{\text{sink\_b(heat:B)},t} = 0
+\text{Node A:}\quad & P_{\text{srcA(heat:A)},t} - P_{\text{sinkA(heat:A)},t} = 0 \\
+\text{Node B:}\quad & P_{\text{srcB(heat:B)},t} - P_{\text{sinkB(heat:B)},t} = 0
 \end{aligned}
 \]
 
