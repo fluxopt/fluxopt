@@ -5,10 +5,10 @@ from fluxopt.components import Converter, Port
 from fluxopt.elements import (
     PENALTY_EFFECT_ID,
     Carrier,
-    ConversionCurve,
     Effect,
     Flow,
     Investment,
+    PiecewiseConversion,
     Sizing,
     Status,
     Storage,
@@ -76,7 +76,6 @@ def optimize(
 __all__ = [
     'PENALTY_EFFECT_ID',
     'Carrier',
-    'ConversionCurve',
     'Converter',
     'Dims',
     'Effect',
@@ -85,6 +84,7 @@ __all__ = [
     'IdList',
     'Investment',
     'ModelData',
+    'PiecewiseConversion',
     'Port',
     'Result',
     'Sizing',

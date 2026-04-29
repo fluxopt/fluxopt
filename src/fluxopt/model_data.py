@@ -824,7 +824,7 @@ class ConvertersData:
 
 @dataclass
 class PiecewiseData:
-    """Piecewise-linear conversion data for converters with ``ConversionCurve``.
+    """Piecewise-linear conversion data for converters with ``PiecewiseConversion``.
 
     Stored sparsely as one row per (converter, flow) pair; the ``method``
     and ``availability`` arrays index by ``pw_converter``.
@@ -865,7 +865,7 @@ class PiecewiseData:
 
     @classmethod
     def build(cls, converters: list[Converter], time: TimeIndex) -> Self | None:
-        """Build PiecewiseData from converters with ``ConversionCurve``.
+        """Build PiecewiseData from converters with ``PiecewiseConversion``.
 
         Args:
             converters: Converter definitions; only those with
@@ -939,11 +939,12 @@ class PiecewiseData:
             all_flows_zero = is_zero.isel(pw_pair=mask).all('pw_pair')  # (breakpoint, time)
             if bool(all_flows_zero.any().item()):
                 warnings.warn(
-                    f'ConversionCurve on converter {str(conv_id)!r} has Status, '
+                    f'PiecewiseConversion on converter {str(conv_id)!r} has Status, '
                     'but the curve includes a (0, ..., 0) breakpoint. The '
                     'optimizer can sit at zero with status=on, decoupling the '
-                    'binary from the actual operating state. If you want Status to work '
-                    'as expected, drop the zero breakpoints so the only way to '
+                    'binary from the actual operating state — Status features '
+                    'will not behave as expected. If you want Status to work '
+                    'as expected, drop the zero breakpoint so the only way to '
                     'produce zero is status=off.',
                     UserWarning,
                     stacklevel=4,

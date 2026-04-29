@@ -316,7 +316,7 @@ _CurveTuple = tuple[str, 'list[TimeSeries]'] | tuple[str, 'list[TimeSeries]', Li
 
 
 @dataclass
-class ConversionCurve:
+class PiecewiseConversion:
     """Piecewise-linear conversion linking N flows.
 
     Wraps :func:`linopy.piecewise.add_piecewise_formulation`. All flows
@@ -327,11 +327,11 @@ class ConversionCurve:
 
     - **Dict** — equality-only, terse for the common case::
 
-          ConversionCurve({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
+          PiecewiseConversion({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
 
     - **List of tuples** — supports per-flow inequality bounds::
 
-          ConversionCurve(
+          PiecewiseConversion(
               [
                   ('fuel', [0, 50, 100]),
                   ('Heat', [0, 45, 70], '>='),
@@ -363,28 +363,28 @@ class ConversionCurve:
         flows_pts_bounds = list(self._iter_normalized())
 
         if len(flows_pts_bounds) < 2:
-            msg = f'ConversionCurve needs >=2 flows, got {len(flows_pts_bounds)}'
+            msg = f'PiecewiseConversion needs >=2 flows, got {len(flows_pts_bounds)}'
             raise ValueError(msg)
 
         n = len(flows_pts_bounds[0][1])
         if n < 2:
-            msg = f'ConversionCurve needs >=2 breakpoints per flow, got {n}'
+            msg = f'PiecewiseConversion needs >=2 breakpoints per flow, got {n}'
             raise ValueError(msg)
 
         if any(len(pts) != n for _, pts, _ in flows_pts_bounds):
             lengths = {flow: len(pts) for flow, pts, _ in flows_pts_bounds}
-            msg = f'ConversionCurve breakpoint lists must all have the same length, got {lengths}'
+            msg = f'PiecewiseConversion breakpoint lists must all have the same length, got {lengths}'
             raise ValueError(msg)
 
         flows = [flow for flow, _, _ in flows_pts_bounds]
         if len(set(flows)) != len(flows):
             dupes = [f for f in flows if flows.count(f) > 1]
-            msg = f'ConversionCurve has duplicate flow ids: {sorted(set(dupes))}'
+            msg = f'PiecewiseConversion has duplicate flow ids: {sorted(set(dupes))}'
             raise ValueError(msg)
 
         nonequal = [b for _, _, b in flows_pts_bounds if b != '==']
         if len(nonequal) > 1:
-            msg = f'At most one bounded flow per ConversionCurve, got {len(nonequal)}'
+            msg = f'At most one bounded flow per PiecewiseConversion, got {len(nonequal)}'
             raise ValueError(msg)
         if nonequal and len(flows_pts_bounds) > 2:
             msg = f'Inequality bounds require exactly 2 flows, got {len(flows_pts_bounds)}'
@@ -405,10 +405,10 @@ class ConversionCurve:
                 result.append((t[0], list(t[1]), '=='))
             elif len(t) == 3:
                 if t[2] not in ('==', '<=', '>='):
-                    msg = f'ConversionCurve tuple {i} has invalid bound {t[2]!r}; expected one of (==, <=, >=)'
+                    msg = f'PiecewiseConversion tuple {i} has invalid bound {t[2]!r}; expected one of (==, <=, >=)'
                     raise ValueError(msg)
                 result.append((t[0], list(t[1]), t[2]))
             else:
-                msg = f'ConversionCurve tuple {i} has length {len(t)}; expected 2 or 3'
+                msg = f'PiecewiseConversion tuple {i} has length {len(t)}; expected 2 or 3'
                 raise ValueError(msg)
         return result
