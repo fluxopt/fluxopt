@@ -38,9 +38,16 @@ Each symbol maps to a specific field or variable in the code.
 
 **Variables** (the table above) are shown with **all** dimensions they
 live on. There's no broadcasting for decision variables — every
-\((\text{flow}, \text{time}, \ldots)\) cell is its own variable. The
-`(,p)` notation marks the period dim as optional (present in
-multi-period models, absent otherwise); scenarios would add `(,s)`.
+\((\text{flow}, \text{time}, \ldots)\) cell is its own variable.
+
+**Optional dims** — currently just period — exist in some models and
+not others. We mark them in parentheses, e.g. \(P_{f,t(,p)}\): the
+period subscript is *present* in multi-period models, *absent* in
+single-period ones. To keep formulas readable, constraint derivations
+that aren't specifically about multi-period dynamics drop the
+parenthetical and treat \(p\) as implicit context — the constraint
+applies pointwise across whichever optional dims happen to be in the
+model.
 
 **Parameters** are different. Symbol subscripts show only the indices
 the formulation **structurally requires** — the dims a constraint
@@ -51,11 +58,11 @@ into pyramids of subscripts.
 
 The broadcast hierarchy:
 
-- **Period (\(p\))** and **scenario** (when added) — almost every
-  parameter accepts these: even "scalar" things like \(\bar{P}_f\),
-  \(D^{\text{up,min}}\), or \(S^-\) become \(\bar{P}_{f,p}\) etc. in
-  multi-period models. Variables already reflect this in the table
-  above (e.g. \(P_{f,t(,p)}\)).
+- **Period (\(p\))** — almost every parameter accepts this: even
+  "scalar" things like \(\bar{P}_f\), \(D^{\text{up,min}}\), or
+  \(S^-\) become \(\bar{P}_{f,p}\) etc. in multi-period models.
+  Variables already reflect this in the table above (e.g.
+  \(P_{f,t(,p)}\)).
 - **Time (\(t\))** — only fields typed `TimeSeries` accept this: bounds
   \(\underline{p}_{f,t}, \bar{p}_{f,t}\), profiles \(\pi_{f,t}\),
   efficiencies \(\eta^c_s, \eta^d_s\), losses \(\delta_s\), conversion
