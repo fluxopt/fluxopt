@@ -21,27 +21,39 @@ Includes the [HiGHS](https://highs.dev/) solver out of the box.
 
 ## Quick Start
 
+<!--quickstart-start-->
 ```python
-from datetime import datetime, timedelta
+# A gas boiler covers a heat demand, minimizing fuel cost
+from datetime import datetime
+from fluxopt import Carrier, Converter, Effect, Flow, Port, optimize
 
-import fluxopt as fx
-
-timesteps = [datetime(2024, 1, 1) + timedelta(hours=i) for i in range(4)]
-
-result = fx.optimize(
-    timesteps=timesteps,
-    carriers=[fx.Carrier('electricity')],
-    effects=[fx.Effect('cost', is_objective=True)],
+result = optimize(
+    timesteps=[datetime(2024, 1, 1, h) for h in range(4)],
+    carriers=[Carrier('gas'), Carrier('heat')],
+    effects=[Effect('cost')],
     ports=[
-        fx.Port('grid', imports=[
-            fx.Flow('electricity', size=200, effects_per_flow_hour={'cost': 0.04}),
+        Port('grid', imports=[
+            Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
         ]),
-        fx.Port('demand', exports=[
-            fx.Flow('electricity', size=100, fixed_relative_profile=[0.5, 0.8, 1.0, 0.6]),
-        ]),
+        Port('demand', exports=[
+            Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+        ])
     ],
+    converters=[
+        Converter.boiler(
+            'boiler',
+            thermal_efficiency=0.9,
+            fuel_flow=Flow('gas', size=300),
+            thermal_flow=Flow('heat', size=200)
+        )
+    ],
+    objective_effects='cost',
 )
+
+print(f"Total cost: {result.objective:.2f}")
+print(result.flow_rates)
 ```
+<!--quickstart-end-->
 
 ## Roadmap
 
