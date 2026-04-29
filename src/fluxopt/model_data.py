@@ -926,10 +926,10 @@ class PiecewiseData:
         """Warn for converters where Status is set but the curve includes a
         (0, ..., 0) breakpoint at any (breakpoint, timestep) position.
 
-        Wherever an all-flows-zero breakpoint exists, the optimizer can sit
-        at zero with ``active=1`` already — the binary tracks startup events
-        for cost accounting at that timestep, but doesn't gate the operating
-        range.
+        When that's the case, the optimizer can sit at zero with ``active=1``,
+        so the on/off binary is decoupled from the actual operating state.
+        Startup tracking, ``min_uptime``, and ``effects_per_running_hour``
+        will not behave as expected.
         """
         atol = 1e-9
         is_zero = abs(self.breakpoints) <= atol  # (pw_pair, breakpoint, time)
@@ -941,12 +941,13 @@ class PiecewiseData:
             if bool(all_flows_zero.any().item()):
                 warnings.warn(
                     f'ConversionCurve on converter {str(conv_id)!r} has Status, '
-                    'but the curve includes a (0, ..., 0) breakpoint. Status '
-                    'will track startup events for cost accounting, but the '
-                    'binary does not gate the operating range — the optimizer '
-                    'can already produce zero by sitting at that breakpoint. '
-                    'Drop the zero breakpoint if you want Status to express '
-                    'off-vs-on.',
+                    'but the curve includes a (0, ..., 0) breakpoint. The '
+                    'optimizer can sit at zero with status=on, decoupling the '
+                    'binary from the actual operating state — so startup '
+                    'tracking, min_uptime, and effects_per_running_hour will '
+                    'not behave as expected. If you want Status to work as '
+                    'expected, drop the zero breakpoint so the only way to '
+                    'produce zero is status=off.',
                     UserWarning,
                     stacklevel=4,
                 )
