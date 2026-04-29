@@ -228,6 +228,47 @@ class TestAsDataArrayDataArray:
             as_dataarray(da, {'flow': pd.Index(['a', 'b'])})
 
 
+class TestAsDataArrayDataFrame:
+    def test_two_named_axes(self):
+        time = pd.RangeIndex(3, name='time')
+        period = pd.Index([2024, 2030], name='period')
+        df = pd.DataFrame([[10, 20], [11, 22], [12, 24]], index=time, columns=period)
+        result = as_dataarray(df, {'time': time, 'period': period})
+        assert result.dims == ('time', 'period')
+        assert result.shape == (3, 2)
+        np.testing.assert_array_equal(result.values, df.values.astype(float))
+
+    def test_unnamed_axis_raises(self):
+        df = pd.DataFrame([[1.0, 2.0], [3.0, 4.0]])  # no index/columns names
+        with pytest.raises(ValueError, match=r'axis\.name'):
+            as_dataarray(df, {'time': pd.RangeIndex(2), 'period': pd.Index([2024, 2030])})
+
+    def test_foreign_dim_raises(self):
+        time = pd.RangeIndex(2, name='time')
+        bad = pd.Index(['a', 'b'], name='flow')
+        df = pd.DataFrame([[1.0, 2.0], [3.0, 4.0]], index=time, columns=bad)
+        with pytest.raises(ValueError, match='not in target coords'):
+            as_dataarray(df, {'time': time, 'period': pd.Index([2024, 2030], name='period')})
+
+    def test_coord_mismatch_raises(self):
+        time = pd.RangeIndex(2, name='time')
+        period_user = pd.Index([2024, 2030], name='period')
+        period_model = pd.Index([2025, 2030], name='period')
+        df = pd.DataFrame([[1.0, 2.0], [3.0, 4.0]], index=time, columns=period_user)
+        with pytest.raises(ValueError, match='Coord mismatch'):
+            as_dataarray(df, {'time': time, 'period': period_model})
+
+
+class TestAsDataArrayMultiPeriod:
+    """Length-based disambiguation when multiple coords have equal length."""
+
+    def test_unnamed_1d_prefers_time(self):
+        time = pd.RangeIndex(2, name='time')
+        period = pd.Index([2024, 2030], name='period')
+        result = as_dataarray([10.0, 20.0], {'time': time, 'period': period}, broadcast=False)
+        assert result.dims == ('time',)
+
+
 class TestAsDataArrayUnsupported:
     def test_dict_raises(self):
         with pytest.raises(TypeError, match='Unsupported'):

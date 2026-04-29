@@ -1,6 +1,7 @@
 """Mathematical correctness tests for multi-period optimization."""
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 from conftest import ts
@@ -56,6 +57,41 @@ class TestMultiPeriod:
     @pytest.mark.skip(reason='multi-period over-period constraints not yet implemented')
     def test_effect_minimum_over_periods(self, optimize):
         """Proves: Effect.minimum_over_periods forces minimum weighted total."""
+
+    def test_period_varying_demand_via_dataframe(self, optimize):
+        """Proves: fixed_relative_profile accepts (time, period) DataFrame.
+
+        Demand grows across periods: 10 MW in 2020, 20 MW in 2025.
+        Grid cost = 1 [unit/MWh]. Period weights = [1, 1].
+        Per-period cost: 2020→10*3=30, 2025→20*3=60. Total = 90.
+        """
+        timesteps = ts(3)
+        time_idx = pd.DatetimeIndex(timesteps, name='time')
+        periods = pd.Index([2020, 2025], name='period')
+        demand = pd.DataFrame(
+            np.array([[10, 20], [10, 20], [10, 20]], dtype=float),
+            index=time_idx,
+            columns=periods,
+        )
+        result = optimize(
+            timesteps=timesteps,
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port(
+                    'Demand',
+                    exports=[Flow('Heat', size=1, fixed_relative_profile=demand)],
+                ),
+                Port(
+                    'Grid',
+                    imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})],
+                ),
+            ],
+            periods=list(periods),
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 90.0, rtol=1e-5)
 
     def test_period_varying_effects_per_flow_hour(self, optimize):
         """Proves: effects_per_flow_hour with period dim produces period-specific costs.
