@@ -9,54 +9,54 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, ConversionCurve, Converter, Effect, Flow, Port, Status
+from fluxopt import Carrier, Converter, Effect, Flow, PiecewiseConversion, Port, Status
 
 from .conftest import ts
 
 
-class TestConversionCurveValidation:
+class TestPiecewiseConversionValidation:
     def test_dict_form(self):
-        c = ConversionCurve({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
+        c = PiecewiseConversion({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
         normalized = c._iter_normalized()
         assert [t[0] for t in normalized] == ['fuel', 'Heat']
         assert all(t[2] == '==' for t in normalized)
 
     def test_tuple_form_with_bound(self):
-        c = ConversionCurve([('fuel', [0, 50, 100]), ('Heat', [0, 45, 70], '>=')])
+        c = PiecewiseConversion([('fuel', [0, 50, 100]), ('Heat', [0, 45, 70], '>=')])
         normalized = c._iter_normalized()
         assert normalized[1][2] == '>='
 
     def test_needs_two_flows(self):
         with pytest.raises(ValueError, match='>=2 flows'):
-            ConversionCurve({'fuel': [0, 1, 2]})
+            PiecewiseConversion({'fuel': [0, 1, 2]})
 
     def test_equal_lengths(self):
         with pytest.raises(ValueError, match='same length'):
-            ConversionCurve({'A': [0, 1, 2], 'B': [0, 1]})
+            PiecewiseConversion({'A': [0, 1, 2], 'B': [0, 1]})
 
     def test_needs_two_breakpoints(self):
         with pytest.raises(ValueError, match='>=2 breakpoints'):
-            ConversionCurve({'A': [0], 'B': [0]})
+            PiecewiseConversion({'A': [0], 'B': [0]})
 
     def test_at_most_one_bound(self):
         with pytest.raises(ValueError, match='At most one bounded flow'):
-            ConversionCurve(
+            PiecewiseConversion(
                 [('A', [0, 1], '<='), ('B', [0, 1], '>=')],
             )
 
     def test_inequality_requires_two_flows(self):
         with pytest.raises(ValueError, match='Inequality bounds require exactly 2 flows'):
-            ConversionCurve(
+            PiecewiseConversion(
                 [('A', [0, 1], '>='), ('B', [0, 1]), ('C', [0, 1])],
             )
 
     def test_lp_requires_bound(self):
         with pytest.raises(ValueError, match="method='lp' requires"):
-            ConversionCurve({'A': [0, 1], 'B': [0, 1]}, method='lp')
+            PiecewiseConversion({'A': [0, 1], 'B': [0, 1]}, method='lp')
 
     def test_no_duplicate_flows(self):
         with pytest.raises(ValueError, match='duplicate flow'):
-            ConversionCurve([('A', [0, 1]), ('A', [0, 2])])
+            PiecewiseConversion([('A', [0, 1]), ('A', [0, 2])])
 
 
 class TestConverterPiecewiseValidation:
@@ -67,7 +67,7 @@ class TestConverterPiecewiseValidation:
                 inputs=[Flow('A', short_id='a')],
                 outputs=[Flow('B')],
                 conversion_factors=[{'a': 1, 'B': -1}],
-                conversion=ConversionCurve({'a': [0, 1], 'B': [0, 1]}),
+                conversion=PiecewiseConversion({'a': [0, 1], 'B': [0, 1]}),
             )
 
     def test_unknown_flow_in_curve(self):
@@ -76,7 +76,7 @@ class TestConverterPiecewiseValidation:
                 'X',
                 inputs=[Flow('A', short_id='a')],
                 outputs=[Flow('B')],
-                conversion=ConversionCurve({'a': [0, 1], 'C': [0, 1]}),
+                conversion=PiecewiseConversion({'a': [0, 1], 'C': [0, 1]}),
             )
 
     def test_flow_status_forbidden_with_curve_status(self):
@@ -85,13 +85,13 @@ class TestConverterPiecewiseValidation:
                 'X',
                 inputs=[Flow('A', short_id='a')],
                 outputs=[Flow('B', size=10, relative_minimum=0.1, status=Status())],
-                conversion=ConversionCurve({'a': [0, 1], 'B': [0, 1]}, status=Status()),
+                conversion=PiecewiseConversion({'a': [0, 1], 'B': [0, 1]}, status=Status()),
             )
 
 
 class TestPiecewise:
     def test_two_flow_interpolation(self, optimize):
-        """A 2-flow ConversionCurve interpolates the output linearly between breakpoints.
+        """A 2-flow PiecewiseConversion interpolates the output linearly between breakpoints.
 
         Boiler has efficiency 90% in [0,50] (slope 0.9) and 50% in [50,100]
         (slope 0.5). Demand=5 hits the cheap segment: fuel = 5 / 0.9.
@@ -110,7 +110,7 @@ class TestPiecewise:
                     'Boiler',
                     inputs=[Flow('Gas', short_id='fuel')],
                     outputs=[Flow('Heat', size=100)],
-                    conversion=ConversionCurve({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]}),
+                    conversion=PiecewiseConversion({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]}),
                 ),
             ],
         )
@@ -144,7 +144,7 @@ class TestPiecewise:
                         'Boiler',
                         inputs=[Flow('Gas', short_id='fuel')],
                         outputs=[Flow('Heat', size=100)],
-                        conversion=ConversionCurve({'fuel': [0, 30, 100], 'Heat': [0, 30, 70]}),
+                        conversion=PiecewiseConversion({'fuel': [0, 30, 100], 'Heat': [0, 30, 70]}),
                     ),
                 ],
             )
@@ -176,7 +176,7 @@ class TestPiecewise:
                     'CHP',
                     inputs=[Flow('Gas', short_id='fuel')],
                     outputs=[Flow('Power', size=100), Flow('Heat', size=100)],
-                    conversion=ConversionCurve(
+                    conversion=PiecewiseConversion(
                         {
                             'fuel': [0, 30, 60, 100],
                             'Power': [0, 10, 22, 40],
@@ -211,7 +211,7 @@ class TestPiecewise:
                     'Boiler',
                     inputs=[Flow('Gas', short_id='fuel')],
                     outputs=[Flow('Heat', size=100)],
-                    conversion=ConversionCurve(
+                    conversion=PiecewiseConversion(
                         {
                             'fuel': [np.array([0.0, 0.0]), bp_max_fuel],
                             'Heat': [np.array([0.0, 0.0]), bp_max_heat],
@@ -227,7 +227,7 @@ class TestPiecewise:
 
 class TestPiecewiseStatus:
     def test_status_gates_curve(self, optimize):
-        """ConversionCurve.status forces all curve flows to 0 when on=0."""
+        """PiecewiseConversion.status forces all curve flows to 0 when on=0."""
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('Gas'), Carrier('Heat')],
@@ -242,7 +242,7 @@ class TestPiecewiseStatus:
                     'Boiler',
                     inputs=[Flow('Gas', short_id='fuel')],
                     outputs=[Flow('Heat', size=100)],
-                    conversion=ConversionCurve(
+                    conversion=PiecewiseConversion(
                         {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
                         status=Status(effects_per_startup={'cost': 1000}),
                     ),
@@ -279,7 +279,7 @@ class TestPiecewiseStatus:
                     'Boiler',
                     inputs=[Flow('Gas', short_id='fuel')],
                     outputs=[Flow('Heat', size=100)],
-                    conversion=ConversionCurve(
+                    conversion=PiecewiseConversion(
                         {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
                         status=Status(effects_per_running_hour={'cost': 100}),
                     ),

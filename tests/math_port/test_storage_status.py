@@ -1,6 +1,6 @@
 """Mathematical correctness tests for Storage component-level Status.
 
-Component-level Status on Converter is deferred — when ConversionCurve lands
+Component-level Status on Converter is deferred — when PiecewiseConversion lands
 (see #25), it will provide a more versatile, single-API path that subsumes
 linear converter on/off.
 """

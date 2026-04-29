@@ -823,7 +823,7 @@ class ConvertersData:
 
 @dataclass
 class PiecewiseData:
-    """Piecewise-linear conversion data for converters with ``ConversionCurve``.
+    """Piecewise-linear conversion data for converters with ``PiecewiseConversion``.
 
     Stored sparsely as one row per (converter, flow) pair; the ``method``
     and ``availability`` arrays index by ``pw_converter``.
@@ -864,7 +864,7 @@ class PiecewiseData:
 
     @classmethod
     def build(cls, converters: list[Converter], time: TimeIndex) -> Self | None:
-        """Build PiecewiseData from converters with ``ConversionCurve``.
+        """Build PiecewiseData from converters with ``PiecewiseConversion``.
 
         Args:
             converters: Converter definitions; only those with

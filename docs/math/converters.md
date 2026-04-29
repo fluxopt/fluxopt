@@ -134,12 +134,12 @@ Converter.heat_pump("hp", cop=cop_profile, electrical_flow=el, source_flow=src, 
 # Piecewise Conversion
 
 For non-linear efficiency curves, varying COP, part-load behaviour, or
-combined-heat-and-power with non-constant ratios, set `conversion=ConversionCurve(...)`
+combined-heat-and-power with non-constant ratios, set `conversion=PiecewiseConversion(...)`
 on the `Converter` instead of `conversion_factors`.
 
 ## Formulation
 
-A `ConversionCurve` defines breakpoints \(b_{f,k}\) for each flow \(f\) at \(K\)
+A `PiecewiseConversion` defines breakpoints \(b_{f,k}\) for each flow \(f\) at \(K\)
 piece-vertices \(k = 0, \dots, K-1\). At every timestep, a vector of
 non-negative interpolation weights \(\lambda_{k,t}\) selects the operating
 point on the curve:
@@ -176,7 +176,7 @@ Override with `method="sos2"` / `"incremental"` / `"lp"` if needed.
 
 ## Status gating
 
-When `ConversionCurve.status` is set, the curve is gated by a binary
+When `PiecewiseConversion.status` is set, the curve is gated by a binary
 \(\delta_{c,t}\) (see [Status](status.md)) passed as `active=` to the linopy
 formulation:
 
@@ -201,11 +201,11 @@ where \(f^{\star}\) is the first flow in the curve.
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(b_{f,k}\) | Breakpoint values per flow | `ConversionCurve.points` |
+| \(b_{f,k}\) | Breakpoint values per flow | `PiecewiseConversion.points` |
 | \(\lambda_{k,t}\) | Interpolation weights | linopy auxiliaries |
 | \(\diamond_f\) | Curve relation | tuple bound `'=='` / `'<='` / `'>='` |
-| \(\delta_{c,t}\) | On/off binary | `ConversionCurve.status` |
-| \(\alpha_t\) | Availability scaling | `ConversionCurve.availability` |
+| \(\delta_{c,t}\) | On/off binary | `PiecewiseConversion.status` |
+| \(\alpha_t\) | Availability scaling | `PiecewiseConversion.availability` |
 
 ## Examples
 
@@ -219,7 +219,7 @@ Converter(
     'Boiler',
     inputs=[Flow('Gas', short_id='fuel')],
     outputs=[Flow('Heat', size=100)],
-    conversion=ConversionCurve({
+    conversion=PiecewiseConversion({
         'fuel': [0, 50, 100],
         'Heat': [0, 45, 70],
     }),
@@ -236,7 +236,7 @@ Converter(
     'CHP',
     inputs=[Flow('Gas', short_id='fuel')],
     outputs=[Flow('Power', size=100), Flow('Heat', size=100)],
-    conversion=ConversionCurve({
+    conversion=PiecewiseConversion({
         'fuel':  [0, 30, 60, 100],
         'Power': [0, 10, 22,  40],
         'Heat':  [0, 15, 30,  45],
@@ -255,7 +255,7 @@ Converter(
     'Boiler',
     inputs=[Flow('Gas', short_id='fuel')],
     outputs=[Flow('Heat', size=100)],
-    conversion=ConversionCurve(
+    conversion=PiecewiseConversion(
         [
             ('Heat', [0, 30, 60, 100]),
             ('fuel', [0, 36, 84, 170], '>='),
@@ -272,7 +272,7 @@ Converter(
     'Boiler',
     inputs=[Flow('Gas', short_id='fuel')],
     outputs=[Flow('Heat', size=100)],
-    conversion=ConversionCurve(
+    conversion=PiecewiseConversion(
         {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
         status=Status(min_uptime=3, effects_per_startup={'cost': 50}),
     ),
