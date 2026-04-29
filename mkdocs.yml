@@ -158,6 +158,15 @@ plugins:
 extra_css:
   - stylesheets/extra.css
 
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/FBumann/fluxopt
+      name: fluxopt on GitHub
+    - icon: simple/pypi
+      link: https://pypi.org/project/fluxopt/
+      name: fluxopt on PyPI
+
 extra_javascript:
   - javascripts/mathjax.js
   - javascripts/notebook-prompts.js
