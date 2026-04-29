@@ -11,8 +11,9 @@ nav:
     - 2. Storage: notebooks/02-storage.ipynb
     - 3. Status: notebooks/03-status.ipynb
     - 4. Piecewise: notebooks/04-piecewise.ipynb
-    - 5. Sizing: notebooks/05-sizing.ipynb
-    - 6. Multi-Period & Investment: notebooks/06-multi-period.ipynb
+    - 5. Effects: notebooks/05-effects.ipynb
+    - 6. Sizing: notebooks/06-sizing.ipynb
+    - 7. Multi-Period & Investment: notebooks/07-multi-period.ipynb
   - Examples:
     - Heat System with Storage: notebooks/examples/heat-system.ipynb
     - Multi-Node Heat: notebooks/examples/multi-node-heat.ipynb
