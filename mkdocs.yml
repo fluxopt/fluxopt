@@ -5,6 +5,13 @@ repo_name: FBumann/fluxopt
 edit_uri: edit/main/docs/
 strict: true
 
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn
+
 nav:
   - Home: index.md
   - Tutorials:
