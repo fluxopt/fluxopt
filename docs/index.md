@@ -61,7 +61,7 @@ Energy system optimization with [linopy](https://github.com/PyPSA/linopy) — de
 
     ---
 
-    Lean core, optional companions for [plotting](https://fbumann.github.io/fluxopt-plot/latest/) and [YAML loading](https://fbumann.github.io/fluxopt-yaml/latest/).
+    Lean core, optional companions for [plotting](https://fbumann.github.io/fluxopt-plot/latest/), [YAML loading](https://fbumann.github.io/fluxopt-yaml/latest/), and (planned) interactive marimo apps.
 
 </div>
 
