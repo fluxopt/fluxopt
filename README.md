@@ -78,12 +78,12 @@ Companion packages depend on core — core has no knowledge of companions.
 |---------|------|-------------------|---------------|--------|
 | `fluxopt-plot` | Result visualization (Plotly) | Semver · Experimental — method signatures may change | Tight (`>=A.B,<A.C`), validated per release | Scaffolded — [docs](https://fbumann.github.io/fluxopt-plot/latest/) · [#51](https://github.com/FBumann/fluxopt/issues/51) |
 | `fluxopt-yaml` | Declarative model loader (YAML + CSV → `Element`s) | Semver · Experimental — YAML schema may change | Tight (`>=A.B,<A.C`), validated per release | Scaffolded — [docs](https://fbumann.github.io/fluxopt-yaml/latest/) · [#52](https://github.com/FBumann/fluxopt/issues/52) |
-| `fluxopt-tsam` | Time series aggregation — input pre-processing, possibly result disaggregation | Semver · Experimental — round-trip schema may evolve | **Undecided** — depends on whether period primitives live in core (→ loose) or in this package (→ tight) | Planned |
+| `fluxopt-tsam` | Time series aggregation — input pre-processing, possibly result disaggregation | Semver · Experimental — round-trip schema may evolve | **Undecided** — depends on whether representative-period primitives live in core (→ loose) or in this package (→ tight) | Planned |
 | `fluxopt-marimo` | Interactive exploration & dashboards (marimo apps) | CalVer (`YYYY.MM.PATCH`) · Experimental — apps are templates | Tight (`>=A.B,<A.C`), validated per release | Planned |
 
 Tight-pinned companions release on every `fluxopt` minor; validation is
 automated via scheduled CI. `fluxopt-tsam`'s pin policy is blocked on an
-architectural decision — if period primitives live in core, tsam stays
+architectural decision — if representative-period primitives live in core, tsam stays
 a thin adapter (loose pin); if they live in tsam, the package owns deep
 round-trip behavior (tight pin).
 
