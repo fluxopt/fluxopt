@@ -60,14 +60,14 @@ print(result.flow_rates)
 fluxopt is evolving into a family of packages with a lean core and optional companions:
 
 ```
-                  ┌──────────────┐
-                  │   fluxopt    │  core: model building, solving, results, IO
-                  └──────┬───────┘
-          ┌───────────┬──┴──────────┬────────────────┐
-          │           │             │                 │
-   fluxopt-plot  fluxopt-yaml  fluxopt-tsam     (examples)
-    plotting      YAML+CSV      time series     cross-package
-   (plotly)       loader       aggregation       notebooks
+                          ┌──────────────┐
+                          │   fluxopt    │  core: model building, solving, results, IO
+                          └──────┬───────┘
+        ┌──────────────┬─────────┼──────────────┬──────────────┐
+        │              │         │              │              │
+ fluxopt-plot   fluxopt-yaml  fluxopt-tsam  fluxopt-marimo  (examples)
+   plotting      YAML+CSV    time series    interactive     cross-package
+   (plotly)       loader     aggregation       apps          notebooks
 ```
 
 Companion packages depend on core — core has no knowledge of companions.
@@ -81,6 +81,7 @@ Companion packages depend on core — core has no knowledge of companions.
 | `fluxopt-plot` package | Interactive plotly visualization as companion package | [Scaffolded](https://fbumann.github.io/fluxopt-plot/latest/) | [#51](https://github.com/FBumann/fluxopt/issues/51) |
 | `fluxopt-yaml` package | Declarative model definition via YAML + CSV | [Scaffolded](https://fbumann.github.io/fluxopt-yaml/latest/) | [#52](https://github.com/FBumann/fluxopt/issues/52) |
 | `fluxopt-tsam` package | Time series aggregation preprocessing | Planned | — |
+| `fluxopt-marimo` package | Interactive marimo apps for result exploration & dashboards | Planned | — |
 | ReadTheDocs migration | Automatic versioned docs from git tags | Planned | [#53](https://github.com/FBumann/fluxopt/issues/53) |
 | Remove plotly from core | Keep core lean — plotting deps in `fluxopt-plot` only | Planned | [#54](https://github.com/FBumann/fluxopt/issues/54) |
 
@@ -92,6 +93,7 @@ Companion packages depend on core — core has no knowledge of companions.
 | Stats accessor | **Semi-stable** | Breaking changes allowed between minor versions with changelog entry. |
 | `fluxopt-yaml` | **Experimental** | Own versioning. YAML schema may change. |
 | `fluxopt-plot` | **Experimental** | Own versioning. Method signatures may change. |
+| `fluxopt-marimo` | **Experimental** | Own versioning. App templates, not a stable API. |
 | `fluxopt-tsam` | **Independent** | Fully independent semver. |
 
 See [#47](https://github.com/FBumann/fluxopt/issues/47) for the full architecture discussion.
