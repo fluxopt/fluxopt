@@ -72,16 +72,29 @@ fluxopt is evolving into a family of packages with a lean core and optional comp
 
 Companion packages depend on core — core has no knowledge of companions.
 
+### Companion packages
+
+| Package | Role | Versioning · Tier | `fluxopt` pin | Status |
+|---------|------|-------------------|---------------|--------|
+| `fluxopt-plot` | Result visualization (Plotly) | Semver · Experimental — method signatures may change | Tight (`>=A.B,<A.C`), validated per release | Scaffolded — [docs](https://fbumann.github.io/fluxopt-plot/latest/) · [#51](https://github.com/FBumann/fluxopt/issues/51) |
+| `fluxopt-yaml` | Declarative model loader (YAML + CSV → `Element`s) | Semver · Experimental — YAML schema may change | Tight (`>=A.B,<A.C`), validated per release | Scaffolded — [docs](https://fbumann.github.io/fluxopt-yaml/latest/) · [#52](https://github.com/FBumann/fluxopt/issues/52) |
+| `fluxopt-tsam` | Time series aggregation — input pre-processing, possibly result disaggregation | Semver · Experimental — round-trip schema may evolve | **Undecided** — depends on whether period primitives live in core (→ loose) or in this package (→ tight) | Planned |
+| `fluxopt-marimo` | Interactive exploration & dashboards (marimo apps) | CalVer (`YYYY.MM.PATCH`) · Experimental — apps are templates | Tight (`>=A.B,<A.C`), validated per release | Planned |
+
+Tight-pinned companions release on every `fluxopt` minor; validation is
+automated via scheduled CI. `fluxopt-tsam`'s pin policy is blocked on an
+architectural decision — if period primitives live in core, tsam stays
+a thin adapter (loose pin); if they live in tsam, the package owns deep
+round-trip behavior (tight pin).
+
 ### Milestones
+
+Cross-cutting work not tied to a single companion package:
 
 | Milestone | Description | Status | Issue |
 |-----------|-------------|--------|-------|
 | `Result.stats` accessor | Cached xarray properties for post-processing | Planned | [#49](https://github.com/FBumann/fluxopt/issues/49) |
 | `.plot` stub on `Result` | Discoverable property, helpful error if plot package absent | Planned | [#50](https://github.com/FBumann/fluxopt/issues/50) |
-| `fluxopt-plot` package | Interactive plotly visualization as companion package | [Scaffolded](https://fbumann.github.io/fluxopt-plot/latest/) | [#51](https://github.com/FBumann/fluxopt/issues/51) |
-| `fluxopt-yaml` package | Declarative model definition via YAML + CSV | [Scaffolded](https://fbumann.github.io/fluxopt-yaml/latest/) | [#52](https://github.com/FBumann/fluxopt/issues/52) |
-| `fluxopt-tsam` package | Time series aggregation preprocessing | Planned | — |
-| `fluxopt-marimo` package | Interactive marimo apps for result exploration & dashboards | Planned | — |
 | ReadTheDocs migration | Automatic versioned docs from git tags | Planned | [#53](https://github.com/FBumann/fluxopt/issues/53) |
 | Remove plotly from core | Keep core lean — plotting deps in `fluxopt-plot` only | Planned | [#54](https://github.com/FBumann/fluxopt/issues/54) |
 
@@ -91,10 +104,8 @@ Companion packages depend on core — core has no knowledge of companions.
 |-----------|------|--------|
 | Core modeling API | **Stable** | Semver. Deprecation warnings before removal. |
 | Stats accessor | **Semi-stable** | Breaking changes allowed between minor versions with changelog entry. |
-| `fluxopt-yaml` | **Experimental** | Own versioning. YAML schema may change. |
-| `fluxopt-plot` | **Experimental** | Own versioning. Method signatures may change. |
-| `fluxopt-marimo` | **Experimental** | CalVer. Apps are templates, not a stable API. |
-| `fluxopt-tsam` | **Independent** | Fully independent semver. |
+
+Companion packages have their own stability policies — see the table above.
 
 See [#47](https://github.com/FBumann/fluxopt/issues/47) for the full architecture discussion.
 
