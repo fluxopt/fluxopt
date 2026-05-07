@@ -93,40 +93,8 @@ Companion packages depend on core — core has no knowledge of companions.
 | Stats accessor | **Semi-stable** | Breaking changes allowed between minor versions with changelog entry. |
 | `fluxopt-yaml` | **Experimental** | Own versioning. YAML schema may change. |
 | `fluxopt-plot` | **Experimental** | Own versioning. Method signatures may change. |
-| `fluxopt-marimo` | **Experimental** | CalVer (`YYYY.MM.PATCH`). Validated against each `fluxopt` minor; apps are templates, widgets/CLI are the contract. |
+| `fluxopt-marimo` | **Experimental** | CalVer. Apps are templates, not a stable API. |
 | `fluxopt-tsam` | **Independent** | Fully independent semver. |
-
-### Versioning & stability
-
-Most companion packages follow semver; `fluxopt-marimo` is the exception
-and uses **CalVer** (`YYYY.MM.PATCH`). Versions communicate *when* a
-snapshot was validated, not the severity of changes — appropriate because
-the package's primary deliverable is *templates*, not a stable API.
-
-**Compatibility with `fluxopt`** — `fluxopt-marimo` pins the core
-dependency at minor granularity (`fluxopt>=A.B,<A.C`). Every new
-`fluxopt` minor triggers a new `fluxopt-marimo` release; the bump *is*
-the validation. A scheduled CI job runs the apps against the latest
-`fluxopt` release — passing runs auto-PR a pin bump and tag a release;
-failing runs alert the maintainer to fix before tagging. The CHANGELOG
-records the validation result for every release, even when no code
-changed. The coupling is operational only — `fluxopt` core has no
-dependency on any companion.
-
-Other dependencies (marimo, plotly, …) carry only lower bounds — users
-own those versions.
-
-**Contract tiers within `fluxopt-marimo`:**
-
-| Surface | Contract |
-|---------|----------|
-| `apps/*.py` (marimo apps) | None — templates to fork and own. |
-| Widget helpers (Python API) | Minimal surface; breaking changes documented per release. |
-| CLI commands (`fluxopt-explore`, …) | Command names stable from first release. |
-
-While in Experimental tier, breaking changes are allowed in any release
-with a CHANGELOG entry — no deprecation cycle promised until 1.0 (and
-1.0 is not on the roadmap).
 
 See [#47](https://github.com/FBumann/fluxopt/issues/47) for the full architecture discussion.
 
