@@ -54,8 +54,8 @@ dev = [
     "mypy==1.20.2",
     "pandas-stubs==3.0.0.260204",
     "pre-commit==4.6.0",
-    "pytest==9.0.2",
-    "pytest-cov==7.0.0",
+    "pytest==9.0.3",
+    "pytest-cov==7.1.0",
     "pytest-xdist==3.8.0",
     "ruff==0.15.12",
 ]
