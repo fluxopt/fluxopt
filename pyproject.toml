@@ -27,11 +27,11 @@ classifiers = [
 ]
 dependencies = [
     "highspy>=1.13.1,!=1.14.0",  # 1.14.0 has MIP presolve bug (ERGO-Code/HiGHS#2975)
-    "linopy @ git+https://github.com/PyPSA/linopy.git@2d2e851dd2f444ac4b0c9b82ed09f5863856195d",
+    "linopy>=0.7.0",
     "netcdf4>=1.6.0",
     "numpy>=1.26",
     "pandas>=2.1",
-    "xarray>=2024.1.0,<2026.4.0",  # 2026.4.0 breaks linopy (Dataset-as-data_vars)
+    "xarray>=2024.1.0",
 ]
 
 [project.urls]
