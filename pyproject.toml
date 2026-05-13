@@ -132,14 +132,6 @@ python-version = "3.12"
 [tool.ty.src]
 include = ["src"]
 
-[tool.ty.analysis]
-allowed-unresolved-imports = [
-    "linopy",
-    "linopy.*",
-    "netCDF4",
-    "netCDF4.*",
-]
-
 [tool.ty.rules]
 ambiguous-protocol-member = "error"
 deprecated = "error"
