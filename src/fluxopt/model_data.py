@@ -12,6 +12,8 @@ import xarray as xr
 from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
 
 if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
+
     from fluxopt.components import Converter, Port
     from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
     from fluxopt.types import TimeIndex, Timesteps
@@ -70,7 +72,7 @@ _NC_GROUPS = {
 }
 
 
-def _to_dataset(obj: object) -> xr.Dataset:
+def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
     """Convert a data dataclass to an xr.Dataset.
 
     Args:
@@ -78,7 +80,7 @@ def _to_dataset(obj: object) -> xr.Dataset:
     """
     data_vars: dict[str, xr.DataArray] = {}
     attrs: dict[str, object] = {}
-    for f in fields(obj):  # type: ignore[arg-type]
+    for f in fields(obj):
         val = getattr(obj, f.name)
         if val is None:
             continue
@@ -1023,7 +1025,7 @@ class EffectsData:
             elif f.name in ds.attrs:
                 kwargs[f.name] = ds.attrs[f.name]
             # else: rely on dataclass default (e.g. None for optional fields)
-        return cls(**kwargs)  # type: ignore[arg-type, unused-ignore]
+        return cls(**kwargs)  # ty: ignore[invalid-argument-type]
 
     @classmethod
     def build(
@@ -1300,7 +1302,7 @@ def _compute_period_weights(
         Tuple of (period_index, period_weights DataArray).
     """
     idx = pd.Index(periods, name='period')
-    if not np.issubdtype(idx.dtype, np.integer):  # type: ignore[arg-type]
+    if not np.issubdtype(idx.dtype, np.integer):  # ty: ignore[invalid-argument-type]
         raise TypeError(f'periods must be integer, got {idx.dtype}')
     if not idx.is_monotonic_increasing or not idx.is_unique:
         raise ValueError('periods must be monotonically increasing and unique')

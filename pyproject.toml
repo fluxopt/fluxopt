@@ -51,13 +51,13 @@ include = ["src/fluxopt/", "LICENSE", "README.md"]
 
 [dependency-groups]
 dev = [
-    "mypy==1.20.2",
     "pandas-stubs==3.0.0.260204",
     "pre-commit==4.6.0",
     "pytest==9.0.2",
     "pytest-cov==7.0.0",
     "pytest-xdist==3.8.0",
     "ruff==0.15.12",
+    "ty==0.0.35",
 ]
 docs = [
     "plotly>=6",
@@ -126,19 +126,30 @@ docstring-code-format = true
 [tool.ruff.lint.pyupgrade]
 keep-runtime-typing = false
 
-[tool.mypy]
-python_version = "3.12"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
+[tool.ty.environment]
+python-version = "3.12"
 
-[[tool.mypy.overrides]]
-module = [
+[tool.ty.src]
+include = ["src"]
+
+[tool.ty.analysis]
+allowed-unresolved-imports = [
+    "linopy",
     "linopy.*",
+    "netCDF4",
     "netCDF4.*",
-    "xarray.*",
 ]
-ignore_missing_imports = true
+
+[tool.ty.rules]
+ambiguous-protocol-member = "error"
+deprecated = "error"
+division-by-zero = "error"
+ignore-comment-unknown-rule = "error"
+ineffective-final = "error"
+invalid-enum-member-annotation = "error"
+invalid-ignore-comment = "error"
+invalid-legacy-positional-parameter = "error"
+invalid-named-tuple-override = "error"
 
 [tool.pytest.ini_options]
 addopts = "-n auto"
