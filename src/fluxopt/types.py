@@ -171,7 +171,7 @@ def as_dataarray(
     elif isinstance(value, (pd.Series, pd.DataFrame)):
         # Mirror linopy: pandas axes already carry coords; use axis.name as dim.
         # Fall back to length-matching only when no axis is named.
-        named = [a.name for a in value.axes if a.name is not None]
+        named = [a.name for a in value.axes if a.name is not None]  # ty: ignore[not-iterable]
         if len(named) == value.ndim:
             da = xr.DataArray(value)
         elif value.ndim == 1 and not named:
@@ -179,7 +179,7 @@ def as_dataarray(
         else:
             raise ValueError(
                 f'{type(value).__name__} requires axis.name set on every axis '
-                f'(got {[a.name for a in value.axes]!r}). '
+                f'(got {[a.name for a in value.axes]!r}). '  # ty: ignore[not-iterable]
                 f"Set e.g. df.index.name='time', df.columns.name='period'."
             )
     elif isinstance(value, np.ndarray):

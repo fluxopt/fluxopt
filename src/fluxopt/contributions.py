@@ -223,10 +223,11 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
 
     # --- Lump: storage sizing costs ---
     if stor_ids:
+        assert data.storages is not None
         stor_lump = _compute_sizing_lump(
-            data.storages.sizing_effects_per_size,  # type: ignore[union-attr]
-            data.storages.sizing_effects_fixed,  # type: ignore[union-attr]
-            data.storages.sizing_mandatory,  # type: ignore[union-attr]
+            data.storages.sizing_effects_per_size,
+            data.storages.sizing_effects_fixed,
+            data.storages.sizing_mandatory,
             solution,
             stor_ids,
             effect_ids,

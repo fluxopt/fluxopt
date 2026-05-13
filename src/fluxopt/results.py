@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Literal
 import xarray as xr
 
 try:
-    from fluxopt_plot.accessor import PlotAccessor  # type: ignore[import-not-found]
+    from fluxopt_plot.accessor import PlotAccessor  # ty: ignore[unresolved-import]
 except ImportError:
     PlotAccessor = None
 

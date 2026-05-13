@@ -401,14 +401,15 @@ class PiecewiseConversion:
             return [(flow, list(pts), '==') for flow, pts in self.points.items()]
         result: list[tuple[str, list[Variate], Literal['==', '<=', '>=']]] = []
         for i, t in enumerate(self.points):
-            if len(t) == 2:
-                result.append((t[0], list(t[1]), '=='))
-            elif len(t) == 3:
-                if t[2] not in ('==', '<=', '>='):
-                    msg = f'PiecewiseConversion tuple {i} has invalid bound {t[2]!r}; expected one of (==, <=, >=)'
+            match t:
+                case (flow, pts):
+                    result.append((flow, list(pts), '=='))
+                case (flow, pts, bound):
+                    if bound not in ('==', '<=', '>='):
+                        msg = f'PiecewiseConversion tuple {i} has invalid bound {bound!r}; expected one of (==, <=, >=)'
+                        raise ValueError(msg)
+                    result.append((flow, list(pts), bound))
+                case _:
+                    msg = f'PiecewiseConversion tuple {i} has length {len(t)}; expected 2 or 3'
                     raise ValueError(msg)
-                result.append((t[0], list(t[1]), t[2]))
-            else:
-                msg = f'PiecewiseConversion tuple {i} has length {len(t)}; expected 2 or 3'
-                raise ValueError(msg)
         return result
