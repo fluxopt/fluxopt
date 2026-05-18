@@ -56,8 +56,8 @@ dev = [
     "pytest==9.0.2",
     "pytest-cov==7.0.0",
     "pytest-xdist==3.8.0",
+    "pyrefly==1.0.0",
     "ruff==0.15.12",
-    "ty==0.0.35",
 ]
 docs = [
     "plotly>=6",
@@ -126,22 +126,27 @@ docstring-code-format = true
 [tool.ruff.lint.pyupgrade]
 keep-runtime-typing = false
 
-[tool.ty.environment]
+[tool.pyrefly]
 python-version = "3.12"
+project-includes = ["src"]
+preset = "strict"
 
-[tool.ty.src]
-include = ["src"]
-
-[tool.ty.rules]
-ambiguous-protocol-member = "error"
-deprecated = "error"
-division-by-zero = "error"
-ignore-comment-unknown-rule = "error"
-ineffective-final = "error"
-invalid-enum-member-annotation = "error"
-invalid-ignore-comment = "error"
-invalid-legacy-positional-parameter = "error"
-invalid-named-tuple-override = "error"
+# Promote warn-by-default rules to error so regressions fail CI.
+[tool.pyrefly.errors]
+deprecated = true
+implicit-import = true
+missing-import = true
+non-exhaustive-match = true
+not-required-key-access = true
+redundant-cast = true
+redundant-condition = true
+unknown-name = true
+unnecessary-comparison = true
+unnecessary-type-conversion = true
+unreachable = true
+unresolvable-dunder-all = true
+untyped-import = true
+variance-mismatch = true
 
 [tool.pytest.ini_options]
 addopts = "-n auto"

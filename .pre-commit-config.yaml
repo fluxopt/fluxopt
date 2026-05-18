@@ -19,9 +19,9 @@ repos:
 
   - repo: local
     hooks:
-      - id: ty
-        name: ty
-        entry: uv run ty check src/
+      - id: pyrefly
+        name: pyrefly
+        entry: uv run pyrefly check src/
         language: system
         pass_filenames: false
         files: ^src/

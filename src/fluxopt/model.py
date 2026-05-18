@@ -659,10 +659,7 @@ class FlowSystem:
                 else:
                     # With lifetime: active for lt_int periods after build
                     # active[p] = sum_{tau: p in [tau, tau+lt)} build[tau] + (1 if prior and p < lt)
-                    contributing = []
-                    for t_idx in range(n_periods):
-                        if t_idx <= p_idx < t_idx + lt_int:
-                            contributing.append(period_vals[t_idx])
+                    contributing = [period_vals[t_idx] for t_idx in range(n_periods) if t_idx <= p_idx < t_idx + lt_int]
                     rhs = b_sel.sel(period=contributing).sum('period') if contributing else 0
                     if has_prior and p_idx < lt_int:
                         self.m.add_constraints(a_sel == rhs + 1, name=f'invest_active_{fid}_p{p}')
