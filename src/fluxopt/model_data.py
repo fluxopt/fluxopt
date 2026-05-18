@@ -548,7 +548,7 @@ class FlowsData:
             elif isinstance(f.size, Investment):
                 invest_items.append((f.id, f.size))
             elif f.size is not None:
-                size_vals[i] = float(f.size)
+                size_vals[i] = f.size
 
             if f.fixed_relative_profile is not None:
                 profiles.append(as_dataarray(f.fixed_relative_profile, envelope_coords))
@@ -951,7 +951,7 @@ class PiecewiseData:
             all_flows_zero = is_zero.isel(pw_pair=mask).all('pw_pair')  # (breakpoint, time)
             if bool(all_flows_zero.any().item()):
                 warnings.warn(
-                    f'PiecewiseConversion on converter {str(conv_id)!r} has Status, '
+                    f'PiecewiseConversion on converter {conv_id!r} has Status, '
                     'but the curve includes a (0, ..., 0) breakpoint. The '
                     'optimizer can sit at zero with status=on, decoupling the '
                     'binary from the actual operating state — Status features '
@@ -1025,7 +1025,7 @@ class EffectsData:
             elif f.name in ds.attrs:
                 kwargs[f.name] = ds.attrs[f.name]
             # else: rely on dataclass default (e.g. None for optional fields)
-        return cls(**kwargs)  # ty: ignore[invalid-argument-type]
+        return cls(**kwargs)  # pyrefly: ignore[bad-argument-type]
 
     @classmethod
     def build(
@@ -1302,7 +1302,7 @@ def _compute_period_weights(
         Tuple of (period_index, period_weights DataArray).
     """
     idx = pd.Index(periods, name='period')
-    if not np.issubdtype(idx.dtype, np.integer):  # ty: ignore[invalid-argument-type]
+    if not np.issubdtype(idx.dtype, np.integer):  # pyrefly: ignore[bad-argument-type]
         raise TypeError(f'periods must be integer, got {idx.dtype}')
     if not idx.is_monotonic_increasing or not idx.is_unique:
         raise ValueError('periods must be monotonically increasing and unique')

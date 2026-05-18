@@ -49,7 +49,7 @@ def compute_previous_duration(
 
     if isinstance(dt, xr.DataArray):
         return float(dt.values[-count:].sum()) if count > 0 else 0.0
-    return float(dt) * count
+    return dt * count
 
 
 def add_duration_tracking(

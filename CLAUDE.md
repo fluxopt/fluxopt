@@ -30,7 +30,7 @@ Key runtime deps: xarray, linopy, numpy, pandas.
 - **src layout** — `src/fluxopt/`, enforcing proper installation
 - **hatchling + hatch-vcs** — version from git tags
 - **ruff** replaces flake8, isort, pyupgrade, black
-- **ty** — Astral's type checker, enforced from day one
+- **pyrefly** — Meta's type checker, enforced from day one
 - **No lock file** — `uv.lock` is gitignored
 
 ## Common Commands
@@ -40,7 +40,7 @@ uv sync --group dev      # Install runtime + dev deps
 uv run pytest -v         # Run tests
 uv run ruff check .      # Lint
 uv run ruff format .     # Format
-uv run ty check src/     # Type check
+uv run pyrefly check src/ # Type check
 ```
 
 ## Code Style

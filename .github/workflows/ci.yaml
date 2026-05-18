@@ -41,8 +41,8 @@ jobs:
       - name: Install
         run: uv sync --group dev
 
-      - name: Ty
-        run: uv run ty check src/
+      - name: Pyrefly
+        run: uv run pyrefly check src/
 
   test:
     name: Test (Python ${{ matrix.python-version }})

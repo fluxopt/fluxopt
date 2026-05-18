@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, Protocol, overload, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, overload, override, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -86,6 +86,7 @@ class IdList[T: Identified]:
     def __add__(self, other: IdList[T]) -> IdList[T]:
         return IdList([*self._items, *other._items])
 
+    @override
     def __repr__(self) -> str:
         return f'IdList({list(self._items)!r})'
 
@@ -171,7 +172,7 @@ def as_dataarray(
     elif isinstance(value, (pd.Series, pd.DataFrame)):
         # Mirror linopy: pandas axes already carry coords; use axis.name as dim.
         # Fall back to length-matching only when no axis is named.
-        named = [a.name for a in value.axes if a.name is not None]  # ty: ignore[not-iterable]
+        named = [a.name for a in value.axes if a.name is not None]
         if len(named) == value.ndim:
             da = xr.DataArray(value)
         elif value.ndim == 1 and not named:
@@ -179,7 +180,7 @@ def as_dataarray(
         else:
             raise ValueError(
                 f'{type(value).__name__} requires axis.name set on every axis '
-                f'(got {[a.name for a in value.axes]!r}). '  # ty: ignore[not-iterable]
+                f'(got {[a.name for a in value.axes]!r}). '
                 f"Set e.g. df.index.name='time', df.columns.name='period'."
             )
     elif isinstance(value, np.ndarray):
@@ -312,7 +313,7 @@ def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> xr.DataA
         elif isinstance(dt, list):
             if len(dt) != n:
                 raise ValueError(f'dt length {len(dt)} does not match timesteps length {n}')
-            values = np.array([float(v) for v in dt])
+            values = np.array(dt, dtype=float)
         else:
             raise TypeError(f'Unsupported dt type: {type(dt)}')
         return xr.DataArray(values, dims=['time'], coords={'time': timesteps}, name='dt')
