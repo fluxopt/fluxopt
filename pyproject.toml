@@ -26,7 +26,7 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "highspy>=1.13.1,!=1.14.0",  # 1.14.0 has MIP presolve bug (ERGO-Code/HiGHS#2975)
+    "highspy>=1.13.1,!=1.14.*",  # 1.14.x has MIP presolve bug producing wrong results (ERGO-Code/HiGHS#2975)
     "linopy>=0.7.0",
     "netcdf4>=1.6.0",
     "numpy>=1.26",
