@@ -61,43 +61,17 @@ Energy system optimization with [linopy](https://github.com/PyPSA/linopy) — de
 
     ---
 
-    Lean core, optional companions for [plotting](https://fbumann.github.io/fluxopt-plot/latest/) and [YAML loading](https://fbumann.github.io/fluxopt-yaml/latest/).
+    Lean core, optional companions for [plotting](https://fbumann.github.io/fluxopt-plot/latest/), [YAML loading](https://fbumann.github.io/fluxopt-yaml/latest/), and (planned) interactive marimo apps.
 
 </div>
 
 
 
-```python
-# A gas boiler covers a heat demand, minimizing fuel cost
-from datetime import datetime
-from fluxopt import Carrier, Converter, Effect, Flow, Port, optimize
-
-result = optimize(
-    timesteps=[datetime(2024, 1, 1, h) for h in range(4)],
-    carriers=[Carrier('gas'), Carrier('heat')],
-    effects=[Effect('cost')],
-    ports=[
-        Port('grid', imports=[
-            Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        ]),
-        Port('demand', exports=[
-            Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        ])
-    ],
-    converters=[
-        Converter.boiler(
-            'boiler',
-            thermal_efficiency=0.9,
-            fuel_flow=Flow('gas', size=300),
-            thermal_flow=Flow('heat', size=200)
-        )
-    ],
-    objective_effects='cost',
-)
-
-print(f"Total cost: {result.objective:.2f}")
-print(result.flow_rates)
-```
+{%
+   include-markdown "../README.md"
+   start="<!--quickstart-start-->"
+   end="<!--quickstart-end-->"
+%}
 
 ## Where to next
 

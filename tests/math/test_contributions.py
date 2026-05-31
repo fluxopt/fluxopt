@@ -480,3 +480,298 @@ class TestEdgeCases:
 
         assert result.stats is result.stats
         assert result.stats.effect_contributions is result.stats.effect_contributions
+        assert result.stats.effect_contributions_direct is result.stats.effect_contributions_direct
+
+
+class TestDirectContributions:
+    """Direct contributions skip Leontief — each contributor only shows what it
+    directly emits, independent of ``contribution_from`` chains."""
+
+    def test_direct_equals_with_cross_when_no_contribution_from(self):
+        """Without contribution_from, direct and with-cross views match."""
+
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[Effect('cost'), Effect('co2', unit='kg')],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        with_cross = result.stats.effect_contributions
+        direct = result.stats.effect_contributions_direct
+        xr.testing.assert_allclose(with_cross['temporal'], direct['temporal'])
+        xr.testing.assert_allclose(with_cross['lump'], direct['lump'])
+        xr.testing.assert_allclose(with_cross['total'], direct['total'])
+
+    def test_direct_and_with_cross_differ_when_contribution_from_present(self):
+        """Sanity invariant: when contribution_from is set, the two views must
+        disagree on at least one (contributor, effect) — otherwise the direct
+        accessor is silently returning the with-cross result (or vice versa)."""
+
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        with_cross = result.stats.effect_contributions
+        direct = result.stats.effect_contributions_direct
+        assert not direct['total'].equals(with_cross['total'])
+        assert not direct['temporal'].equals(with_cross['temporal'])
+
+    def test_direct_strips_carbon_tax_propagation(self):
+        """Direct cost = direct flow cost only, ignoring CO₂→cost cross-effect."""
+
+        demand = [50.0, 80.0, 60.0]
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        direct = result.stats.effect_contributions_direct
+        with_cross = result.stats.effect_contributions
+
+        total_energy = sum(demand)
+        # Direct view: grid pays only its own per-flow-hour cost (no CO2 markup)
+        grid_direct_cost = float(direct['total'].sel(contributor='grid(elec)', effect='cost').values)
+        assert grid_direct_cost == pytest.approx(total_energy * 0.04, abs=1e-6)
+
+        # With-cross view: grid pays direct cost + CO2 priced in at 50/kg
+        grid_xc_cost = float(with_cross['total'].sel(contributor='grid(elec)', effect='cost').values)
+        assert grid_xc_cost == pytest.approx(total_energy * 0.04 + total_energy * 0.5 * 50, abs=1e-6)
+
+        # CO2 attribution itself doesn't change between the two views
+        # (CO2 is a leaf with no contribution_from — Leontief is identity for it)
+        xr.testing.assert_allclose(direct['total'].sel(effect='co2'), with_cross['total'].sel(effect='co2'))
+
+    def test_direct_sum_equals_raw_emission_total(self):
+        """Direct co2 contributions sum to the raw integrated emissions
+        (no cross-effects mean physical totals are unchanged)."""
+
+        demand = [50.0, 80.0, 60.0]
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        direct = result.stats.effect_contributions_direct
+        co2_direct = float(direct['total'].sel(effect='co2').sum('contributor').values)
+        assert co2_direct == pytest.approx(sum(demand) * 0.5, abs=1e-6)
+
+    def test_direct_drops_transitive_propagation(self):
+        """PE → CO₂ → cost: direct view shows zero direct cost from grid,
+        full chain only appears in the with-cross view."""
+
+        demand = [50.0, 80.0, 60.0]
+        source = Flow('elec', size=200, effects_per_flow_hour={'pe': 2.0})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
+                Effect('pe', unit='kWh'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        direct = result.stats.effect_contributions_direct
+        with_cross = result.stats.effect_contributions
+
+        total_energy = sum(demand)
+        # Direct: grid only directly emits PE — no direct co2, no direct cost
+        grid_direct_pe = float(direct['total'].sel(contributor='grid(elec)', effect='pe').values)
+        grid_direct_co2 = float(direct['total'].sel(contributor='grid(elec)', effect='co2').values)
+        grid_direct_cost = float(direct['total'].sel(contributor='grid(elec)', effect='cost').values)
+        assert grid_direct_pe == pytest.approx(total_energy * 2.0, abs=1e-6)
+        assert grid_direct_co2 == pytest.approx(0.0, abs=1e-6)
+        assert grid_direct_cost == pytest.approx(0.0, abs=1e-6)
+
+        # With-cross: chain propagates pe→co2→cost
+        grid_xc_co2 = float(with_cross['total'].sel(contributor='grid(elec)', effect='co2').values)
+        grid_xc_cost = float(with_cross['total'].sel(contributor='grid(elec)', effect='cost').values)
+        assert grid_xc_co2 == pytest.approx(total_energy * 2.0 * 0.3, abs=1e-6)
+        assert grid_xc_cost == pytest.approx(total_energy * 2.0 * 0.3 * 50, abs=1e-6)
+
+    def test_direct_does_not_validate_against_solver_total(self):
+        """Direct totals can differ from solver totals (which include cross-effects).
+        Sanity: direct cost total is less than solver cost total when CO₂→cost is set."""
+
+        demand = [50.0, 80.0, 60.0]
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        direct = result.stats.effect_contributions_direct
+        direct_cost_total = float(direct['total'].sel(effect='cost').sum('contributor').values)
+        solver_cost_total = float(result.effect_totals.sel(effect='cost').values)
+        # Strict inequality: there's a non-zero CO₂→cost contribution
+        assert direct_cost_total < solver_cost_total
+        assert direct_cost_total == pytest.approx(sum(demand) * 0.04, abs=1e-6)
+
+    def test_direct_lump_strips_sizing_cross_effect(self):
+        """Sizing CO₂ stays as CO₂ in direct view, not priced into cost."""
+
+        source = Flow(
+            'elec',
+            size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'co2': 10}),
+            effects_per_flow_hour={'cost': 0.04},
+        )
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        direct = result.stats.effect_contributions_direct
+        invest_size = float(result.sizes.sel(flow='grid(elec)').values)
+
+        grid_direct_co2_lump = float(direct['lump'].sel(contributor='grid(elec)', effect='co2').values)
+        grid_direct_cost_lump = float(direct['lump'].sel(contributor='grid(elec)', effect='cost').values)
+        assert grid_direct_co2_lump == pytest.approx(invest_size * 10, abs=1e-6)
+        # No direct sizing cost — only CO₂ → cost via cross-effect, which direct strips
+        assert grid_direct_cost_lump == pytest.approx(0.0, abs=1e-6)
+
+
+class TestValidateAgainstSolver:
+    """The validation helper raises when per-contributor totals don't sum to solver totals."""
+
+    def test_raises_on_mismatch(self):
+        from fluxopt.contributions import _validate_against_solver
+
+        total = xr.DataArray(
+            [[1.0, 2.0], [3.0, 4.0]],
+            dims=['contributor', 'effect'],
+            coords={'contributor': ['a', 'b'], 'effect': ['cost', 'co2']},
+        )
+        solution = xr.Dataset(
+            {
+                'effect--total': xr.DataArray([100.0, 200.0], dims=['effect'], coords={'effect': ['cost', 'co2']}),
+            }
+        )
+        with pytest.raises(ValueError, match='Effect contributions do not sum to solver totals'):
+            _validate_against_solver(total, solution)
+
+    def test_passes_on_exact_match(self):
+        from fluxopt.contributions import _validate_against_solver
+
+        total = xr.DataArray(
+            [[1.0, 2.0], [3.0, 4.0]],
+            dims=['contributor', 'effect'],
+            coords={'contributor': ['a', 'b'], 'effect': ['cost', 'co2']},
+        )
+        solution = xr.Dataset(
+            {
+                'effect--total': xr.DataArray([4.0, 6.0], dims=['effect'], coords={'effect': ['cost', 'co2']}),
+            }
+        )
+        _validate_against_solver(total, solution)  # no exception
+
+
+class TestComputeEffectContributionsAPI:
+    """Public ``compute_effect_contributions`` works directly (not just via stats)."""
+
+    def test_direct_call_with_cross_effects(self):
+        """Calling compute_effect_contributions(cross_effects=True) yields the same
+        with-cross result as accessing result.stats.effect_contributions."""
+        from fluxopt.contributions import compute_effect_contributions
+
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        via_function = compute_effect_contributions(result.solution, result.data, cross_effects=True)
+        via_stats = result.stats.effect_contributions
+        xr.testing.assert_allclose(via_function['total'], via_stats['total'])
+        xr.testing.assert_allclose(via_function['temporal'], via_stats['temporal'])
+        xr.testing.assert_allclose(via_function['lump'], via_stats['lump'])
+
+    def test_direct_call_no_cross_effects(self):
+        """Calling compute_effect_contributions(cross_effects=False) yields the same
+        direct result as accessing result.stats.effect_contributions_direct.
+
+        This locks in the public-API contract for direct mode — if the stats
+        accessor ever grows post-processing on top of the function call, this
+        test catches the drift.
+        """
+        from fluxopt.contributions import compute_effect_contributions
+
+        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('elec')],
+            effects=[
+                Effect('cost', contribution_from={'co2': 50}),
+                Effect('co2', unit='kg'),
+            ],
+            objective_effects='cost',
+            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+        )
+
+        via_function = compute_effect_contributions(result.solution, result.data, cross_effects=False)
+        via_stats = result.stats.effect_contributions_direct
+        xr.testing.assert_allclose(via_function['total'], via_stats['total'])
+        xr.testing.assert_allclose(via_function['temporal'], via_stats['temporal'])
+        xr.testing.assert_allclose(via_function['lump'], via_stats['lump'])

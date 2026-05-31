@@ -659,10 +659,7 @@ class FlowSystem:
                 else:
                     # With lifetime: active for lt_int periods after build
                     # active[p] = sum_{tau: p in [tau, tau+lt)} build[tau] + (1 if prior and p < lt)
-                    contributing = []
-                    for t_idx in range(n_periods):
-                        if t_idx <= p_idx < t_idx + lt_int:
-                            contributing.append(period_vals[t_idx])
+                    contributing = [period_vals[t_idx] for t_idx in range(n_periods) if t_idx <= p_idx < t_idx + lt_int]
                     rhs = b_sel.sel(period=contributing).sum('period') if contributing else 0
                     if has_prior and p_idx < lt_int:
                         self.m.add_constraints(a_sel == rhs + 1, name=f'invest_active_{fid}_p{p}')
@@ -907,8 +904,10 @@ class FlowSystem:
         Per-converter availability is enforced separately as
         ``flow_rate <= avail * max_bp * active``.
         """
+        import warnings
         from typing import cast
 
+        from linopy import EvolvingAPIWarning
         from linopy.piecewise import add_piecewise_formulation
 
         from fluxopt.types import PiecewiseMethod
@@ -941,13 +940,17 @@ class FlowSystem:
                 )
                 pairs.append((expr, bps) if bound == '==' else (expr, bps, bound))
 
-            formulation = add_piecewise_formulation(
-                self.m,
-                *pairs,
-                method=method,
-                active=active,
-                name=f'pw_{conv_id}',
-            )
+            # fluxopt owns the API risk of add_piecewise_formulation — surface it
+            # in our changelog instead of leaking warnings into user output.
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', EvolvingAPIWarning)
+                formulation = add_piecewise_formulation(
+                    self.m,
+                    *pairs,
+                    method=method,
+                    active=active,
+                    name=f'pw_{conv_id}',
+                )
             self._piecewise[conv_id] = formulation
 
             # Availability constraint: scale upper envelope, not the curve.

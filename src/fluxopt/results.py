@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Literal
 import xarray as xr
 
 try:
-    from fluxopt_plot.accessor import PlotAccessor  # type: ignore[import-not-found]
+    from fluxopt_plot.accessor import PlotAccessor  # pyrefly: ignore[missing-import]
 except ImportError:
     PlotAccessor = None
 
@@ -41,11 +41,16 @@ class Result:
         solution: Solved variable values as xr.Dataset.
         data: ModelData used to build the optimization.
         duals: Dual values (shadow prices) from the solver.
+        contributions: Cached *direct* per-contributor effect breakdown (no
+            cross-effect propagation). Surfaced via
+            ``result.stats.effect_contributions_direct``;
+            ``result.stats.effect_contributions`` applies Leontief on top.
     """
 
     solution: xr.Dataset
     data: ModelData = field(repr=False)
     duals: xr.Dataset = field(default_factory=xr.Dataset, repr=False)
+    contributions: xr.Dataset | None = field(default=None, repr=False)
 
     @property
     def objective(self) -> float:
@@ -157,6 +162,8 @@ class Result:
         p = Path(path)
         self.solution.to_netcdf(p, mode='w', engine='netcdf4')
         self.data.to_netcdf(p)
+        if self.contributions is not None:
+            self.contributions.to_netcdf(p, mode='a', group='contributions', engine='netcdf4')
 
     @classmethod
     def from_netcdf(cls, path: str | Path) -> Result:
@@ -170,7 +177,23 @@ class Result:
         p = Path(path)
         solution = xr.load_dataset(p, engine='netcdf4')
         data = ModelData.from_netcdf(p)
-        return cls(solution=solution, data=data)
+
+        try:
+            contributions = xr.load_dataset(p, group='contributions', engine='netcdf4')
+        except OSError:
+            contributions = None
+            import warnings
+
+            warnings.warn(
+                f"NetCDF file {p} has no 'contributions' group; per-contributor effect "
+                'breakdown will be re-derived from solution + ModelData on first access. '
+                'Results may differ from the original solve if the contribution-decomposition '
+                'logic has changed since the file was written. Re-save the Result to refresh '
+                'the cached breakdown.',
+                stacklevel=2,
+            )
+
+        return cls(solution=solution, data=data, contributions=contributions)
 
     @cached_property
     def plot(self) -> PlotAccessor:
@@ -241,4 +264,25 @@ class Result:
 
         solution = xr.Dataset(sol_vars, attrs={'objective': obj_val})
         duals = model.m.dual
-        return cls(solution=solution, data=model.data, duals=duals)
+
+        from fluxopt.contributions import _with_cross_effects, compute_effect_contributions
+
+        try:
+            # Cache the direct (no cross-effect) view — it's the primitive both
+            # accessors build on. effect_contributions applies Leontief on top
+            # via _with_cross_effects, which is cheap relative to _compute_direct.
+            contributions = compute_effect_contributions(solution, model.data, cross_effects=False)
+            # Sanity-check at solve time: applying cross-effects must reproduce
+            # the solver's effect--total. Result discarded; caches stay direct.
+            _with_cross_effects(contributions, model.data, solution)
+        except Exception as exc:
+            import warnings
+
+            warnings.warn(
+                f'Failed to compute effect contributions during solve ({exc!r}); '
+                'result.contributions will be None (re-derive via result.stats.effect_contributions)',
+                stacklevel=2,
+            )
+            contributions = None
+
+        return cls(solution=solution, data=model.data, duals=duals, contributions=contributions)

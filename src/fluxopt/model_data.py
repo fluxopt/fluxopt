@@ -12,6 +12,8 @@ import xarray as xr
 from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
 
 if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
+
     from fluxopt.components import Converter, Port
     from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
     from fluxopt.types import TimeIndex, Timesteps
@@ -70,7 +72,7 @@ _NC_GROUPS = {
 }
 
 
-def _to_dataset(obj: object) -> xr.Dataset:
+def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
     """Convert a data dataclass to an xr.Dataset.
 
     Args:
@@ -78,7 +80,7 @@ def _to_dataset(obj: object) -> xr.Dataset:
     """
     data_vars: dict[str, xr.DataArray] = {}
     attrs: dict[str, object] = {}
-    for f in fields(obj):  # type: ignore[arg-type]
+    for f in fields(obj):
         val = getattr(obj, f.name)
         if val is None:
             continue
@@ -417,9 +419,9 @@ class _StatusArrays:
 @dataclass
 class FlowsData:
     bound_type: xr.DataArray  # (flow,) — 'unsized' | 'bounded' | 'profile'
-    rel_lb: xr.DataArray  # (flow, time)
-    rel_ub: xr.DataArray  # (flow, time)
-    fixed_profile: xr.DataArray  # (flow, time) — NaN where not fixed
+    rel_lb: xr.DataArray  # (flow, time[, period])
+    rel_ub: xr.DataArray  # (flow, time[, period])
+    fixed_profile: xr.DataArray  # (flow, time[, period]) — NaN where not fixed
     size: xr.DataArray  # (flow,) — NaN for unsized
     effect_coeff: xr.DataArray  # (flow, effect, time[, period])
     sizing_min: xr.DataArray | None = None  # (sizing_flow,)
@@ -458,10 +460,11 @@ class FlowsData:
 
     def __post_init__(self) -> None:
         """Validate relative bounds: non-negative and lb <= ub."""
-        bad_neg = (self.rel_lb < -1e-12).any('time')
+        reduce_dims = [d for d in self.rel_lb.dims if d != 'flow']
+        bad_neg = (self.rel_lb < -1e-12).any(reduce_dims)
         if bad_neg.any():
             raise ValueError(f'Negative lower bounds on flows: {list(self.rel_lb.coords["flow"][bad_neg].values)}')
-        bad_order = (self.rel_lb > self.rel_ub + 1e-12).any('time')
+        bad_order = (self.rel_lb > self.rel_ub + 1e-12).any(reduce_dims)
         if bad_order.any():
             raise ValueError(
                 f'Lower bound > upper bound on flows: {list(self.rel_lb.coords["flow"][bad_order].values)}'
@@ -499,8 +502,10 @@ class FlowsData:
             effects: Effect definitions for cost coefficients.
             dt: Scalar timestep duration in hours for prior duration computation.
             period: Period index for multi-period models. When provided,
-                ``effect_coeff`` gains a ``period`` dimension so that
-                ``effects_per_flow_hour`` values can vary across periods.
+                ``effect_coeff``, ``rel_lb``, ``rel_ub`` and ``fixed_profile``
+                gain a ``period`` dimension so that ``effects_per_flow_hour``,
+                ``relative_minimum``, ``relative_maximum`` and
+                ``fixed_relative_profile`` can vary across periods.
             component_status_items: Component-level status entries as
                 ``(component_id, Status, [governed flow ids])``. Each entry
                 produces an on/startup/shutdown binary keyed by the
@@ -525,27 +530,34 @@ class FlowsData:
         status_items: list[tuple[str, Status]] = []
         prior_rates_map: dict[str, list[float]] = {}
 
-        nan_time = xr.DataArray(np.full(n_time, np.nan), dims=['time'], coords={'time': time})
+        envelope_coords: dict[str, Any] = {'time': time}
+        if period is not None:
+            envelope_coords['period'] = period
+        nan_envelope = xr.DataArray(
+            np.full([len(v) for v in envelope_coords.values()], np.nan),
+            dims=list(envelope_coords),
+            coords=envelope_coords,
+        )
 
         for i, f in enumerate(flows):
-            rel_lbs.append(as_dataarray(f.relative_minimum, {'time': time}))
-            rel_ubs.append(as_dataarray(f.relative_maximum, {'time': time}))
+            rel_lbs.append(as_dataarray(f.relative_minimum, envelope_coords))
+            rel_ubs.append(as_dataarray(f.relative_maximum, envelope_coords))
 
             if isinstance(f.size, Sizing):
                 sizing_items.append((f.id, f.size))
             elif isinstance(f.size, Investment):
                 invest_items.append((f.id, f.size))
             elif f.size is not None:
-                size_vals[i] = float(f.size)
+                size_vals[i] = f.size
 
             if f.fixed_relative_profile is not None:
-                profiles.append(as_dataarray(f.fixed_relative_profile, {'time': time}))
+                profiles.append(as_dataarray(f.fixed_relative_profile, envelope_coords))
                 bound_type.append('profile')
             elif f.size is None:
-                profiles.append(nan_time)
+                profiles.append(nan_envelope)
                 bound_type.append('unsized')
             else:
-                profiles.append(nan_time)
+                profiles.append(nan_envelope)
                 bound_type.append('bounded')
 
             # Effect coefficients for this flow
@@ -939,7 +951,7 @@ class PiecewiseData:
             all_flows_zero = is_zero.isel(pw_pair=mask).all('pw_pair')  # (breakpoint, time)
             if bool(all_flows_zero.any().item()):
                 warnings.warn(
-                    f'PiecewiseConversion on converter {str(conv_id)!r} has Status, '
+                    f'PiecewiseConversion on converter {conv_id!r} has Status, '
                     'but the curve includes a (0, ..., 0) breakpoint. The '
                     'optimizer can sit at zero with status=on, decoupling the '
                     'binary from the actual operating state — Status features '
@@ -1013,7 +1025,7 @@ class EffectsData:
             elif f.name in ds.attrs:
                 kwargs[f.name] = ds.attrs[f.name]
             # else: rely on dataclass default (e.g. None for optional fields)
-        return cls(**kwargs)  # type: ignore[arg-type, unused-ignore]
+        return cls(**kwargs)  # pyrefly: ignore[bad-argument-type]
 
     @classmethod
     def build(
@@ -1290,7 +1302,7 @@ def _compute_period_weights(
         Tuple of (period_index, period_weights DataArray).
     """
     idx = pd.Index(periods, name='period')
-    if not np.issubdtype(idx.dtype, np.integer):  # type: ignore[arg-type]
+    if not np.issubdtype(idx.dtype, np.integer):  # pyrefly: ignore[bad-argument-type]
         raise TypeError(f'periods must be integer, got {idx.dtype}')
     if not idx.is_monotonic_increasing or not idx.is_unique:
         raise ValueError('periods must be monotonically increasing and unique')
@@ -1334,6 +1346,13 @@ class Dims:
 
     def coords(self, *, time: bool = False, period: bool = False) -> dict[str, xr.DataArray]:
         """Return shared coordinates for variable/DataArray creation.
+
+        Also the single point of truth for the model's variate dims used by
+        :func:`fluxopt.types.as_dataarray`: pick the reach a field supports
+        (e.g. ``coords(time=True, period=True)`` for operational profiles,
+        ``coords(period=True)`` for investment-time fields). When a new
+        variate dim (e.g. ``scenario``) is added, extend this method once
+        and every call site picks it up.
 
         Args:
             time: Include the time coordinate.
