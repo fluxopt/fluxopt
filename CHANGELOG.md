@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.8](https://github.com/FBumann/fluxopt/compare/v0.0.7-alpha.0...v0.0.8) (2026-05-31)
+
+
+### Features
+
+* **api:** allow period-varying flow profiles via DataFrame; rename TimeSeries → Variate ([#165](https://github.com/FBumann/fluxopt/issues/165)) ([a8b535c](https://github.com/FBumann/fluxopt/commit/a8b535cd5ed0c4f4b3cd065136c594e5ad7c2d9f))
+
+
+### Bug Fixes
+
+* exclude all highspy 1.14.x versions ([#181](https://github.com/FBumann/fluxopt/issues/181)) ([5046e46](https://github.com/FBumann/fluxopt/commit/5046e466260b7c85070a355d8d504a13303d8736))
+
+
+### Miscellaneous Chores
+
+* release 0.0.8 ([d375ec5](https://github.com/FBumann/fluxopt/commit/d375ec59c02f50a5c9183ca5b91ec4d5e5c93f02))
+
 ## [0.0.7-alpha.0](https://github.com/FBumann/fluxopt/compare/v0.0.6-alpha.0...v0.0.7-alpha.0) (2026-04-29)
 
 
