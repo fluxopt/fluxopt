@@ -103,7 +103,7 @@ class StatsAccessor:
 
     def summary(self) -> xr.Dataset:
         """Headline KPIs overview.
-        
+
         Returns a tidy dataset with the objective value, total effects,
         and per-flow full load hours.
         """
@@ -118,12 +118,15 @@ class StatsAccessor:
 
         # Compute full load hours
         combined_size = self._result.data.flows.size.copy()
-        if len(self._result.sizes) > 0:
-            combined_size = combined_size.fillna(self._result.sizes)
+        sizes = self._result.sizes
+        # `sizes` is an empty 0-d DataArray when no flow has an investment size;
+        # only fill from it when it actually carries per-flow sizes.
+        if 'flow' in sizes.dims:
+            combined_size = combined_size.fillna(sizes)
 
         with xr.set_options(keep_attrs=True):
             flh = self.total_flow_hours / combined_size
             flh = flh.where(np.isfinite(flh))
-        
+
         ds['full_load_hours'] = flh
         return ds
