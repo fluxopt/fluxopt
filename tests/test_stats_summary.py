@@ -27,6 +27,7 @@ def test_stats_summary_quickstart():
     # ...and carry meaningful content, not just keys.
     assert np.isfinite(summary['objective'].item())
     assert 'cost' in summary['effect_totals'].coords['effect'].values
+    assert np.isfinite(summary['effect_totals'].sel(effect='cost').item())
 
     flh = summary['full_load_hours']
     assert 'grid(elec)' in flh.coords['flow'].values
