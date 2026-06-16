@@ -5,7 +5,7 @@ from fluxopt import Carrier, Effect, Flow, Port, optimize
 
 
 def test_stats_summary_quickstart():
-    """`result.stats.summary()` exposes objective, effect totals and full-load hours."""
+    """`result.stats.summary` exposes objective, effect totals and full-load hours."""
     demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
     source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
@@ -17,7 +17,7 @@ def test_stats_summary_quickstart():
         ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
     )
 
-    summary = result.stats.summary()
+    summary = result.stats.summary
 
     # KPIs are present...
     assert 'objective' in summary

@@ -9,9 +9,10 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import xarray as xr
+import numpy as np
+import xarray as xr
 
+if TYPE_CHECKING:
     from fluxopt.results import Result
 
 
@@ -101,23 +102,21 @@ class StatsAccessor:
             self._result.solution,
         )
 
+    @cached_property
     def summary(self) -> xr.Dataset:
         """Headline KPIs overview.
 
         Returns a tidy dataset with the objective value, total effects,
         and per-flow full load hours.
         """
-        import numpy as np
-        import xarray as xr
-
         ds = xr.Dataset()
         ds['objective'] = xr.DataArray(self._result.objective)
 
-        if self._result.effect_totals is not None and len(self._result.effect_totals) > 0:
+        if len(self._result.effect_totals) > 0:
             ds['effect_totals'] = self._result.effect_totals
 
         # Compute full load hours
-        combined_size = self._result.data.flows.size.copy()
+        combined_size = self._result.data.flows.size
         sizes = self._result.sizes
         # `sizes` is an empty 0-d DataArray when no flow has an investment size;
         # only fill from it when it actually carries per-flow sizes.
