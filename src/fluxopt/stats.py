@@ -103,40 +103,120 @@ class StatsAccessor:
         )
 
     @cached_property
+    def effective_sizes(self) -> xr.DataArray:
+        """Per-flow size actually in effect: declared size, invested filled in.
+
+        Unlike :attr:`Result.sizes` (optimized/invested flows only), this
+        carries every flow — fixed sizes as declared, invested sizes from the
+        solution, and NaN for unsized flows.
+
+        Returns:
+            DataArray (flow,) in power units (e.g. MW).
+        """
+        size = self._result.data.flows.size
+        invested = self._result.sizes
+        # `invested` is an empty 0-d DataArray when no flow is invested; only
+        # merge when it actually carries a `flow` dim.
+        if 'flow' in invested.dims:
+            size = size.fillna(invested)
+        return size
+
+    @cached_property
+    def total_duration(self) -> xr.DataArray:
+        """Weighted length of the modeled horizon: Σ_t dt_t · w_t.
+
+        The reference window for utilization metrics. Full load hours, if
+        wanted, are ``capacity_factor * total_duration``.
+
+        Returns:
+            Scalar DataArray in hours.
+        """
+        return (self._result.data.dims.dt * self._result.data.dims.weights).sum('time')
+
+    @cached_property
+    def capacity_factor(self) -> xr.DataArray:
+        """Mean utilization per flow: Σ(P·dt·w) / (size · Σ(dt·w)).
+
+        Dimensionless in [0, 1] — energy delivered relative to running at full
+        size over the whole weighted horizon. Unlike full load hours, the
+        weighted duration cancels, so it is independent of horizon length and
+        weight convention, and a per-period value needs no period weighting.
+        NaN where the size is unknown (unsized flows) or zero.
+
+        Returns:
+            DataArray (flow[, period]) — fraction of rated capacity used.
+        """
+        with xr.set_options(keep_attrs=True):
+            cf = self.total_flow_hours / (self.effective_sizes * self.total_duration)
+            return cf.where(lambda x: np.isfinite(x))
+
+    @cached_property
+    def effective_capacities(self) -> xr.DataArray:
+        """Per-storage energy capacity in effect: declared, invested filled in.
+
+        Storage analogue of :attr:`effective_sizes`. Empty when the model has
+        no storages.
+
+        Returns:
+            DataArray (storage,) in energy units (e.g. MWh).
+        """
+        if self._result.data.storages is None:
+            return xr.DataArray()
+        cap = self._result.data.storages.capacity
+        invested = self._result.storage_capacities
+        if 'storage' in invested.dims:
+            cap = cap.fillna(invested)
+        return cap
+
+    @cached_property
+    def relative_mean_level(self) -> xr.DataArray:
+        """Mean fractional charge level per storage: ⟨E⟩ / capacity.
+
+        Time-mean level (weighted by dt·w) over the reservoir capacity — the
+        storage analogue of :attr:`capacity_factor`, and the running-average
+        sibling of the ``relative_minimum_level`` / ``relative_maximum_level``
+        bounds. Dimensionless in [0, 1] and horizon-independent. NaN where
+        capacity is unknown or zero. Empty when the model has no storages.
+
+        Returns:
+            DataArray (storage[, period]) — mean fill fraction.
+        """
+        if self._result.data.storages is None:
+            return xr.DataArray()
+        dims = self._result.data.dims
+        with xr.set_options(keep_attrs=True):
+            mean_level = (self._result.storage_levels * dims.dt * dims.weights).sum('time') / self.total_duration
+            rel = mean_level / self.effective_capacities
+            return rel.where(lambda x: np.isfinite(x))
+
+    @cached_property
     def summary(self) -> xr.Dataset:
         """Headline KPIs as a named namespace.
 
-        Bundles the scalar objective, per-effect totals, and a per-flow view
-        (size, total flow hours, full load hours) into one Dataset. The
-        variables live on different dimensions (``effect`` vs ``flow``), so
-        access them by name — this is a KPI namespace, not a flat table, and
-        ``to_dataframe()`` would broadcast the unrelated axes together.
-
-        Full load hours are ``Σ(P·dt·w) / size``; ``size`` and
-        ``total_flow_hours`` are included so the quotient is transparent and
-        unsized flows still report real throughput next to a NaN size.
+        Composes existing accessors — :attr:`Result.objective`,
+        :attr:`Result.effect_totals`, :attr:`total_duration`,
+        :attr:`effective_sizes`, :attr:`total_flow_hours`,
+        :attr:`capacity_factor`, and (when the model has storages)
+        :attr:`effective_capacities` and :attr:`relative_mean_level` — into
+        one Dataset. The variables live on different dimensions (``effect`` vs
+        ``flow`` vs ``storage``), so access them by name: this is a KPI
+        namespace, not a flat table, and ``to_dataframe()`` would broadcast
+        the unrelated axes together.
 
         Returns:
-            Dataset with ``objective``, ``effect_totals``, ``size``,
-            ``total_flow_hours`` and ``full_load_hours``.
+            Dataset with ``objective``, ``effect_totals``, ``total_duration``,
+            ``size``, ``total_flow_hours``, ``capacity_factor``, and — with
+            storages — ``capacity`` and ``relative_mean_level``.
         """
-        # Declared sizes (NaN for unsized/invested flows); fill the NaNs from
-        # the optimized sizes. `sizes` is an empty 0-d DataArray when no flow
-        # is invested, so only merge when it actually carries a `flow` dim.
-        size = self._result.data.flows.size
-        sizes = self._result.sizes
-        if 'flow' in sizes.dims:
-            size = size.fillna(sizes)
-
-        with xr.set_options(keep_attrs=True):
-            flh = (self.total_flow_hours / size).where(lambda x: np.isfinite(x))
-
-        return xr.Dataset(
-            {
-                'objective': self._result.objective,
-                'effect_totals': self._result.effect_totals,
-                'size': size,
-                'total_flow_hours': self.total_flow_hours,
-                'full_load_hours': flh,
-            },
-        )
+        kpis = {
+            'objective': self._result.objective,
+            'effect_totals': self._result.effect_totals,
+            'total_duration': self.total_duration,
+            'size': self.effective_sizes,
+            'total_flow_hours': self.total_flow_hours,
+            'capacity_factor': self.capacity_factor,
+        }
+        if self._result.data.storages is not None:
+            kpis['capacity'] = self.effective_capacities
+            kpis['relative_mean_level'] = self.relative_mean_level
+        return xr.Dataset(kpis)
