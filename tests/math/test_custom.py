@@ -51,7 +51,7 @@ class TestCustomize:
         """A custom variable added via callback should appear in result.solution."""
 
         def add_slack(model: FlowSystem) -> None:
-            time = model.m.variables['flow--rate'].coords['time']
+            time = model.m.variables['flow--rate'].indexes['time']
             slack = model.m.add_variables(lower=0, coords=[time], name='my_slack')
             grid = model.m.variables['flow--rate'].sel(flow='grid(elec)')
             # grid + slack >= 60 → slack >= 10 (since grid = 50)
@@ -86,7 +86,7 @@ class TestCustomize:
         model.build()
 
         # Add custom variable and constraint
-        time = model.m.variables['flow--rate'].coords['time']
+        time = model.m.variables['flow--rate'].indexes['time']
         bonus = model.m.add_variables(lower=0, upper=5, coords=[time], name='bonus')
         model.m.objective += -bonus.sum()  # maximize bonus (minimize negative)
 
