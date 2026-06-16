@@ -104,28 +104,39 @@ class StatsAccessor:
 
     @cached_property
     def summary(self) -> xr.Dataset:
-        """Headline KPIs overview.
+        """Headline KPIs as a named namespace.
 
-        Returns a tidy dataset with the objective value, total effects,
-        and per-flow full load hours.
+        Bundles the scalar objective, per-effect totals, and a per-flow view
+        (size, total flow hours, full load hours) into one Dataset. The
+        variables live on different dimensions (``effect`` vs ``flow``), so
+        access them by name — this is a KPI namespace, not a flat table, and
+        ``to_dataframe()`` would broadcast the unrelated axes together.
+
+        Full load hours are ``Σ(P·dt·w) / size``; ``size`` and
+        ``total_flow_hours`` are included so the quotient is transparent and
+        unsized flows still report real throughput next to a NaN size.
+
+        Returns:
+            Dataset with ``objective``, ``effect_totals``, ``size``,
+            ``total_flow_hours`` and ``full_load_hours``.
         """
-        ds = xr.Dataset()
-        ds['objective'] = xr.DataArray(self._result.objective)
-
-        if len(self._result.effect_totals) > 0:
-            ds['effect_totals'] = self._result.effect_totals
-
-        # Compute full load hours
-        combined_size = self._result.data.flows.size
+        # Declared sizes (NaN for unsized/invested flows); fill the NaNs from
+        # the optimized sizes. `sizes` is an empty 0-d DataArray when no flow
+        # is invested, so only merge when it actually carries a `flow` dim.
+        size = self._result.data.flows.size
         sizes = self._result.sizes
-        # `sizes` is an empty 0-d DataArray when no flow has an investment size;
-        # only fill from it when it actually carries per-flow sizes.
         if 'flow' in sizes.dims:
-            combined_size = combined_size.fillna(sizes)
+            size = size.fillna(sizes)
 
         with xr.set_options(keep_attrs=True):
-            flh = self.total_flow_hours / combined_size
-            flh = flh.where(np.isfinite(flh))
+            flh = (self.total_flow_hours / size).where(lambda x: np.isfinite(x))
 
-        ds['full_load_hours'] = flh
-        return ds
+        return xr.Dataset(
+            {
+                'objective': self._result.objective,
+                'effect_totals': self._result.effect_totals,
+                'size': size,
+                'total_flow_hours': self.total_flow_hours,
+                'full_load_hours': flh,
+            },
+        )

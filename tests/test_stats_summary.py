@@ -22,6 +22,8 @@ def test_stats_summary_quickstart():
     # KPIs are present...
     assert 'objective' in summary
     assert 'effect_totals' in summary
+    assert 'size' in summary
+    assert 'total_flow_hours' in summary
     assert 'full_load_hours' in summary
 
     # ...and carry meaningful content, not just keys.
@@ -29,8 +31,19 @@ def test_stats_summary_quickstart():
     assert 'cost' in summary['effect_totals'].coords['effect'].values
     assert np.isfinite(summary['effect_totals'].sel(effect='cost').item())
 
-    flh = summary['full_load_hours']
-    assert 'grid(elec)' in flh.coords['flow'].values
-    source_flh = flh.sel(flow='grid(elec)').item()
-    assert np.isfinite(source_flh)
-    assert source_flh >= 0
+    # The per-flow KPIs share the `flow` dim, while effect totals live on
+    # `effect` — it's a KPI namespace, not a flat table.
+    assert 'effect' in summary['effect_totals'].dims
+    for var in ('size', 'total_flow_hours', 'full_load_hours'):
+        assert summary[var].dims == ('flow',)
+
+    flow = 'grid(elec)'
+    size = summary['size'].sel(flow=flow).item()
+    tfh = summary['total_flow_hours'].sel(flow=flow).item()
+    flh = summary['full_load_hours'].sel(flow=flow).item()
+
+    # size and throughput are transparent, and FLH is exactly their quotient.
+    assert size == 200
+    assert np.isfinite(tfh) and tfh >= 0
+    assert np.isfinite(flh) and flh >= 0
+    assert np.isclose(flh, tfh / size)
