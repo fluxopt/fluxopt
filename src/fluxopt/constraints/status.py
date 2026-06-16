@@ -93,7 +93,6 @@ def add_duration_tracking(
     # Variable upper bound: use maximum where provided, else mega
     upper: xr.DataArray = maximum.where(maximum.notnull(), mega) if maximum is not None else mega
 
-    # linopy >= 0.8 requires coord entries to be pd.Index, not DataArray.
     coords = [state.coords[element_dim].to_index(), state.coords[dim].to_index()]
     duration = m.add_variables(lower=0, upper=upper, coords=coords, name=name)
 
