@@ -103,12 +103,21 @@ class StatsAccessor:
         )
 
     @cached_property
-    def effective_sizes(self) -> xr.DataArray:
-        """Per-flow size actually in effect: declared size, invested filled in.
+    def resolved_sizes(self) -> xr.DataArray:
+        """Per-flow size resolved from declared or optimized values.
 
         Unlike :attr:`Result.sizes` (optimized/invested flows only), this
         carries every flow — fixed sizes as declared, invested sizes from the
         solution, and NaN for unsized flows.
+
+        Named ``resolved_*`` rather than ``installed_*`` on purpose: advanced
+        multi-period investment (#88 — cumulative builds, early retirement)
+        will give "installed capacity" a precise per-period meaning
+        (``cap[t] = cap[t-1] + cap_new[t] - cap_retired[t]``). This stays the
+        plainer "the size value resolved for each flow" so it doesn't collide
+        with that future modeling term. The computation already keys off
+        ``flow--size`` (the solver's per-period in-place capacity), so it
+        remains correct when #88 lands; only the value, not the API, changes.
 
         Returns:
             DataArray (flow,) in power units (e.g. MW).
@@ -147,15 +156,16 @@ class StatsAccessor:
             DataArray (flow[, period]) — fraction of rated capacity used.
         """
         with xr.set_options(keep_attrs=True):
-            cf = self.total_flow_hours / (self.effective_sizes * self.total_duration)
+            cf = self.total_flow_hours / (self.resolved_sizes * self.total_duration)
             return cf.where(lambda x: np.isfinite(x))
 
     @cached_property
-    def effective_capacities(self) -> xr.DataArray:
-        """Per-storage energy capacity in effect: declared, invested filled in.
+    def resolved_capacities(self) -> xr.DataArray:
+        """Per-storage energy capacity resolved from declared or optimized values.
 
-        Storage analogue of :attr:`effective_sizes`. Empty when the model has
-        no storages.
+        Storage analogue of :attr:`resolved_sizes` (see its note on the
+        ``resolved_*`` naming vs #88's future "installed capacity"). Empty when
+        the model has no storages.
 
         Returns:
             DataArray (storage,) in energy units (e.g. MWh).
@@ -186,7 +196,7 @@ class StatsAccessor:
         dims = self._result.data.dims
         with xr.set_options(keep_attrs=True):
             mean_level = (self._result.storage_levels * dims.dt * dims.weights).sum('time') / self.total_duration
-            rel = mean_level / self.effective_capacities
+            rel = mean_level / self.resolved_capacities
             return rel.where(lambda x: np.isfinite(x))
 
     @cached_property
@@ -195,9 +205,9 @@ class StatsAccessor:
 
         Composes existing accessors — :attr:`Result.objective`,
         :attr:`Result.effect_totals`, :attr:`total_duration`,
-        :attr:`effective_sizes`, :attr:`total_flow_hours`,
+        :attr:`resolved_sizes`, :attr:`total_flow_hours`,
         :attr:`capacity_factor`, and (when the model has storages)
-        :attr:`effective_capacities` and :attr:`relative_mean_level` — into
+        :attr:`resolved_capacities` and :attr:`relative_mean_level` — into
         one Dataset. The variables live on different dimensions (``effect`` vs
         ``flow`` vs ``storage``), so access them by name: this is a KPI
         namespace, not a flat table, and ``to_dataframe()`` would broadcast
@@ -212,11 +222,11 @@ class StatsAccessor:
             'objective': self._result.objective,
             'effect_totals': self._result.effect_totals,
             'total_duration': self.total_duration,
-            'size': self.effective_sizes,
+            'size': self.resolved_sizes,
             'total_flow_hours': self.total_flow_hours,
             'capacity_factor': self.capacity_factor,
         }
         if self._result.data.storages is not None:
-            kpis['capacity'] = self.effective_capacities
+            kpis['capacity'] = self.resolved_capacities
             kpis['relative_mean_level'] = self.relative_mean_level
         return xr.Dataset(kpis)
