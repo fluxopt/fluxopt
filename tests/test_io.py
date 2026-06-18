@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -112,6 +113,59 @@ class TestRoundtrip:
         model = FlowSystem(loaded.data)
         result2 = model.optimize(objective_effects='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
+
+
+class TestUnicodePath:
+    """Reading non-ASCII netCDF paths: clarify the misleading error on Windows.
+
+    netcdf4/libnetcdf (through 4.9.3) fails to open files under non-ASCII
+    *directories* on Windows with a misleading PermissionError. On a read
+    failure fluxopt replaces it with an actionable message; the guard is purely
+    reactive (it only fires if netcdf4 actually raises) and read-only. Other
+    platforms are unaffected. See #189 and Unidata/netcdf4-python#1482.
+    """
+
+    @pytest.mark.parametrize(
+        ('os_name', 'relpath', 'clarified'),
+        [
+            ('nt', 'ümlaut/r.nc', True),  # Windows + non-ASCII -> clarified ValueError
+            ('nt', 'ascii/r.nc', False),  # Windows + ASCII -> original error passes through
+            ('posix', 'ümlaut/r.nc', False),  # other platforms work -> original error passes through
+        ],
+    )
+    def test_read_error_clarified_only_on_windows_nonascii(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, os_name: str, relpath: str, clarified: bool
+    ) -> None:
+        """Read failures get a clear message only for non-ASCII paths on Windows; else propagate."""
+        from fluxopt.model_data import _raise_netcdf_read_error
+
+        monkeypatch.setattr('fluxopt.model_data.os.name', os_name)
+        original = PermissionError(13, 'Permission denied')
+        with pytest.raises((ValueError, OSError)) as excinfo:
+            _raise_netcdf_read_error(tmp_path / relpath, original)
+        if clarified:
+            assert isinstance(excinfo.value, ValueError)
+            assert 'non-ASCII' in str(excinfo.value)
+            assert excinfo.value.__cause__ is original  # original preserved in the chain
+        else:
+            assert excinfo.value is original  # untouched
+
+    @pytest.mark.skipif(os.name != 'nt', reason='upstream bug is Windows-only')
+    @pytest.mark.xfail(
+        strict=True,
+        reason='Upstream bug: netcdf4 cannot open files in non-ASCII dirs on Windows '
+        '(Unidata/netcdf4-python#1482). When this XPASSes, upstream is fixed -- drop the '
+        '_raise_netcdf_read_error guard.',
+    )
+    def test_upstream_netcdf4_nonascii_dir_canary(self, tmp_path: Path) -> None:
+        """Probe raw netcdf4 directly; alerts us (strict xfail) the day upstream fixes this."""
+        from netCDF4 import Dataset  # type: ignore[import-untyped]
+
+        d = tmp_path / 'umlaut_äöü'
+        d.mkdir()
+        with Dataset(str(d / 'probe.nc'), 'w') as ds:
+            ds.createDimension('x', 1)
+            ds.createVariable('value', 'f4', ('x',))[:] = [42]
 
 
 class TestCarrierMetadataRoundtrip:

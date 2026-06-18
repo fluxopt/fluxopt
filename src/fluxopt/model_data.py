@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import os
 import warnings
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, Self
 
 import numpy as np
 import pandas as pd
@@ -70,6 +71,33 @@ _NC_GROUPS = {
     'storages': 'model/stor',
     'piecewise': 'model/pw',
 }
+
+
+def _raise_netcdf_read_error(path: Path, exc: OSError) -> NoReturn:
+    """Re-raise a netCDF read failure, clarifying the Windows non-ASCII path bug.
+
+    netcdf4/libnetcdf (through 4.9.3) fails to open files under non-ASCII
+    *directories* on Windows with a misleading ``PermissionError``/``OSError``
+    (upstream bug Unidata/netcdf4-python#1482). When the failing path is
+    non-ASCII on Windows we surface an actionable message; otherwise the original
+    error propagates unchanged. Only read paths are wrapped — the error only
+    surfaces if netcdf4 actually raises, so nothing that would work is blocked.
+
+    Args:
+        path: The path being read.
+        exc: The error raised by the netCDF engine.
+
+    Raises:
+        ValueError: On Windows when the failing path contains non-ASCII characters.
+        OSError: The original error, on any other platform or path.
+    """
+    if os.name == 'nt' and not str(path).isascii():
+        raise ValueError(
+            f'Failed to read netCDF at a path containing non-ASCII characters on Windows: {path}. '
+            'netcdf4 cannot open files under non-ASCII directories on Windows '
+            '(upstream bug Unidata/netcdf4-python#1482). Use an ASCII-only directory and file name.'
+        ) from exc
+    raise exc
 
 
 def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
@@ -1470,9 +1498,13 @@ class ModelData:
 
         Raises:
             OSError: If no model data groups found in the file.
+            ValueError: On Windows when reading a non-ASCII path (netcdf4 limitation).
         """
         p = Path(path)
-        meta = xr.load_dataset(p, group='model/meta', engine='netcdf4')
+        try:
+            meta = xr.load_dataset(p, group='model/meta', engine='netcdf4')
+        except OSError as e:
+            _raise_netcdf_read_error(p, e)
 
         datasets: dict[str, xr.Dataset] = {}
         for name, group in _NC_GROUPS.items():
