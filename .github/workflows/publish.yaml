@@ -22,7 +22,7 @@ jobs:
       name: pypi
       url: https://pypi.org/project/fluxopt
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
@@ -46,7 +46,7 @@ jobs:
     if: github.event_name == 'push' && needs.publish.result == 'success'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.ref_name }}
 
