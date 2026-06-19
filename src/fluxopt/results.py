@@ -171,11 +171,17 @@ class Result:
 
         Args:
             path: Input file path.
+
+        Raises:
+            ValueError: On Windows when reading a non-ASCII path (netcdf4 limitation).
         """
-        from fluxopt.model_data import ModelData
+        from fluxopt.model_data import ModelData, _raise_netcdf_read_error
 
         p = Path(path)
-        solution = xr.load_dataset(p, engine='netcdf4')
+        try:
+            solution = xr.load_dataset(p, engine='netcdf4')
+        except OSError as e:
+            _raise_netcdf_read_error(p, e)
         data = ModelData.from_netcdf(p)
 
         try:
