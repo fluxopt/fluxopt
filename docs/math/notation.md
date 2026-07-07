@@ -96,8 +96,8 @@ omit unless we're discussing multi-period dynamics specifically.
 | \(\mathrm{a}_{f,i}\) | [`Converter.conversion_factors`](../api/fluxopt/components.md#fluxopt.components.Converter(conversion_factors)) | \(\mathbb{R}\) | — | Conversion coefficient (per flow, per equation) |
 | \(\alpha_{k,j}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) | \(\mathbb{R}\) | varies | Cross-effect factor (scalar) |
 | \(\alpha_{k,j,t}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (Variate) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
-| \(\bar{\Phi}_k\) | [`Effect.maximum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum)) | \(\mathbb{R}\) | varies | Maximum aggregate (weighted sum across periods) |
-| \(\underline{\Phi}_k\) | [`Effect.minimum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum)) | \(\mathbb{R}\) | varies | Minimum aggregate (weighted sum across periods) |
+| \(\bar{\Phi}_k\) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_max)) | \(\mathbb{R}\) | varies | Maximum aggregate (weighted sum across periods) |
+| \(\underline{\Phi}_k\) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_min)) | \(\mathbb{R}\) | varies | Minimum aggregate (weighted sum across periods) |
 | \(\bar{\Phi}_k^{\text{per period}}\) | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_max)) | \(\mathbb{R}\) | varies | Maximum per period |
 | \(\underline{\Phi}_k^{\text{per period}}\) | [`Effect.periodic_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_min)) | \(\mathbb{R}\) | varies | Minimum per period |
 | \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | [`Effect.rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_max)) | \(\mathbb{R}\) | varies/h | Maximum per hour (rate, scaled by \(\Delta t_t\)) |
