@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from conftest import ts
+from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, optimize
 
@@ -330,3 +331,85 @@ class TestContributionFrom:
         assert float(result.effect_totals.sel(effect='pe').values) == pytest.approx(pe_total, abs=1e-4)
         assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-4)
         assert result.objective == pytest.approx(cost_total, abs=1e-4)
+
+
+class TestPenaltyEffect:
+    def test_penalty_always_in_objective(self):
+        """The built-in penalty effect is minimized without being named.
+
+        Two sources with identical cost 1; SrcB carries penalty=1. Demand=10.
+        The penalty breaks the tie: all flow from SrcA. Objective includes
+        the (zero) penalty: 10.
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('SrcA', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port('SrcB', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 1})]),
+            ],
+        )
+        assert_allclose(result.objective, 10.0, rtol=1e-5)
+        assert_allclose(result.flow_rate('SrcA(Heat)').values, [10.0], rtol=1e-5)
+        assert_allclose(result.flow_rate('SrcB(Heat)').values, [0.0], atol=1e-6)
+
+    def test_penalty_contributes_to_objective_value(self):
+        """Incurred penalty is part of the objective value.
+
+        Single source with cost 1 and penalty 0.5. Demand=10.
+        objective = 10 * (1 + 0.5) = 15; cost total stays 10.
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 0.5})]),
+            ],
+        )
+        assert_allclose(result.objective, 15.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
+
+    def test_penalty_weight_zero_ignores_penalty(self):
+        """penalty_weight=0 solves without the penalty term.
+
+        Same model as above: objective = 10 (cost only), penalty tracked
+        but not minimized.
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            penalty_weight=0.0,
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 0.5})]),
+            ],
+        )
+        assert_allclose(result.objective, 10.0, rtol=1e-5)
+
+    def test_penalty_weight_scales_term(self):
+        """penalty_weight scales the penalty contribution in the objective.
+
+        cost 1 + penalty 0.5 per flow-hour, weight 2: objective =
+        10 + 2 * 5 = 20; cost total stays 10.
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            penalty_weight=2.0,
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 0.5})]),
+            ],
+        )
+        assert_allclose(result.objective, 20.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)

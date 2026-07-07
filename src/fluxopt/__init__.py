@@ -38,6 +38,7 @@ def optimize(
     period_weights: list[float] | None = None,
     solver: str = 'highs',
     customize: Callable[[FlowSystem], None] | None = None,
+    penalty_weight: float = 1.0,
     **kwargs: Any,
 ) -> Result:
     """Build data, build model, optimize, return results.
@@ -47,7 +48,8 @@ def optimize(
         carriers: Carrier declarations.
         effects: Effects to track (costs, emissions, etc.).
         ports: System boundary ports with imports/exports.
-        objective_effects: Effect name(s) to minimize. Sum of named effect totals.
+        objective_effects: Effect name(s) to minimize. Sum of named effect
+            totals; the built-in ``'penalty'`` effect is included by default.
         converters: Linear converters between carriers.
         storages: Energy storages.
         dt: Timestep duration in hours. Auto-derived if None.
@@ -56,6 +58,8 @@ def optimize(
         solver: Solver backend name.
         customize: Optional callback to modify the linopy model between build and solve.
             Receives the built FlowSystem; use ``model.m`` to add variables/constraints.
+        penalty_weight: Scale for the built-in penalty effect in the
+            objective; 0.0 solves ignoring penalty terms.
         **kwargs: Passed through to ``linopy.Model.solve()``.
     """
     data = ModelData.build(
@@ -70,7 +74,13 @@ def optimize(
         period_weights=period_weights,
     )
     model = FlowSystem(data)
-    return model.optimize(objective_effects=objective_effects, customize=customize, solver=solver, **kwargs)
+    return model.optimize(
+        objective_effects=objective_effects,
+        customize=customize,
+        solver=solver,
+        penalty_weight=penalty_weight,
+        **kwargs,
+    )
 
 
 __all__ = [
