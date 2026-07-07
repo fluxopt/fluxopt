@@ -563,7 +563,7 @@ class FlowSystem:
         bounds = (ds.flow_hours_min, ds.flow_hours_max, ds.load_factor_min, ds.load_factor_max)
         if all(b is None for b in bounds):
             return
-        w = self.data.dims.weights
+        w = self.data.dims.dt * self.data.dims.weights
         flow_hours = (self.flow_rate * w).sum('time')  # (flow[, period])
 
         if ds.flow_hours_min is not None:

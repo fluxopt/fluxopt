@@ -508,6 +508,57 @@ class TestFlowConstraints:
             per_period = float(cheap.sel(period=p).values.sum())
             assert per_period <= 15.0 + 1e-5, f'CheapSrc above flow_hours_max in period {p}: {per_period}'
 
+    def test_flow_hours_max_respects_timestep_duration(self):
+        """flow_hours_max is an energy bound: rates are weighted by dt.
+
+        2 timesteps of 4 h, demand 10 MW -> 80 MWh. CheapSrc flow_hours_max=40
+        caps cheap energy at 40 MWh; ExpensiveSrc covers the rest.
+        cost = 40*1 + 40*5 = 240.
+
+        Sensitivity: summing rates without dt reads 20 "flow hours" for the
+        full cheap supply, the cap never binds, and the objective drops to 80.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('CheapSrc', imports=[Flow('Heat', flow_hours_max=40, effects_per_flow_hour={'cost': 1})]),
+                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+            dt=4.0,
+        )
+        assert_allclose(result.objective, 240.0, rtol=1e-5)
+
+    def test_flow_hours_min_respects_timestep_duration(self):
+        """flow_hours_min forces minimum energy, not a minimum rate sum.
+
+        2 timesteps of 4 h, demand 10 MW -> 80 MWh. ExpensiveSrc
+        flow_hours_min=40 forces 40 MWh expensive; cheap covers the rest.
+        cost = 40*1 + 40*5 = 240.
+
+        Sensitivity: without dt the floor reads as 40 rate-units = 160 MWh,
+        exceeding total demand — the model turns infeasible.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('CheapSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port(
+                    'ExpensiveSrc',
+                    imports=[Flow('Heat', flow_hours_min=40, effects_per_flow_hour={'cost': 5})],
+                ),
+            ],
+            dt=4.0,
+        )
+        assert_allclose(result.objective, 240.0, rtol=1e-5)
+
     def test_load_factor_requires_size(self):
         """load_factor bounds on an unsized flow fail loudly at element level."""
         with pytest.raises(ValueError, match='load_factor'):
