@@ -78,9 +78,10 @@ size, or the sizing/investment maximum). Both flows must therefore be sized.
 !!! tip "Consider a soft penalty first"
     The binary turns the model into a MILP. In most models simultaneous
     cycling only pays off under negative prices or must-run surplus — a
-    small variable cost on the charge/discharge flows
-    (`effects_per_flow_hour={'cost': 1e-3}`) usually discourages it while
-    keeping the problem linear (this is PyPSA's recommended approach; cf.
+    small penalty on the charge/discharge flows
+    (`effects_per_flow_hour={'penalty': 1e-3}`) usually discourages it
+    while keeping the problem linear and the real cost accounting clean
+    (this is PyPSA's recommended approach; cf.
     [Parzen et al. 2023](https://doi.org/10.1016/j.isci.2022.105729) on
     unintended storage cycling). Reach for `prevent_simultaneous` when
     the exclusion must be exact.
