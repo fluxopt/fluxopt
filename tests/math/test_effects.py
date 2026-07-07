@@ -413,3 +413,31 @@ class TestPenaltyEffect:
         )
         assert_allclose(result.objective, 20.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
+
+
+class TestWeightedObjective:
+    def test_objective_effects_dict_weights(self):
+        """Dict form weights effects in the objective without touching totals.
+
+        Dirty (cost 1, co2 1) vs Clean (cost 20, co2 0), demand 10.
+        Weighted: dirty = 1 + 50*1 = 51/MWh, clean = 20/MWh -> Clean wins.
+        objective = 200; tracked cost = 200, co2 = 0.
+
+        Sensitivity: With objective_effects='cost', Dirty wins (objective 10).
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost'), Effect('co2', unit='kg')],
+            objective_effects={'cost': 1.0, 'co2': 50.0},
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'co2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'cost': 20, 'co2': 0})]),
+            ],
+        )
+        assert_allclose(result.objective, 200.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 200.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='co2').item(), 0.0, atol=1e-6)
+        # Provenance: the resolved scales are recorded on the result
+        assert result.objective_scales == {'cost': 1.0, 'co2': 50.0, 'penalty': 1.0}

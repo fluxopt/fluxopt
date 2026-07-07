@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
@@ -56,6 +57,15 @@ class Result:
     def objective(self) -> float:
         """Objective function value."""
         return float(self.solution.attrs['objective'])
+
+    @property
+    def objective_scales(self) -> dict[str, float]:
+        """Effect weights the objective was minimized with (provenance).
+
+        Includes the built-in penalty effect at its ``penalty_weight``.
+        Empty for results saved before this field existed.
+        """
+        return json.loads(self.solution.attrs.get('objective_scales', '{}'))
 
     @property
     def flow_rates(self) -> xr.DataArray:
@@ -268,7 +278,10 @@ class Result:
         raw = model.m.objective.value
         obj_val = float(raw) if raw is not None else 0.0
 
-        solution = xr.Dataset(sol_vars, attrs={'objective': obj_val})
+        solution = xr.Dataset(
+            sol_vars,
+            attrs={'objective': obj_val, 'objective_scales': json.dumps(model._objective_scales)},
+        )
         duals = model.m.dual
 
         from fluxopt.contributions import _with_cross_effects, compute_effect_contributions
