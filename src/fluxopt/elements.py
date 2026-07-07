@@ -159,6 +159,14 @@ class Flow:
             lower and upper bounds equal to the profile value.
         effects_per_flow_hour: Effect coefficients per flow-hour
             (e.g. €/MWh).
+        flow_hours_min: Lower bound on total flow-hours ``Σ P·Δt`` [MWh],
+            applied to each period independently.
+        flow_hours_max: Upper bound on total flow-hours ``Σ P·Δt`` [MWh],
+            applied to each period independently.
+        load_factor_min: Lower bound on utilization ``Σ P·Δt / (size·T)``,
+            applied to each period independently. Requires ``size``.
+        load_factor_max: Upper bound on utilization ``Σ P·Δt / (size·T)``,
+            applied to each period independently. Requires ``size``.
         status: On/off behavior (semi-continuous, startup costs, durations).
         prior_rates: Flow rates [MW] before the horizon, used for
             status initial conditions.
@@ -173,6 +181,10 @@ class Flow:
     relative_rate_max: Variate = 1.0  # p̄_f  [-]
     fixed_relative_profile: Variate | None = None  # π_f  [-]
     effects_per_flow_hour: dict[str, Variate] = field(default_factory=dict)  # c_{f,k}  [varies]
+    flow_hours_min: float | None = None  # H̲_f  [MWh] — per period
+    flow_hours_max: float | None = None  # H̄_f  [MWh] — per period
+    load_factor_min: float | None = None  # λ̲_f  [-] — per period
+    load_factor_max: float | None = None  # λ̄_f  [-] — per period
     status: Status | None = None
     prior_rates: list[float] | None = None  # flow rates before horizon [MW]
 
@@ -185,6 +197,12 @@ class Flow:
             msg = (
                 f'Flow {self.short_id!r}: relative_rate_min must be > 0 when status is set, '
                 f'otherwise on/off is indistinguishable (got {self.relative_rate_min})'
+            )
+            raise ValueError(msg)
+        if (self.load_factor_min is not None or self.load_factor_max is not None) and self.size is None:
+            msg = (
+                f'Flow {self.short_id!r}: load_factor bounds require a size '
+                f'(fixed or Sizing/Investment) — the load factor is relative to size'
             )
             raise ValueError(msg)
 

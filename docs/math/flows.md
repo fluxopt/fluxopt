@@ -27,6 +27,36 @@ P_{f,t} = \bar{\mathrm{P}}_f \cdot \pi_{f,t} \quad \forall \, f, t
 
 Implemented by setting both bounds equal to the profile value.
 
+## Aggregate Bounds
+
+Aggregate bounds constrain the flow-hours \(H_{f,p}\) — the flow rate summed
+over the horizon — within **each period independently**:
+
+\[
+H_{f,p} = \sum_{t \in \mathcal{T}} P_{f,t,p} \cdot \Delta t_t
+\]
+
+**Flow-hour bounds** (`flow_hours_min` / `flow_hours_max`) — absolute [MWh]:
+
+\[
+\underline{\mathrm{H}}_f \leq H_{f,p} \leq \bar{\mathrm{H}}_f \quad \forall \, p
+\]
+
+**Load factor bounds** (`load_factor_min` / `load_factor_max`) — utilization
+relative to capacity, with \(T = \sum_t \Delta t_t\) the period duration:
+
+\[
+\underline{\lambda}_f \cdot \bar{\mathrm{P}}_f \cdot T \leq H_{f,p} \leq \bar{\lambda}_f \cdot \bar{\mathrm{P}}_f \cdot T \quad \forall \, p
+\]
+
+When `Flow.size` is a [Sizing](sizing.md) or Investment object,
+\(\bar{\mathrm{P}}_f\) is the size *variable* \(S_{f,p}\) and the products
+stay linear (constant \(\lambda \cdot T\) times a variable). Load factor
+bounds therefore require a size; flow-hour bounds do not.
+
+Cross-period budgets are not expressed here — route them through an
+[effect](effects.md) with `total_min` / `total_max`.
+
 ## Effect Contributions
 
 Each flow contributes to tracked effects (cost, emissions, …). Per-timestep:
@@ -55,6 +85,10 @@ Units cancel: e.g. €/MWh × MW × h = €. Contributions feed into the
 | \(\bar{\mathrm{p}}_{f,t}\) | Relative upper bound | [`Flow.relative_rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow(relative_rate_max)) |
 | \(\pi_{f,t}\) | Fixed relative profile | [`Flow.fixed_relative_profile`](../api/fluxopt/elements.md#fluxopt.elements.Flow(fixed_relative_profile)) |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(effects_per_flow_hour)) |
+| \(\underline{\mathrm{H}}_f\) | Minimum flow-hours per period | [`Flow.flow_hours_min`](../api/fluxopt/elements.md#fluxopt.elements.Flow(flow_hours_min)) |
+| \(\bar{\mathrm{H}}_f\) | Maximum flow-hours per period | [`Flow.flow_hours_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow(flow_hours_max)) |
+| \(\underline{\lambda}_f\) | Minimum load factor per period | [`Flow.load_factor_min`](../api/fluxopt/elements.md#fluxopt.elements.Flow(load_factor_min)) |
+| \(\bar{\lambda}_f\) | Maximum load factor per period | [`Flow.load_factor_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow(load_factor_max)) |
 | \(\Delta t_t\) | Timestep duration (h) | dt |
 
 See [Notation](notation.md) for the full symbol table and [Indexing

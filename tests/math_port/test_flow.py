@@ -1,7 +1,6 @@
 """Mathematical correctness tests for flow constraints."""
 
 import numpy as np
-import pytest
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port
@@ -101,7 +100,6 @@ class TestFlowConstraints:
         flow = result.flow_rate('CheapSrc(Heat)').values
         assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_rate_max: {flow}'
 
-    @pytest.mark.skip(reason='flow_hours constraint not supported in fluxopt')
     def test_flow_hours_max(self, optimize):
         """Proves: flow_hours_max limits the total cumulative flow-hours per period.
 
@@ -111,9 +109,22 @@ class TestFlowConstraints:
         Sensitivity: Without flow_hours_max, all from CheapSrc → cost=60.
         With flow_hours_max=30, CheapSrc limited to 30, ExpensiveSrc covers 30 → cost=180.
         """
-        raise NotImplementedError  # TODO: implement flow_hours constraint
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20, 20]))]),
+                Port('CheapSrc', imports=[Flow('Heat', flow_hours_max=30, effects_per_flow_hour={'cost': 1})]),
+                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+        )
+        # CheapSrc: 30 * 1 = 30. ExpensiveSrc: 30 * 5 = 150. Total = 180.
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 180.0, rtol=1e-5)
+        cheap_total = result.flow_rate('CheapSrc(Heat)').values.sum()
+        assert cheap_total <= 30.0 + 1e-5, f'CheapSrc above flow_hours_max: {cheap_total}'
 
-    @pytest.mark.skip(reason='flow_hours constraint not supported in fluxopt')
     def test_flow_hours_min(self, optimize):
         """Proves: flow_hours_min forces a minimum total cumulative flow-hours per period.
 
@@ -123,9 +134,22 @@ class TestFlowConstraints:
         Sensitivity: Without flow_hours_min, all from CheapSrc → cost=60.
         With flow_hours_min=40, ExpensiveSrc forced to produce 40 → cost=220.
         """
-        raise NotImplementedError  # TODO: implement flow_hours constraint
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
+                Port('CheapSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port('ExpensiveSrc', imports=[Flow('Heat', flow_hours_min=40, effects_per_flow_hour={'cost': 5})]),
+            ],
+        )
+        # ExpensiveSrc: 40 * 5 = 200. CheapSrc: 20 * 1 = 20. Total = 220.
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 220.0, rtol=1e-5)
+        expensive_total = result.flow_rate('ExpensiveSrc(Heat)').values.sum()
+        assert expensive_total >= 40.0 - 1e-5, f'ExpensiveSrc below flow_hours_min: {expensive_total}'
 
-    @pytest.mark.skip(reason='load_factor not supported in fluxopt')
     def test_load_factor_max(self, optimize):
         """Proves: load_factor_max limits utilization to (flow_hours) / (size * total_hours).
 
@@ -135,9 +159,25 @@ class TestFlowConstraints:
         Sensitivity: Without load_factor_max, CheapSrc covers 80 → cost=80.
         With load_factor_max=0.5, CheapSrc limited to 50, ExpensiveSrc covers 30 → cost=200.
         """
-        raise NotImplementedError  # TODO: implement load_factor constraint
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([40, 40]))]),
+                Port(
+                    'CheapSrc',
+                    imports=[Flow('Heat', size=50, load_factor_max=0.5, effects_per_flow_hour={'cost': 1})],
+                ),
+                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+        )
+        # CheapSrc: 50 * 1 = 50. ExpensiveSrc: 30 * 5 = 150. Total = 200.
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 200.0, rtol=1e-5)
+        cheap_total = result.flow_rate('CheapSrc(Heat)').values.sum()
+        assert cheap_total <= 50.0 + 1e-5, f'CheapSrc above load_factor_max: {cheap_total}'
 
-    @pytest.mark.skip(reason='load_factor not supported in fluxopt')
     def test_load_factor_min(self, optimize):
         """Proves: load_factor_min forces minimum utilization (flow_hours) / (size * total_hours).
 
@@ -147,4 +187,21 @@ class TestFlowConstraints:
         Sensitivity: Without load_factor_min, all from CheapSrc → cost=60.
         With load_factor_min=0.3, ExpensiveSrc forced to produce 60 → cost=300.
         """
-        raise NotImplementedError  # TODO: implement load_factor constraint
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
+                Port('CheapSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port(
+                    'ExpensiveSrc',
+                    imports=[Flow('Heat', size=100, load_factor_min=0.3, effects_per_flow_hour={'cost': 5})],
+                ),
+            ],
+        )
+        # ExpensiveSrc: 60 * 5 = 300. CheapSrc: 0. Total = 300.
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 300.0, rtol=1e-5)
+        expensive_total = result.flow_rate('ExpensiveSrc(Heat)').values.sum()
+        assert expensive_total >= 60.0 - 1e-5, f'ExpensiveSrc below load_factor_min: {expensive_total}'

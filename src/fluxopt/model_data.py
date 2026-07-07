@@ -452,6 +452,10 @@ class FlowsData:
     fixed_profile: xr.DataArray  # (flow, time[, period]) — NaN where not fixed
     size: xr.DataArray  # (flow,) — NaN for unsized
     effect_coeff: xr.DataArray  # (flow, effect, time[, period])
+    flow_hours_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
+    flow_hours_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
+    load_factor_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
+    load_factor_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     sizing_min: xr.DataArray | None = None  # (sizing_flow,)
     sizing_max: xr.DataArray | None = None  # (sizing_flow,)
     sizing_mandatory: xr.DataArray | None = None  # (sizing_flow,)
@@ -552,6 +556,10 @@ class FlowsData:
         rel_ubs: list[xr.DataArray] = []
         profiles: list[xr.DataArray] = []
         size_vals = np.full(len(flows), np.nan)
+        fh_min_vals = np.full(len(flows), np.nan)
+        fh_max_vals = np.full(len(flows), np.nan)
+        lf_min_vals = np.full(len(flows), np.nan)
+        lf_max_vals = np.full(len(flows), np.nan)
         effect_coeffs: list[xr.DataArray] = []
         sizing_items: list[tuple[str, Sizing]] = []
         invest_items: list[tuple[str, Investment]] = []
@@ -577,6 +585,15 @@ class FlowsData:
                 invest_items.append((f.id, f.size))
             elif f.size is not None:
                 size_vals[i] = f.size
+
+            if f.flow_hours_min is not None:
+                fh_min_vals[i] = f.flow_hours_min
+            if f.flow_hours_max is not None:
+                fh_max_vals[i] = f.flow_hours_max
+            if f.load_factor_min is not None:
+                lf_min_vals[i] = f.load_factor_min
+            if f.load_factor_max is not None:
+                lf_max_vals[i] = f.load_factor_max
 
             if f.fixed_relative_profile is not None:
                 profiles.append(as_dataarray(f.fixed_relative_profile, envelope_coords))
@@ -639,6 +656,10 @@ class FlowsData:
             fixed_profile=fast_concat(profiles, flow_idx),
             size=xr.DataArray(size_vals, dims=['flow'], coords={'flow': flow_ids}),
             effect_coeff=fast_concat(effect_coeffs, flow_idx),
+            flow_hours_min=_flow_bound_or_none(fh_min_vals, flow_ids),
+            flow_hours_max=_flow_bound_or_none(fh_max_vals, flow_ids),
+            load_factor_min=_flow_bound_or_none(lf_min_vals, flow_ids),
+            load_factor_max=_flow_bound_or_none(lf_max_vals, flow_ids),
             sizing_min=sz.min,
             sizing_max=sz.max,
             sizing_mandatory=sz.mandatory,
@@ -673,6 +694,18 @@ class FlowsData:
             cstatus_previous_downtime=cst.previous_downtime,
             cstatus_governed_flows=cst.governed_flows,
         )
+
+
+def _flow_bound_or_none(vals: np.ndarray, flow_ids: list[str]) -> xr.DataArray | None:
+    """Wrap per-flow bound values as a (flow,) DataArray, or None if all NaN.
+
+    Args:
+        vals: Bound value per flow; NaN = unbounded.
+        flow_ids: Flow coordinate labels.
+    """
+    if np.all(np.isnan(vals)):
+        return None
+    return xr.DataArray(vals, dims=['flow'], coords={'flow': flow_ids})
 
 
 def _carrier_dim_id(flow: Flow) -> str:

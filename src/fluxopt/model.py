@@ -98,6 +98,7 @@ class FlowSystem:
         self._constrain_flow_rates_sizing()
         self._constrain_flow_rates_status()
         self._constrain_flow_rates_component_status()
+        self._constrain_flow_aggregates()
         # Phase 3: Feature constraints
         self._constrain_sizing()
         self._constrain_investment()
@@ -536,6 +537,62 @@ class FlowSystem:
                     # bound_type was introduced without updating this dispatch.
                     msg = f'Component {comp_id!r}: governed flow {fid!r} has unsupported bound_type {bt!r}'
                     raise ValueError(msg)
+
+    def _constrain_flow_aggregates(self) -> None:
+        """Bound per-period flow-hour aggregates.
+
+        Flow hours (absolute):   H̲_f <= Σ_t P_{f,t}·Δt_t <= H̄_f
+        Load factor (relative):  λ̲_f·S_f·T <= Σ_t P_{f,t}·Δt_t <= λ̄_f·S_f·T
+
+        Each period is bounded independently. For Sizing/Investment flows
+        the load factor multiplies the size *variable*; T = Σ_t Δt_t.
+
+        See: docs/math/flows.md
+        """
+        ds = self.data.flows
+        bounds = (ds.flow_hours_min, ds.flow_hours_max, ds.load_factor_min, ds.load_factor_max)
+        if all(b is None for b in bounds):
+            return
+        w = self.data.dims.weights
+        flow_hours = (self.flow_rate * w).sum('time')  # (flow[, period])
+
+        if ds.flow_hours_min is not None:
+            self.m.add_constraints(
+                flow_hours >= ds.flow_hours_min, name='flow_hours_min', mask=ds.flow_hours_min.notnull()
+            )
+        if ds.flow_hours_max is not None:
+            self.m.add_constraints(
+                flow_hours <= ds.flow_hours_max, name='flow_hours_max', mask=ds.flow_hours_max.notnull()
+            )
+
+        total_duration = float(w.sum('time'))  # T [h]
+        sized_flow_ids = self._sizing_flow_ids()
+        for lf, name, sign in (
+            (ds.load_factor_min, 'load_factor_min', 1),
+            (ds.load_factor_max, 'load_factor_max', -1),
+        ):
+            if lf is None:
+                continue
+            lf_ids = list(lf.coords['flow'].values[lf.notnull().values])
+            fixed_ids = [fid for fid in lf_ids if fid not in sized_flow_ids]
+            var_ids = [fid for fid in lf_ids if fid in sized_flow_ids]
+            if fixed_ids:
+                # Fixed size: constant RHS λ·S·T
+                rhs = lf.sel(flow=fixed_ids) * ds.size.sel(flow=fixed_ids) * total_duration
+                lhs = flow_hours.sel(flow=fixed_ids)
+                if sign > 0:
+                    self.m.add_constraints(lhs >= rhs, name=name)
+                else:
+                    self.m.add_constraints(lhs <= rhs, name=name)
+            if var_ids:
+                # Sizing/Investment: size is a variable — move to LHS
+                assert self.flow_size is not None
+                coeff = lf.sel(flow=var_ids) * total_duration
+                expr = flow_hours.sel(flow=var_ids) - coeff * self.flow_size.sel(flow=var_ids)
+                if sign > 0:
+                    self.m.add_constraints(expr >= 0, name=f'{name}_sized')
+                else:
+                    self.m.add_constraints(expr <= 0, name=f'{name}_sized')
 
     def _constrain_sizing(self) -> None:
         """Constrain sizing variables: S in [min, max] gated by indicator."""
