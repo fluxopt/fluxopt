@@ -479,6 +479,40 @@ class TestFlowConstraints:
         flow = result.flow_rate('CheapSrc(Heat)').values
         assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_rate_max: {flow}'
 
+    def test_flow_hours_max_per_period(self):
+        """flow_hours_max bounds each period independently.
+
+        2 periods (weights=1), demand=[10,10] per ts. CheapSrc flow_hours_max=15.
+        Each period: Cheap=15, Expensive=5 -> cost = 15 + 25 = 40 per period.
+        Objective = 80.
+
+        Sensitivity: A whole-horizon bound of 15 would force Cheap<=15 across
+        both periods (cost >= 115); per-period allows 15 in each.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('CheapSrc', imports=[Flow('Heat', flow_hours_max=15, effects_per_flow_hour={'cost': 1})]),
+                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+            periods=[2020, 2025],
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 80.0, rtol=1e-5)
+        cheap = result.flow_rate('CheapSrc(Heat)')
+        for p in (2020, 2025):
+            per_period = float(cheap.sel(period=p).values.sum())
+            assert per_period <= 15.0 + 1e-5, f'CheapSrc above flow_hours_max in period {p}: {per_period}'
+
+    def test_load_factor_requires_size(self):
+        """load_factor bounds on an unsized flow fail loudly at element level."""
+        with pytest.raises(ValueError, match='load_factor'):
+            Flow('Heat', load_factor_max=0.5)
+
 
 # ---------------------------------------------------------------------------
 # Storage

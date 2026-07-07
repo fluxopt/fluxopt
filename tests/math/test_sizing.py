@@ -6,7 +6,7 @@ that the solver chooses the correct capacity.
 
 from __future__ import annotations
 
-from conftest import ts
+from conftest import ts, waste
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, Storage, optimize
@@ -214,6 +214,81 @@ class TestFlowSizing:
         expensive_size = float(result.sizes.sel(flow='Expensive(Heat)').values)
         assert_allclose(cheap_size, 60.0, rtol=1e-4)
         assert_allclose(expensive_size, 0.0, atol=1e-4)
+
+
+class TestSizingLoadFactor:
+    def test_load_factor_max_forces_larger_size(self):
+        """load_factor_max couples flow-hours to the size *variable*.
+
+        Demand=[10,10] (2h, total=20). Src: Sizing(0, 100), 10€/MW size cost,
+        1€/MWh operational, load_factor_max=0.5.
+
+        Peak alone needs size >= 10, but lf_max requires
+        20 <= 0.5 * size * 2h -> size >= 20.
+        cost = 20*10 + 20*1 = 220.
+
+        Sensitivity: Without load_factor_max, size=10 -> cost = 100 + 20 = 120.
+        """
+        result = optimize(
+            ts(2),
+            carriers=_heat,
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port(
+                    'Src',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Sizing(0, 100, effects_per_size={'cost': 10}),
+                            load_factor_max=0.5,
+                            effects_per_flow_hour={'cost': 1},
+                        )
+                    ],
+                ),
+            ],
+        )
+        assert_allclose(result.objective, 220.0, rtol=1e-5)
+        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        assert_allclose(size, 20.0, rtol=1e-5)
+
+    def test_load_factor_min_forces_overproduction(self):
+        """load_factor_min against an optimized size forces utilization.
+
+        Demand=[30,0] (2h, total=30, peak=30). Src: Sizing(0, 100),
+        1€/MW size cost, 1€/MWh operational, load_factor_min=0.75.
+        Waste absorbs excess.
+
+        Peak forces size >= 30; lf_min requires flow_hours >= 0.75 * 30 * 2 = 45.
+        cost = 30*1 + 45*1 = 75.
+
+        Sensitivity: Without load_factor_min, flow_hours=30 -> cost = 60.
+        """
+        result = optimize(
+            ts(2),
+            carriers=_heat,
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[30, 0])]),
+                Port(
+                    'Src',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Sizing(0, 100, effects_per_size={'cost': 1}),
+                            load_factor_min=0.75,
+                            effects_per_flow_hour={'cost': 1},
+                        )
+                    ],
+                ),
+                waste('Heat'),
+            ],
+        )
+        assert_allclose(result.objective, 75.0, rtol=1e-5)
+        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        assert_allclose(size, 30.0, rtol=1e-5)
 
 
 class TestStorageSizing:
