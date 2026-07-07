@@ -10,7 +10,7 @@ from fluxopt import Carrier, Converter, Dims, Effect, Flow, ModelData, Port, Sto
 
 class TestFlowsTable:
     def test_bounds_with_size(self):
-        flow = Flow('b', size=100, relative_minimum=0.2, relative_maximum=0.8)
+        flow = Flow('b', size=100, relative_rate_min=0.2, relative_rate_max=0.8)
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('b')],

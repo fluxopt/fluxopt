@@ -134,12 +134,12 @@ class _SizingArrays:
         if self.min is not None:
             mask = self.min < 0
             if mask.any():
-                raise ValueError(f'Sizing.min_size < 0 on {list(self.min.coords[self.min.dims[0]][mask].values)}')
+                raise ValueError(f'Sizing.size_min < 0 on {list(self.min.coords[self.min.dims[0]][mask].values)}')
         if self.min is not None and self.max is not None:
             mask = self.max < self.min
             if mask.any():
                 dim = self.min.dims[0]
-                raise ValueError(f'Sizing.max_size < min_size on {list(self.min.coords[dim][mask].values)}')
+                raise ValueError(f'Sizing.size_max < size_min on {list(self.min.coords[dim][mask].values)}')
 
     @classmethod
     def build(
@@ -172,8 +172,8 @@ class _SizingArrays:
 
         for item_id, s in items:
             ids.append(item_id)
-            mins.append(s.min_size)
-            maxs.append(s.max_size)
+            mins.append(s.size_min)
+            maxs.append(s.size_max)
             mandatories.append(s.mandatory)
 
             eps = tmpl.zeros()
@@ -248,16 +248,16 @@ class _InvestmentArrays:
         }
 
         for item_id, inv in items:
-            if inv.max_size < inv.min_size:
-                raise ValueError(f'Investment on {item_id!r}: max_size ({inv.max_size}) < min_size ({inv.min_size})')
+            if inv.size_max < inv.size_min:
+                raise ValueError(f'Investment on {item_id!r}: size_max ({inv.size_max}) < size_min ({inv.size_min})')
             if inv.prior_size < 0:
                 raise ValueError(f'Investment on {item_id!r}: prior_size must be >= 0, got {inv.prior_size}')
             if inv.lifetime is not None and inv.lifetime <= 0:
                 raise ValueError(f'Investment on {item_id!r}: lifetime must be positive, got {inv.lifetime}')
 
             ids.append(item_id)
-            mins.append(inv.min_size)
-            maxs.append(inv.max_size)
+            mins.append(inv.size_min)
+            maxs.append(inv.size_max)
             mandatories.append(inv.mandatory)
             lifetimes.append(float(inv.lifetime) if inv.lifetime is not None else np.nan)
             prior_sizes.append(inv.prior_size)
@@ -292,10 +292,10 @@ class _InvestmentArrays:
 
 @dataclass
 class _StatusArrays:
-    min_uptime: xr.DataArray | None = None  # (dim,)
-    max_uptime: xr.DataArray | None = None  # (dim,)
-    min_downtime: xr.DataArray | None = None  # (dim,)
-    max_downtime: xr.DataArray | None = None  # (dim,)
+    uptime_min: xr.DataArray | None = None  # (dim,)
+    uptime_max: xr.DataArray | None = None  # (dim,)
+    downtime_min: xr.DataArray | None = None  # (dim,)
+    downtime_max: xr.DataArray | None = None  # (dim,)
     initial: xr.DataArray | None = None  # (dim,) — NaN = free
     effects_running: xr.DataArray | None = None  # (dim, effect, time, period?)
     effects_startup: xr.DataArray | None = None  # (dim, effect, time, period?)
@@ -305,7 +305,7 @@ class _StatusArrays:
 
     def __post_init__(self) -> None:
         """Validate durations >= 0 and max >= min where both given."""
-        for name in ('min_uptime', 'max_uptime', 'min_downtime', 'max_downtime'):
+        for name in ('uptime_min', 'uptime_max', 'downtime_min', 'downtime_max'):
             arr: xr.DataArray | None = getattr(self, name)
             if arr is not None:
                 mask = (~np.isnan(arr)) & (arr < 0)
@@ -313,20 +313,20 @@ class _StatusArrays:
                     dim = arr.dims[0]
                     raise ValueError(f'Status.{name} < 0 on {list(arr.coords[dim][mask].values)}')
 
-        if self.min_uptime is not None and self.max_uptime is not None:
-            both = ~np.isnan(self.min_uptime) & ~np.isnan(self.max_uptime)
-            bad = both & (self.max_uptime < self.min_uptime)
+        if self.uptime_min is not None and self.uptime_max is not None:
+            both = ~np.isnan(self.uptime_min) & ~np.isnan(self.uptime_max)
+            bad = both & (self.uptime_max < self.uptime_min)
             if bad.any():
-                dim = self.min_uptime.dims[0]
-                raise ValueError(f'Status.max_uptime < min_uptime on {list(self.min_uptime.coords[dim][bad].values)}')
+                dim = self.uptime_min.dims[0]
+                raise ValueError(f'Status.uptime_max < uptime_min on {list(self.uptime_min.coords[dim][bad].values)}')
 
-        if self.min_downtime is not None and self.max_downtime is not None:
-            both = ~np.isnan(self.min_downtime) & ~np.isnan(self.max_downtime)
-            bad = both & (self.max_downtime < self.min_downtime)
+        if self.downtime_min is not None and self.downtime_max is not None:
+            both = ~np.isnan(self.downtime_min) & ~np.isnan(self.downtime_max)
+            bad = both & (self.downtime_max < self.downtime_min)
             if bad.any():
-                dim = self.min_downtime.dims[0]
+                dim = self.downtime_min.dims[0]
                 raise ValueError(
-                    f'Status.max_downtime < min_downtime on {list(self.min_downtime.coords[dim][bad].values)}'
+                    f'Status.downtime_max < downtime_min on {list(self.downtime_min.coords[dim][bad].values)}'
                 )
 
     @classmethod
@@ -377,10 +377,10 @@ class _StatusArrays:
 
         for item_id, s in items:
             ids.append(item_id)
-            min_ups.append(s.min_uptime if s.min_uptime is not None else np.nan)
-            max_ups.append(s.max_uptime if s.max_uptime is not None else np.nan)
-            min_downs.append(s.min_downtime if s.min_downtime is not None else np.nan)
-            max_downs.append(s.max_downtime if s.max_downtime is not None else np.nan)
+            min_ups.append(s.uptime_min if s.uptime_min is not None else np.nan)
+            max_ups.append(s.uptime_max if s.uptime_max is not None else np.nan)
+            min_downs.append(s.downtime_min if s.downtime_min is not None else np.nan)
+            max_downs.append(s.downtime_max if s.downtime_max is not None else np.nan)
 
             prior = prior_rates_map.get(item_id)
             if prior is not None:
@@ -427,10 +427,10 @@ class _StatusArrays:
                 )
 
         return cls(
-            min_uptime=xr.DataArray(np.array(min_ups), dims=[dim], coords=coords),
-            max_uptime=xr.DataArray(np.array(max_ups), dims=[dim], coords=coords),
-            min_downtime=xr.DataArray(np.array(min_downs), dims=[dim], coords=coords),
-            max_downtime=xr.DataArray(np.array(max_downs), dims=[dim], coords=coords),
+            uptime_min=xr.DataArray(np.array(min_ups), dims=[dim], coords=coords),
+            uptime_max=xr.DataArray(np.array(max_ups), dims=[dim], coords=coords),
+            downtime_min=xr.DataArray(np.array(min_downs), dims=[dim], coords=coords),
+            downtime_max=xr.DataArray(np.array(max_downs), dims=[dim], coords=coords),
             initial=xr.DataArray(np.array(initials), dims=[dim], coords=coords),
             effects_running=fast_concat(er_slices, status_idx),
             effects_startup=fast_concat(es_slices, status_idx),
@@ -457,10 +457,10 @@ class FlowsData:
     sizing_mandatory: xr.DataArray | None = None  # (sizing_flow,)
     sizing_effects_per_size: xr.DataArray | None = None  # (sizing_flow, effect, period?)
     sizing_effects_fixed: xr.DataArray | None = None  # (sizing_flow, effect, period?)
-    status_min_uptime: xr.DataArray | None = None  # (status_flow,)
-    status_max_uptime: xr.DataArray | None = None  # (status_flow,)
-    status_min_downtime: xr.DataArray | None = None  # (status_flow,)
-    status_max_downtime: xr.DataArray | None = None  # (status_flow,)
+    status_uptime_min: xr.DataArray | None = None  # (status_flow,)
+    status_uptime_max: xr.DataArray | None = None  # (status_flow,)
+    status_downtime_min: xr.DataArray | None = None  # (status_flow,)
+    status_downtime_max: xr.DataArray | None = None  # (status_flow,)
     status_initial: xr.DataArray | None = None  # (status_flow,)
     status_effects_running: xr.DataArray | None = None  # (status_flow, effect, time, period?)
     status_effects_startup: xr.DataArray | None = None  # (status_flow, effect, time, period?)
@@ -475,10 +475,10 @@ class FlowsData:
     invest_effects_fixed_at_build: xr.DataArray | None = None  # (invest_flow, effect, period?) — once
     invest_effects_per_size_recurring: xr.DataArray | None = None  # (invest_flow, effect, period?)
     invest_effects_fixed_recurring: xr.DataArray | None = None  # (invest_flow, effect, period?)
-    cstatus_min_uptime: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_max_uptime: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_min_downtime: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_max_downtime: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_uptime_min: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_uptime_max: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_downtime_min: xr.DataArray | None = None  # (cstatus_component,)
+    cstatus_downtime_max: xr.DataArray | None = None  # (cstatus_component,)
     cstatus_initial: xr.DataArray | None = None  # (cstatus_component,) — NaN = free
     cstatus_effects_running: xr.DataArray | None = None  # (cstatus_component, effect, time, period?)
     cstatus_effects_startup: xr.DataArray | None = None  # (cstatus_component, effect, time, period?)
@@ -532,7 +532,7 @@ class FlowsData:
             period: Period index for multi-period models. When provided,
                 ``effect_coeff``, ``rel_lb``, ``rel_ub`` and ``fixed_profile``
                 gain a ``period`` dimension so that ``effects_per_flow_hour``,
-                ``relative_minimum``, ``relative_maximum`` and
+                ``relative_rate_min``, ``relative_rate_max`` and
                 ``fixed_relative_profile`` can vary across periods.
             component_status_items: Component-level status entries as
                 ``(component_id, Status, [governed flow ids])``. Each entry
@@ -568,8 +568,8 @@ class FlowsData:
         )
 
         for i, f in enumerate(flows):
-            rel_lbs.append(as_dataarray(f.relative_minimum, envelope_coords))
-            rel_ubs.append(as_dataarray(f.relative_maximum, envelope_coords))
+            rel_lbs.append(as_dataarray(f.relative_rate_min, envelope_coords))
+            rel_ubs.append(as_dataarray(f.relative_rate_max, envelope_coords))
 
             if isinstance(f.size, Sizing):
                 sizing_items.append((f.id, f.size))
@@ -644,10 +644,10 @@ class FlowsData:
             sizing_mandatory=sz.mandatory,
             sizing_effects_per_size=sz.effects_per_size,
             sizing_effects_fixed=sz.effects_fixed,
-            status_min_uptime=st.min_uptime,
-            status_max_uptime=st.max_uptime,
-            status_min_downtime=st.min_downtime,
-            status_max_downtime=st.max_downtime,
+            status_uptime_min=st.uptime_min,
+            status_uptime_max=st.uptime_max,
+            status_downtime_min=st.downtime_min,
+            status_downtime_max=st.downtime_max,
             status_initial=st.initial,
             status_effects_running=st.effects_running,
             status_effects_startup=st.effects_startup,
@@ -662,10 +662,10 @@ class FlowsData:
             invest_effects_fixed_at_build=inv.effects_fixed_at_build,
             invest_effects_per_size_recurring=inv.effects_per_size_recurring,
             invest_effects_fixed_recurring=inv.effects_fixed_recurring,
-            cstatus_min_uptime=cst.min_uptime,
-            cstatus_max_uptime=cst.max_uptime,
-            cstatus_min_downtime=cst.min_downtime,
-            cstatus_max_downtime=cst.max_downtime,
+            cstatus_uptime_min=cst.uptime_min,
+            cstatus_uptime_max=cst.uptime_max,
+            cstatus_downtime_min=cst.downtime_min,
+            cstatus_downtime_max=cst.downtime_max,
             cstatus_initial=cst.initial,
             cstatus_effects_running=cst.effects_running,
             cstatus_effects_startup=cst.effects_startup,
@@ -1026,12 +1026,12 @@ def _detect_contribution_cycle(adjacency: dict[str, list[str]]) -> list[str] | N
 
 @dataclass
 class EffectsData:
-    min_bound: xr.DataArray  # (effect,) — weighted total bound
-    max_bound: xr.DataArray  # (effect,) — weighted total bound
-    min_per_period: xr.DataArray  # (effect,) — per-period bound
-    max_per_period: xr.DataArray  # (effect,) — per-period bound
-    min_per_hour: xr.DataArray  # (effect, time)
-    max_per_hour: xr.DataArray  # (effect, time)
+    total_min: xr.DataArray  # (effect,) — weighted total bound
+    total_max: xr.DataArray  # (effect,) — weighted total bound
+    periodic_min: xr.DataArray  # (effect,) — per-period bound
+    periodic_max: xr.DataArray  # (effect,) — per-period bound
+    rate_min: xr.DataArray  # (effect, time)
+    rate_max: xr.DataArray  # (effect, time)
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
     period_weights: xr.DataArray | None = None  # (effect, period)
 
@@ -1073,31 +1073,27 @@ class EffectsData:
         effect_set = set(effect_ids)
         n = len(effects)
         n_time = len(time)
-        min_bound = np.full(n, np.nan)
-        max_bound = np.full(n, np.nan)
-        min_per_period = np.full(n, np.nan)
-        max_per_period = np.full(n, np.nan)
-        min_per_hours: list[xr.DataArray] = []
-        max_per_hours: list[xr.DataArray] = []
+        total_min = np.full(n, np.nan)
+        total_max = np.full(n, np.nan)
+        periodic_min = np.full(n, np.nan)
+        periodic_max = np.full(n, np.nan)
+        rate_mins: list[xr.DataArray] = []
+        rate_maxs: list[xr.DataArray] = []
 
         nan_time = xr.DataArray(np.full(n_time, np.nan), dims=['time'], coords={'time': time})
 
         has_contributions = False
         for i, e in enumerate(effects):
-            if e.minimum is not None:
-                min_bound[i] = e.minimum
-            if e.maximum is not None:
-                max_bound[i] = e.maximum
-            if e.minimum_per_period is not None:
-                min_per_period[i] = e.minimum_per_period
-            if e.maximum_per_period is not None:
-                max_per_period[i] = e.maximum_per_period
-            min_per_hours.append(
-                as_dataarray(e.minimum_per_hour, {'time': time}) if e.minimum_per_hour is not None else nan_time
-            )
-            max_per_hours.append(
-                as_dataarray(e.maximum_per_hour, {'time': time}) if e.maximum_per_hour is not None else nan_time
-            )
+            if e.total_min is not None:
+                total_min[i] = e.total_min
+            if e.total_max is not None:
+                total_max[i] = e.total_max
+            if e.periodic_min is not None:
+                periodic_min[i] = e.periodic_min
+            if e.periodic_max is not None:
+                periodic_max[i] = e.periodic_max
+            rate_mins.append(as_dataarray(e.rate_min, {'time': time}) if e.rate_min is not None else nan_time)
+            rate_maxs.append(as_dataarray(e.rate_max, {'time': time}) if e.rate_max is not None else nan_time)
             if e.contribution_from:
                 has_contributions = True
 
@@ -1152,12 +1148,12 @@ class EffectsData:
                 pw = xr.DataArray(mat, dims=['effect', 'period'], coords={'effect': effect_ids, 'period': period})
 
         return cls(
-            min_bound=xr.DataArray(min_bound, dims=['effect'], coords={'effect': effect_ids}),
-            max_bound=xr.DataArray(max_bound, dims=['effect'], coords={'effect': effect_ids}),
-            min_per_period=xr.DataArray(min_per_period, dims=['effect'], coords={'effect': effect_ids}),
-            max_per_period=xr.DataArray(max_per_period, dims=['effect'], coords={'effect': effect_ids}),
-            min_per_hour=fast_concat(min_per_hours, effect_idx),
-            max_per_hour=fast_concat(max_per_hours, effect_idx),
+            total_min=xr.DataArray(total_min, dims=['effect'], coords={'effect': effect_ids}),
+            total_max=xr.DataArray(total_max, dims=['effect'], coords={'effect': effect_ids}),
+            periodic_min=xr.DataArray(periodic_min, dims=['effect'], coords={'effect': effect_ids}),
+            periodic_max=xr.DataArray(periodic_max, dims=['effect'], coords={'effect': effect_ids}),
+            rate_min=fast_concat(rate_mins, effect_idx),
+            rate_max=fast_concat(rate_maxs, effect_idx),
             cf_temporal=cf_temporal,
             period_weights=pw,
         )
@@ -1273,8 +1269,8 @@ class StoragesData:
             eta_ds.append(as_dataarray(s.eta_discharge, {'time': time}))
             losses.append(as_dataarray(s.relative_loss_per_hour, {'time': time}))
 
-            level_lbs.append(as_dataarray(s.relative_minimum_level, {'time': time}))
-            level_ubs.append(as_dataarray(s.relative_maximum_level, {'time': time}))
+            level_lbs.append(as_dataarray(s.relative_level_min, {'time': time}))
+            level_ubs.append(as_dataarray(s.relative_level_max, {'time': time}))
 
             cyclic_vals[i] = s.cyclic
             if s.prior_level is not None:

@@ -45,25 +45,25 @@ class Carrier:
 class Sizing:
     """Capacity optimization parameters.
 
-    The solver decides the optimal size within [min_size, max_size].
+    The solver decides the optimal size within [size_min, size_max].
 
     - ``mandatory=True``: continuous, size in [min, max], no binary.
     - ``mandatory=False``: binary indicator gates size: 0 or [min, max].
-    - ``min_size == max_size`` with ``mandatory=False``: binary invest
+    - ``size_min == size_max`` with ``mandatory=False``: binary invest
       at exact size (yes/no).
 
     See: docs/math/sizing.md
 
     Args:
-        min_size: Minimum capacity if invested.
-        max_size: Maximum capacity.
+        size_min: Minimum capacity if invested.
+        size_max: Maximum capacity.
         mandatory: If True, must be built (no binary indicator).
         effects_per_size: Effect cost per unit size (e.g. €/MW).
         effects_fixed: Fixed effect cost if built (optional only).
     """
 
-    min_size: float
-    max_size: float
+    size_min: float
+    size_max: float
     mandatory: bool = True
     effects_per_size: dict[str, Variate] = field(default_factory=dict)
     effects_fixed: dict[str, Variate] = field(default_factory=dict)
@@ -78,8 +78,8 @@ class Investment:
     Size is decided once — no growth or partial retirement.
 
     Args:
-        min_size: Minimum capacity if built.
-        max_size: Maximum capacity.
+        size_min: Minimum capacity if built.
+        size_max: Maximum capacity.
         mandatory: If True, must build exactly once; if False, may build at most once.
         lifetime: Periods active after build; None = forever.
         prior_size: Pre-existing capacity available from period 0.
@@ -89,8 +89,8 @@ class Investment:
         effects_fixed_recurring: Recurring fixed costs charged every active period.
     """
 
-    min_size: float
-    max_size: float
+    size_min: float
+    size_max: float
     mandatory: bool = True
     lifetime: int | None = None
     prior_size: float = 0.0
@@ -110,18 +110,18 @@ class Status:
     See: docs/math/status.md
 
     Args:
-        min_uptime: Minimum consecutive on-hours.
-        max_uptime: Maximum consecutive on-hours.
-        min_downtime: Minimum consecutive off-hours.
-        max_downtime: Maximum consecutive off-hours.
+        uptime_min: Minimum consecutive on-hours.
+        uptime_max: Maximum consecutive on-hours.
+        downtime_min: Minimum consecutive off-hours.
+        downtime_max: Maximum consecutive off-hours.
         effects_per_running_hour: Effect cost per running hour.
         effects_per_startup: Effect cost per startup event.
     """
 
-    min_uptime: float | None = None  # [h]
-    max_uptime: float | None = None  # [h]
-    min_downtime: float | None = None  # [h]
-    max_downtime: float | None = None  # [h]
+    uptime_min: float | None = None  # [h]
+    uptime_max: float | None = None  # [h]
+    downtime_min: float | None = None  # [h]
+    downtime_max: float | None = None  # [h]
     effects_per_running_hour: dict[str, Variate] = field(default_factory=dict)
     effects_per_startup: dict[str, Variate] = field(default_factory=dict)
 
@@ -153,8 +153,8 @@ class Flow:
         node: Sub-node for multi-node carrier balancing.
         size: Nominal capacity [MW], ``Sizing`` for investment optimization,
             or None (unsized / unbounded).
-        relative_minimum: Lower bound as fraction of size.
-        relative_maximum: Upper bound as fraction of size.
+        relative_rate_min: Lower bound as fraction of size.
+        relative_rate_max: Upper bound as fraction of size.
         fixed_relative_profile: Fixed profile as fraction of size; sets both
             lower and upper bounds equal to the profile value.
         effects_per_flow_hour: Effect coefficients per flow-hour
@@ -169,8 +169,8 @@ class Flow:
     id: str = field(init=False, default='')
     node: str | None = None
     size: float | Sizing | Investment | None = None  # P̄_f  [MW]
-    relative_minimum: Variate = 0.0  # p̲_f  [-]
-    relative_maximum: Variate = 1.0  # p̄_f  [-]
+    relative_rate_min: Variate = 0.0  # p̲_f  [-]
+    relative_rate_max: Variate = 1.0  # p̄_f  [-]
     fixed_relative_profile: Variate | None = None  # π_f  [-]
     effects_per_flow_hour: dict[str, Variate] = field(default_factory=dict)  # c_{f,k}  [varies]
     status: Status | None = None
@@ -181,10 +181,10 @@ class Flow:
         if not self.short_id:
             self.short_id = node_id(self.carrier, self.node) if self.node else self.carrier
         self.id = self.short_id
-        if self.status is not None and isinstance(self.relative_minimum, (int, float)) and self.relative_minimum <= 0:
+        if self.status is not None and isinstance(self.relative_rate_min, (int, float)) and self.relative_rate_min <= 0:
             msg = (
-                f'Flow {self.short_id!r}: relative_minimum must be > 0 when status is set, '
-                f'otherwise on/off is indistinguishable (got {self.relative_minimum})'
+                f'Flow {self.short_id!r}: relative_rate_min must be > 0 when status is set, '
+                f'otherwise on/off is indistinguishable (got {self.relative_rate_min})'
             )
             raise ValueError(msg)
 
@@ -210,12 +210,12 @@ class Effect:
     Args:
         id: Unique identifier.
         unit: Unit label (e.g. ``'€'``, ``'kg'``).
-        maximum: Upper bound on weighted total across all periods.
-        minimum: Lower bound on weighted total across all periods.
-        maximum_per_period: Upper bound applied to each period independently.
-        minimum_per_period: Lower bound applied to each period independently.
-        maximum_per_hour: Upper bound rate [unit/h], scaled by Δt.
-        minimum_per_hour: Lower bound rate [unit/h], scaled by Δt.
+        total_max: Upper bound on weighted total across all periods.
+        total_min: Lower bound on weighted total across all periods.
+        periodic_max: Upper bound applied to each period independently.
+        periodic_min: Lower bound applied to each period independently.
+        rate_max: Upper bound rate [unit/h], scaled by Δt.
+        rate_min: Lower bound rate [unit/h], scaled by Δt.
         contribution_from: Cross-effect factors ``{source_effect: factor}``.
             Scalar factors apply identically to both domains; time-varying
             factors are averaged for the lump domain.
@@ -225,12 +225,12 @@ class Effect:
 
     id: str
     unit: str = ''
-    maximum: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
-    minimum: float | None = None  # Φ̲_k  [unit] — weighted total across all periods
-    maximum_per_period: float | None = None  # Φ̄_{k,p}  [unit] — each period independently
-    minimum_per_period: float | None = None  # Φ̲_{k,p}  [unit] — each period independently
-    maximum_per_hour: Variate | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
-    minimum_per_hour: Variate | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
+    total_max: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
+    total_min: float | None = None  # Φ̲_k  [unit] — weighted total across all periods
+    periodic_max: float | None = None  # Φ̄_{k,p}  [unit] — each period independently
+    periodic_min: float | None = None  # Φ̲_{k,p}  [unit] — each period independently
+    rate_max: Variate | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
+    rate_min: Variate | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
     contribution_from: dict[str, Variate] = field(default_factory=dict)
     period_weights: list[float] | None = None  # ω[p] — scales total across periods
 
@@ -262,8 +262,8 @@ class Storage:
         relative_loss_per_hour: Self-discharge rate [1/h].
         prior_level: Initial energy level [MWh]; None = unconstrained.
         cyclic: If True, end level must equal start level.
-        relative_minimum_level: Min SOC as fraction of capacity.
-        relative_maximum_level: Max SOC as fraction of capacity.
+        relative_level_min: Min SOC as fraction of capacity.
+        relative_level_max: Max SOC as fraction of capacity.
         status: Component-level on/off behavior gating both charging and
             discharging. Forbids flow-level ``status`` on the child flows
             (the two switches would have no defined precedence).
@@ -278,8 +278,8 @@ class Storage:
     relative_loss_per_hour: Variate = 0.0  # δ_s  [1/h]
     prior_level: float | None = None  # E_{s,0}  [MWh]
     cyclic: bool = True  # E_{s,first} == E_{s,last}
-    relative_minimum_level: Variate = 0.0  # e̲_s  [-]
-    relative_maximum_level: Variate = 1.0  # ē_s  [-]
+    relative_level_min: Variate = 0.0  # e̲_s  [-]
+    relative_level_max: Variate = 1.0  # ē_s  [-]
     status: Status | None = None
 
     def __post_init__(self) -> None:

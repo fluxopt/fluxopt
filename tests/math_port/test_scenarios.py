@@ -17,8 +17,8 @@ class TestScenarios:
     def test_scenario_independent_flow_rates(self, optimize):
         """Proves: scenario_independent_flow_rates forces identical flow rates."""
 
-    def test_storage_relative_minimum_final_level_scalar(self, optimize):
-        """Proves: scalar relative_minimum_final_level works with scenarios."""
+    def test_storage_relative_rate_min_final_level_scalar(self, optimize):
+        """Proves: scalar relative_rate_min_final_level works with scenarios."""
 
-    def test_storage_relative_maximum_final_level_scalar(self, optimize):
-        """Proves: scalar relative_maximum_final_level works with scenarios."""
+    def test_storage_relative_rate_max_final_level_scalar(self, optimize):
+        """Proves: scalar relative_rate_max_final_level works with scenarios."""

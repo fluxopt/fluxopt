@@ -60,8 +60,8 @@ This ensures the storage ends at the same level it started.
 | \(\eta^{\text{c}}_s\) | Charging efficiency | [`Storage.eta_charge`](../api/fluxopt/elements.md#fluxopt.elements.Storage(eta_charge)) |
 | \(\eta^{\text{d}}_s\) | Discharging efficiency | [`Storage.eta_discharge`](../api/fluxopt/elements.md#fluxopt.elements.Storage(eta_discharge)) |
 | \(\delta_s\) | Self-discharge rate | [`Storage.relative_loss_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_loss_per_hour)) |
-| \(\underline{\mathrm{e}}_s\) | Relative min SOC | [`Storage.relative_minimum_level`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_minimum_level)) |
-| \(\bar{\mathrm{e}}_s\) | Relative max SOC | [`Storage.relative_maximum_level`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_maximum_level)) |
+| \(\underline{\mathrm{e}}_s\) | Relative min SOC | [`Storage.relative_level_min`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_level_min)) |
+| \(\bar{\mathrm{e}}_s\) | Relative max SOC | [`Storage.relative_level_max`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_level_max)) |
 | \(\Delta t_t\) | Timestep duration | dt |
 
 See [Notation](notation.md) for the full symbol table.

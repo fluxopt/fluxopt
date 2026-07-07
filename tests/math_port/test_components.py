@@ -24,8 +24,8 @@ class TestComponentStatus:
         raise NotImplementedError  # TODO: implement component-level StatusParameters
 
     @pytest.mark.skip(reason='component-level status not supported in fluxopt')
-    def test_component_status_min_uptime(self, optimize):
-        """Proves: min_uptime on component level forces the entire component
+    def test_component_status_uptime_min(self, optimize):
+        """Proves: uptime_min on component level forces the entire component
         to stay on for consecutive hours."""
 
     @pytest.mark.skip(reason='component-level status not supported in fluxopt')
@@ -41,16 +41,16 @@ class TestComponentStatus:
         """Proves: active_hours_min on component level forces minimum operating hours."""
 
     @pytest.mark.skip(reason='component-level status not supported in fluxopt')
-    def test_component_status_max_uptime(self, optimize):
-        """Proves: max_uptime on component level limits continuous operation."""
+    def test_component_status_uptime_max(self, optimize):
+        """Proves: uptime_max on component level limits continuous operation."""
 
     @pytest.mark.skip(reason='component-level status not supported in fluxopt')
-    def test_component_status_min_downtime(self, optimize):
-        """Proves: min_downtime on component level prevents quick restart."""
+    def test_component_status_downtime_min(self, optimize):
+        """Proves: downtime_min on component level prevents quick restart."""
 
     @pytest.mark.skip(reason='component-level status not supported in fluxopt')
-    def test_component_status_max_downtime(self, optimize):
-        """Proves: max_downtime on component level forces restart after idle."""
+    def test_component_status_downtime_max(self, optimize):
+        """Proves: downtime_max on component level forces restart after idle."""
 
     @pytest.mark.skip(reason='component-level status not supported in fluxopt')
     def test_component_status_startup_limit(self, optimize):

@@ -264,10 +264,10 @@ class FlowSystem:
     def _create_status_variables(self) -> None:
         """Create binary on/off variables for flows with Status."""
         ds = self.data.flows
-        if ds.status_min_uptime is None:
+        if ds.status_uptime_min is None:
             return
 
-        status_ids = ds.status_min_uptime.coords['status_flow'].values
+        status_ids = ds.status_uptime_min.coords['status_flow'].values
         flow_coord = xr.DataArray(status_ids, dims=['flow'])
         tp = {'flow': flow_coord, **self.data.dims.coords(time=True, period=True)}
 
@@ -278,17 +278,17 @@ class FlowSystem:
     def _status_flow_ids(self) -> set[str]:
         """Return ids of flows with Status, or empty set."""
         ds = self.data.flows
-        if ds.status_min_uptime is None:
+        if ds.status_uptime_min is None:
             return set()
-        return set(ds.status_min_uptime.coords['status_flow'].values)
+        return set(ds.status_uptime_min.coords['status_flow'].values)
 
     def _create_component_status_variables(self) -> None:
         """Create binary on/off variables for components with Status."""
         ds = self.data.flows
-        if ds.cstatus_min_uptime is None:
+        if ds.cstatus_uptime_min is None:
             return
 
-        comp_ids = ds.cstatus_min_uptime.coords['cstatus_component'].values
+        comp_ids = ds.cstatus_uptime_min.coords['cstatus_component'].values
         comp_coord = xr.DataArray(comp_ids, dims=['component'])
         tp = {'component': comp_coord, **self.data.dims.coords(time=True, period=True)}
 
@@ -439,7 +439,7 @@ class FlowSystem:
           P <= S  * rel_ub      (rate limited by invested size)
           P >= (on - 1) * M⁻ + S * rel_lb  (enforces minimum when on=1)
 
-        Where M⁺ = max_size * rel_ub, M⁻ = max_size * rel_lb.
+        Where M⁺ = size_max * rel_ub, M⁻ = size_max * rel_lb.
 
         Args:
             flow_ids: Flows that have both Status and Sizing.
@@ -454,7 +454,7 @@ class FlowSystem:
         rl = ds.rel_lb.sel(flow=flow_ids)
         ru = ds.rel_ub.sel(flow=flow_ids)
 
-        # max_size: combine from sizing_max and invest_max sources
+        # size_max: combine from sizing_max and invest_max sources
         sizing_ids = set(ds.sizing_max.coords['sizing_flow'].values) if ds.sizing_max is not None else set()
         invest_ids = set(ds.invest_max.coords['invest_flow'].values) if ds.invest_max is not None else set()
         parts: list[xr.DataArray] = []
@@ -466,11 +466,11 @@ class FlowSystem:
                 assert ds.invest_max is not None
                 parts.append(ds.invest_max.sel(invest_flow=fid).rename('flow'))
             else:
-                raise ValueError(f'Flow {fid!r} has Status+Sizing but no max_size in sizing or investment data')
-        max_size = xr.DataArray([float(p) for p in parts], dims=['flow'], coords={'flow': flow_ids})
+                raise ValueError(f'Flow {fid!r} has Status+Sizing but no size_max in sizing or investment data')
+        size_max = xr.DataArray([float(p) for p in parts], dims=['flow'], coords={'flow': flow_ids})
 
-        big_m_ub = max_size * ru  # M⁺
-        big_m_lb = max_size * rl  # M⁻
+        big_m_ub = size_max * ru  # M⁺
+        big_m_lb = size_max * rl  # M⁻
 
         self.m.add_constraints(fr <= on * big_m_ub, name='flow_ub_status_sizing_bigm')
         self.m.add_constraints(fr <= fs * ru, name='flow_ub_status_sizing_size')
@@ -677,7 +677,7 @@ class FlowSystem:
             self.m.add_constraints(inv_size.sel(flow=prior_ids) == ps_vals, name='invest_size_prior')
 
         # --- Size bounds ---
-        # invest_size >= min_size (if mandatory or built)
+        # invest_size >= size_min (if mandatory or built)
         non_prior_mand = [fid for fid in mand_ids if fid not in prior_ids]
         if non_prior_mand:
             self.m.add_constraints(
@@ -687,20 +687,20 @@ class FlowSystem:
         if opt_ids:
             non_prior_opt = [fid for fid in opt_ids if fid not in prior_ids]
             if non_prior_opt:
-                # invest_size >= min_size * sum(build) — only if built
+                # invest_size >= size_min * sum(build) — only if built
                 self.m.add_constraints(
                     inv_size.sel(flow=non_prior_opt)
                     >= smin.sel(flow=non_prior_opt) * build_sum.sel(flow=non_prior_opt),
                     name='invest_size_lb_opt',
                 )
-                # invest_size <= max_size * sum(build) — zero when not built
+                # invest_size <= size_max * sum(build) — zero when not built
                 self.m.add_constraints(
                     inv_size.sel(flow=non_prior_opt)
                     <= smax.sel(flow=non_prior_opt) * build_sum.sel(flow=non_prior_opt),
                     name='invest_size_ub_opt',
                 )
 
-        # invest_size <= max_size (already via variable upper bound)
+        # invest_size <= size_max (already via variable upper bound)
 
         # --- Size ↔ active linking (big-M: flow_size = invest_size when active, 0 when not) ---
         self.m.add_constraints(fs <= smax * active, name='invest_fs_ub_active')
@@ -720,17 +720,17 @@ class FlowSystem:
         assert self.flow_shutdown is not None
 
         ds = self.data.flows
-        assert ds.status_min_uptime is not None
-        assert ds.status_max_uptime is not None
-        assert ds.status_min_downtime is not None
-        assert ds.status_max_downtime is not None
+        assert ds.status_uptime_min is not None
+        assert ds.status_uptime_max is not None
+        assert ds.status_downtime_min is not None
+        assert ds.status_downtime_max is not None
         assert ds.status_initial is not None
 
         # Rename status_flow -> flow to align with variable dims
-        min_up = ds.status_min_uptime.rename({'status_flow': 'flow'})
-        max_up = ds.status_max_uptime.rename({'status_flow': 'flow'})
-        min_down = ds.status_min_downtime.rename({'status_flow': 'flow'})
-        max_down = ds.status_max_downtime.rename({'status_flow': 'flow'})
+        min_up = ds.status_uptime_min.rename({'status_flow': 'flow'})
+        max_up = ds.status_uptime_max.rename({'status_flow': 'flow'})
+        min_down = ds.status_downtime_min.rename({'status_flow': 'flow'})
+        max_down = ds.status_downtime_max.rename({'status_flow': 'flow'})
         initial = ds.status_initial.rename({'status_flow': 'flow'})
 
         prev_up = (
@@ -791,16 +791,16 @@ class FlowSystem:
         assert self.component_shutdown is not None
 
         ds = self.data.flows
-        assert ds.cstatus_min_uptime is not None
-        assert ds.cstatus_max_uptime is not None
-        assert ds.cstatus_min_downtime is not None
-        assert ds.cstatus_max_downtime is not None
+        assert ds.cstatus_uptime_min is not None
+        assert ds.cstatus_uptime_max is not None
+        assert ds.cstatus_downtime_min is not None
+        assert ds.cstatus_downtime_max is not None
         assert ds.cstatus_initial is not None
 
-        min_up = ds.cstatus_min_uptime.rename({'cstatus_component': 'component'})
-        max_up = ds.cstatus_max_uptime.rename({'cstatus_component': 'component'})
-        min_down = ds.cstatus_min_downtime.rename({'cstatus_component': 'component'})
-        max_down = ds.cstatus_max_downtime.rename({'cstatus_component': 'component'})
+        min_up = ds.cstatus_uptime_min.rename({'cstatus_component': 'component'})
+        max_up = ds.cstatus_uptime_max.rename({'cstatus_component': 'component'})
+        min_down = ds.cstatus_downtime_min.rename({'cstatus_component': 'component'})
+        max_down = ds.cstatus_downtime_max.rename({'cstatus_component': 'component'})
         initial = ds.cstatus_initial.rename({'cstatus_component': 'component'})
 
         prev_up = (
@@ -974,7 +974,7 @@ class FlowSystem:
         d = self.data
         ds = d.effects
 
-        effect_ids = ds.min_bound.coords['effect']
+        effect_ids = ds.total_min.coords['effect']
 
         if len(effect_ids) == 0:
             return
@@ -1029,16 +1029,16 @@ class FlowSystem:
 
         self.m.add_constraints(self.effect_temporal == temporal_rhs, name='effect_temporal_eq')
 
-        # Per-hour bounds: effect[t] <= max_per_hour * dt[t]
+        # Per-hour bounds: effect[t] <= rate_max * dt[t]
         # effect_temporal is in absolute units (e.g. EUR), so the per-hour rate
         # must be scaled by the timestep duration to get the per-timestep limit.
         dt = d.dims.dt
-        min_ph = ds.min_per_hour * dt  # (effect, time) — NaN = unbounded
+        min_ph = ds.rate_min * dt  # (effect, time) — NaN = unbounded
         has_min_ph = min_ph.notnull()
         if has_min_ph.any():
             self.m.add_constraints(self.effect_temporal >= min_ph, name='effect_min_ph', mask=has_min_ph)
 
-        max_ph = ds.max_per_hour * dt
+        max_ph = ds.rate_max * dt
         has_max_ph = max_ph.notnull()
         if has_max_ph.any():
             self.m.add_constraints(self.effect_temporal <= max_ph, name='effect_max_ph', mask=has_max_ph)
@@ -1172,21 +1172,21 @@ class FlowSystem:
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
         # Per-period bounds on effect_total
-        min_pp = ds.min_per_period  # (effect,) — NaN = unbounded
-        max_pp = ds.max_per_period
+        min_pp = ds.periodic_min  # (effect,) — NaN = unbounded
+        max_pp = ds.periodic_max
         has_min_pp = min_pp.notnull()
         if has_min_pp.any():
-            self.m.add_constraints(self.effect_total >= min_pp, name='effect_min_per_period', mask=has_min_pp)
+            self.m.add_constraints(self.effect_total >= min_pp, name='effect_periodic_min', mask=has_min_pp)
         has_max_pp = max_pp.notnull()
         if has_max_pp.any():
-            self.m.add_constraints(self.effect_total <= max_pp, name='effect_max_per_period', mask=has_max_pp)
+            self.m.add_constraints(self.effect_total <= max_pp, name='effect_periodic_max', mask=has_max_pp)
 
         # Weighted total bounds (across all periods)
         # Single-period: effect_total has no period dim, bound applies directly.
         # Multi-period: weighted sum across periods, using per-effect period_weights
         # if set, else global period_weights, else unweighted.
-        min_bound = ds.min_bound  # (effect,) — NaN = unbounded
-        max_bound = ds.max_bound
+        total_min = ds.total_min  # (effect,) — NaN = unbounded
+        total_max = ds.total_max
         total_sum: Any
         if 'period' in self.effect_total.dims:
             # Multi-period: weighted sum across periods.
@@ -1199,12 +1199,12 @@ class FlowSystem:
                 total_sum = (self.effect_total * d.dims.period_weights).sum('period')
         else:
             total_sum = self.effect_total
-        has_min = min_bound.notnull()
+        has_min = total_min.notnull()
         if has_min.any():
-            self.m.add_constraints(total_sum >= min_bound, name='effect_min_bound', mask=has_min)
-        has_max = max_bound.notnull()
+            self.m.add_constraints(total_sum >= total_min, name='effect_total_min', mask=has_min)
+        has_max = total_max.notnull()
         if has_max.any():
-            self.m.add_constraints(total_sum <= max_bound, name='effect_max_bound', mask=has_max)
+            self.m.add_constraints(total_sum <= total_max, name='effect_total_max', mask=has_max)
 
     def _create_storage(self) -> None:
         """Create storage variables, level balance, and prior/cyclic conditions."""
@@ -1347,7 +1347,7 @@ class FlowSystem:
         obj_expr: Any = 0
 
         for k in self._objective_effects:
-            effect_ids = list(ds.min_bound.coords['effect'].values)
+            effect_ids = list(ds.total_min.coords['effect'].values)
             if k not in effect_ids:
                 raise ValueError(f'Objective effect {k!r} not found. Available: {effect_ids}')
 

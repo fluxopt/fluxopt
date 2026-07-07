@@ -44,7 +44,7 @@ class TestSemiContinuous:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.5,
+                            relative_rate_min=0.5,
                             effects_per_flow_hour={'cost': 1},
                             status=Status(),
                         )
@@ -94,7 +94,7 @@ class TestSemiContinuous:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.4,
+                            relative_rate_min=0.4,
                             effects_per_flow_hour={'cost': 1},
                             status=Status(),
                         )
@@ -131,7 +131,7 @@ class TestStartupCosts:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
                             status=Status(effects_per_startup={'cost': 50}),
                             prior_rates=[0],
@@ -167,7 +167,7 @@ class TestStartupCosts:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.3,
+                            relative_rate_min=0.3,
                             effects_per_flow_hour={'cost': 0.1},
                             status=Status(effects_per_startup={'cost': 200}),
                             prior_rates=[0],
@@ -211,7 +211,7 @@ class TestPrior:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             status=Status(effects_per_startup={'cost': 1000}),
                         )
                     ],
@@ -225,10 +225,10 @@ class TestPrior:
     def test_prior_on_carries_uptime(self):
         """Prior with consecutive on-hours carries uptime into the horizon.
 
-        Source: size=100, min_uptime=3h, prior_rates=[50, 60] (2h on already).
+        Source: size=100, uptime_min=3h, prior_rates=[50, 60] (2h on already).
         Demand: [80, 0, 0].
 
-        With 2h of prior uptime and min_uptime=3h, source must stay on for
+        With 2h of prior uptime and uptime_min=3h, source must stay on for
         at least 1 more hour. After that it can turn off.
         t=0: must stay on (uptime=3h total). Flow=80.
         t=1: can turn off. Demand=0, cheaper to turn off.
@@ -247,9 +247,9 @@ class TestPrior:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(min_uptime=3),
+                            status=Status(uptime_min=3),
                             prior_rates=[50, 60],
                         )
                     ],
@@ -259,16 +259,16 @@ class TestPrior:
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
-        # t=0: forced on by min_uptime continuation
+        # t=0: forced on by uptime_min continuation
         assert_allclose(on[0], 1.0, atol=1e-5)
 
     def test_prior_off_carries_downtime(self):
         """Prior with consecutive off-hours carries downtime into the horizon.
 
-        Source: size=100, min_downtime=3h, prior_rates=[0, 0] (2h off already).
+        Source: size=100, downtime_min=3h, prior_rates=[0, 0] (2h off already).
         Demand: [80, 80, 80].
 
-        With 2h of prior downtime and min_downtime=3h, source must stay off
+        With 2h of prior downtime and downtime_min=3h, source must stay off
         for at least 1 more hour.
         t=0: must stay off (downtime=3h total). Backup covers.
         t=1: can turn on.
@@ -287,9 +287,9 @@ class TestPrior:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(min_downtime=3),
+                            status=Status(downtime_min=3),
                             prior_rates=[0, 0],
                         )
                     ],
@@ -298,7 +298,7 @@ class TestPrior:
             ],
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
-        # t=0: forced off by min_downtime continuation
+        # t=0: forced off by downtime_min continuation
         assert_allclose(on[0], 0.0, atol=1e-5)
         # t=1, t=2: can and should turn on (cheaper than backup)
         assert_allclose(on[1], 1.0, atol=1e-5)
@@ -326,7 +326,7 @@ class TestPrior:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
                             status=Status(effects_per_running_hour={'cost': 10}),
                         )
@@ -365,7 +365,7 @@ class TestStatusSizing:
                         Flow(
                             'Heat',
                             size=Sizing(20, 200, mandatory=True),
-                            relative_minimum=0.5,
+                            relative_rate_min=0.5,
                             effects_per_flow_hour={'cost': 1},
                             status=Status(),
                         )
@@ -393,7 +393,7 @@ class TestStatusSizing:
         assert rates[1] >= 80.0 - 1e-5
 
     def test_sizing_rel_min_forces_off_at_low_demand(self):
-        """Sizing + Status + relative_minimum forces off when demand < min_load.
+        """Sizing + Status + relative_rate_min forces off when demand < min_load.
 
         Src: Sizing(0, 100, mandatory=True, effects_per_size={'cost': 0.5}),
              rel_min=0.5, Status(), 1€/MWh.
@@ -421,7 +421,7 @@ class TestStatusSizing:
                         Flow(
                             'Heat',
                             size=Sizing(0, 100, mandatory=True, effects_per_size={'cost': 0.5}),
-                            relative_minimum=0.5,
+                            relative_rate_min=0.5,
                             effects_per_flow_hour={'cost': 1},
                             status=Status(),
                         )
@@ -466,7 +466,7 @@ class TestStatusSizing:
                         Flow(
                             'Heat',
                             size=Sizing(50, 100, mandatory=False, effects_fixed={'cost': 1000}),
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
                             status=Status(),
                         )
@@ -510,7 +510,7 @@ class TestStatusSizing:
                         Flow(
                             'Heat',
                             size=Sizing(0, 200, mandatory=True),
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
                             status=Status(effects_per_startup={'cost': 100}),
                             prior_rates=[0],
@@ -529,15 +529,15 @@ class TestStatusSizing:
         # Total: 100 (startup) + 150 (operational) = 250
         assert_allclose(result.objective, 250.0, rtol=1e-5)
 
-    def test_sizing_with_min_uptime(self):
-        """Sizing + Status + min_uptime: duration constraint with variable capacity.
+    def test_sizing_with_uptime_min(self):
+        """Sizing + Status + uptime_min: duration constraint with variable capacity.
 
         Src: Sizing(0, 200, mandatory=True), rel_min=0.3,
-             Status(min_uptime=3), prior_rates=[0], 1€/MWh.
+             Status(uptime_min=3), prior_rates=[0], 1€/MWh.
         Backup: 0.5€/MWh (cheaper).
         Demand: [80, 0, 0, 80].
 
-        Backup is cheaper, but once Src turns on, min_uptime=3 forces it to
+        Backup is cheaper, but once Src turns on, uptime_min=3 forces it to
         stay on for 3 consecutive hours. If Src turns on at t=0 for demand,
         it must stay on through t=2 (even with zero demand), producing at
         least 0.3*S each hour. Waste absorbs excess at t=1,t=2.
@@ -555,9 +555,9 @@ class TestStatusSizing:
                         Flow(
                             'Heat',
                             size=Sizing(0, 200, mandatory=True),
-                            relative_minimum=0.3,
+                            relative_rate_min=0.3,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(min_uptime=3),
+                            status=Status(uptime_min=3),
                             prior_rates=[0],
                         )
                     ],
@@ -580,15 +580,15 @@ class TestStatusSizing:
 
 
 class TestMaxUptime:
-    def test_max_uptime_forces_shutdown(self):
-        """max_uptime=2 limits continuous operation to 2 consecutive hours.
+    def test_uptime_max_forces_shutdown(self):
+        """uptime_max=2 limits continuous operation to 2 consecutive hours.
 
-        Src: size=100, Status(max_uptime=2), prior_rates=[0] (was off), 1€/MWh.
+        Src: size=100, Status(uptime_max=2), prior_rates=[0] (was off), 1€/MWh.
         Backup: 10€/MWh.
         Demand: [10, 10, 10, 10, 10].
 
-        Without max_uptime: Src runs all 5h → cost=50.
-        With max_uptime=2: Src runs at most 2 consecutive hours, then must
+        Without uptime_max: Src runs all 5h → cost=50.
+        With uptime_max=2: Src runs at most 2 consecutive hours, then must
         shut down for ≥1h. Pattern like [on,on,off,on,on] → Src covers 4h,
         Backup covers 1h at 10€ → total=40+10=50... but the waste of backup
         hour makes it 4*10 + 1*10*10 = 140? No:
@@ -608,9 +608,9 @@ class TestMaxUptime:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(max_uptime=2),
+                            status=Status(uptime_max=2),
                             prior_rates=[0],
                         )
                     ],
@@ -628,16 +628,16 @@ class TestMaxUptime:
 
 
 class TestMaxDowntime:
-    def test_max_downtime_forces_restart(self):
-        """max_downtime=1 prevents staying off for more than 1 consecutive hour.
+    def test_downtime_max_forces_restart(self):
+        """downtime_max=1 prevents staying off for more than 1 consecutive hour.
 
-        Src: size=100, rel_min=0.5, Status(max_downtime=1), prior_rates=[10] (was on),
+        Src: size=100, rel_min=0.5, Status(downtime_max=1), prior_rates=[10] (was on),
              10€/MWh (expensive).
         Backup: 1€/MWh (cheap).
         Demand: [10, 10, 10, 10].
 
-        Without max_downtime: all from cheap Backup → cost=40.
-        With max_downtime=1: Src can be off at most 1 consecutive hour. Since
+        Without downtime_max: all from cheap Backup → cost=40.
+        With downtime_max=1: Src can be off at most 1 consecutive hour. Since
         it was previously on, it can turn off but must restart within 1h.
         This forces Src on for ≥2 of 4 hours → cost > 40.
         """
@@ -654,9 +654,9 @@ class TestMaxDowntime:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.5,
+                            relative_rate_min=0.5,
                             effects_per_flow_hour={'cost': 10},
-                            status=Status(max_downtime=1),
+                            status=Status(downtime_max=1),
                             prior_rates=[10],
                         )
                     ],
@@ -675,10 +675,10 @@ class TestMaxDowntime:
 
 
 class TestDurationCombinations:
-    def test_min_and_max_uptime_forces_exact_blocks(self):
-        """min_uptime=2 + max_uptime=2 forces operation in exact 2-hour blocks.
+    def test_min_and_uptime_max_forces_exact_blocks(self):
+        """uptime_min=2 + uptime_max=2 forces operation in exact 2-hour blocks.
 
-        Src: size=100, Status(min_uptime=2, max_uptime=2), prior_rates=[0], 1€/MWh.
+        Src: size=100, Status(uptime_min=2, uptime_max=2), prior_rates=[0], 1€/MWh.
         Backup: 5€/MWh.
         Demand: [5, 10, 20, 18, 12].
 
@@ -699,9 +699,9 @@ class TestDurationCombinations:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.01,
+                            relative_rate_min=0.01,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(min_uptime=2, max_uptime=2),
+                            status=Status(uptime_min=2, uptime_max=2),
                             prior_rates=[0],
                         )
                     ],
@@ -713,10 +713,10 @@ class TestDurationCombinations:
         assert_allclose(on, [1, 1, 0, 1, 1], atol=1e-5)
         assert_allclose(result.objective, 145.0, rtol=1e-5)
 
-    def test_min_uptime_with_min_downtime_block_pattern(self):
-        """min_uptime=2 + min_downtime=2 forces on/off blocks of ≥2 hours each.
+    def test_uptime_min_with_downtime_min_block_pattern(self):
+        """uptime_min=2 + downtime_min=2 forces on/off blocks of ≥2 hours each.
 
-        Src: size=100, rel_min=0.1, Status(min_uptime=2, min_downtime=2),
+        Src: size=100, rel_min=0.1, Status(uptime_min=2, downtime_min=2),
              prior_rates=[0], 1€/MWh.
         Backup: 5€/MWh.
         Demand: [20]*6.
@@ -738,9 +738,9 @@ class TestDurationCombinations:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(min_uptime=2, min_downtime=2),
+                            status=Status(uptime_min=2, downtime_min=2),
                             prior_rates=[0],
                         )
                     ],
@@ -760,15 +760,15 @@ class TestDurationCombinations:
         # Pattern [off,on,on,on,on,on]: Src 5h*20=100, Backup 1h*20*5=100. Total=200.
         assert_allclose(result.objective, 200.0, rtol=1e-5)
 
-    def test_max_uptime_with_prior_carry_over(self):
+    def test_uptime_max_with_prior_carry_over(self):
         """Prior uptime reduces remaining allowed on-time at start of horizon.
 
-        Src: size=100, Status(max_uptime=3), prior_rates=[50, 50] (2h on already),
+        Src: size=100, Status(uptime_max=3), prior_rates=[50, 50] (2h on already),
              1€/MWh.
         Backup: 10€/MWh.
         Demand: [10]*5.
 
-        With 2h prior uptime and max_uptime=3, Src can run at most 1 more
+        With 2h prior uptime and uptime_max=3, Src can run at most 1 more
         hour before forced shutdown. Then can restart for up to 3h.
         """
         result = optimize(
@@ -784,9 +784,9 @@ class TestDurationCombinations:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(max_uptime=3),
+                            status=Status(uptime_max=3),
                             prior_rates=[50, 50],
                         )
                     ],
@@ -796,7 +796,7 @@ class TestDurationCombinations:
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
 
-        # t=0 should be on (continuing from prior), then forced off by max_uptime=3
+        # t=0 should be on (continuing from prior), then forced off by uptime_max=3
         assert_allclose(on[0], 1.0, atol=1e-5)
 
         # Verify no run of >3 consecutive on-hours within horizon
@@ -805,18 +805,18 @@ class TestDurationCombinations:
         # Pattern [on,off,on,on,on]: Src 4h*10=40, Backup 1h*10*10=100. Total=140.
         assert_allclose(result.objective, 140.0, rtol=1e-5)
 
-    def test_max_uptime_with_startup_costs(self):
-        """max_uptime forces shutdowns which incur startup costs on restart.
+    def test_uptime_max_with_startup_costs(self):
+        """uptime_max forces shutdowns which incur startup costs on restart.
 
-        Src: size=100, Status(max_uptime=2, effects_per_startup={'cost': 50}),
+        Src: size=100, Status(uptime_max=2, effects_per_startup={'cost': 50}),
              prior_rates=[0], 1€/MWh.
         Backup: 10€/MWh.
         Demand: [10]*5.
 
-        max_uptime=2 forces at least 1 shutdown in 5h. Restarting costs 50€
+        uptime_max=2 forces at least 1 shutdown in 5h. Restarting costs 50€
         each time. Pattern [on,on,off,on,on] = 2 startups = 100€ startup +
         40€ operational + 100€ backup = 240€.
-        Without max_uptime: 1 startup = 50 + 50 operational = 100€.
+        Without uptime_max: 1 startup = 50 + 50 operational = 100€.
         """
         result = optimize(
             ts(5),
@@ -831,9 +831,9 @@ class TestDurationCombinations:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(max_uptime=2, effects_per_startup={'cost': 50}),
+                            status=Status(uptime_max=2, effects_per_startup={'cost': 50}),
                             prior_rates=[0],
                         )
                     ],
@@ -844,7 +844,7 @@ class TestDurationCombinations:
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
         startup = result.solution['flow--startup'].sel(flow='Src(Heat)').values
 
-        # Verify max_uptime constraint
+        # Verify uptime_max constraint
         assert_on_blocks(on, max_length=2)
 
         # Exactly 2 startups (initial + restart after forced shutdown)
@@ -853,15 +853,15 @@ class TestDurationCombinations:
         # 2*50 startups + 4h*10 Src + 1h*10*10 Backup = 240
         assert_allclose(result.objective, 240.0, rtol=1e-5)
 
-    def test_max_downtime_with_prior_carry_over(self):
+    def test_downtime_max_with_prior_carry_over(self):
         """Prior downtime reduces remaining allowed off-time at start of horizon.
 
-        Src: size=100, rel_min=0.5, Status(max_downtime=2),
+        Src: size=100, rel_min=0.5, Status(downtime_max=2),
              prior_rates=[0, 0] (2h off already), 10€/MWh (expensive).
         Backup: 1€/MWh (cheap).
         Demand: [10]*4.
 
-        With 2h prior downtime and max_downtime=2, Src must restart
+        With 2h prior downtime and downtime_max=2, Src must restart
         immediately at t=0 (can't stay off any longer).
         """
         result = optimize(
@@ -877,9 +877,9 @@ class TestDurationCombinations:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.5,
+                            relative_rate_min=0.5,
                             effects_per_flow_hour={'cost': 10},
-                            status=Status(max_downtime=2),
+                            status=Status(downtime_max=2),
                             prior_rates=[0, 0],
                         )
                     ],
@@ -890,20 +890,20 @@ class TestDurationCombinations:
         )
         on = result.solution['flow--on'].sel(flow='Src(Heat)').values
 
-        # With 2h prior off and max_downtime=2, must turn on at t=0
+        # With 2h prior off and downtime_max=2, must turn on at t=0
         assert_allclose(on[0], 1.0, atol=1e-5)
 
-    def test_min_uptime_with_half_hour_timesteps(self):
+    def test_uptime_min_with_half_hour_timesteps(self):
         """Duration constraints work correctly with sub-hourly timesteps.
 
-        Src: size=100, Status(min_uptime=2), prior_rates=[0], 1€/MWh.
+        Src: size=100, Status(uptime_min=2), prior_rates=[0], 1€/MWh.
         Backup: 0.5€/MWh (cheaper).
         8 timesteps of 30min each (4 hours total).
         Demand: [0,0,0,0, 80,80, 0,0] (demand only at t=4,5 → hours 2-3).
 
-        min_uptime=2h = 4 timesteps at dt=0.5h. Once Src turns on it must
+        uptime_min=2h = 4 timesteps at dt=0.5h. Once Src turns on it must
         stay on for 4 consecutive timesteps. Backup is cheaper, so Src only
-        runs if forced. Demand at t=4,5 needs coverage. With min_uptime=4ts,
+        runs if forced. Demand at t=4,5 needs coverage. With uptime_min=4ts,
         turning on at t=4 means on through t=7 (or t=4-7). Src runs 4 slots
         at 1€/MWh, costing (80+80+0+0)*0.5*1 = 80. But also Backup may cover
         the demand slots cheaper. Since Backup is 0.5€/MWh: 80*0.5*0.5 +
@@ -914,7 +914,7 @@ class TestDurationCombinations:
         to make it interesting.
 
         Revised: Src=1€/MWh, Backup=5€/MWh. Demand=[80]*8.
-        Src must run for demand. min_uptime=2h → once on, stays on ≥4 slots.
+        Src must run for demand. uptime_min=2h → once on, stays on ≥4 slots.
         Src runs all 8 slots: cost = 80*0.5*8*1 = 320.
         Verify on-blocks are ≥4 timesteps (=2h).
         """
@@ -933,9 +933,9 @@ class TestDurationCombinations:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(min_uptime=2),
+                            status=Status(uptime_min=2),
                             prior_rates=[0],
                         )
                     ],
@@ -948,15 +948,15 @@ class TestDurationCombinations:
         # Verify all on-blocks are ≥4 timesteps (= 2h at dt=0.5h)
         assert_on_blocks(on, min_length=4)
 
-    def test_max_uptime_with_half_hour_timesteps(self):
-        """max_uptime enforced correctly with 30-minute timesteps.
+    def test_uptime_max_with_half_hour_timesteps(self):
+        """uptime_max enforced correctly with 30-minute timesteps.
 
-        Src: size=100, Status(max_uptime=1), prior_rates=[0], 1€/MWh.
+        Src: size=100, Status(uptime_max=1), prior_rates=[0], 1€/MWh.
         Backup: 10€/MWh.
         6 timesteps of 30min (3 hours total).
         Demand: [10]*6.
 
-        max_uptime=1h = 2 timesteps at dt=0.5h. Src can run at most 2
+        uptime_max=1h = 2 timesteps at dt=0.5h. Src can run at most 2
         consecutive slots before forced shutdown. Pattern like
         [on,on,off,on,on,off] → Src covers 4 slots, Backup covers 2.
         """
@@ -974,9 +974,9 @@ class TestDurationCombinations:
                         Flow(
                             'Heat',
                             size=100,
-                            relative_minimum=0.1,
+                            relative_rate_min=0.1,
                             effects_per_flow_hour={'cost': 1},
-                            status=Status(max_uptime=1),
+                            status=Status(uptime_max=1),
                             prior_rates=[0],
                         )
                     ],

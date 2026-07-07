@@ -11,15 +11,19 @@ Three-layer design: **Elements** (dataclasses) → **ModelData** (xr.Datasets) �
 
 ```
 src/fluxopt/
-├── elements.py        # User-facing dataclasses (Flow, Bus, Effect, Storage, Status, Sizing, Bounds)
+├── elements.py        # User-facing dataclasses (Carrier, Flow, Effect, Storage, Status, Sizing, Investment, PiecewiseConversion)
 ├── components.py      # Port, Converter — group flows into components
-├── types.py           # IdList[T], TimeSeries, Identified protocol
-├── model_data.py      # ModelData + builder functions → 5 xr.Datasets (flows, buses, converters, effects, storages)
+├── types.py           # IdList[T], Variate, Identified protocol
+├── model_data.py      # ModelData + builder functions → 5 xr.Datasets (flows, buses, converters, effects, storages); netcdf IO
 ├── model.py           # Builds linopy Model from ModelData (variables, constraints, objective)
-├── constraints/       # Modular constraint builders (status, accumulation, etc.)
-├── results.py         # Extract results from solved model
-└── io.py              # Serialization
+├── constraints/       # Modular constraint builders (status, storage, sparse)
+├── results.py         # Extract results from solved model; netcdf IO
+├── stats.py           # StatsAccessor — derived KPIs on Result
+└── contributions.py   # Effect contribution bookkeeping
 ```
+
+Field naming follows a fixed grammar (`<quantity>_min/max` suffix style,
+rate/periodic/total scopes) — see `docs/design/naming-grammar.md`.
 
 Key runtime deps: xarray, linopy, numpy, pandas.
 
