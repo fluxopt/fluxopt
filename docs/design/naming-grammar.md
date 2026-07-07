@@ -10,6 +10,14 @@ The field name encodes all three, so future fields name themselves.
 2. **Basis** — absolute (`[MW]`, `[MWh]`) or relative to size/capacity.
    Relative fields carry a `relative_` prefix (`relative_rate_min`) or are
    inherently relative (`load_factor`).
+
+   The prefix comes *before* the quantity (not `rate_relative_min`)
+   because `relative_rate` is itself a quantity, not a modifier: the
+   math notation gives it its own dimensionless symbol (p̲, p̄ ∈ [0, 1])
+   distinct from the rate P [MW], just as `relative_level` (e) is
+   distinct from the level E [MWh]. Absolute flow bounds deliberately do
+   not exist — absolute is always `size × relative`, so no
+   `rate_min`/`relative_rate_min` adjacency problem can arise.
 3. **Scope** — where the bound is evaluated:
    - **rate** — each timestep (scaled by Δt where applicable)
    - **periodic** — aggregate within each period, independently
