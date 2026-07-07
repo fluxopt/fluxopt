@@ -57,6 +57,31 @@ bounds therefore require a size; flow-hour bounds do not.
 Cross-period budgets are not expressed here — route them through an
 [effect](effects.md) with `total_min` / `total_max`.
 
+## Ramp Limits
+
+Ramp limits (`ramp_up_per_hour` / `ramp_down_per_hour`) cap the rate change
+between consecutive timesteps, as a fraction of capacity per hour:
+
+\[
+P_{f,t} - P_{f,t-1} \leq \mathrm{r}^{+}_{f,t} \cdot \bar{\mathrm{P}}_f \cdot \Delta t_t
+\qquad
+P_{f,t-1} - P_{f,t} \leq \mathrm{r}^{-}_{f,t} \cdot \bar{\mathrm{P}}_f \cdot \Delta t_t
+\]
+
+Constraints apply from the second timestep onward; periods are independent
+(no ramp coupling across period boundaries). Like load factors, ramps are
+relative to size — when `Flow.size` is a [Sizing](sizing.md) or Investment
+object, \(\bar{\mathrm{P}}_f\) is the size variable and the constraint
+stays linear.
+
+!!! note "Interaction with Status"
+    Ramp limits also bind across a startup: jumping from 0 to the
+    semi-continuous minimum \(\underline{\mathrm{p}}_f \cdot \bar{\mathrm{P}}_f\)
+    must satisfy the ramp-up limit, i.e.
+    \(\mathrm{r}^{+}_f \cdot \Delta t \geq \underline{\mathrm{p}}_f\) —
+    otherwise the unit can never start. Dedicated startup/shutdown ramp
+    rates are not yet supported.
+
 ## Effect Contributions
 
 Each flow contributes to tracked effects (cost, emissions, …). Per-timestep:
@@ -89,6 +114,8 @@ Units cancel: e.g. €/MWh × MW × h = €. Contributions feed into the
 | \(\bar{\mathrm{H}}_f\) | Maximum flow-hours per period | [`Flow.flow_hours_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow(flow_hours_max)) |
 | \(\underline{\lambda}_f\) | Minimum load factor per period | [`Flow.load_factor_min`](../api/fluxopt/elements.md#fluxopt.elements.Flow(load_factor_min)) |
 | \(\bar{\lambda}_f\) | Maximum load factor per period | [`Flow.load_factor_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow(load_factor_max)) |
+| \(\mathrm{r}^{+}_{f,t}\) | Max ramp up, fraction of size per hour | [`Flow.ramp_up_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(ramp_up_per_hour)) |
+| \(\mathrm{r}^{-}_{f,t}\) | Max ramp down, fraction of size per hour | [`Flow.ramp_down_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(ramp_down_per_hour)) |
 | \(\Delta t_t\) | Timestep duration (h) | dt |
 
 See [Notation](notation.md) for the full symbol table and [Indexing

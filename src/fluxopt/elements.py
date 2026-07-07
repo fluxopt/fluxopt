@@ -167,6 +167,10 @@ class Flow:
             applied to each period independently. Requires ``size``.
         load_factor_max: Upper bound on utilization ``Σ P·Δt / (size·T)``,
             applied to each period independently. Requires ``size``.
+        ramp_up_per_hour: Maximum rate increase between consecutive
+            timesteps, as fraction of size per hour. Requires ``size``.
+        ramp_down_per_hour: Maximum rate decrease between consecutive
+            timesteps, as fraction of size per hour. Requires ``size``.
         status: On/off behavior (semi-continuous, startup costs, durations).
         prior_rates: Flow rates [MW] before the horizon, used for
             status initial conditions.
@@ -185,6 +189,8 @@ class Flow:
     flow_hours_max: float | None = None  # H̄_f  [MWh] — per period
     load_factor_min: float | None = None  # λ̲_f  [-] — per period
     load_factor_max: float | None = None  # λ̄_f  [-] — per period
+    ramp_up_per_hour: Variate | None = None  # r⁺_f  [1/h] — fraction of size per hour
+    ramp_down_per_hour: Variate | None = None  # r⁻_f  [1/h] — fraction of size per hour
     status: Status | None = None
     prior_rates: list[float] | None = None  # flow rates before horizon [MW]
 
@@ -203,6 +209,12 @@ class Flow:
             msg = (
                 f'Flow {self.short_id!r}: load_factor bounds require a size '
                 f'(fixed or Sizing/Investment) — the load factor is relative to size'
+            )
+            raise ValueError(msg)
+        if (self.ramp_up_per_hour is not None or self.ramp_down_per_hour is not None) and self.size is None:
+            msg = (
+                f'Flow {self.short_id!r}: ramp limits require a size '
+                f'(fixed or Sizing/Investment) — ramps are relative to size'
             )
             raise ValueError(msg)
 

@@ -513,6 +513,65 @@ class TestFlowConstraints:
         with pytest.raises(ValueError, match='load_factor'):
             Flow('Heat', load_factor_max=0.5)
 
+    def test_ramp_up_limits_increase(self):
+        """ramp_up_per_hour caps the rate increase between timesteps.
+
+        CheapSrc (size=100, ramp_up=0.2 -> max +20/h), cost 1. Expensive cost 5.
+        Demand=[10,50]. Cheap: t0=10, t1<=30 -> Expensive covers 20 at t1.
+        cost = 10 + 30 + 20*5 = 140.
+
+        Sensitivity: Without ramp_up, Cheap covers all -> cost=60.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 50])]),
+                Port(
+                    'CheapSrc',
+                    imports=[Flow('Heat', size=100, ramp_up_per_hour=0.2, effects_per_flow_hour={'cost': 1})],
+                ),
+                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+        )
+        assert_allclose(result.objective, 140.0, rtol=1e-5)
+        cheap = result.flow_rate('CheapSrc(Heat)').values
+        assert cheap[1] - cheap[0] <= 20.0 + 1e-5, f'Ramp-up violated: {cheap}'
+
+    def test_ramp_down_limits_decrease(self):
+        """ramp_down_per_hour caps the rate decrease between timesteps.
+
+        Src (size=100, ramp_down=0.2 -> max -20/h), cost 1. Demand=[50,10].
+        Src: t0=50, t1 >= 30 -> excess 20 absorbed by waste.
+        cost = 50 + 30 = 80.
+
+        Sensitivity: Without ramp_down, Src follows demand -> cost=60.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 10])]),
+                Port(
+                    'Src',
+                    imports=[Flow('Heat', size=100, ramp_down_per_hour=0.2, effects_per_flow_hour={'cost': 1})],
+                ),
+                waste('Heat'),
+            ],
+        )
+        assert_allclose(result.objective, 80.0, rtol=1e-5)
+        src = result.flow_rate('Src(Heat)').values
+        assert src[0] - src[1] <= 20.0 + 1e-5, f'Ramp-down violated: {src}'
+
+    def test_ramp_requires_size(self):
+        """Ramp limits on an unsized flow fail loudly at element level."""
+        with pytest.raises(ValueError, match='ramp'):
+            Flow('Heat', ramp_up_per_hour=0.2)
+
 
 # ---------------------------------------------------------------------------
 # Storage

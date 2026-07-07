@@ -99,6 +99,7 @@ class FlowSystem:
         self._constrain_flow_rates_status()
         self._constrain_flow_rates_component_status()
         self._constrain_flow_aggregates()
+        self._constrain_flow_ramps()
         # Phase 3: Feature constraints
         self._constrain_sizing()
         self._constrain_investment()
@@ -593,6 +594,53 @@ class FlowSystem:
                     self.m.add_constraints(expr >= 0, name=f'{name}_sized')
                 else:
                     self.m.add_constraints(expr <= 0, name=f'{name}_sized')
+
+    def _constrain_flow_ramps(self) -> None:
+        """Limit flow rate changes between consecutive timesteps.
+
+        Ramp up:   P_{f,t} - P_{f,t-1} <= r⁺_{f,t}·S_f·Δt_t
+        Ramp down: P_{f,t-1} - P_{f,t} <= r⁻_{f,t}·S_f·Δt_t
+
+        Applies from the second timestep onward; periods are independent.
+        For Sizing/Investment flows the size variable enters the constraint
+        (r·Δt moves to the LHS as a coefficient).
+
+        See: docs/math/flows.md
+        """
+        ds = self.data.flows
+        if ds.ramp_up is None and ds.ramp_down is None:
+            return
+        time_vals = self.flow_rate.coords['time'].values
+        if len(time_vals) < 2:
+            return
+        coords_from_1 = time_vals[1:]
+        curr = self.flow_rate.isel(time=slice(1, None))
+        prev = self.flow_rate.isel(time=slice(None, -1)).assign_coords(time=coords_from_1)
+        dt_t = self.data.dims.dt.isel(time=slice(1, None))
+        sized_flow_ids = self._sizing_flow_ids()
+
+        for ramp, name, delta in (
+            (ds.ramp_up, 'ramp_up', curr - prev),
+            (ds.ramp_down, 'ramp_down', prev - curr),
+        ):
+            if ramp is None:
+                continue
+            non_flow_dims = [d for d in ramp.dims if d != 'flow']
+            has_ramp = ramp.notnull().any(non_flow_dims)
+            ramp_ids = list(ramp.coords['flow'].values[has_ramp.values])
+            fixed_ids = [fid for fid in ramp_ids if fid not in sized_flow_ids]
+            var_ids = [fid for fid in ramp_ids if fid in sized_flow_ids]
+            limit = ramp.isel(time=slice(1, None)) * dt_t  # r·Δt  (flow, time[, period])
+            if fixed_ids:
+                # Fixed size: constant RHS r·S̄·Δt
+                rhs = limit.sel(flow=fixed_ids) * ds.size.sel(flow=fixed_ids)
+                self.m.add_constraints(delta.sel(flow=fixed_ids) <= rhs, name=f'flow_{name}', mask=rhs.notnull())
+            if var_ids:
+                # Sizing/Investment: size is a variable — move to LHS
+                assert self.flow_size is not None
+                coeff = limit.sel(flow=var_ids)
+                expr = delta.sel(flow=var_ids) - coeff * self.flow_size.sel(flow=var_ids)
+                self.m.add_constraints(expr <= 0, name=f'flow_{name}_sized', mask=coeff.notnull())
 
     def _constrain_sizing(self) -> None:
         """Constrain sizing variables: S in [min, max] gated by indicator."""
