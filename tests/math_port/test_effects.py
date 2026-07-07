@@ -177,11 +177,11 @@ class TestEffects:
         """Proves: rate_max on an effect caps the per-timestep contribution,
         forcing the optimizer to spread dirty production across timesteps.
 
-        CO2 max_per_hour=8. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
+        CO2 rate_max=8. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
         Demand=[15,5]. Without cap, Dirty covers all → CO2=[15,5], cost=20.
         With cap=8/ts, Dirty limited to 8 per ts → Dirty=[8,5], Clean=[7,0].
 
-        Sensitivity: Without max_per_hour, all from Dirty → cost=20.
+        Sensitivity: Without rate_max, all from Dirty → cost=20.
         With cap, cost = (8+5)*1 + 7*5 = 48.
         """
         result = optimize(
@@ -221,11 +221,11 @@ class TestEffects:
         """Proves: rate_min on an effect forces a minimum per-timestep
         contribution, even when zero would be cheaper.
 
-        CO2 min_per_hour=10. Dirty: 1€+1kgCO2/kWh. Demand=[5,5].
+        CO2 rate_min=10. Dirty: 1€+1kgCO2/kWh. Demand=[5,5].
         Without floor, Dirty=5 each ts → CO2=[5,5]. With floor, Dirty must
         produce ≥10 each ts → excess absorbed by dump.
 
-        Sensitivity: Without min_per_hour, cost=10. With it, cost=20.
+        Sensitivity: Without rate_min, cost=10. With it, cost=20.
         """
         result = optimize(
             timesteps=ts(2),
@@ -258,10 +258,10 @@ class TestEffects:
     def test_effect_rate_max_scales_with_dt(self, optimize):
         """Proves: rate_max scales with timestep duration.
 
-        CO2 max_per_hour=4. dt=2h. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
+        CO2 rate_max=4. dt=2h. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
         Demand=[15,5] (power in MW). CO2 per timestep = rate * 1 * dt.
 
-        Per-timestep CO2 cap = max_per_hour * dt = 4 * 2 = 8 kgCO2.
+        Per-timestep CO2 cap = rate_max * dt = 4 * 2 = 8 kgCO2.
         Dirty rate capped at 4 MW (since 4 * 1 * 2 = 8 = cap).
         t=0: Dirty_rate=4, Clean_rate=11. t=1: Dirty_rate=4, Clean_rate=1.
         cost = (4*2 + 4*2)*1 + (11*2 + 1*2)*5 = 16 + 120 = 136.
@@ -308,12 +308,12 @@ class TestEffects:
     def test_effect_rate_min_scales_with_dt(self, optimize):
         """Proves: rate_min scales with timestep duration.
 
-        CO2 min_per_hour=5. dt=2h. Dirty: 1€+1kgCO2/kWh. Demand=[3,3] (power).
+        CO2 rate_min=5. dt=2h. Dirty: 1€+1kgCO2/kWh. Demand=[3,3] (power).
         Per-timestep energy: [6,6] kWh. Per-timestep CO2 floor = 5 * 2 = 10 kgCO2.
         Dirty must produce ≥10 kWh each ts → excess absorbed by waste.
 
         cost = 10 + 10 = 20.
-        Sensitivity: Without min_per_hour, Dirty=6 each ts → cost=12.
+        Sensitivity: Without rate_min, Dirty=6 each ts → cost=12.
         """
         from datetime import datetime, timedelta
 

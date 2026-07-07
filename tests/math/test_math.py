@@ -195,11 +195,11 @@ class TestEffects:
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
     def test_effect_rate_max(self):
-        """CO2 max_per_hour=8. Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2.
+        """CO2 rate_max=8. Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2.
         Demand=[15,5]. Dirty capped at 8/ts -> Dirty=[8,5], Clean=[7,0].
         cost = 13*1 + 7*5 = 48.
 
-        Sensitivity: Without max_per_hour, all Dirty -> cost=20.
+        Sensitivity: Without rate_max, all Dirty -> cost=20.
         """
         result = optimize(
             ts(2),
@@ -215,11 +215,11 @@ class TestEffects:
         assert_allclose(result.objective, 48.0, rtol=1e-5)
 
     def test_effect_rate_min(self):
-        """CO2 min_per_hour=10. Dirty: 1EUR+1kgCO2. Demand=[5,5].
+        """CO2 rate_min=10. Dirty: 1EUR+1kgCO2. Demand=[5,5].
         Must produce >=10 CO2/ts -> Dirty >=10/ts. Excess absorbed by waste.
         cost=20.
 
-        Sensitivity: Without min_per_hour, Dirty=5/ts -> cost=10.
+        Sensitivity: Without rate_min, Dirty=5/ts -> cost=10.
         """
         result = optimize(
             ts(2),

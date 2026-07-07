@@ -157,7 +157,7 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
     only those it directly emits — independent of ``contribution_from`` chains.
     """
     flow_ids: list[str] = list(data.flows.effect_coeff.coords['flow'].values)
-    effect_ids: list[str] = list(data.effects.min_bound.coords['effect'].values)
+    effect_ids: list[str] = list(data.effects.total_min.coords['effect'].values)
     stor_ids: list[str] = list(data.storages.capacity.coords['storage'].values) if data.storages is not None else []
     all_ids = flow_ids + stor_ids
 

@@ -974,7 +974,7 @@ class FlowSystem:
         d = self.data
         ds = d.effects
 
-        effect_ids = ds.min_bound.coords['effect']
+        effect_ids = ds.total_min.coords['effect']
 
         if len(effect_ids) == 0:
             return
@@ -1029,16 +1029,16 @@ class FlowSystem:
 
         self.m.add_constraints(self.effect_temporal == temporal_rhs, name='effect_temporal_eq')
 
-        # Per-hour bounds: effect[t] <= max_per_hour * dt[t]
+        # Per-hour bounds: effect[t] <= rate_max * dt[t]
         # effect_temporal is in absolute units (e.g. EUR), so the per-hour rate
         # must be scaled by the timestep duration to get the per-timestep limit.
         dt = d.dims.dt
-        min_ph = ds.min_per_hour * dt  # (effect, time) — NaN = unbounded
+        min_ph = ds.rate_min * dt  # (effect, time) — NaN = unbounded
         has_min_ph = min_ph.notnull()
         if has_min_ph.any():
             self.m.add_constraints(self.effect_temporal >= min_ph, name='effect_min_ph', mask=has_min_ph)
 
-        max_ph = ds.max_per_hour * dt
+        max_ph = ds.rate_max * dt
         has_max_ph = max_ph.notnull()
         if has_max_ph.any():
             self.m.add_constraints(self.effect_temporal <= max_ph, name='effect_max_ph', mask=has_max_ph)
@@ -1172,21 +1172,21 @@ class FlowSystem:
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
         # Per-period bounds on effect_total
-        min_pp = ds.min_per_period  # (effect,) — NaN = unbounded
-        max_pp = ds.max_per_period
+        min_pp = ds.periodic_min  # (effect,) — NaN = unbounded
+        max_pp = ds.periodic_max
         has_min_pp = min_pp.notnull()
         if has_min_pp.any():
-            self.m.add_constraints(self.effect_total >= min_pp, name='effect_min_per_period', mask=has_min_pp)
+            self.m.add_constraints(self.effect_total >= min_pp, name='effect_periodic_min', mask=has_min_pp)
         has_max_pp = max_pp.notnull()
         if has_max_pp.any():
-            self.m.add_constraints(self.effect_total <= max_pp, name='effect_max_per_period', mask=has_max_pp)
+            self.m.add_constraints(self.effect_total <= max_pp, name='effect_periodic_max', mask=has_max_pp)
 
         # Weighted total bounds (across all periods)
         # Single-period: effect_total has no period dim, bound applies directly.
         # Multi-period: weighted sum across periods, using per-effect period_weights
         # if set, else global period_weights, else unweighted.
-        min_bound = ds.min_bound  # (effect,) — NaN = unbounded
-        max_bound = ds.max_bound
+        total_min = ds.total_min  # (effect,) — NaN = unbounded
+        total_max = ds.total_max
         total_sum: Any
         if 'period' in self.effect_total.dims:
             # Multi-period: weighted sum across periods.
@@ -1199,12 +1199,12 @@ class FlowSystem:
                 total_sum = (self.effect_total * d.dims.period_weights).sum('period')
         else:
             total_sum = self.effect_total
-        has_min = min_bound.notnull()
+        has_min = total_min.notnull()
         if has_min.any():
-            self.m.add_constraints(total_sum >= min_bound, name='effect_min_bound', mask=has_min)
-        has_max = max_bound.notnull()
+            self.m.add_constraints(total_sum >= total_min, name='effect_total_min', mask=has_min)
+        has_max = total_max.notnull()
         if has_max.any():
-            self.m.add_constraints(total_sum <= max_bound, name='effect_max_bound', mask=has_max)
+            self.m.add_constraints(total_sum <= total_max, name='effect_total_max', mask=has_max)
 
     def _create_storage(self) -> None:
         """Create storage variables, level balance, and prior/cyclic conditions."""
@@ -1347,7 +1347,7 @@ class FlowSystem:
         obj_expr: Any = 0
 
         for k in self._objective_effects:
-            effect_ids = list(ds.min_bound.coords['effect'].values)
+            effect_ids = list(ds.total_min.coords['effect'].values)
             if k not in effect_ids:
                 raise ValueError(f'Objective effect {k!r} not found. Available: {effect_ids}')
 
