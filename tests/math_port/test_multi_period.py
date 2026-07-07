@@ -165,12 +165,12 @@ class TestMultiPeriod:
         assert_allclose(result.objective, 90.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='multi-period storage constraints not yet implemented')
-    def test_storage_relative_minimum_final_level_scalar(self, optimize):
-        """Proves: scalar relative_minimum_final_level works in multi-period."""
+    def test_storage_relative_rate_min_final_level_scalar(self, optimize):
+        """Proves: scalar relative_rate_min_final_level works in multi-period."""
 
     @pytest.mark.skip(reason='multi-period storage constraints not yet implemented')
-    def test_storage_relative_maximum_final_level_scalar(self, optimize):
-        """Proves: scalar relative_maximum_final_level works in multi-period."""
+    def test_storage_relative_rate_max_final_level_scalar(self, optimize):
+        """Proves: scalar relative_rate_max_final_level works in multi-period."""
 
 
 class TestInvestment:
@@ -367,7 +367,7 @@ class TestInvestment:
             periods=[2020, 2025],
             period_weights=[5, 5],
         )
-        # min_size == max_size == 10, so invest_size = 10.
+        # size_min == size_max == 10, so invest_size = 10.
         # CAPEX: 10 * 10 = 100 in build period. Weighted: 5 * 100 = 500.
         assert_allclose(result.objective, 500.0, rtol=1e-4)
 
@@ -654,7 +654,7 @@ class TestPeriodVaryingEffects:
                         Flow(
                             'Heat',
                             size=10,
-                            relative_minimum=0.5,
+                            relative_rate_min=0.5,
                             status=Status(effects_per_running_hour={'cost': cost_by_period}),
                         ),
                     ],
@@ -692,7 +692,7 @@ class TestPeriodVaryingEffects:
                         Flow(
                             'Heat',
                             size=10,
-                            relative_minimum=0.5,
+                            relative_rate_min=0.5,
                             status=Status(effects_per_startup={'cost': cost_by_period}),
                         ),
                     ],

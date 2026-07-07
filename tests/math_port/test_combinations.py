@@ -70,7 +70,7 @@ class TestStatusWithEffects:
         """Proves: effects_per_startup can contribute to a non-cost effect (CO2),
         and that this correctly interacts with effect constraints.
 
-        CO2 capped at maximum=60. Boiler startup emits 50kg CO2.
+        CO2 capped at total_max=60. Boiler startup emits 50kg CO2.
         Demand=[0,20,0,20] → 2 startups = 100kg CO2. Exceeds cap!
         Optimizer must reduce startups by keeping boiler running continuously.
 
@@ -81,7 +81,7 @@ class TestStatusWithEffects:
             timesteps=ts(4),
             effects=[
                 Effect('cost'),
-                Effect('CO2', maximum=60),
+                Effect('CO2', total_max=60),
             ],
             objective_effects='cost',
             ports=[
@@ -107,7 +107,7 @@ class TestStatusWithEffects:
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
-                        relative_minimum=0.1,
+                        relative_rate_min=0.1,
                         prior_rates=[0],
                         status=Status(effects_per_startup={'CO2': 50}),
                     ),
@@ -160,7 +160,7 @@ class TestStatusWithEffects:
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
-                        relative_minimum=0.1,
+                        relative_rate_min=0.1,
                         status=Status(effects_per_running_hour={'cost': 10, 'CO2': 5}),
                     ),
                 ),
@@ -172,13 +172,13 @@ class TestStatusWithEffects:
 
 
 class TestInvestWithRelativeMinimum:
-    """Tests combining Sizing with relative_minimum."""
+    """Tests combining Sizing with relative_rate_min."""
 
-    def test_invest_sizing_respects_relative_minimum(self, optimize):
-        """Proves: relative_minimum on an invested flow forces the boiler OFF at
+    def test_invest_sizing_respects_relative_rate_min(self, optimize):
+        """Proves: relative_rate_min on an invested flow forces the boiler OFF at
         low-demand timesteps, requiring expensive backup.
 
-        Sensitivity: Without relative_minimum: size=50, ON both hours, fuel=55, total=80.
+        Sensitivity: Without relative_rate_min: size=50, ON both hours, fuel=55, total=80.
         With it: size=50, OFF at t=0, backup=5*10=50, total=125.
         """
 
@@ -213,10 +213,10 @@ class TestInvestWithRelativeMinimum:
                     fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
-                        relative_minimum=0.5,
+                        relative_rate_min=0.5,
                         size=Sizing(
-                            min_size=0,
-                            max_size=100,
+                            size_min=0,
+                            size_max=100,
                             mandatory=True,
                             effects_per_size={'cost': 0.5},
                         ),
@@ -342,13 +342,13 @@ class TestStatusWithMultipleConstraints:
     """Tests combining multiple status parameters on the same flow."""
 
     @pytest.mark.skip(reason='startup_limit not supported in fluxopt')
-    def test_startup_limit_with_max_downtime(self, optimize):
-        """Proves: startup_limit and max_downtime interact correctly."""
+    def test_startup_limit_with_downtime_max(self, optimize):
+        """Proves: startup_limit and downtime_max interact correctly."""
 
-    def test_min_uptime_with_min_downtime(self, optimize):
-        """Proves: min_uptime and min_downtime together force a regular on/off pattern.
+    def test_uptime_min_with_downtime_min(self, optimize):
+        """Proves: uptime_min and downtime_min together force a regular on/off pattern.
 
-        Boiler: min_uptime=2, min_downtime=2, prior_rates=[0].
+        Boiler: uptime_min=2, downtime_min=2, prior_rates=[0].
         Demand=[20]*6. Backup at eta=0.5.
 
         Sensitivity: Without these constraints, boiler could run all 6 hours.
@@ -381,9 +381,9 @@ class TestStatusWithMultipleConstraints:
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
-                        relative_minimum=0.1,
+                        relative_rate_min=0.1,
                         prior_rates=[0],
-                        status=Status(min_uptime=2, min_downtime=2),
+                        status=Status(uptime_min=2, downtime_min=2),
                     ),
                 ),
                 Converter.boiler(
@@ -397,10 +397,10 @@ class TestStatusWithMultipleConstraints:
         )
         on = result.solution['flow--on'].sel(flow='CheapBoiler(Heat)').values
 
-        # Verify min_uptime: each on-block is ≥2 hours
+        # Verify uptime_min: each on-block is ≥2 hours
         assert_on_blocks(on, min_length=2)
 
-        # Verify min_downtime: each off-block is ≥2 hours (within horizon)
+        # Verify downtime_min: each off-block is ≥2 hours (within horizon)
         assert_off_blocks(on, min_length=2)
 
         # Pattern [off,on,on,on,on,on]: CheapBoiler 5h=100, Backup 1h*20/0.5=40. Total=140.
@@ -418,7 +418,7 @@ class TestEffectsWithConversion:
         """Proves: Effect maximum correctly accounts for contributions from
         StatusParameters (effects_per_startup) when constraining.
 
-        CO2 has maximum=20. Boiler startup emits 15 kg CO2.
+        CO2 has total_max=20. Boiler startup emits 15 kg CO2.
         Fuel emits 0.1 kg CO2/kWh. Demand=[0,10,0,10].
         2 startups = 30 kg CO2 (exceeds cap). Forced to 1 startup.
 
@@ -429,7 +429,7 @@ class TestEffectsWithConversion:
             timesteps=ts(4),
             effects=[
                 Effect('cost'),
-                Effect('CO2', maximum=20),
+                Effect('CO2', total_max=20),
             ],
             objective_effects='cost',
             ports=[
@@ -455,7 +455,7 @@ class TestEffectsWithConversion:
                     thermal_flow=Flow(
                         'Heat',
                         size=100,
-                        relative_minimum=0.1,
+                        relative_rate_min=0.1,
                         prior_rates=[0],
                         status=Status(effects_per_startup={'CO2': 15}),
                     ),

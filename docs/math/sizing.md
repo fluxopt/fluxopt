@@ -23,7 +23,7 @@ When `mandatory=True`, the component must be built. The capacity is continuous:
 \mathrm{S}^- \leq S_f \leq \mathrm{S}^+ \quad \text{(mandatory)}
 \]
 
-where \(\mathrm{S}^-\) = `min_size` and \(\mathrm{S}^+\) = `max_size`. No binary variable is needed,
+where \(\mathrm{S}^-\) = `size_min` and \(\mathrm{S}^+\) = `size_max`. No binary variable is needed,
 so the problem is faster to solve:
 
 ## Optional Sizing
@@ -36,7 +36,7 @@ When `mandatory=False`, a binary indicator \(y_f\) gates the capacity:
 
 When \(y_f = 0\): \(S_f = 0\) (not built). When \(y_f = 1\): \(S_f \in [\mathrm{S}^-, \mathrm{S}^+]\).
 Use this when you need `effects_fixed` (one-time costs gated by the indicator)
-or when `min_size > 0` must be enforced only if built:
+or when `size_min > 0` must be enforced only if built:
 
 ### Binary Invest
 
@@ -106,9 +106,9 @@ weighted by [cross-effect contributions](effects.md#cross-effect-contributions).
 
 ### With Bounds
 
-Relative bounds (`relative_minimum`, `relative_maximum`) are fractions of the
+Relative bounds (`relative_rate_min`, `relative_rate_max`) are fractions of the
 **optimized** size variable, not a fixed number. If the solver picks 80 MW and
-`relative_minimum=0.3`, the minimum flow rate is 24 MW.
+`relative_rate_min=0.3`, the minimum flow rate is 24 MW.
 
 ### With Status
 
@@ -123,8 +123,8 @@ for the constraints.
 | \(S_f\) | Flow capacity variable | `flow--size[flow]` |
 | \(S_s\) | Storage capacity variable | `storage--capacity[storage]` |
 | \(y_f\), \(y_s\) | Binary invest indicator | `flow--size_indicator`, `storage--size_indicator` |
-| \(\mathrm{S}^-\) | Minimum size | [`Sizing.min_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(min_size)) |
-| \(\mathrm{S}^+\) | Maximum size | [`Sizing.max_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(max_size)) |
+| \(\mathrm{S}^-\) | Minimum size | [`Sizing.size_min`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(size_min)) |
+| \(\mathrm{S}^+\) | Maximum size | [`Sizing.size_max`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(size_max)) |
 | \(\gamma_{f,k}\) | Per-size investment cost | [`Sizing.effects_per_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_per_size)) |
 | \(\phi_{f,k}\) | Fixed investment cost | [`Sizing.effects_fixed`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_fixed)) |
 

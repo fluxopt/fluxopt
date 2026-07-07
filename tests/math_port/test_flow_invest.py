@@ -45,8 +45,8 @@ class TestFlowInvest:
                     thermal_flow=Flow(
                         'Heat',
                         size=Sizing(
-                            min_size=0,
-                            max_size=200,
+                            size_min=0,
+                            size_max=200,
                             mandatory=False,
                             effects_fixed={'cost': 10},
                             effects_per_size={'cost': 1},
@@ -97,7 +97,7 @@ class TestFlowInvest:
                     fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
-                        size=Sizing(min_size=0, max_size=100, mandatory=False, effects_fixed={'cost': 99999}),
+                        size=Sizing(size_min=0, size_max=100, mandatory=False, effects_fixed={'cost': 99999}),
                     ),
                 ),
                 Converter.boiler(
@@ -114,13 +114,13 @@ class TestFlowInvest:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
 
     def test_invest_minimum_size(self, optimize):
-        """Proves: Sizing min_size forces the invested capacity to be
+        """Proves: Sizing size_min forces the invested capacity to be
         at least the specified value, even when demand is much smaller.
 
-        Demand peak=10, min_size=100, cost_per_size=1 → must invest 100.
+        Demand peak=10, size_min=100, cost_per_size=1 → must invest 100.
 
-        Sensitivity: Without min_size, optimal invest=10 → cost=10+20=30.
-        With min_size=100, invest cost=100 → cost=120.
+        Sensitivity: Without size_min, optimal invest=10 → cost=10+20=30.
+        With size_min=100, invest cost=100 → cost=120.
         """
 
         result = optimize(
@@ -149,7 +149,7 @@ class TestFlowInvest:
                     fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
-                        size=Sizing(min_size=100, max_size=200, mandatory=True, effects_per_size={'cost': 1}),
+                        size=Sizing(size_min=100, size_max=200, mandatory=True, effects_per_size={'cost': 1}),
                     ),
                 ),
             ],
@@ -160,7 +160,7 @@ class TestFlowInvest:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
 
     def test_invest_fixed_size(self, optimize):
-        """Proves: min_size==max_size creates a binary invest-or-not decision at exactly the
+        """Proves: size_min==size_max creates a binary invest-or-not decision at exactly the
         specified capacity — no continuous sizing.
 
         FixedBoiler: fixed_size=80, invest_cost=10€, eta=1.0.
@@ -194,7 +194,7 @@ class TestFlowInvest:
                     fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
-                        size=Sizing(min_size=80, max_size=80, mandatory=False, effects_fixed={'cost': 10}),
+                        size=Sizing(size_min=80, size_max=80, mandatory=False, effects_fixed={'cost': 10}),
                     ),
                 ),
                 Converter.boiler(
@@ -261,8 +261,8 @@ class TestFlowInvest:
                     thermal_flow=Flow(
                         'Heat',
                         size=Sizing(
-                            min_size=10,
-                            max_size=100,
+                            size_min=10,
+                            size_max=100,
                             mandatory=True,
                             effects_fixed={'cost': 1000},
                             effects_per_size={'cost': 1},
@@ -318,7 +318,7 @@ class TestFlowInvest:
                     fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
-                        size=Sizing(min_size=10, max_size=100, mandatory=False, effects_fixed={'cost': 1000}),
+                        size=Sizing(size_min=10, size_max=100, mandatory=False, effects_fixed={'cost': 1000}),
                     ),
                 ),
                 Converter.boiler(
@@ -396,10 +396,10 @@ class TestFlowInvestWithStatus:
                     fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
-                        relative_minimum=0.5,
+                        relative_rate_min=0.5,
                         size=Sizing(
-                            min_size=0,
-                            max_size=100,
+                            size_min=0,
+                            size_max=100,
                             mandatory=False,
                             effects_fixed={'cost': 10},
                             effects_per_size={'cost': 1},
@@ -415,13 +415,13 @@ class TestFlowInvestWithStatus:
         assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 20.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 170.0, rtol=1e-5)
 
-    def test_invest_with_min_uptime(self, optimize):
-        """Proves: Invested unit respects min_uptime constraint.
+    def test_invest_with_uptime_min(self, optimize):
+        """Proves: Invested unit respects uptime_min constraint.
 
-        InvestBoiler with sizing AND min_uptime=2. Once started, must stay on 2 hours.
+        InvestBoiler with sizing AND uptime_min=2. Once started, must stay on 2 hours.
         Backup available but expensive. Demand=[20,10,20].
 
-        Sensitivity: The cost changes due to min_uptime forcing operation patterns.
+        Sensitivity: The cost changes due to uptime_min forcing operation patterns.
         """
 
         result = optimize(
@@ -449,9 +449,9 @@ class TestFlowInvestWithStatus:
                     fuel_flow=Flow('Gas', short_id='fuel'),
                     thermal_flow=Flow(
                         'Heat',
-                        relative_minimum=0.1,
-                        size=Sizing(min_size=0, max_size=100, mandatory=False, effects_per_size={'cost': 1}),
-                        status=Status(min_uptime=2),
+                        relative_rate_min=0.1,
+                        size=Sizing(size_min=0, size_max=100, mandatory=False, effects_per_size={'cost': 1}),
+                        status=Status(uptime_min=2),
                     ),
                 ),
                 Converter.boiler(
@@ -465,12 +465,12 @@ class TestFlowInvestWithStatus:
         )
         # InvestBoiler is built (cheaper fuel @eta=1.0 vs Backup @eta=0.5)
         # size=20 (peak demand), invest=20
-        # min_uptime=2: runs continuously t=0,1,2
+        # uptime_min=2: runs continuously t=0,1,2
         # fuel = 20 + 10 + 20 = 50
         # total = 20 (invest) + 50 (fuel) = 70
         assert_allclose(result.sizes.sel(flow='InvestBoiler(Heat)').item(), 20.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 70.0, rtol=1e-5)
-        # Verify InvestBoiler runs all 3 hours due to min_uptime
+        # Verify InvestBoiler runs all 3 hours due to uptime_min
         status = result.solution['flow--on'].sel(flow='InvestBoiler(Heat)').values
         assert_allclose(status, [1, 1, 1], atol=1e-5)
 

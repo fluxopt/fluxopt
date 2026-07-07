@@ -51,8 +51,8 @@ Units cancel: e.g. €/MWh × MW × h = €. Contributions feed into the
 |---|---|---|
 | \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\bar{\mathrm{P}}_f\) | Nominal capacity | [`Flow.size`](../api/fluxopt/elements.md#fluxopt.elements.Flow(size)) |
-| \(\underline{\mathrm{p}}_{f,t}\) | Relative lower bound | [`Flow.relative_minimum`](../api/fluxopt/elements.md#fluxopt.elements.Flow(relative_minimum)) |
-| \(\bar{\mathrm{p}}_{f,t}\) | Relative upper bound | [`Flow.relative_maximum`](../api/fluxopt/elements.md#fluxopt.elements.Flow(relative_maximum)) |
+| \(\underline{\mathrm{p}}_{f,t}\) | Relative lower bound | [`Flow.relative_rate_min`](../api/fluxopt/elements.md#fluxopt.elements.Flow(relative_rate_min)) |
+| \(\bar{\mathrm{p}}_{f,t}\) | Relative upper bound | [`Flow.relative_rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow(relative_rate_max)) |
 | \(\pi_{f,t}\) | Fixed relative profile | [`Flow.fixed_relative_profile`](../api/fluxopt/elements.md#fluxopt.elements.Flow(fixed_relative_profile)) |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(effects_per_flow_hour)) |
 | \(\Delta t_t\) | Timestep duration (h) | dt |

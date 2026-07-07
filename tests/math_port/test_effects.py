@@ -99,7 +99,7 @@ class TestEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost'),
-                Effect('CO2', maximum=15),
+                Effect('CO2', total_max=15),
             ],
             objective_effects='cost',
             ports=[
@@ -136,14 +136,14 @@ class TestEffects:
         Demand=20. Must produce ≥25 CO2 → Dirty ≥ 25 kWh, excess absorbed by dump.
 
         Sensitivity: Without minimum, optimizer could use all Clean → CO2=0.
-        With minimum=25, forced to use ≥25 from Dirty → CO2≥25.
+        With total_min=25, forced to use ≥25 from Dirty → CO2≥25.
         """
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost'),
-                Effect('CO2', minimum=25),
+                Effect('CO2', total_min=25),
             ],
             objective_effects='cost',
             ports=[
@@ -173,8 +173,8 @@ class TestEffects:
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 25.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 25.0, rtol=1e-5)
 
-    def test_effect_maximum_per_hour(self, optimize):
-        """Proves: maximum_per_hour on an effect caps the per-timestep contribution,
+    def test_effect_rate_max(self, optimize):
+        """Proves: rate_max on an effect caps the per-timestep contribution,
         forcing the optimizer to spread dirty production across timesteps.
 
         CO2 max_per_hour=8. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
@@ -189,7 +189,7 @@ class TestEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost'),
-                Effect('CO2', maximum_per_hour=8),
+                Effect('CO2', rate_max=8),
             ],
             objective_effects='cost',
             ports=[
@@ -217,8 +217,8 @@ class TestEffects:
         # cost = (8+5)*1 + 7*5 = 13 + 35 = 48
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 48.0, rtol=1e-5)
 
-    def test_effect_minimum_per_hour(self, optimize):
-        """Proves: minimum_per_hour on an effect forces a minimum per-timestep
+    def test_effect_rate_min(self, optimize):
+        """Proves: rate_min on an effect forces a minimum per-timestep
         contribution, even when zero would be cheaper.
 
         CO2 min_per_hour=10. Dirty: 1€+1kgCO2/kWh. Demand=[5,5].
@@ -232,7 +232,7 @@ class TestEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost'),
-                Effect('CO2', minimum_per_hour=10),
+                Effect('CO2', rate_min=10),
             ],
             objective_effects='cost',
             ports=[
@@ -255,8 +255,8 @@ class TestEffects:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 20.0, rtol=1e-5)
 
-    def test_effect_maximum_per_hour_scales_with_dt(self, optimize):
-        """Proves: maximum_per_hour scales with timestep duration.
+    def test_effect_rate_max_scales_with_dt(self, optimize):
+        """Proves: rate_max scales with timestep duration.
 
         CO2 max_per_hour=4. dt=2h. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
         Demand=[15,5] (power in MW). CO2 per timestep = rate * 1 * dt.
@@ -277,7 +277,7 @@ class TestEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost'),
-                Effect('CO2', maximum_per_hour=4),
+                Effect('CO2', rate_max=4),
             ],
             objective_effects='cost',
             ports=[
@@ -305,8 +305,8 @@ class TestEffects:
         # cost = (4+4)*1*2 + (11+1)*5*2 = 16 + 120 = 136
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 136.0, rtol=1e-5)
 
-    def test_effect_minimum_per_hour_scales_with_dt(self, optimize):
-        """Proves: minimum_per_hour scales with timestep duration.
+    def test_effect_rate_min_scales_with_dt(self, optimize):
+        """Proves: rate_min scales with timestep duration.
 
         CO2 min_per_hour=5. dt=2h. Dirty: 1€+1kgCO2/kWh. Demand=[3,3] (power).
         Per-timestep energy: [6,6] kWh. Per-timestep CO2 floor = 5 * 2 = 10 kgCO2.
@@ -324,7 +324,7 @@ class TestEffects:
             carriers=[Carrier('Heat')],
             effects=[
                 Effect('cost'),
-                Effect('CO2', minimum_per_hour=5),
+                Effect('CO2', rate_min=5),
             ],
             objective_effects='cost',
             ports=[
@@ -407,7 +407,7 @@ class TestEffects:
                     fuel_flow=Flow('Gas'),
                     thermal_flow=Flow(
                         'Heat',
-                        size=Sizing(min_size=50, max_size=50, mandatory=False, effects_fixed={'cost': 100, 'CO2': 5}),
+                        size=Sizing(size_min=50, size_max=50, mandatory=False, effects_fixed={'cost': 100, 'CO2': 5}),
                     ),
                 ),
             ],

@@ -20,7 +20,7 @@ class TestStorageStatusValidation:
         with pytest.raises(ValueError, match='cannot have flow-level status'):
             Storage(
                 'Bat',
-                charging=Flow('Elec', size=10, relative_minimum=0.1, status=Status(min_uptime=2)),
+                charging=Flow('Elec', size=10, relative_rate_min=0.1, status=Status(uptime_min=2)),
                 discharging=Flow('Elec', size=10),
                 capacity=100,
                 status=Status(),
@@ -76,7 +76,7 @@ class TestStorageStatusValidation:
             storages=[
                 Storage(
                     'Bat',
-                    charging=Flow('Elec', size=Sizing(min_size=0, max_size=20)),
+                    charging=Flow('Elec', size=Sizing(size_min=0, size_max=20)),
                     discharging=Flow('Elec', size=10),
                     capacity=100,
                     prior_level=0,

@@ -86,7 +86,7 @@ class TestConverterPiecewiseValidation:
             Converter(
                 'X',
                 inputs=[Flow('A', short_id='a')],
-                outputs=[Flow('B', size=10, relative_minimum=0.1, status=Status())],
+                outputs=[Flow('B', size=10, relative_rate_min=0.1, status=Status())],
                 conversion=PiecewiseConversion({'a': [0, 1], 'B': [0, 1]}, status=Status()),
             )
 

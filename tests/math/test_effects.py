@@ -67,7 +67,7 @@ class TestEffects:
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier('elec')],
-            effects=[Effect('cost'), Effect('co2', maximum=co2_limit)],
+            effects=[Effect('cost'), Effect('co2', total_max=co2_limit)],
             objective_effects='cost',
             ports=[
                 Port('cheap_src', imports=[cheap_dirty]),
@@ -258,7 +258,7 @@ class TestContributionFrom:
 
         source = Flow(
             'elec',
-            size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'co2': 10}),
+            size=Sizing(size_min=50, size_max=200, mandatory=True, effects_per_size={'co2': 10}),
             effects_per_flow_hour={'cost': 0.04, 'co2': 0.5},
         )
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
@@ -293,7 +293,7 @@ class TestContributionFrom:
 
         source = Flow(
             'elec',
-            size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'pe': 5}),
+            size=Sizing(size_min=50, size_max=200, mandatory=True, effects_per_size={'pe': 5}),
             effects_per_flow_hour={'pe': 2.0},
         )
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])

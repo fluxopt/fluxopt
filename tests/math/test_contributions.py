@@ -146,7 +146,7 @@ class TestCrossEffects:
             carriers=[Carrier('elec')],
             effects=[
                 Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', maximum=co2_limit),
+                Effect('co2', total_max=co2_limit),
             ],
             objective_effects='cost',
             ports=[
@@ -200,7 +200,7 @@ class TestSizing:
 
         source = Flow(
             'elec',
-            size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'cost': 100}),
+            size=Sizing(size_min=50, size_max=200, mandatory=True, effects_per_size={'cost': 100}),
             effects_per_flow_hour={'cost': 0.04},
         )
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
@@ -230,7 +230,7 @@ class TestSizing:
 
         source = Flow(
             'elec',
-            size=Sizing(min_size=0, max_size=200, mandatory=False, effects_fixed={'cost': 1000}),
+            size=Sizing(size_min=0, size_max=200, mandatory=False, effects_fixed={'cost': 1000}),
             effects_per_flow_hour={'cost': 0.04},
         )
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
@@ -256,7 +256,7 @@ class TestSizing:
 
         source = Flow(
             'elec',
-            size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'co2': 10}),
+            size=Sizing(size_min=50, size_max=200, mandatory=True, effects_per_size={'co2': 10}),
             effects_per_flow_hour={'cost': 0.04, 'co2': 0.5},
         )
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
@@ -291,7 +291,7 @@ class TestStatus:
         source = Flow(
             'elec',
             size=100,
-            relative_minimum=0.3,
+            relative_rate_min=0.3,
             effects_per_flow_hour={'cost': 0.04},
             status=Status(effects_per_running_hour={'cost': 5.0}),
         )
@@ -370,7 +370,7 @@ class TestStorage:
                     'battery',
                     charging=charge,
                     discharging=discharge,
-                    capacity=Sizing(min_size=10, max_size=100, mandatory=True, effects_per_size={'cost': 50}),
+                    capacity=Sizing(size_min=10, size_max=100, mandatory=True, effects_per_size={'cost': 50}),
                 )
             ],
         )
@@ -408,7 +408,7 @@ class TestStorage:
                     'battery',
                     charging=charge,
                     discharging=discharge,
-                    capacity=Sizing(min_size=10, max_size=100, mandatory=True, effects_per_size={'co2': 5}),
+                    capacity=Sizing(size_min=10, size_max=100, mandatory=True, effects_per_size={'co2': 5}),
                 )
             ],
         )
@@ -657,7 +657,7 @@ class TestDirectContributions:
 
         source = Flow(
             'elec',
-            size=Sizing(min_size=50, max_size=200, mandatory=True, effects_per_size={'co2': 10}),
+            size=Sizing(size_min=50, size_max=200, mandatory=True, effects_per_size={'co2': 10}),
             effects_per_flow_hour={'cost': 0.04},
         )
         sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])

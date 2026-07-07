@@ -97,15 +97,15 @@ Single-period models drop the \(p\) index.
 
 Three levels of bound granularity, all per-effect:
 
-**Per-hour bounds** (`maximum_per_hour` / `minimum_per_hour`) — see [Per-Hour Bounds](#per-hour-bounds) below.
+**Per-hour bounds** (`rate_max` / `rate_min`) — see [Per-Hour Bounds](#per-hour-bounds) below.
 
-**Per-period bounds** (`maximum_per_period` / `minimum_per_period`) — each period independently:
+**Per-period bounds** (`periodic_max` / `periodic_min`) — each period independently:
 
 \[
 \underline{\Phi}_k^{\text{per period}} \leq \Phi_{k,p} \leq \bar{\Phi}_k^{\text{per period}} \quad \forall \, p
 \]
 
-**Aggregate bounds** (`maximum` / `minimum`) — weighted sum across all periods, where
+**Aggregate bounds** (`total_max` / `total_min`) — weighted sum across all periods, where
 \(\omega_{k,p}\) is `Effect.period_weights` (falling back to global `period_weights`, then 1):
 
 \[
@@ -126,7 +126,7 @@ duration \(\Delta t_t\). This ensures the constraint is resolution-independent:
 \underline{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \leq \Phi_{k,t}^{\text{temporal}} \leq \bar{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \quad \forall \, k \in \mathcal{K}, \; t \in \mathcal{T}
 \]
 
-For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
+For example, `rate_max=100` (kg/h) with a 4-hour timestep allows up to
 400 kg of emissions in that timestep:
 
 ## Parameters
@@ -142,12 +142,12 @@ For example, `maximum_per_hour=100` (kg/h) with a 4-hour timestep allows up to
 | \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
-| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.maximum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum)) |
-| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | [`Effect.minimum`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum)) |
-| \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | [`Effect.maximum_per_period`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum_per_period)) |
-| \(\underline{\Phi}_k^{\text{per period}}\) | Minimum per period | [`Effect.minimum_per_period`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum_per_period)) |
-| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.maximum_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Effect(maximum_per_hour)) |
-| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.minimum_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Effect(minimum_per_hour)) |
+| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_max)) |
+| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_min)) |
+| \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_max)) |
+| \(\underline{\Phi}_k^{\text{per period}}\) | Minimum per period | [`Effect.periodic_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_min)) |
+| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_max)) |
+| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_min)) |
 | \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect(period_weights)) / global `period_weights` |
 
 See [Notation](notation.md) for the full symbol table.

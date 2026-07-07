@@ -160,7 +160,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', maximum=15)],
+            effects=[Effect('cost'), Effect('CO2', total_max=15)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -181,7 +181,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', minimum=25)],
+            effects=[Effect('cost'), Effect('CO2', total_min=25)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -194,7 +194,7 @@ class TestEffects:
         assert_allclose(co2, 25.0, rtol=1e-5)
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
-    def test_effect_maximum_per_hour(self):
+    def test_effect_rate_max(self):
         """CO2 max_per_hour=8. Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2.
         Demand=[15,5]. Dirty capped at 8/ts -> Dirty=[8,5], Clean=[7,0].
         cost = 13*1 + 7*5 = 48.
@@ -204,7 +204,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', maximum_per_hour=8)],
+            effects=[Effect('cost'), Effect('CO2', rate_max=8)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[15, 5])]),
@@ -214,7 +214,7 @@ class TestEffects:
         )
         assert_allclose(result.objective, 48.0, rtol=1e-5)
 
-    def test_effect_minimum_per_hour(self):
+    def test_effect_rate_min(self):
         """CO2 min_per_hour=10. Dirty: 1EUR+1kgCO2. Demand=[5,5].
         Must produce >=10 CO2/ts -> Dirty >=10/ts. Excess absorbed by waste.
         cost=20.
@@ -224,7 +224,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', minimum_per_hour=10)],
+            effects=[Effect('cost'), Effect('CO2', rate_min=10)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
@@ -237,7 +237,7 @@ class TestEffects:
         assert_allclose(co2, 20.0, rtol=1e-5)
 
     def test_effect_maximum_temporal(self):
-        """CO2 maximum=12 (= maximum_temporal when no periodic effects).
+        """CO2 total_max=12 (= maximum_temporal when no periodic effects).
         Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2. Demand=[10,10].
         Dirty=12, Clean=8 -> cost=52.
 
@@ -246,7 +246,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', maximum=12)],
+            effects=[Effect('cost'), Effect('CO2', total_max=12)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -259,7 +259,7 @@ class TestEffects:
         assert_allclose(co2, 12.0, rtol=1e-5)
 
     def test_effect_minimum_temporal(self):
-        """CO2 minimum=25 (= minimum_temporal). Dirty: 1EUR+1kgCO2.
+        """CO2 total_min=25 (= minimum_temporal). Dirty: 1EUR+1kgCO2.
         Demand=[10,10]. Dirty >=25 -> 5 excess. cost=25.
 
         Sensitivity: Without floor, Dirty=20 -> cost=20.
@@ -267,7 +267,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', minimum=25)],
+            effects=[Effect('cost'), Effect('CO2', total_min=25)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -279,8 +279,8 @@ class TestEffects:
         assert_allclose(co2, 25.0, rtol=1e-5)
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
-    def test_effect_maximum_per_period(self):
-        """CO2 maximum_per_period=8 caps each period independently.
+    def test_effect_periodic_max(self):
+        """CO2 periodic_max=8 caps each period independently.
 
         2 periods (weights=1), demand=10 per ts. Per-period: Dirty<=8 (CO2 cap),
         Clean>=12. cost per period = 8+60 = 68. Objective = 2*68 = 136.
@@ -289,7 +289,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', maximum_per_period=8)],
+            effects=[Effect('cost'), Effect('CO2', periodic_max=8)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
@@ -302,8 +302,8 @@ class TestEffects:
         # Each period: total demand 20, Dirty<=8, Clean=12. cost = 8 + 60 = 68 per period.
         assert_allclose(result.objective, 136.0, rtol=1e-5)
 
-    def test_effect_minimum_per_period(self):
-        """CO2 minimum_per_period=15 forces minimum emission each period.
+    def test_effect_periodic_min(self):
+        """CO2 periodic_min=15 forces minimum emission each period.
 
         2 periods (weights=1), demand=5 per ts. Each period needs >=15 CO2.
         Dirty >= 15 per period, demand = 10 per period -> 5 excess to waste.
@@ -313,7 +313,7 @@ class TestEffects:
         result = optimize(
             ts(2),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', minimum_per_period=15)],
+            effects=[Effect('cost'), Effect('CO2', periodic_min=15)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
@@ -328,7 +328,7 @@ class TestEffects:
     def test_effect_maximum_multi_period_weighted(self):
         """maximum bound across multi-period uses period_weights for the weighted sum.
 
-        2 periods, weights=[1,1], Effect.maximum=20. 3 timesteps x demand=5 per period.
+        2 periods, weights=[1,1], Effect.total_max=20. 3 timesteps x demand=5 per period.
         Total CO2 cap = 1*co2[0] + 1*co2[1] <= 20.
         Per-period demand = 15 → all Dirty would give CO2=15 per period, sum=30.
         Capped at 20: Dirty=20 total, Clean=10. cost = 20*1 + 10*5 = 70.
@@ -337,7 +337,7 @@ class TestEffects:
         result = optimize(
             ts(3),
             carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', maximum=20)],
+            effects=[Effect('cost'), Effect('CO2', total_max=20)],
             objective_effects='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5, 5])]),
@@ -376,7 +376,7 @@ class TestEffects:
                             Flow(
                                 'Heat',
                                 effects_per_flow_hour={'co2': 1},
-                                size=Sizing(min_size=10, max_size=10, mandatory=True, effects_per_size={'co2': 1.0}),
+                                size=Sizing(size_min=10, size_max=10, mandatory=True, effects_per_size={'co2': 1.0}),
                             ),
                         ],
                     ),
@@ -392,15 +392,15 @@ class TestEffects:
 
 
 class TestFlowConstraints:
-    def test_relative_minimum(self):
-        """Boiler (size=100, relative_minimum=0.4). When on, must produce >=40.
+    def test_relative_rate_min(self):
+        """Boiler (size=100, relative_rate_min=0.4). When on, must produce >=40.
         Demand=30 -> excess absorbed by waste. fuel = 40/1.0 = 40. cost=80.
 
-        Sensitivity: Without relative_minimum, boiler=30 -> cost=60.
+        Sensitivity: Without relative_rate_min, boiler=30 -> cost=60.
         """
 
         fuel = Flow('Gas')
-        thermal = Flow('Heat', size=100, relative_minimum=0.4)
+        thermal = Flow('Heat', size=100, relative_rate_min=0.4)
         result = optimize(
             ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
@@ -415,13 +415,13 @@ class TestFlowConstraints:
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
         flow = result.flow_rate('Boiler(Heat)').values
-        assert all(f >= 40.0 - 1e-5 for f in flow), f'Flow below relative_minimum: {flow}'
+        assert all(f >= 40.0 - 1e-5 for f in flow), f'Flow below relative_rate_min: {flow}'
 
-    def test_relative_maximum(self):
-        """Source (size=100, relative_maximum=0.5). Max output=50.
+    def test_relative_rate_max(self):
+        """Source (size=100, relative_rate_max=0.5). Max output=50.
         Demand=60 -> CheapSrc=50, ExpensiveSrc=10. cost=2*(50*1+10*5)=200.
 
-        Sensitivity: Without relative_maximum, all from CheapSrc -> cost=120.
+        Sensitivity: Without relative_rate_max, all from CheapSrc -> cost=120.
         """
         result = optimize(
             ts(2),
@@ -432,14 +432,14 @@ class TestFlowConstraints:
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[60, 60])]),
                 Port(
                     'CheapSrc',
-                    imports=[Flow('Heat', size=100, relative_maximum=0.5, effects_per_flow_hour={'cost': 1})],
+                    imports=[Flow('Heat', size=100, relative_rate_max=0.5, effects_per_flow_hour={'cost': 1})],
                 ),
                 Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
             ],
         )
         assert_allclose(result.objective, 200.0, rtol=1e-5)
         flow = result.flow_rate('CheapSrc(Heat)').values
-        assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_maximum: {flow}'
+        assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_rate_max: {flow}'
 
 
 # ---------------------------------------------------------------------------
@@ -569,7 +569,7 @@ class TestStorage:
                     capacity=100,
                     prior_level=0.0,
                     cyclic=False,
-                    relative_maximum_level=0.5,
+                    relative_level_max=0.5,
                     eta_charge=1,
                     eta_discharge=1,
                     relative_loss_per_hour=0,
@@ -608,7 +608,7 @@ class TestStorage:
         )
         assert_allclose(result.objective, 50.0, rtol=1e-5)
 
-    def test_storage_relative_minimum_level(self):
+    def test_storage_relative_level_min(self):
         """Capacity=100, prior_level=50, min level=0.3 (->30 abs).
         Price=[1,100,1]. Demand=[0,80,0]. Charge 50 @t0 -> level=100.
         Discharge 70 @t1 -> level=30 (min). Grid covers 10 @100EUR.
@@ -634,7 +634,7 @@ class TestStorage:
                     capacity=100,
                     prior_level=50.0,
                     cyclic=False,
-                    relative_minimum_level=0.3,
+                    relative_level_min=0.3,
                     eta_charge=1,
                     eta_discharge=1,
                     relative_loss_per_hour=0,

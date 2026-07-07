@@ -184,7 +184,7 @@ class StatsAccessor:
 
         Time-mean level (weighted by dt·w) over the reservoir capacity — the
         storage analogue of :attr:`capacity_factor`, and the running-average
-        sibling of the ``relative_minimum_level`` / ``relative_maximum_level``
+        sibling of the ``relative_level_min`` / ``relative_level_max``
         bounds. Dimensionless in [0, 1] and horizon-independent. NaN where
         capacity is unknown or zero. Empty when the model has no storages.
 

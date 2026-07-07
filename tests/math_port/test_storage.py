@@ -134,7 +134,7 @@ class TestStorage:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 
     def test_storage_soc_bounds(self, optimize):
-        """Proves: relative_maximum_level caps how much energy can be stored.
+        """Proves: relative_level_max caps how much energy can be stored.
 
         Sensitivity: If level bound were ignored, all 60 stored cheaply → cost=60.
         With the bound enforced, cost=1050 (50*1 + 10*100).
@@ -166,7 +166,7 @@ class TestStorage:
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
-                    relative_maximum_level=0.5,
+                    relative_level_max=0.5,
                     eta_charge=1,
                     eta_discharge=1,
                     relative_loss_per_hour=0,
@@ -205,7 +205,7 @@ class TestStorage:
                     'Battery',
                     charging=Flow('Elec', size=200),
                     discharging=Flow('Elec', size=200),
-                    capacity=Sizing(min_size=0, max_size=200, mandatory=False, effects_per_size={'cost': 1}),
+                    capacity=Sizing(size_min=0, size_max=200, mandatory=False, effects_per_size={'cost': 1}),
                     prior_level=0,
                     cyclic=False,
                     eta_charge=1,
@@ -218,8 +218,8 @@ class TestStorage:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='prior_level is absolute in fluxopt, not relative')
-    def test_storage_relative_minimum_level(self, optimize):
-        """Proves: relative_minimum_level enforces a minimum SOC at all times.
+    def test_storage_relative_level_min(self, optimize):
+        """Proves: relative_level_min enforces a minimum SOC at all times.
 
         Sensitivity: Without min SOC, discharge all 100 → no grid → cost=50.
         With min SOC=0.3, max discharge=70 → grid covers 10 @100€ → cost=1050.
@@ -250,26 +250,26 @@ class TestStorage:
         raise NotImplementedError  # TODO: implement absolute final level constraint
 
     @pytest.mark.skip(reason='relative final level not supported in fluxopt')
-    def test_storage_relative_minimum_final_level(self, optimize):
-        """Proves: relative_minimum_final_level forces a minimum final SOC
+    def test_storage_relative_rate_min_final_level(self, optimize):
+        """Proves: relative_rate_min_final_level forces a minimum final SOC
         as a fraction of capacity."""
         raise NotImplementedError  # TODO: implement relative final level constraint
 
     @pytest.mark.skip(reason='relative final level + imbalance penalty not supported in fluxopt')
-    def test_storage_relative_maximum_final_level(self, optimize):
-        """Proves: relative_maximum_final_level caps the storage at end
+    def test_storage_relative_rate_max_final_level(self, optimize):
+        """Proves: relative_rate_max_final_level caps the storage at end
         as a fraction of capacity."""
         raise NotImplementedError  # TODO: implement relative final level constraint
 
     @pytest.mark.skip(reason='relative final level not supported in fluxopt')
-    def test_storage_relative_minimum_final_level_scalar(self, optimize):
-        """Proves: relative_minimum_final_level works when relative_minimum_level
+    def test_storage_relative_rate_min_final_level_scalar(self, optimize):
+        """Proves: relative_rate_min_final_level works when relative_level_min
         is a scalar (default=0, no time dimension)."""
         raise NotImplementedError  # TODO: implement relative final level constraint
 
     @pytest.mark.skip(reason='relative final level + imbalance penalty not supported in fluxopt')
-    def test_storage_relative_maximum_final_level_scalar(self, optimize):
-        """Proves: relative_maximum_final_level works when relative_maximum_level
+    def test_storage_relative_rate_max_final_level_scalar(self, optimize):
+        """Proves: relative_rate_max_final_level works when relative_level_max
         is a scalar (default=1, no time dimension)."""
         raise NotImplementedError  # TODO: implement relative final level constraint
 

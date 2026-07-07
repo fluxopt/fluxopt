@@ -10,15 +10,15 @@ from .conftest import ts, waste
 
 
 class TestFlowConstraints:
-    def test_relative_minimum(self, optimize):
-        """Proves: relative_minimum enforces a minimum flow rate as a fraction of size
+    def test_relative_rate_min(self, optimize):
+        """Proves: relative_rate_min enforces a minimum flow rate as a fraction of size
         when the unit is active (status=1).
 
-        Boiler (size=100, relative_minimum=0.4). When on, must produce at least 40 kW.
+        Boiler (size=100, relative_rate_min=0.4). When on, must produce at least 40 kW.
         Demand=[30,30]. Since 30 < 40, boiler must produce 40 and excess is absorbed.
 
-        Sensitivity: Without relative_minimum, boiler produces exactly 30 each timestep
-        → cost=60. With relative_minimum=0.4, must produce 40 → cost=80.
+        Sensitivity: Without relative_rate_min, boiler produces exactly 30 each timestep
+        → cost=60. With relative_rate_min=0.4, must produce 40 → cost=80.
         """
 
         result = optimize(
@@ -46,25 +46,25 @@ class TestFlowConstraints:
                     'Boiler',
                     thermal_efficiency=1.0,
                     fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat', size=100, relative_minimum=0.4),
+                    thermal_flow=Flow('Heat', size=100, relative_rate_min=0.4),
                 ),
             ],
         )
-        # Must produce at least 40 (relative_minimum=0.4 * size=100)
+        # Must produce at least 40 (relative_rate_min=0.4 * size=100)
         # cost = 2 * 40 = 80 (vs 60 without the constraint)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 80.0, rtol=1e-5)
         # Verify flow rate is at least 40
         flow = result.flow_rate('Boiler(Heat)').values
-        assert all(f >= 40.0 - 1e-5 for f in flow), f'Flow below relative_minimum: {flow}'
+        assert all(f >= 40.0 - 1e-5 for f in flow), f'Flow below relative_rate_min: {flow}'
 
-    def test_relative_maximum(self, optimize):
-        """Proves: relative_maximum limits the maximum flow rate as a fraction of size.
+    def test_relative_rate_max(self, optimize):
+        """Proves: relative_rate_max limits the maximum flow rate as a fraction of size.
 
-        Source (size=100, relative_maximum=0.5). Max output = 50 kW.
+        Source (size=100, relative_rate_max=0.5). Max output = 50 kW.
         Demand=[60,60]. Can only get 50 from CheapSrc, rest from ExpensiveSrc.
 
-        Sensitivity: Without relative_maximum, CheapSrc covers all 60 → cost=120.
-        With relative_maximum=0.5, CheapSrc capped at 50 (2*50*1=100),
+        Sensitivity: Without relative_rate_max, CheapSrc covers all 60 → cost=120.
+        With relative_rate_max=0.5, CheapSrc capped at 50 (2*50*1=100),
         ExpensiveSrc covers 10 each timestep (2*10*5=100) → total cost=200.
         """
         result = optimize(
@@ -82,7 +82,7 @@ class TestFlowConstraints:
                 Port(
                     'CheapSrc',
                     imports=[
-                        Flow('Heat', size=100, relative_maximum=0.5, effects_per_flow_hour={'cost': 1}),
+                        Flow('Heat', size=100, relative_rate_max=0.5, effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 Port(
@@ -93,13 +93,13 @@ class TestFlowConstraints:
                 ),
             ],
         )
-        # CheapSrc capped at 50 (relative_maximum=0.5 * size=100): 2 * 50 * 1 = 100
+        # CheapSrc capped at 50 (relative_rate_max=0.5 * size=100): 2 * 50 * 1 = 100
         # ExpensiveSrc covers remaining 10 each timestep: 2 * 10 * 5 = 100
         # Total = 200
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 200.0, rtol=1e-5)
         # Verify CheapSrc flow rate is at most 50
         flow = result.flow_rate('CheapSrc(Heat)').values
-        assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_maximum: {flow}'
+        assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_rate_max: {flow}'
 
     @pytest.mark.skip(reason='flow_hours constraint not supported in fluxopt')
     def test_flow_hours_max(self, optimize):

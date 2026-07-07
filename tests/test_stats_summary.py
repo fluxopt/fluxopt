@@ -73,7 +73,7 @@ def test_unsized_flow_has_nan_size_but_real_throughput():
 def test_resolved_sizes_fills_in_invested_size():
     """For an invested flow, resolved_sizes uses the optimized size, and CF follows."""
     # A per-size cost makes the solver pick the smallest feasible size (the peak).
-    sizing = Sizing(min_size=0, max_size=500, effects_per_size={'cost': 1.0})
+    sizing = Sizing(size_min=0, size_max=500, effects_per_size={'cost': 1.0})
     result = _solve(Flow('elec', size=sizing, effects_per_flow_hour={'cost': 0.04}))
     stats = result.stats
     flow = 'grid(elec)'
