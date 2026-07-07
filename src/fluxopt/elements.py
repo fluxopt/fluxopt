@@ -296,6 +296,13 @@ class Storage:
         cyclic: If True, end level must equal start level.
         relative_level_min: Min SOC as fraction of capacity.
         relative_level_max: Max SOC as fraction of capacity.
+        final_level_min: Lower bound on the level at the last timestep
+            [MWh], per period; None = unconstrained.
+        final_level_max: Upper bound on the level at the last timestep
+            [MWh], per period; None = unconstrained.
+        prevent_simultaneous: If True, a binary per timestep excludes
+            charging and discharging at once. Requires sized flows
+            (fixed or Sizing/Investment) for the big-M bound.
         status: Component-level on/off behavior gating both charging and
             discharging. Forbids flow-level ``status`` on the child flows
             (the two switches would have no defined precedence).
@@ -312,6 +319,9 @@ class Storage:
     cyclic: bool = True  # E_{s,first} == E_{s,last}
     relative_level_min: Variate = 0.0  # e̲_s  [-]
     relative_level_max: Variate = 1.0  # ē_s  [-]
+    final_level_min: float | None = None  # E̲^end_s  [MWh]
+    final_level_max: float | None = None  # Ē^end_s  [MWh]
+    prevent_simultaneous: bool = False
     status: Status | None = None
 
     def __post_init__(self) -> None:
@@ -340,6 +350,15 @@ class Storage:
                         f'Storage {self.id!r}: flow {f.short_id!r} must have a size when '
                         f'Storage.status is set — without it, the on/off binary cannot gate '
                         f'the rate (no upper bound to scale)'
+                    )
+                    raise ValueError(msg)
+        if self.prevent_simultaneous:
+            for f in (self.charging, self.discharging):
+                if f.size is None:
+                    msg = (
+                        f'Storage {self.id!r}: flow {f.short_id!r} must have a size when '
+                        f'prevent_simultaneous is set — the exclusion binary needs an '
+                        f'upper bound on the rate (big-M)'
                     )
                     raise ValueError(msg)
 

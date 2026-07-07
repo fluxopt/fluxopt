@@ -1513,6 +1513,65 @@ class FlowSystem:
                 name='storage_prior_fix',
             )
 
+        # --- Final level bounds: E̲^end <= E[last] <= Ē^end (per period) ---
+        final_level = self.storage_level.isel(time=-1)
+        if ds.final_level_min is not None:
+            self.m.add_constraints(
+                final_level >= ds.final_level_min, name='storage_final_min', mask=ds.final_level_min.notnull()
+            )
+        if ds.final_level_max is not None:
+            self.m.add_constraints(
+                final_level <= ds.final_level_max, name='storage_final_max', mask=ds.final_level_max.notnull()
+            )
+
+        # --- Prevent simultaneous charge and discharge ---
+        # Binary b per timestep: P^c <= M^c·b, P^d <= M^d·(1-b).
+        # M is the static flow size bound (fixed size or sizing/invest max).
+        if ds.prevent_simultaneous is not None:
+            prevent = ds.prevent_simultaneous.values.astype(bool)
+            prev_ids = [str(s) for s, p in zip(stor_vals, prevent, strict=True) if p]
+            stor_coord = xr.DataArray(prev_ids, dims=['storage'])
+            charging_on = self.m.add_variables(
+                binary=True,
+                coords={'storage': stor_coord, **self.data.dims.coords(time=True, period=True)},
+                name='storage--charging',
+            )
+            m_c = xr.DataArray(
+                [self._flow_size_upper(str(ds.charge_flow.sel(storage=s).values)) for s in prev_ids],
+                dims=['storage'],
+                coords={'storage': prev_ids},
+            )
+            m_d = xr.DataArray(
+                [self._flow_size_upper(str(ds.discharge_flow.sel(storage=s).values)) for s in prev_ids],
+                dims=['storage'],
+                coords={'storage': prev_ids},
+            )
+            self.m.add_constraints(
+                charge_rates.sel(storage=prev_ids) - m_c * charging_on <= 0,
+                name='storage_no_simul_charge',
+            )
+            self.m.add_constraints(
+                discharge_rates.sel(storage=prev_ids) + m_d * charging_on <= m_d,
+                name='storage_no_simul_discharge',
+            )
+
+    def _flow_size_upper(self, fid: str) -> float:
+        """Static upper bound on a flow's size: fixed value or sizing/invest max.
+
+        Args:
+            fid: Qualified flow id.
+        """
+        fds = self.data.flows
+        v = fds.size.sel(flow=fid).values
+        if not np.isnan(v):
+            return float(v)
+        if fds.sizing_max is not None and fid in fds.sizing_max.coords['sizing_flow'].values:
+            return float(fds.sizing_max.sel(sizing_flow=fid).values)
+        if fds.invest_max is not None and fid in fds.invest_max.coords['invest_flow'].values:
+            return float(fds.invest_max.sel(invest_flow=fid).values)
+        # Element validation guards sized flows; reaching this means an invariant broke upstream.
+        raise ValueError(f'Flow {fid!r} has no static size bound for big-M')  # pragma: no cover
+
     def _set_objective(self) -> None:
         """Set objective: minimize the sum of (period-weighted) effect totals.
 

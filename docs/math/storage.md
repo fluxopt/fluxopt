@@ -49,6 +49,43 @@ E_{s,t_{\text{end}}} = E_{s,t_0}
 
 This ensures the storage ends at the same level it started.
 
+**Final level bounds** (`final_level_min` / `final_level_max`) — absolute
+bounds [MWh] on the level at the last timestep, per period:
+
+\[
+\underline{\mathrm{E}}^{\text{end}}_s \leq E_{s,t_{\text{end}}} \leq \bar{\mathrm{E}}^{\text{end}}_s
+\]
+
+They compose with `cyclic` (the prior level is then bounded too, since
+\(E_{s,t_0} = E_{s,t_{\text{end}}}\)).
+
+## Simultaneous Charge & Discharge
+
+With \(\eta^{\text{c}} \cdot \eta^{\text{d}} < 1\), charging and discharging
+at once destroys energy — occasionally optimal (e.g. under must-run surplus)
+but physically impossible for most devices. `prevent_simultaneous = True`
+excludes it with a binary \(b_{s,t}\) per timestep:
+
+\[
+P^{\text{c}}_{s,t} \leq \mathrm{M}^{\text{c}}_s \cdot b_{s,t}
+\qquad
+P^{\text{d}}_{s,t} \leq \mathrm{M}^{\text{d}}_s \cdot (1 - b_{s,t})
+\]
+
+where \(\mathrm{M}\) is the static size bound of the respective flow (fixed
+size, or the sizing/investment maximum). Both flows must therefore be sized.
+
+!!! tip "Consider a soft penalty first"
+    The binary turns the model into a MILP. In most models simultaneous
+    cycling only pays off under negative prices or must-run surplus — a
+    small penalty on the charge/discharge flows
+    (`effects_per_flow_hour={'penalty': 1e-3}`) usually discourages it
+    while keeping the problem linear and the real cost accounting clean
+    (this is PyPSA's recommended approach; cf.
+    [Parzen et al. 2023](https://doi.org/10.1016/j.isci.2022.105729) on
+    unintended storage cycling). Reach for `prevent_simultaneous` when
+    the exclusion must be exact.
+
 ## Parameters
 
 | Symbol | Description | Reference |
@@ -62,6 +99,9 @@ This ensures the storage ends at the same level it started.
 | \(\delta_s\) | Self-discharge rate | [`Storage.relative_loss_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_loss_per_hour)) |
 | \(\underline{\mathrm{e}}_s\) | Relative min SOC | [`Storage.relative_level_min`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_level_min)) |
 | \(\bar{\mathrm{e}}_s\) | Relative max SOC | [`Storage.relative_level_max`](../api/fluxopt/elements.md#fluxopt.elements.Storage(relative_level_max)) |
+| \(\underline{\mathrm{E}}^{\text{end}}_s\) | Min final level [MWh] | [`Storage.final_level_min`](../api/fluxopt/elements.md#fluxopt.elements.Storage(final_level_min)) |
+| \(\bar{\mathrm{E}}^{\text{end}}_s\) | Max final level [MWh] | [`Storage.final_level_max`](../api/fluxopt/elements.md#fluxopt.elements.Storage(final_level_max)) |
+| \(b_{s,t}\) | Charging indicator binary | [`Storage.prevent_simultaneous`](../api/fluxopt/elements.md#fluxopt.elements.Storage(prevent_simultaneous)) |
 | \(\Delta t_t\) | Timestep duration | dt |
 
 See [Notation](notation.md) for the full symbol table.
