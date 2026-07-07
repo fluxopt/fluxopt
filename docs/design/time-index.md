@@ -196,15 +196,23 @@ first capability, not the endpoint.
 
 TSA extends the **coords, not the dims** — no `(cluster, intra_time)`
 grid. Rep timesteps concatenate on the flat `time` dim with a
-`cluster(time)` coord; `weights(time)` carries occurrence counts (the
-reason it stays separate from `dt`). Consequences:
+`time_cluster(time)` coord; `weights(time)` carries occurrence counts
+(the reason it stays separate from `dt`). The name follows the
+ride-along rule — coords on the time dim are `time_<what>` — keeping
+bare `cluster` free for a future per-cluster dim (occurrence counts,
+the seasonal-storage `cluster_of(chronology)` mapping), exactly as
+`period` stays reserved for the investment dim. Values are
+period-local cluster ids (tsam's per-slice `clusterOrder`).
+Consequences:
 
 - The period-boundary machinery generalizes to **episode starts**:
   cluster boundaries break SOC recursion and status windows with the
   same mask infrastructure (`period_starts` → episode starts).
 - Composition with investment periods is automatic: different cluster
   counts per period are just more raggedness; `time_period(time)` and
-  `cluster(time)` coexist, aggregates groupby either.
+  `time_cluster(time)` coexist, aggregates groupby either. Episode
+  starts are where `time_period` *or* `time_cluster` changes — still
+  explicit input, no calendar inference.
 - An orthogonal `(cluster, hour)` grid was considered and rejected on
   the established grounds: second constraint code path, and ragged
   cluster counts across investment periods reintroduce masks.
@@ -219,6 +227,36 @@ reason it stays separate from `dt`). Consequences:
   stands for days across months. Calendar-scoped constraints must
   route through the occurrence mapping. Same documentation treatment
   as the sub-resolution footgun.
+
+### Package boundary (tsam / tsam-xarray)
+
+Aggregation tooling owns the clustering lifecycle — mappings,
+disaggregation, accuracy analytics; **fluxopt never learns what a
+cluster is** (beyond episode boundaries and weights). The contract is
+plain data, no cross-imports:
+
+- **Inbound** (aggregator → fluxopt): ``{period: timesteps}``,
+  ``{period: profiles}``, ``{period: weights}`` (occurrence counts),
+  and — once cluster episodes land — ``{period: cluster_labels}``.
+  fluxopt must never *infer* rep-period boundaries from calendar-day
+  changes in timestamps (breaks under segmentation / weekly clusters);
+  episode boundaries are explicit inputs.
+- **Outbound** (fluxopt → aggregator): solution arrays keep ``time``
+  labels (the representatives' real timestamps) and the ``time_period``
+  coord — enough for the aggregator's stored mapping (cluster
+  assignments, occurrences) to disaggregate results back to the full
+  calendar and run post-solve analytics.
+- The clustering mapping is a **study artifact** (serialized
+  separately, e.g. ``clustering.json``), not model data; fluxopt's
+  netcdf stays clustering-agnostic. A run reproduces from
+  ``model.nc + clustering.json``.
+
+fluxopt-side prerequisites, in order: a public ``weights`` input;
+per-segment ``dt`` derivation for non-contiguous rep timesteps
+(consecutive-diff derivation produces garbage across day gaps — until
+then, ``dt`` must be passed explicitly); cluster-episode boundary
+resets for storage/status (until then, TSA feeds are only correct
+without intra-period temporal coupling).
 
 ## Serialization & interop
 
