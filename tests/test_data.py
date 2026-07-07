@@ -161,6 +161,38 @@ class TestStorageValidation:
         assert s.discharging.id == 'bat(out)'
 
 
+class TestConverterValidation:
+    def test_unknown_short_id_in_conversion_factors_raises(self):
+        with pytest.raises(ValueError, match=r"unknown flow short_ids \['gas'\]"):
+            Converter(
+                'boiler',
+                inputs=[Flow('Gas')],
+                outputs=[Flow('Heat')],
+                conversion_factors=[{'gas': 0.9, 'Heat': -1}],
+            )
+
+    def test_unknown_short_id_reports_equation_index(self):
+        with pytest.raises(ValueError, match=r'conversion_factors\[1\]'):
+            Converter(
+                'chp',
+                inputs=[Flow('Gas')],
+                outputs=[Flow('Heat'), Flow('Elec')],
+                conversion_factors=[
+                    {'Gas': 0.5, 'Heat': -1},
+                    {'Gas': 0.4, 'Electricity': -1},
+                ],
+            )
+
+    def test_known_short_ids_pass(self):
+        conv = Converter(
+            'boiler',
+            inputs=[Flow('Gas')],
+            outputs=[Flow('Heat')],
+            conversion_factors=[{'Gas': 0.9, 'Heat': -1}],
+        )
+        assert conv.conversion_factors[0]['Gas'] == 0.9
+
+
 class TestCarrierValidation:
     def test_undeclared_carrier_raises(self):
         """Flow referencing an undeclared carrier raises ValueError."""

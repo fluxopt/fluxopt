@@ -94,6 +94,15 @@ class Converter:
                             f'status when PiecewiseConversion.status is set'
                         )
                         raise ValueError(msg)
+        else:
+            for eq_i, equation in enumerate(self.conversion_factors):
+                unknown = set(equation) - set(self._short_to_id)
+                if unknown:
+                    msg = (
+                        f'Converter {self.id!r}: conversion_factors[{eq_i}] references unknown '
+                        f'flow short_ids {sorted(unknown)}; known: {sorted(self._short_to_id)}'
+                    )
+                    raise ValueError(msg)
 
     @classmethod
     def _single_io(cls, id: str, coefficient: Variate, input_flow: Flow, output_flow: Flow) -> Converter:
