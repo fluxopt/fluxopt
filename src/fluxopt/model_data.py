@@ -1747,7 +1747,8 @@ class _TimeMapper:
 
     - scalar — broadcast to all timesteps
     - ``{period: Variate}`` mapping — each entry aligned to that period's grid
-    - ``(period,)`` array/Series — each period's value repeated over its timesteps
+    - ``(period,)`` DataArray / period-named Series — each period's value
+      repeated over its timesteps (bare lists never mean per-period)
     - ``(time,)`` of flat length — used as-is
     - ``(time,)`` matching the within-period grid — tiled per period (uniform mode)
     - ``(time, period)`` DataArray/DataFrame with within-period time labels —
@@ -1872,21 +1873,28 @@ class _TimeMapper:
         return xr.DataArray(ordered.values.reshape(-1), dims=['time'], coords={'time': flat_idx}, name=name)
 
     def _from_unnamed(self, arr: np.ndarray, name: str) -> xr.DataArray:
+        """Match a bare 1-D array to a time grid.
+
+        Unnamed 1-D input is always a *time profile* — flat length or the
+        within-period grid (tiled). It never means per-period values: those
+        require a named form ({period: value} mapping, (period,) DataArray,
+        or a pd.Series with index.name='period'), so no length collision can
+        change the meaning of a plain list.
+        """
         flat_idx = self.time
-        labels = self._period_labels
         n = len(arr)
         if n == len(flat_idx):
             return xr.DataArray(arr.astype(float), dims=['time'], coords={'time': flat_idx}, name=name)
         if self.base_time is not None and n == len(self.base_time):
             return self._tile(arr.astype(float), name)
-        if n == len(labels):
-            per_period = xr.DataArray(arr.astype(float), dims=['period'], coords={'period': labels}, name=name)
-            return self.dims.map_to_time(per_period).rename(name)
         options = [f'flat time({len(flat_idx)})']
         if self.base_time is not None:
             options.append(f'within-period time({len(self.base_time)})')
-        options.append(f'period({len(labels)})')
-        raise ValueError(f'{name}: length {n} matches no coordinate: {", ".join(options)}')
+        raise ValueError(
+            f'{name}: length {n} matches no time grid: {", ".join(options)}. '
+            f'For per-period values pass a {{period: value}} mapping, a (period,) '
+            f"xr.DataArray, or a pd.Series with index.name='period'."
+        )
 
     def _tile(self, arr: np.ndarray, name: str) -> xr.DataArray:
         assert self.dims.period is not None

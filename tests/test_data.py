@@ -399,7 +399,7 @@ class TestOperationalInputAlignment:
                 Port('Grid', imports=[Flow('Heat')]),
             ],
             periods=list(periods) if periods else None,
-            period_weights=[1, 1] if periods else None,
+            period_weights=[1] * len(periods) if periods else None,
         )
 
     def test_within_period_profile_tiles(self):
@@ -419,12 +419,41 @@ class TestOperationalInputAlignment:
         assert list(data.flows.fixed_profile.sel(flow='Demand(Heat)').values) == [1, 2, 3, 7, 8]
 
     def test_mismatched_length_raises(self):
-        with pytest.raises(ValueError, match='matches no coordinate'):
+        with pytest.raises(ValueError, match='matches no time grid'):
             self._build([1.0, 2.0, 3.0])
 
     def test_mapping_key_mismatch_raises(self):
         with pytest.raises(ValueError, match='do not match periods'):
             self._build({2030: [1.0, 2.0], 2035: [3.0, 4.0]})
+
+    def test_bare_list_is_always_a_time_profile(self):
+        # 3 periods x 3 within-period timesteps: the period-count collision
+        # must not change the meaning — bare lists are time profiles, period
+        # values require a named form.
+        data = self._build([1.0, 2.0, 3.0], timesteps=ts(3), periods=(2030, 2040, 2050))
+        profile = data.flows.fixed_profile.sel(flow='Demand(Heat)')
+        assert list(profile.values) == [1, 2, 3] * 3
+
+    def test_bare_list_of_period_count_length_errors_with_hint(self):
+        # ts(3) x 2 periods: a bare list of 2 matches no time grid; the error
+        # points to the named per-period forms instead of guessing.
+        with pytest.raises(ValueError, match=r'\{period: value\} mapping'):
+            self._build([1.0, 2.0], timesteps=ts(3))
+
+    def test_per_period_values_via_period_dataarray(self):
+        per_period = xr.DataArray([1.0, 2.0, 3.0], dims=['period'], coords={'period': [2030, 2040, 2050]})
+        data = self._build(per_period, timesteps=ts(3), periods=(2030, 2040, 2050))
+        profile = data.flows.fixed_profile.sel(flow='Demand(Heat)')
+        assert list(profile.values) == [1, 1, 1, 2, 2, 2, 3, 3, 3]
+
+    def test_per_period_values_via_mapping(self):
+        data = self._build(
+            {2030: [1.0, 2.0, 3.0], 2040: [1.0, 2.0, 3.0], 2050: [1.0, 2.0, 3.0]},
+            timesteps=ts(3),
+            periods=(2030, 2040, 2050),
+        )
+        profile = data.flows.fixed_profile.sel(flow='Demand(Heat)')
+        assert list(profile.values) == [1, 2, 3] * 3
 
     def test_time_period_frame_requires_uniform_grid(self):
         ragged = {
