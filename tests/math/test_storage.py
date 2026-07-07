@@ -150,3 +150,16 @@ class TestStorage:
         cs_t2 = float(cs.values[2])
         expected_cs_t2 = cs_t1 + charge_t2 * eta_c - discharge_t2
         assert cs_t2 == pytest.approx(expected_cs_t2, abs=1e-6)
+
+
+class TestStorageValidation:
+    def test_prevent_simultaneous_requires_sized_flows(self):
+        """prevent_simultaneous without sized flows fails loudly (big-M needs a bound)."""
+        with pytest.raises(ValueError, match='prevent_simultaneous'):
+            Storage(
+                'bat',
+                charging=Flow('Elec'),
+                discharging=Flow('Elec'),
+                capacity=10,
+                prevent_simultaneous=True,
+            )

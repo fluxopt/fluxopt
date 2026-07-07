@@ -1213,6 +1213,9 @@ class StoragesData:
     cyclic: xr.DataArray  # (storage,)
     charge_flow: xr.DataArray  # (storage,) — str
     discharge_flow: xr.DataArray  # (storage,) — str
+    final_level_min: xr.DataArray | None = None  # (storage,) — NaN = unbounded [MWh]
+    final_level_max: xr.DataArray | None = None  # (storage,) — NaN = unbounded [MWh]
+    prevent_simultaneous: xr.DataArray | None = None  # (storage,) — bool
     sizing_min: xr.DataArray | None = None  # (sizing_storage,)
     sizing_max: xr.DataArray | None = None  # (sizing_storage,)
     sizing_mandatory: xr.DataArray | None = None  # (sizing_storage,)
@@ -1294,6 +1297,9 @@ class StoragesData:
         level_ubs: list[xr.DataArray] = []
         prior_level_vals = np.full(n, np.nan)
         cyclic_vals = np.zeros(n, dtype=bool)
+        final_min_vals = np.full(n, np.nan)
+        final_max_vals = np.full(n, np.nan)
+        prevent_vals = np.zeros(n, dtype=bool)
         charge_flow: list[str] = []
         discharge_flow: list[str] = []
         sizing_items: list[tuple[str, Sizing]] = []
@@ -1317,6 +1323,11 @@ class StoragesData:
             cyclic_vals[i] = s.cyclic
             if s.prior_level is not None:
                 prior_level_vals[i] = s.prior_level
+            if s.final_level_min is not None:
+                final_min_vals[i] = s.final_level_min
+            if s.final_level_max is not None:
+                final_max_vals[i] = s.final_level_max
+            prevent_vals[i] = s.prevent_simultaneous
 
             charge_flow.append(s.charging.id)
             discharge_flow.append(s.discharging.id)
@@ -1336,6 +1347,21 @@ class StoragesData:
             cyclic=xr.DataArray(cyclic_vals, dims=['storage'], coords={'storage': stor_ids}),
             charge_flow=xr.DataArray(charge_flow, dims=['storage'], coords={'storage': stor_ids}),
             discharge_flow=xr.DataArray(discharge_flow, dims=['storage'], coords={'storage': stor_ids}),
+            final_level_min=(
+                xr.DataArray(final_min_vals, dims=['storage'], coords={'storage': stor_ids})
+                if not np.all(np.isnan(final_min_vals))
+                else None
+            ),
+            final_level_max=(
+                xr.DataArray(final_max_vals, dims=['storage'], coords={'storage': stor_ids})
+                if not np.all(np.isnan(final_max_vals))
+                else None
+            ),
+            prevent_simultaneous=(
+                xr.DataArray(prevent_vals, dims=['storage'], coords={'storage': stor_ids})
+                if prevent_vals.any()
+                else None
+            ),
             sizing_min=sz.min,
             sizing_max=sz.max,
             sizing_mandatory=sz.mandatory,

@@ -232,22 +232,110 @@ class TestStorage:
         same level it started, preventing free energy extraction."""
         raise NotImplementedError  # TODO: rewrite for fluxopt API (cyclic is a bool)
 
-    @pytest.mark.skip(reason='absolute final level not supported in fluxopt')
     def test_storage_minimal_final_level(self, optimize):
-        """Proves: minimal_final_level forces the storage to retain at least the
-        specified absolute energy at the end."""
-        raise NotImplementedError  # TODO: implement absolute final level constraint
+        """Proves: final_level_min forces the storage to retain at least the
+        specified absolute energy at the end.
 
-    @pytest.mark.skip(reason='prevent_simultaneous not supported in fluxopt')
+        Battery (prior=0, cyclic=False, final_level_min=50). Demand=[10,0].
+        Grid must supply demand (10) plus the mandated final stock (50).
+
+        Sensitivity: Without final_level_min, only demand is bought → cost=10.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier('Elec')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([10, 0]))]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+            ],
+            storages=[
+                Storage(
+                    'Battery',
+                    charging=Flow('Elec', size=100),
+                    discharging=Flow('Elec', size=100),
+                    capacity=100,
+                    prior_level=0,
+                    cyclic=False,
+                    final_level_min=50,
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
+
     def test_prevent_simultaneous_charge_and_discharge(self, optimize):
-        """Proves: prevent_simultaneous_charge_and_discharge=True prevents the storage
-        from charging and discharging in the same timestep."""
-        raise NotImplementedError  # TODO: implement prevent_simultaneous on Storage
+        """Proves: prevent_simultaneous=True forbids charging and discharging
+        in the same timestep.
 
-    @pytest.mark.skip(reason='absolute final level + imbalance penalty not supported in fluxopt')
+        Must-run production=[30,30], no free sink; Battery capacity=20 with
+        eta_charge=0.5 destroys energy when cycled. Dump costs 1€/kWh.
+
+        Without prevention the battery burns the t1 surplus for free by
+        charging and discharging at once (charge 50 = production 30 +
+        discharge 20; stored 15+25-20=20) → dump=0, cost=0.
+        With prevention, t1 can only charge up to 10 (level 15+5=20)
+        → 20 must be dumped → cost=20.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier('Elec')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('MustRun', imports=[Flow('Elec', size=1, fixed_relative_profile=np.array([30, 30]))]),
+                Port('Dump', exports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+            ],
+            storages=[
+                Storage(
+                    'Battery',
+                    charging=Flow('Elec', size=100),
+                    discharging=Flow('Elec', size=100),
+                    capacity=20,
+                    prior_level=0,
+                    cyclic=False,
+                    eta_charge=0.5,
+                    prevent_simultaneous=True,
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
+        charge = result.flow_rate('Battery(charge)').values
+        discharge = result.flow_rate('Battery(discharge)').values
+        simul = (charge > 1e-5) & (discharge > 1e-5)
+        assert not simul.any(), f'Simultaneous charge/discharge: charge={charge}, discharge={discharge}'
+
     def test_storage_maximal_final_level(self, optimize):
-        """Proves: maximal_final_level caps the storage level at the end."""
-        raise NotImplementedError  # TODO: implement absolute final level constraint
+        """Proves: final_level_max caps the storage level at the end.
+
+        Battery starts at prior_level=50 (free energy), discharge costs
+        1€/kWh. Demand=[10,10]; final_level_max=10 forces the level from
+        50 down to <=10, i.e. discharge >= 40 (20 beyond demand, wasted).
+
+        Sensitivity: Without final_level_max, discharge=20 → cost=20.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier('Elec')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([10, 10]))]),
+                Port('Dump', exports=[Flow('Elec')]),
+            ],
+            storages=[
+                Storage(
+                    'Battery',
+                    charging=Flow('Elec', size=100),
+                    discharging=Flow('Elec', size=100, effects_per_flow_hour={'cost': 1}),
+                    capacity=100,
+                    prior_level=50,
+                    cyclic=False,
+                    final_level_max=10,
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='relative final level not supported in fluxopt')
     def test_storage_relative_rate_min_final_level(self, optimize):
