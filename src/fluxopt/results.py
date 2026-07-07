@@ -59,13 +59,13 @@ class Result:
         return float(self.solution.attrs['objective'])
 
     @property
-    def objective_scales(self) -> dict[str, float]:
+    def objective_weights(self) -> dict[str, float]:
         """Effect weights the objective was minimized with (provenance).
 
         Includes the built-in penalty effect at its ``penalty_weight``.
         Empty for results saved before this field existed.
         """
-        return json.loads(self.solution.attrs.get('objective_scales', '{}'))
+        return json.loads(self.solution.attrs.get('objective_weights', '{}'))
 
     @property
     def flow_rates(self) -> xr.DataArray:
@@ -280,7 +280,7 @@ class Result:
 
         solution = xr.Dataset(
             sol_vars,
-            attrs={'objective': obj_val, 'objective_scales': json.dumps(model._objective_scales)},
+            attrs={'objective': obj_val, 'objective_weights': json.dumps(model._objective_weights)},
         )
         duals = model.m.dual
 

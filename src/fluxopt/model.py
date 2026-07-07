@@ -57,7 +57,7 @@ class FlowSystem:
         self.m = Model()
         self._objective_effects: list[str] | dict[str, float] = []
         self._penalty_weight: float = 1.0
-        self._objective_scales: dict[str, float] = {}
+        self._objective_weights: dict[str, float] = {}
         self._piecewise: dict[str, Any] = {}  # conv_id -> linopy.PiecewiseFormulation
 
     def _add_variables(
@@ -1423,14 +1423,14 @@ class FlowSystem:
         effect_ids = list(ds.total_min.coords['effect'].values)
 
         if isinstance(self._objective_effects, dict):
-            scales = dict(self._objective_effects)
+            weights = dict(self._objective_effects)
         else:
-            scales = dict.fromkeys(self._objective_effects, 1.0)
-        if PENALTY_EFFECT_ID not in scales and self._penalty_weight != 0 and PENALTY_EFFECT_ID in effect_ids:
-            scales[PENALTY_EFFECT_ID] = self._penalty_weight
-        self._objective_scales = {k: float(v) for k, v in scales.items()}
+            weights = dict.fromkeys(self._objective_effects, 1.0)
+        if PENALTY_EFFECT_ID not in weights and self._penalty_weight != 0 and PENALTY_EFFECT_ID in effect_ids:
+            weights[PENALTY_EFFECT_ID] = self._penalty_weight
+        self._objective_weights = {k: float(v) for k, v in weights.items()}
 
-        for k, scale in scales.items():
+        for k, weight in weights.items():
             if k not in effect_ids:
                 raise ValueError(f'Objective effect {k!r} not found. Available: {effect_ids}')
 
@@ -1441,6 +1441,6 @@ class FlowSystem:
             elif self.data.dims.period_weights is not None:
                 w = self.data.dims.period_weights
 
-            obj_expr = obj_expr + scale * (w * self.effect_total.sel(effect=k)).sum()
+            obj_expr = obj_expr + weight * (w * self.effect_total.sel(effect=k)).sum()
 
         self.m.add_objective(obj_expr)

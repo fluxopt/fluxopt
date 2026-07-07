@@ -439,5 +439,5 @@ class TestWeightedObjective:
         assert_allclose(result.objective, 200.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 200.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='co2').item(), 0.0, atol=1e-6)
-        # Provenance: the resolved scales are recorded on the result
-        assert result.objective_scales == {'cost': 1.0, 'co2': 50.0, 'penalty': 1.0}
+        # Provenance: the resolved weights are recorded on the result
+        assert result.objective_weights == {'cost': 1.0, 'co2': 50.0, 'penalty': 1.0}
