@@ -598,12 +598,18 @@ class FlowSystem:
     def _constrain_flow_ramps(self) -> None:
         """Limit flow rate changes between consecutive timesteps.
 
-        Ramp up:   P_{f,t} - P_{f,t-1} <= r⁺_{f,t}·S_f·Δt_t
-        Ramp down: P_{f,t-1} - P_{f,t} <= r⁻_{f,t}·S_f·Δt_t
+        Ramp up:   P_{f,t} - P_{f,t-1} <= r⁺_{f,t}·S_f·Δt_t + M_f·startup_{f,t}
+        Ramp down: P_{f,t-1} - P_{f,t} <= r⁻_{f,t}·S_f·Δt_t + M_f·shutdown_{f,t}
 
         Applies from the second timestep onward; periods are independent.
         For Sizing/Investment flows the size variable enters the constraint
         (r·Δt moves to the LHS as a coefficient).
+
+        For status flows the ramp does not bind across on/off transitions:
+        the startup/shutdown binary relaxes it with M = static size bound
+        (transitions are pinned to actual state changes by the
+        ``status|exclusive`` constraint). Component-status flows relax via
+        their component's transition binaries.
 
         See: docs/math/flows.md
         """
@@ -617,65 +623,96 @@ class FlowSystem:
         curr = self.flow_rate.isel(time=slice(1, None))
         prev = self.flow_rate.isel(time=slice(None, -1)).assign_coords(time=coords_from_1)
         dt_t = self.data.dims.dt.isel(time=slice(1, None))
-        sized_flow_ids = self._sizing_flow_ids()
-        self._warn_ramp_status_lockout()
+        status_ids = self._status_flow_ids()
+        flow_to_comp = {fid: cid for cid, fids in self._governed_flows_map().items() for fid in fids}
 
-        for ramp, name, delta in (
-            (ds.ramp_up, 'ramp_up', curr - prev),
-            (ds.ramp_down, 'ramp_down', prev - curr),
+        for ramp, name, delta, trans_flow, trans_comp in (
+            (ds.ramp_up, 'ramp_up', curr - prev, self.flow_startup, self.component_startup),
+            (ds.ramp_down, 'ramp_down', prev - curr, self.flow_shutdown, self.component_shutdown),
         ):
             if ramp is None:
                 continue
             non_flow_dims = [d for d in ramp.dims if d != 'flow']
             has_ramp = ramp.notnull().any(non_flow_dims)
-            ramp_ids = list(ramp.coords['flow'].values[has_ramp.values])
-            fixed_ids = [fid for fid in ramp_ids if fid not in sized_flow_ids]
-            var_ids = [fid for fid in ramp_ids if fid in sized_flow_ids]
+            ramp_ids = [str(f) for f in ramp.coords['flow'].values[has_ramp.values]]
             limit = ramp.isel(time=slice(1, None)) * dt_t  # r·Δt  (flow, time[, period])
-            if fixed_ids:
-                # Fixed size: constant RHS r·S̄·Δt
-                rhs = limit.sel(flow=fixed_ids) * ds.size.sel(flow=fixed_ids)
-                self.m.add_constraints(delta.sel(flow=fixed_ids) <= rhs, name=f'flow_{name}', mask=rhs.notnull())
-            if var_ids:
-                # Sizing/Investment: size is a variable — move to LHS
-                assert self.flow_size is not None
-                coeff = limit.sel(flow=var_ids)
-                expr = delta.sel(flow=var_ids) - coeff * self.flow_size.sel(flow=var_ids)
-                self.m.add_constraints(expr <= 0, name=f'flow_{name}_sized', mask=coeff.notnull())
 
-    def _warn_ramp_status_lockout(self) -> None:
-        """Warn when a ramp is too tight for a status flow to ever start or stop.
+            plain_ids = [fid for fid in ramp_ids if fid not in status_ids and fid not in flow_to_comp]
+            flow_status_ids = [fid for fid in ramp_ids if fid in status_ids]
+            self._add_ramp_constraints(plain_ids, name, '', limit, delta, None)
+            if flow_status_ids:
+                assert trans_flow is not None
+                relax = trans_flow.sel(flow=flow_status_ids).isel(time=slice(1, None))
+                self._add_ramp_constraints(flow_status_ids, name, '_status', limit, delta, relax)
+            # Component-status flows share their component's transition binary
+            comp_groups: dict[str, list[str]] = {}
+            for fid in ramp_ids:
+                if fid in flow_to_comp:
+                    comp_groups.setdefault(flow_to_comp[fid], []).append(fid)
+            for cid, fids in comp_groups.items():
+                assert trans_comp is not None
+                relax = trans_comp.sel(component=cid).isel(time=slice(1, None))
+                self._add_ramp_constraints(fids, name, f'_cstatus_{cid}', limit, delta, relax)
 
-        A startup jumps from 0 to at least ``rel_lb·S`` in one step; the ramp
-        allows at most ``r·Δt·S``. If ``r·Δt < rel_lb`` the transition is
-        infeasible — the model stays feasible but silently pins the unit to
-        its current state. Dedicated startup/shutdown ramp rates would relax
-        this (future work); until then, warn loudly.
+    def _add_ramp_constraints(
+        self,
+        ids: list[str],
+        name: str,
+        suffix: str,
+        limit: xr.DataArray,
+        delta: Any,
+        relax: Any,
+    ) -> None:
+        """Add ramp constraints for *ids*, optionally relaxed at transitions.
+
+        Args:
+            ids: Flow ids to constrain.
+            name: Base constraint name (``ramp_up`` / ``ramp_down``).
+            suffix: Name suffix distinguishing the status regime.
+            limit: r·Δt coefficient, (flow, time[, period]).
+            delta: Rate change expression over t >= 1.
+            relax: Transition binary relaxing the ramp (M·relax added to the
+                allowance), or None for the strict constraint.
         """
-        import warnings
-
         ds = self.data.flows
-        status_ids = self._status_flow_ids() | self._component_status_flow_ids()
-        if not status_ids:
-            return
-        dt = self.data.dims.dt
-        for ramp, field, verb in (
-            (ds.ramp_up, 'ramp_up_per_hour', 'start'),
-            (ds.ramp_down, 'ramp_down_per_hour', 'stop'),
-        ):
-            if ramp is None:
-                continue
-            non_flow_dims = [d for d in ramp.dims if d != 'flow']
-            too_tight = ((ramp * dt < ds.rel_lb) & ramp.notnull()).any(non_flow_dims)  # (flow,)
-            for fid in ramp.coords['flow'].values[too_tight.values]:
-                if str(fid) not in status_ids:
-                    continue
-                warnings.warn(
-                    f'Flow {fid!r}: {field}·Δt is below relative_rate_min at some timestep — '
-                    f'with status, the unit can never {verb} there (the on/off transition '
-                    f'would violate the ramp limit). Loosen the ramp or relative_rate_min.',
-                    stacklevel=2,
-                )
+        sized_flow_ids = self._sizing_flow_ids()
+        fixed_ids = [fid for fid in ids if fid not in sized_flow_ids]
+        var_ids = [fid for fid in ids if fid in sized_flow_ids]
+        if fixed_ids:
+            # Fixed size: constant RHS r·S̄·Δt
+            rhs = limit.sel(flow=fixed_ids) * ds.size.sel(flow=fixed_ids)
+            lhs = delta.sel(flow=fixed_ids)
+            if relax is not None:
+                lhs = lhs - self._flow_size_bounds(fixed_ids) * relax
+            self.m.add_constraints(lhs <= rhs, name=f'flow_{name}{suffix}', mask=rhs.notnull())
+        if var_ids:
+            # Sizing/Investment: size is a variable — move to LHS
+            assert self.flow_size is not None
+            coeff = limit.sel(flow=var_ids)
+            expr = delta.sel(flow=var_ids) - coeff * self.flow_size.sel(flow=var_ids)
+            if relax is not None:
+                expr = expr - self._flow_size_bounds(var_ids) * relax
+            self.m.add_constraints(expr <= 0, name=f'flow_{name}_sized{suffix}', mask=coeff.notnull())
+
+    def _flow_size_bounds(self, flow_ids: list[str]) -> xr.DataArray:
+        """Static per-flow upper size bounds: fixed value or sizing/invest max.
+
+        Args:
+            flow_ids: Qualified flow ids; each must be sized.
+        """
+        fds = self.data.flows
+        vals: list[float] = []
+        for fid in flow_ids:
+            v = fds.size.sel(flow=fid).values
+            if not np.isnan(v):
+                vals.append(float(v))
+            elif fds.sizing_max is not None and fid in fds.sizing_max.coords['sizing_flow'].values:
+                vals.append(float(fds.sizing_max.sel(sizing_flow=fid).values))
+            elif fds.invest_max is not None and fid in fds.invest_max.coords['invest_flow'].values:
+                vals.append(float(fds.invest_max.sel(invest_flow=fid).values))
+            else:  # pragma: no cover — element validation guards sized flows
+                raise ValueError(f'Flow {fid!r} has no static size bound for big-M')
+        return xr.DataArray(vals, dims=['flow'], coords={'flow': flow_ids})
 
     def _constrain_sizing(self) -> None:
         """Constrain sizing variables: S in [min, max] gated by indicator."""

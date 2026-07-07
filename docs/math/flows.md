@@ -75,12 +75,21 @@ object, \(\bar{\mathrm{P}}_f\) is the size variable and the constraint
 stays linear.
 
 !!! note "Interaction with Status"
-    Ramp limits also bind across a startup: jumping from 0 to the
-    semi-continuous minimum \(\underline{\mathrm{p}}_f \cdot \bar{\mathrm{P}}_f\)
-    must satisfy the ramp-up limit, i.e.
-    \(\mathrm{r}^{+}_f \cdot \Delta t \geq \underline{\mathrm{p}}_f\) —
-    otherwise the unit can never start. Dedicated startup/shutdown ramp
-    rates are not yet supported.
+    For flows with [status](status.md), the ramp does **not** bind across
+    on/off transitions: the startup (shutdown) binary relaxes the ramp-up
+    (ramp-down) constraint in the transition step, so a unit may always
+    jump to its semi-continuous minimum and drop back to zero:
+
+    \[
+    P_{f,t} - P_{f,t-1} \leq \mathrm{r}^{+}_{f,t} \cdot \bar{\mathrm{P}}_f \cdot \Delta t_t
+    + \bar{\mathrm{P}}_f \cdot \text{startup}_{f,t}
+    \]
+
+    Transitions are pinned to actual state changes (`status|exclusive`),
+    so the relaxation cannot be exploited between running steps.
+    Component-status flows relax via their component's transition
+    binaries. Custom (tighter) startup/shutdown ramp rates are future
+    work.
 
 ## Effect Contributions
 

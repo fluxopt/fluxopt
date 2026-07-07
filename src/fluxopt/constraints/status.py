@@ -251,6 +251,12 @@ def add_switch_transitions(
         name=f'{name}|transition',
     )
 
+    # At most one of startup/shutdown per step. Together with the transition
+    # equality this pins both binaries to actual state changes — without it,
+    # a spurious (1, 1) pair satisfies the equality on non-transition steps
+    # and could be exploited by constraints relaxed via startup (e.g. ramps).
+    m.add_constraints(startup + shutdown <= 1, name=f'{name}|exclusive')
+
     # Initial transition from previous state
     if previous_state is not None:
         ids = list(previous_state.coords[element_dim].values)
