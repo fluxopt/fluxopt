@@ -102,7 +102,7 @@ Three levels of bound granularity, all per-effect:
 **Per-period bounds** (`periodic_max` / `periodic_min`) — each period independently:
 
 \[
-\underline{\Phi}_k^{\text{per period}} \leq \Phi_{k,p} \leq \bar{\Phi}_k^{\text{per period}} \quad \forall \, p
+\underline{\Phi}_{k,p} \leq \Phi_{k,p} \leq \bar{\Phi}_{k,p} \quad \forall \, p
 \]
 
 **Aggregate bounds** (`total_max` / `total_min`) — weighted sum across all periods, where
@@ -144,8 +144,8 @@ For example, `rate_max=100` (kg/h) with a 4-hour timestep allows up to
 | \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_max)) |
 | \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_min)) |
-| \(\bar{\Phi}_k^{\text{per period}}\) | Maximum per period | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_max)) |
-| \(\underline{\Phi}_k^{\text{per period}}\) | Minimum per period | [`Effect.periodic_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_min)) |
+| \(\bar{\Phi}_{k,p}\) | Maximum per period (scalar or per-period values) | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_max)) |
+| \(\underline{\Phi}_{k,p}\) | Minimum per period (scalar or per-period values) | [`Effect.periodic_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_min)) |
 | \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_max)) |
 | \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_min)) |
 | \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect(period_weights)) / global `period_weights` |

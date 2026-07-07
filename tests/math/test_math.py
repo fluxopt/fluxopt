@@ -16,6 +16,7 @@ API mapping (flixopt -> fluxopt):
 
 from __future__ import annotations
 
+import pytest
 from conftest import ts, waste
 from numpy.testing import assert_allclose
 
@@ -324,6 +325,43 @@ class TestEffects:
             period_weights=[1, 1],
         )
         assert_allclose(result.objective, 30.0, rtol=1e-5)
+
+    def test_effect_periodic_max_per_period_values(self):
+        """periodic_max accepts per-period values: [8, 12] caps periods differently.
+
+        2 periods (weights=1), demand=10 per ts (20 per period).
+        Period 2020: Dirty<=8, Clean=12 -> cost 8 + 60 = 68.
+        Period 2025: Dirty<=12, Clean=8 -> cost 12 + 40 = 52.
+        Objective = 68 + 52 = 120.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost'), Effect('CO2', periodic_max=[8, 12])],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0})]),
+            ],
+            periods=[2020, 2025],
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.objective, 120.0, rtol=1e-5)
+
+    def test_effect_periodic_bound_array_requires_periods(self):
+        """Per-period bound values without a period axis fail loudly at build."""
+        with pytest.raises(ValueError):
+            optimize(
+                ts(2),
+                carriers=[Carrier('Heat')],
+                effects=[Effect('cost'), Effect('CO2', periodic_max=[8, 12])],
+                objective_effects='cost',
+                ports=[
+                    Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                    Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
+                ],
+            )
 
     def test_effect_maximum_multi_period_weighted(self):
         """maximum bound across multi-period uses period_weights for the weighted sum.
