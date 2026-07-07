@@ -30,7 +30,7 @@ def optimize(
     carriers: list[Carrier],
     effects: list[Effect],
     ports: list[Port],
-    objective_effects: str | list[str] | dict[str, float],
+    objective_effects: str | dict[str, float],
     converters: list[Converter] | None = None,
     storages: list[Storage] | None = None,
     dt: float | list[float] | None = None,
@@ -48,11 +48,11 @@ def optimize(
         carriers: Carrier declarations.
         effects: Effects to track (costs, emissions, etc.).
         ports: System boundary ports with imports/exports.
-        objective_effects: Effect(s) to minimize. A name or list minimizes
-            the unweighted sum of the effect totals; a dict maps effect names
-            to objective weights (``{'cost': 1, 'co2': 50}``) — tracked
-            effect totals are unaffected by the weighting. The built-in
-            ``'penalty'`` effect is included by default.
+        objective_effects: Effect(s) to minimize. A single name, or a dict
+            mapping effect names to objective weights
+            (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
+            unaffected by the weighting. The built-in ``'penalty'`` effect
+            is included by default.
         converters: Linear converters between carriers.
         storages: Energy storages.
         dt: Timestep duration in hours. Auto-derived if None.

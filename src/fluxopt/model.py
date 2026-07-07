@@ -55,7 +55,7 @@ class FlowSystem:
         """
         self.data = data
         self.m = Model()
-        self._objective_effects: list[str] | dict[str, float] = []
+        self._objective_effects: dict[str, float] = {}
         self._penalty_weight: float = 1.0
         self._objective_weights: dict[str, float] = {}
         self._piecewise: dict[str, Any] = {}  # conv_id -> linopy.PiecewiseFormulation
@@ -117,7 +117,7 @@ class FlowSystem:
 
     def optimize(
         self,
-        objective_effects: str | list[str] | dict[str, float],
+        objective_effects: str | dict[str, float],
         customize: Callable[[FlowSystem], None] | None = None,
         *,
         solver: str = 'highs',
@@ -127,11 +127,11 @@ class FlowSystem:
         """Build, optionally customize, and solve the model.
 
         Args:
-            objective_effects: Effect(s) to minimize. A name or list minimizes
-                the unweighted sum of the effect totals; a dict maps effect
-                names to objective weights (``{'cost': 1, 'co2': 50}``) —
-                tracked effect totals are unaffected by the weighting. The
-                built-in ``'penalty'`` effect is included by default.
+            objective_effects: Effect(s) to minimize. A single name, or a
+                dict mapping effect names to objective weights
+                (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
+                unaffected by the weighting. The built-in ``'penalty'``
+                effect is included by default.
             customize: Optional callback to modify the linopy model between build and solve.
                 Receives ``self``; use ``model.m`` to add variables/constraints.
             solver: Solver backend name.
@@ -142,7 +142,9 @@ class FlowSystem:
                 ``objective_effects`` takes precedence instead.
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
-        self._objective_effects = [objective_effects] if isinstance(objective_effects, str) else objective_effects
+        self._objective_effects = (
+            {objective_effects: 1.0} if isinstance(objective_effects, str) else dict(objective_effects)
+        )
         self._penalty_weight = penalty_weight
         self.build()
         if customize is not None:
@@ -1422,10 +1424,7 @@ class FlowSystem:
         obj_expr: Any = 0
         effect_ids = list(ds.total_min.coords['effect'].values)
 
-        if isinstance(self._objective_effects, dict):
-            weights = dict(self._objective_effects)
-        else:
-            weights = dict.fromkeys(self._objective_effects, 1.0)
+        weights = dict(self._objective_effects)
         if PENALTY_EFFECT_ID not in weights and self._penalty_weight != 0 and PENALTY_EFFECT_ID in effect_ids:
             weights[PENALTY_EFFECT_ID] = self._penalty_weight
         self._objective_weights = {k: float(v) for k, v in weights.items()}
