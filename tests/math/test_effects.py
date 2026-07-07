@@ -376,7 +376,7 @@ class TestPenaltyEffect:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
 
     def test_penalty_weight_zero_ignores_penalty(self):
-        """penalty_weight=0 solves without the penalty term.
+        """Naming penalty at weight 0 solves without the penalty term.
 
         Same model as above: objective = 10 (cost only), penalty tracked
         but not minimized.
@@ -385,8 +385,7 @@ class TestPenaltyEffect:
             ts(1),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
-            penalty_weight=0.0,
+            objective_effects={'cost': 1.0, 'penalty': 0.0},
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
                 Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 0.5})]),
@@ -395,7 +394,7 @@ class TestPenaltyEffect:
         assert_allclose(result.objective, 10.0, rtol=1e-5)
 
     def test_penalty_weight_scales_term(self):
-        """penalty_weight scales the penalty contribution in the objective.
+        """A penalty weight in the dict scales its objective contribution.
 
         cost 1 + penalty 0.5 per flow-hour, weight 2: objective =
         10 + 2 * 5 = 20; cost total stays 10.
@@ -404,8 +403,7 @@ class TestPenaltyEffect:
             ts(1),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
-            penalty_weight=2.0,
+            objective_effects={'cost': 1.0, 'penalty': 2.0},
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
                 Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 0.5})]),

@@ -38,7 +38,6 @@ def optimize(
     period_weights: list[float] | None = None,
     solver: str = 'highs',
     customize: Callable[[FlowSystem], None] | None = None,
-    penalty_weight: float = 1.0,
     **kwargs: Any,
 ) -> Result:
     """Build data, build model, optimize, return results.
@@ -52,7 +51,8 @@ def optimize(
             mapping effect names to objective weights
             (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
             unaffected by the weighting. The built-in ``'penalty'`` effect
-            is included by default.
+            is added at weight 1.0 unless the dict names it
+            (``{'cost': 1, 'penalty': 0}`` opts out).
         converters: Linear converters between carriers.
         storages: Energy storages.
         dt: Timestep duration in hours. Auto-derived if None.
@@ -61,8 +61,6 @@ def optimize(
         solver: Solver backend name.
         customize: Optional callback to modify the linopy model between build and solve.
             Receives the built FlowSystem; use ``model.m`` to add variables/constraints.
-        penalty_weight: Scale for the built-in penalty effect in the
-            objective; 0.0 solves ignoring penalty terms.
         **kwargs: Passed through to ``linopy.Model.solve()``.
     """
     data = ModelData.build(
@@ -81,7 +79,6 @@ def optimize(
         objective_effects=objective_effects,
         customize=customize,
         solver=solver,
-        penalty_weight=penalty_weight,
         **kwargs,
     )
 

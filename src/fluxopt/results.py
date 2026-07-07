@@ -62,8 +62,9 @@ class Result:
     def objective_weights(self) -> dict[str, float]:
         """Effect weights the objective was minimized with (provenance).
 
-        Includes the built-in penalty effect at its ``penalty_weight``.
-        Empty for results saved before this field existed.
+        Includes the built-in penalty effect (auto-added at 1.0 unless
+        named in ``objective_effects``). Empty for results saved before
+        this field existed.
         """
         return json.loads(self.solution.attrs.get('objective_weights', '{}'))
 
