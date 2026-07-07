@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from conftest import ts
+from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, optimize
 
@@ -330,3 +331,111 @@ class TestContributionFrom:
         assert float(result.effect_totals.sel(effect='pe').values) == pytest.approx(pe_total, abs=1e-4)
         assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-4)
         assert result.objective == pytest.approx(cost_total, abs=1e-4)
+
+
+class TestPenaltyEffect:
+    def test_penalty_always_in_objective(self):
+        """The built-in penalty effect is minimized without being named.
+
+        Two sources with identical cost 1; SrcB carries penalty=1. Demand=10.
+        The penalty breaks the tie: all flow from SrcA. Objective includes
+        the (zero) penalty: 10.
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('SrcA', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port('SrcB', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 1})]),
+            ],
+        )
+        assert_allclose(result.objective, 10.0, rtol=1e-5)
+        assert_allclose(result.flow_rate('SrcA(Heat)').values, [10.0], rtol=1e-5)
+        assert_allclose(result.flow_rate('SrcB(Heat)').values, [0.0], atol=1e-6)
+
+    def test_penalty_contributes_to_objective_value(self):
+        """Incurred penalty is part of the objective value.
+
+        Single source with cost 1 and penalty 0.5. Demand=10.
+        objective = 10 * (1 + 0.5) = 15; cost total stays 10.
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 0.5})]),
+            ],
+        )
+        assert_allclose(result.objective, 15.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
+
+    def test_penalty_weight_zero_ignores_penalty(self):
+        """Naming penalty at weight 0 solves without the penalty term.
+
+        Same model as above: objective = 10 (cost only), penalty tracked
+        but not minimized.
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects={'cost': 1.0, 'penalty': 0.0},
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 0.5})]),
+            ],
+        )
+        assert_allclose(result.objective, 10.0, rtol=1e-5)
+
+    def test_penalty_weight_scales_term(self):
+        """A penalty weight in the dict scales its objective contribution.
+
+        cost 1 + penalty 0.5 per flow-hour, weight 2: objective =
+        10 + 2 * 5 = 20; cost total stays 10.
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects={'cost': 1.0, 'penalty': 2.0},
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('Src', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'penalty': 0.5})]),
+            ],
+        )
+        assert_allclose(result.objective, 20.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
+
+
+class TestWeightedObjective:
+    def test_objective_effects_dict_weights(self):
+        """Dict form weights effects in the objective without touching totals.
+
+        Dirty (cost 1, co2 1) vs Clean (cost 20, co2 0), demand 10.
+        Weighted: dirty = 1 + 50*1 = 51/MWh, clean = 20/MWh -> Clean wins.
+        objective = 200; tracked cost = 200, co2 = 0.
+
+        Sensitivity: With objective_effects='cost', Dirty wins (objective 10).
+        """
+        result = optimize(
+            ts(1),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost'), Effect('co2', unit='kg')],
+            objective_effects={'cost': 1.0, 'co2': 50.0},
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10])]),
+                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'co2': 1})]),
+                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'cost': 20, 'co2': 0})]),
+            ],
+        )
+        assert_allclose(result.objective, 200.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 200.0, rtol=1e-5)
+        assert_allclose(result.effect_totals.sel(effect='co2').item(), 0.0, atol=1e-6)
+        # Provenance: the resolved weights are recorded on the result
+        assert result.objective_weights == {'cost': 1.0, 'co2': 50.0, 'penalty': 1.0}

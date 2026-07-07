@@ -82,7 +82,7 @@ class TestCustomize:
             simple_system['ports'],
         )
         model = FlowSystem(data)
-        model._objective_effects = ['cost']
+        model._objective_effects = {'cost': 1.0}
         model.build()
 
         # Add custom variable and constraint

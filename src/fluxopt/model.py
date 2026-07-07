@@ -55,7 +55,8 @@ class FlowSystem:
         """
         self.data = data
         self.m = Model()
-        self._objective_effects: list[str] = []
+        self._objective_effects: dict[str, float] = {}
+        self._objective_weights: dict[str, float] = {}
         self._piecewise: dict[str, Any] = {}  # conv_id -> linopy.PiecewiseFormulation
 
     def _add_variables(
@@ -116,7 +117,7 @@ class FlowSystem:
 
     def optimize(
         self,
-        objective_effects: str | list[str],
+        objective_effects: str | dict[str, float],
         customize: Callable[[FlowSystem], None] | None = None,
         *,
         solver: str = 'highs',
@@ -125,13 +126,21 @@ class FlowSystem:
         """Build, optionally customize, and solve the model.
 
         Args:
-            objective_effects: Effect name(s) to minimize. Sum of named effect totals.
+            objective_effects: Effect(s) to minimize. A single name, or a
+                dict mapping effect names to objective weights
+                (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
+                unaffected by the weighting. The built-in ``'penalty'``
+                effect is added at weight 1.0 unless the dict names it:
+                ``{'cost': 1, 'penalty': 0}`` opts out, other values scale
+                the steering pressure.
             customize: Optional callback to modify the linopy model between build and solve.
                 Receives ``self``; use ``model.m`` to add variables/constraints.
             solver: Solver backend name.
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
-        self._objective_effects = [objective_effects] if isinstance(objective_effects, str) else objective_effects
+        self._objective_effects = (
+            {objective_effects: 1.0} if isinstance(objective_effects, str) else dict(objective_effects)
+        )
         self.build()
         if customize is not None:
             customize(self)
@@ -1578,14 +1587,28 @@ class FlowSystem:
         Objective = sum_k sum_p( ω[k,p] * effect_total[k,p] )
 
         ω falls back to global period_weights (or 1 in single-period).
+        The built-in penalty effect enters at weight 1.0 unless named in
+        ``objective_effects`` (see :meth:`optimize`), so
+        ``effects_per_*={'penalty': ...}`` works as soft steering without
+        touching the tracked effects. Zero-weight effects are validated but
+        contribute no term.
         """
+        from fluxopt.elements import PENALTY_EFFECT_ID
+
         ds = self.data.effects
         obj_expr: Any = 0
+        effect_ids = list(ds.total_min.coords['effect'].values)
 
-        for k in self._objective_effects:
-            effect_ids = list(ds.total_min.coords['effect'].values)
+        weights = dict(self._objective_effects)
+        if PENALTY_EFFECT_ID not in weights and PENALTY_EFFECT_ID in effect_ids:
+            weights[PENALTY_EFFECT_ID] = 1.0
+        self._objective_weights = {k: float(v) for k, v in weights.items()}
+
+        for k, weight in weights.items():
             if k not in effect_ids:
                 raise ValueError(f'Objective effect {k!r} not found. Available: {effect_ids}')
+            if weight == 0:
+                continue
 
             # Resolve per-effect weight, falling back to global period_weights, then 1
             w: xr.DataArray | int = 1
@@ -1594,6 +1617,6 @@ class FlowSystem:
             elif self.data.dims.period_weights is not None:
                 w = self.data.dims.period_weights
 
-            obj_expr = obj_expr + (w * self.effect_total.sel(effect=k)).sum()
+            obj_expr = obj_expr + weight * (w * self.effect_total.sel(effect=k)).sum()
 
         self.m.add_objective(obj_expr)
