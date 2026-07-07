@@ -1028,8 +1028,8 @@ def _detect_contribution_cycle(adjacency: dict[str, list[str]]) -> list[str] | N
 class EffectsData:
     total_min: xr.DataArray  # (effect,) — weighted total bound
     total_max: xr.DataArray  # (effect,) — weighted total bound
-    periodic_min: xr.DataArray  # (effect,) — per-period bound
-    periodic_max: xr.DataArray  # (effect,) — per-period bound
+    periodic_min: xr.DataArray  # (effect[, period]) — per-period bound
+    periodic_max: xr.DataArray  # (effect[, period]) — per-period bound
     rate_min: xr.DataArray  # (effect, time)
     rate_max: xr.DataArray  # (effect, time)
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
@@ -1075,12 +1075,19 @@ class EffectsData:
         n_time = len(time)
         total_min = np.full(n, np.nan)
         total_max = np.full(n, np.nan)
-        periodic_min = np.full(n, np.nan)
-        periodic_max = np.full(n, np.nan)
+        periodic_mins: list[xr.DataArray] = []
+        periodic_maxs: list[xr.DataArray] = []
         rate_mins: list[xr.DataArray] = []
         rate_maxs: list[xr.DataArray] = []
 
         nan_time = xr.DataArray(np.full(n_time, np.nan), dims=['time'], coords={'time': time})
+        # Periodic bounds are scalar in single-period models, (period,) in multi-period
+        period_coords: dict[str, Any] = {'period': period} if period is not None else {}
+        nan_periodic = (
+            xr.DataArray(np.full(len(period), np.nan), dims=['period'], coords={'period': period})
+            if period is not None
+            else xr.DataArray(np.nan)
+        )
 
         has_contributions = False
         for i, e in enumerate(effects):
@@ -1088,10 +1095,12 @@ class EffectsData:
                 total_min[i] = e.total_min
             if e.total_max is not None:
                 total_max[i] = e.total_max
-            if e.periodic_min is not None:
-                periodic_min[i] = e.periodic_min
-            if e.periodic_max is not None:
-                periodic_max[i] = e.periodic_max
+            periodic_mins.append(
+                as_dataarray(e.periodic_min, period_coords) if e.periodic_min is not None else nan_periodic
+            )
+            periodic_maxs.append(
+                as_dataarray(e.periodic_max, period_coords) if e.periodic_max is not None else nan_periodic
+            )
             rate_mins.append(as_dataarray(e.rate_min, {'time': time}) if e.rate_min is not None else nan_time)
             rate_maxs.append(as_dataarray(e.rate_max, {'time': time}) if e.rate_max is not None else nan_time)
             if e.contribution_from:
@@ -1150,8 +1159,8 @@ class EffectsData:
         return cls(
             total_min=xr.DataArray(total_min, dims=['effect'], coords={'effect': effect_ids}),
             total_max=xr.DataArray(total_max, dims=['effect'], coords={'effect': effect_ids}),
-            periodic_min=xr.DataArray(periodic_min, dims=['effect'], coords={'effect': effect_ids}),
-            periodic_max=xr.DataArray(periodic_max, dims=['effect'], coords={'effect': effect_ids}),
+            periodic_min=fast_concat(periodic_mins, effect_idx),
+            periodic_max=fast_concat(periodic_maxs, effect_idx),
             rate_min=fast_concat(rate_mins, effect_idx),
             rate_max=fast_concat(rate_maxs, effect_idx),
             cf_temporal=cf_temporal,

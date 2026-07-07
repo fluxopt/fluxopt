@@ -213,7 +213,9 @@ class Effect:
         total_max: Upper bound on weighted total across all periods.
         total_min: Lower bound on weighted total across all periods.
         periodic_max: Upper bound applied to each period independently.
+            Scalar or per-period values (multi-period only).
         periodic_min: Lower bound applied to each period independently.
+            Scalar or per-period values (multi-period only).
         rate_max: Upper bound rate [unit/h], scaled by Δt.
         rate_min: Lower bound rate [unit/h], scaled by Δt.
         contribution_from: Cross-effect factors ``{source_effect: factor}``.
@@ -227,8 +229,8 @@ class Effect:
     unit: str = ''
     total_max: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
     total_min: float | None = None  # Φ̲_k  [unit] — weighted total across all periods
-    periodic_max: float | None = None  # Φ̄_{k,p}  [unit] — each period independently
-    periodic_min: float | None = None  # Φ̲_{k,p}  [unit] — each period independently
+    periodic_max: Variate | None = None  # Φ̄_{k,p}  [unit] — each period independently
+    periodic_min: Variate | None = None  # Φ̲_{k,p}  [unit] — each period independently
     rate_max: Variate | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
     rate_min: Variate | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
     contribution_from: dict[str, Variate] = field(default_factory=dict)

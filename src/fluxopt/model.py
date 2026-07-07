@@ -1172,7 +1172,7 @@ class FlowSystem:
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
         # Per-period bounds on effect_total
-        min_pp = ds.periodic_min  # (effect,) — NaN = unbounded
+        min_pp = ds.periodic_min  # (effect[, period]) — NaN = unbounded
         max_pp = ds.periodic_max
         has_min_pp = min_pp.notnull()
         if has_min_pp.any():
