@@ -53,10 +53,10 @@ include = ["src/fluxopt/", "LICENSE", "README.md"]
 dev = [
     "pandas-stubs==3.0.3.260530",
     "pre-commit==4.6.0",
-    "pytest==9.0.3",
+    "pytest==9.1.1",
     "pytest-cov==7.1.0",
     "pytest-xdist==3.8.0",
-    "pyrefly==1.0.0",
+    "pyrefly==1.1.1",
     "ruff==0.15.18",
 ]
 docs = [
@@ -65,7 +65,7 @@ docs = [
     "mike==2.2.0",
     "mkdocs==1.6.1",
     "mkdocs-gen-files==0.6.1",
-    "mkdocs-git-revision-date-localized-plugin==1.5.2",
+    "mkdocs-git-revision-date-localized-plugin==1.5.3",
     "mkdocs-include-markdown-plugin==7.3.0",
     "mkdocs-jupyter==0.26.3",
     "mkdocs-literate-nav==0.6.3",
@@ -73,10 +73,10 @@ docs = [
     "mkdocs-minify-plugin==0.8.0",
     "mkdocs-plotly-plugin==0.1.3",
     "mkdocs-table-reader-plugin==3.1.0",
-    "mkdocstrings-python==2.0.3",
-    "notebook==7.5.6",
+    "mkdocstrings-python==2.0.5",
+    "notebook==7.6.0",
     "pygments==2.20.0",
-    "pymdown-extensions==10.21.3",
+    "pymdown-extensions==11.0",
 ]
 
 [tool.ruff]
