@@ -618,6 +618,7 @@ class FlowSystem:
         prev = self.flow_rate.isel(time=slice(None, -1)).assign_coords(time=coords_from_1)
         dt_t = self.data.dims.dt.isel(time=slice(1, None))
         sized_flow_ids = self._sizing_flow_ids()
+        self._warn_ramp_status_lockout()
 
         for ramp, name, delta in (
             (ds.ramp_up, 'ramp_up', curr - prev),
@@ -641,6 +642,40 @@ class FlowSystem:
                 coeff = limit.sel(flow=var_ids)
                 expr = delta.sel(flow=var_ids) - coeff * self.flow_size.sel(flow=var_ids)
                 self.m.add_constraints(expr <= 0, name=f'flow_{name}_sized', mask=coeff.notnull())
+
+    def _warn_ramp_status_lockout(self) -> None:
+        """Warn when a ramp is too tight for a status flow to ever start or stop.
+
+        A startup jumps from 0 to at least ``rel_lb·S`` in one step; the ramp
+        allows at most ``r·Δt·S``. If ``r·Δt < rel_lb`` the transition is
+        infeasible — the model stays feasible but silently pins the unit to
+        its current state. Dedicated startup/shutdown ramp rates would relax
+        this (future work); until then, warn loudly.
+        """
+        import warnings
+
+        ds = self.data.flows
+        status_ids = self._status_flow_ids() | self._component_status_flow_ids()
+        if not status_ids:
+            return
+        dt = self.data.dims.dt
+        for ramp, field, verb in (
+            (ds.ramp_up, 'ramp_up_per_hour', 'start'),
+            (ds.ramp_down, 'ramp_down_per_hour', 'stop'),
+        ):
+            if ramp is None:
+                continue
+            non_flow_dims = [d for d in ramp.dims if d != 'flow']
+            too_tight = ((ramp * dt < ds.rel_lb) & ramp.notnull()).any(non_flow_dims)  # (flow,)
+            for fid in ramp.coords['flow'].values[too_tight.values]:
+                if str(fid) not in status_ids:
+                    continue
+                warnings.warn(
+                    f'Flow {fid!r}: {field}·Δt is below relative_rate_min at some timestep — '
+                    f'with status, the unit can never {verb} there (the on/off transition '
+                    f'would violate the ramp limit). Loosen the ramp or relative_rate_min.',
+                    stacklevel=2,
+                )
 
     def _constrain_sizing(self) -> None:
         """Constrain sizing variables: S in [min, max] gated by indicator."""

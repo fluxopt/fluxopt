@@ -20,7 +20,7 @@ import pytest
 from conftest import ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Status, Storage, optimize
 
 # ---------------------------------------------------------------------------
 # Bus balance & dispatch
@@ -571,6 +571,38 @@ class TestFlowConstraints:
         """Ramp limits on an unsized flow fail loudly at element level."""
         with pytest.raises(ValueError, match='ramp'):
             Flow('Heat', ramp_up_per_hour=0.2)
+
+    def test_ramp_status_lockout_warns(self):
+        """A ramp too tight to cover the startup jump emits a warning.
+
+        Unit (relative_rate_min=0.4, ramp_up=0.2, dt=1h): starting requires a
+        jump to >=40 but the ramp allows +20 -> the unit can never start.
+        The model stays feasible (Backup covers demand) but warns at build.
+        """
+        with pytest.warns(UserWarning, match='never start'):
+            optimize(
+                ts(2),
+                carriers=[Carrier('Heat')],
+                effects=[Effect('cost')],
+                objective_effects='cost',
+                ports=[
+                    Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                    Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+                    Port(
+                        'Unit',
+                        imports=[
+                            Flow(
+                                'Heat',
+                                size=100,
+                                relative_rate_min=0.4,
+                                ramp_up_per_hour=0.2,
+                                status=Status(),
+                                effects_per_flow_hour={'cost': 1},
+                            )
+                        ],
+                    ),
+                ],
+            )
 
 
 # ---------------------------------------------------------------------------
