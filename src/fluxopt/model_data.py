@@ -456,6 +456,8 @@ class FlowsData:
     flow_hours_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     load_factor_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     load_factor_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
+    ramp_up: xr.DataArray | None = None  # (flow, time[, period]) — NaN = no limit [1/h]
+    ramp_down: xr.DataArray | None = None  # (flow, time[, period]) — NaN = no limit [1/h]
     sizing_min: xr.DataArray | None = None  # (sizing_flow,)
     sizing_max: xr.DataArray | None = None  # (sizing_flow,)
     sizing_mandatory: xr.DataArray | None = None  # (sizing_flow,)
@@ -560,6 +562,10 @@ class FlowsData:
         fh_max_vals = np.full(len(flows), np.nan)
         lf_min_vals = np.full(len(flows), np.nan)
         lf_max_vals = np.full(len(flows), np.nan)
+        ramp_ups: list[xr.DataArray] = []
+        ramp_downs: list[xr.DataArray] = []
+        has_ramp_up = False
+        has_ramp_down = False
         effect_coeffs: list[xr.DataArray] = []
         sizing_items: list[tuple[str, Sizing]] = []
         invest_items: list[tuple[str, Investment]] = []
@@ -594,6 +600,17 @@ class FlowsData:
                 lf_min_vals[i] = f.load_factor_min
             if f.load_factor_max is not None:
                 lf_max_vals[i] = f.load_factor_max
+
+            has_ramp_up = has_ramp_up or f.ramp_up_per_hour is not None
+            has_ramp_down = has_ramp_down or f.ramp_down_per_hour is not None
+            ramp_ups.append(
+                as_dataarray(f.ramp_up_per_hour, envelope_coords) if f.ramp_up_per_hour is not None else nan_envelope
+            )
+            ramp_downs.append(
+                as_dataarray(f.ramp_down_per_hour, envelope_coords)
+                if f.ramp_down_per_hour is not None
+                else nan_envelope
+            )
 
             if f.fixed_relative_profile is not None:
                 profiles.append(as_dataarray(f.fixed_relative_profile, envelope_coords))
@@ -660,6 +677,8 @@ class FlowsData:
             flow_hours_max=_flow_bound_or_none(fh_max_vals, flow_ids),
             load_factor_min=_flow_bound_or_none(lf_min_vals, flow_ids),
             load_factor_max=_flow_bound_or_none(lf_max_vals, flow_ids),
+            ramp_up=fast_concat(ramp_ups, flow_idx) if has_ramp_up else None,
+            ramp_down=fast_concat(ramp_downs, flow_idx) if has_ramp_down else None,
             sizing_min=sz.min,
             sizing_max=sz.max,
             sizing_mandatory=sz.mandatory,

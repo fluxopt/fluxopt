@@ -20,7 +20,7 @@ import pytest
 from conftest import ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Status, Storage, optimize
 
 # ---------------------------------------------------------------------------
 # Bus balance & dispatch
@@ -512,6 +512,165 @@ class TestFlowConstraints:
         """load_factor bounds on an unsized flow fail loudly at element level."""
         with pytest.raises(ValueError, match='load_factor'):
             Flow('Heat', load_factor_max=0.5)
+
+    def test_ramp_up_limits_increase(self):
+        """ramp_up_per_hour caps the rate increase between timesteps.
+
+        CheapSrc (size=100, ramp_up=0.2 -> max +20/h), cost 1. Expensive cost 5.
+        Demand=[10,50]. Cheap: t0=10, t1<=30 -> Expensive covers 20 at t1.
+        cost = 10 + 30 + 20*5 = 140.
+
+        Sensitivity: Without ramp_up, Cheap covers all -> cost=60.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 50])]),
+                Port(
+                    'CheapSrc',
+                    imports=[Flow('Heat', size=100, ramp_up_per_hour=0.2, effects_per_flow_hour={'cost': 1})],
+                ),
+                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+        )
+        assert_allclose(result.objective, 140.0, rtol=1e-5)
+        cheap = result.flow_rate('CheapSrc(Heat)').values
+        assert cheap[1] - cheap[0] <= 20.0 + 1e-5, f'Ramp-up violated: {cheap}'
+
+    def test_ramp_down_limits_decrease(self):
+        """ramp_down_per_hour caps the rate decrease between timesteps.
+
+        Src (size=100, ramp_down=0.2 -> max -20/h), cost 1. Demand=[50,10].
+        Src: t0=50, t1 >= 30 -> excess 20 absorbed by waste.
+        cost = 50 + 30 = 80.
+
+        Sensitivity: Without ramp_down, Src follows demand -> cost=60.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[50, 10])]),
+                Port(
+                    'Src',
+                    imports=[Flow('Heat', size=100, ramp_down_per_hour=0.2, effects_per_flow_hour={'cost': 1})],
+                ),
+                waste('Heat'),
+            ],
+        )
+        assert_allclose(result.objective, 80.0, rtol=1e-5)
+        src = result.flow_rate('Src(Heat)').values
+        assert src[0] - src[1] <= 20.0 + 1e-5, f'Ramp-down violated: {src}'
+
+    def test_ramp_requires_size(self):
+        """Ramp limits on an unsized flow fail loudly at element level."""
+        with pytest.raises(ValueError, match='ramp'):
+            Flow('Heat', ramp_up_per_hour=0.2)
+
+    def test_ramp_with_status_allows_startup(self):
+        """The ramp does not bind across a startup: the unit may jump to its
+        semi-continuous minimum even when the ramp is tighter.
+
+        Unit (size=100, relative_rate_min=0.4, ramp_up=0.2, startup cost 5).
+        Demand=[0,40,50]: off at t0, starts at t1 jumping to 40 (> ramp +20),
+        then ramps 40->50 (delta 10 <= 20). cost = 90 + 5 = 95.
+        """
+        result = optimize(
+            ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[0, 40, 50])]),
+                Port(
+                    'Unit',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=100,
+                            relative_rate_min=0.4,
+                            ramp_up_per_hour=0.2,
+                            status=Status(effects_per_startup={'cost': 5}),
+                            effects_per_flow_hour={'cost': 1},
+                        )
+                    ],
+                ),
+            ],
+        )
+        assert_allclose(result.objective, 95.0, rtol=1e-5)
+
+    def test_ramp_binds_between_running_steps(self):
+        """The startup relaxation cannot be abused: between two running steps
+        the ramp binds (startup/shutdown are pinned to actual transitions).
+
+        Unit (size=100, relative_rate_min=0.4, ramp_up=0.2, startup FREE).
+        Demand=[0,40,70]: starts at t1 -> 40; t1->t2 capped at +20 -> Unit=60,
+        Backup covers 10 at cost 5. cost = 40 + 60 + 50 = 150.
+
+        Sensitivity: If a spurious free startup at t2 could relax the ramp,
+        Unit would cover 70 -> cost = 110.
+        """
+        result = optimize(
+            ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[0, 40, 70])]),
+                Port('Backup', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+                Port(
+                    'Unit',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=100,
+                            relative_rate_min=0.4,
+                            ramp_up_per_hour=0.2,
+                            status=Status(),
+                            effects_per_flow_hour={'cost': 1},
+                        )
+                    ],
+                ),
+            ],
+        )
+        assert_allclose(result.objective, 150.0, rtol=1e-5)
+        unit = result.flow_rate('Unit(Heat)').values
+        assert unit[2] - unit[1] <= 20.0 + 1e-5, f'Ramp violated between running steps: {unit}'
+
+    def test_ramp_with_component_status(self):
+        """Ramps on storage flows relax via the component transition binaries.
+
+        Battery (Storage.status, charge ramp_up=0.5): builds and solves with
+        the cstatus-relaxed ramp constraint. Charge 5 cheap at t0, discharge
+        at t1 -> cost 5.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier('Elec')],
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=[0, 5])]),
+                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': [1, 10]})]),
+            ],
+            storages=[
+                Storage(
+                    'bat',
+                    charging=Flow('Elec', size=10, ramp_up_per_hour=0.5),
+                    discharging=Flow('Elec', size=10),
+                    capacity=10,
+                    prior_level=0,
+                    cyclic=False,
+                    status=Status(),
+                ),
+            ],
+        )
+        assert_allclose(result.objective, 5.0, rtol=1e-5)
 
 
 # ---------------------------------------------------------------------------

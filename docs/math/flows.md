@@ -57,6 +57,40 @@ bounds therefore require a size; flow-hour bounds do not.
 Cross-period budgets are not expressed here — route them through an
 [effect](effects.md) with `total_min` / `total_max`.
 
+## Ramp Limits
+
+Ramp limits (`ramp_up_per_hour` / `ramp_down_per_hour`) cap the rate change
+between consecutive timesteps, as a fraction of capacity per hour:
+
+\[
+P_{f,t} - P_{f,t-1} \leq \mathrm{r}^{+}_{f,t} \cdot \bar{\mathrm{P}}_f \cdot \Delta t_t
+\qquad
+P_{f,t-1} - P_{f,t} \leq \mathrm{r}^{-}_{f,t} \cdot \bar{\mathrm{P}}_f \cdot \Delta t_t
+\]
+
+Constraints apply from the second timestep onward; periods are independent
+(no ramp coupling across period boundaries). Like load factors, ramps are
+relative to size — when `Flow.size` is a [Sizing](sizing.md) or Investment
+object, \(\bar{\mathrm{P}}_f\) is the size variable and the constraint
+stays linear.
+
+!!! note "Interaction with Status"
+    For flows with [status](status.md), the ramp does **not** bind across
+    on/off transitions: the startup (shutdown) binary relaxes the ramp-up
+    (ramp-down) constraint in the transition step, so a unit may always
+    jump to its semi-continuous minimum and drop back to zero:
+
+    \[
+    P_{f,t} - P_{f,t-1} \leq \mathrm{r}^{+}_{f,t} \cdot \bar{\mathrm{P}}_f \cdot \Delta t_t
+    + \bar{\mathrm{P}}_f \cdot \text{startup}_{f,t}
+    \]
+
+    Transitions are pinned to actual state changes (`status|exclusive`),
+    so the relaxation cannot be exploited between running steps.
+    Component-status flows relax via their component's transition
+    binaries. Custom (tighter) startup/shutdown ramp rates are future
+    work.
+
 ## Effect Contributions
 
 Each flow contributes to tracked effects (cost, emissions, …). Per-timestep:
@@ -89,6 +123,8 @@ Units cancel: e.g. €/MWh × MW × h = €. Contributions feed into the
 | \(\bar{\mathrm{H}}_f\) | Maximum flow-hours per period | [`Flow.flow_hours_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow(flow_hours_max)) |
 | \(\underline{\lambda}_f\) | Minimum load factor per period | [`Flow.load_factor_min`](../api/fluxopt/elements.md#fluxopt.elements.Flow(load_factor_min)) |
 | \(\bar{\lambda}_f\) | Maximum load factor per period | [`Flow.load_factor_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow(load_factor_max)) |
+| \(\mathrm{r}^{+}_{f,t}\) | Max ramp up, fraction of size per hour | [`Flow.ramp_up_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(ramp_up_per_hour)) |
+| \(\mathrm{r}^{-}_{f,t}\) | Max ramp down, fraction of size per hour | [`Flow.ramp_down_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(ramp_down_per_hour)) |
 | \(\Delta t_t\) | Timestep duration (h) | dt |
 
 See [Notation](notation.md) for the full symbol table and [Indexing

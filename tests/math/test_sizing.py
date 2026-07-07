@@ -291,6 +291,44 @@ class TestSizingLoadFactor:
         assert_allclose(size, 30.0, rtol=1e-5)
 
 
+class TestSizingRamps:
+    def test_ramp_up_forces_larger_size(self):
+        """ramp_up_per_hour couples the rate delta to the size *variable*.
+
+        Demand=[10,40] (peak 40). Src: Sizing(0, 100), 1€/MW size cost,
+        1€/MWh operational, ramp_up_per_hour=0.5.
+
+        Peak alone needs size >= 40, but the ramp t0->t1 (delta=30) requires
+        30 <= 0.5 * size -> size >= 60.
+        cost = 60*1 + 50*1 = 110.
+
+        Sensitivity: Without ramp_up, size=40 -> cost = 40 + 50 = 90.
+        """
+        result = optimize(
+            ts(2),
+            carriers=_heat,
+            effects=[Effect('cost')],
+            objective_effects='cost',
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 40])]),
+                Port(
+                    'Src',
+                    imports=[
+                        Flow(
+                            'Heat',
+                            size=Sizing(0, 100, effects_per_size={'cost': 1}),
+                            ramp_up_per_hour=0.5,
+                            effects_per_flow_hour={'cost': 1},
+                        )
+                    ],
+                ),
+            ],
+        )
+        assert_allclose(result.objective, 110.0, rtol=1e-5)
+        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        assert_allclose(size, 60.0, rtol=1e-5)
+
+
 class TestStorageSizing:
     def test_storage_capacity_sizing(self):
         """Storage capacity sizing with price arbitrage.
