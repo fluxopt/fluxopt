@@ -364,6 +364,17 @@ class TestFlatTimeIndex:
         # gap-inferred period weights
         assert list(dims.period_weights.values) == [10, 10]
 
+    def test_leap_year_base_replicates_safely(self):
+        # Feb 29 in the base grid must not collide when shifted into
+        # non-leap years (whole-day offset, not calendar-year arithmetic).
+        base = pd.date_range('2024-02-28 22:00', periods=6, freq='h')
+        dims = Dims.build(base, periods=[2030, 2040], period_weights=[1, 1])
+        flat = pd.DatetimeIndex(dims.time.values)
+        assert flat.is_monotonic_increasing and flat.is_unique
+        # constant whole-day offset preserves time-of-day and dt
+        assert list(flat.hour[:6]) == list(flat.hour[6:])
+        assert list(dims.dt.values) == [1.0] * 12
+
     def test_ragged_requires_datetime(self):
         with pytest.raises(TypeError, match='datetime'):
             Dims.build({2030: [0, 1, 2], 2040: [0, 1]})
@@ -379,6 +390,16 @@ class TestFlatTimeIndex:
         }
         with pytest.raises(ValueError, match='increasing'):
             Dims.build(overlapping)
+
+    def test_map_to_time_strips_period_coord_from_variables(self):
+        import linopy
+
+        dims = Dims.build(ts(2), periods=[2030, 2040], period_weights=[1, 1])
+        m = linopy.Model()
+        var = m.add_variables(coords=dims.coords(period=True), name='size')
+        mapped = dims.map_to_time(var)
+        assert 'time' in mapped.dims
+        assert 'period' not in mapped.coords
 
     def test_replicas_overlapping_raise(self):
         base = pd.DatetimeIndex(['2024-01-01', '2025-06-01'])
@@ -417,6 +438,24 @@ class TestOperationalInputAlignment:
         }
         data = self._build({2030: [1.0, 2.0, 3.0], 2040: [7.0, 8.0]}, timesteps=ragged, periods=None)
         assert list(data.flows.fixed_profile.sel(flow='Demand(Heat)').values) == [1, 2, 3, 7, 8]
+
+    def test_period_mapping_accepts_base_grid_labels(self):
+        # Uniform mode shifts later periods' labels internally; users only
+        # know the base grid, so {period: series} indexed by it must work.
+        base = pd.DatetimeIndex(ts(2), name='time')
+        data = self._build(
+            {
+                2030: pd.Series([1.0, 2.0], index=base),
+                2040: pd.Series([7.0, 8.0], index=base),
+            }
+        )
+        profile = data.flows.fixed_profile.sel(flow='Demand(Heat)')
+        assert list(profile.values) == [1, 2, 7, 8]
+
+    def test_series_with_foreign_index_name_raises(self):
+        bad = pd.Series([1.0, 2.0], index=pd.Index(['a', 'b'], name='timestamp'))
+        with pytest.raises(ValueError, match="'timestamp'"):
+            self._build(bad)
 
     def test_mismatched_length_raises(self):
         with pytest.raises(ValueError, match='matches no time grid'):

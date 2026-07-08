@@ -108,13 +108,16 @@ def add_duration_tracking(
     starts = _episode_start_flags(len(labels), episode_starts)
     chain_mask = xr.DataArray(~starts[1:], dims=[dim], coords={dim: labels[1:]})
 
-    # Big-M per element: total horizon + any previous carryover
-    mega = dt.sum(dim)
+    # Big-M per element: longest episode + any previous carryover. Duration
+    # chains reset at episode starts, so the flat-axis total would inflate M
+    # by the period count and loosen the MIP relaxation for nothing.
+    episode_ids = np.cumsum(starts) - 1
+    mega = float(np.bincount(episode_ids, weights=dt.values).max())
     if previous is not None:
         mega = mega + previous.fillna(0)
 
     # Variable upper bound: use maximum where provided, else mega
-    upper: xr.DataArray = maximum.where(maximum.notnull(), mega) if maximum is not None else mega
+    upper: xr.DataArray | float = maximum.where(maximum.notnull(), mega) if maximum is not None else mega
 
     coords = [state.indexes[element_dim], state.indexes[dim]]
     duration = m.add_variables(lower=0, upper=upper, coords=coords, name=name)

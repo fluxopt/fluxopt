@@ -218,3 +218,35 @@ class TestUniformCalendarShift:
         # datetime accessors work directly on solution arrays
         by_year = result.flow_rate('Grid(Heat)').groupby('time.year').sum()
         assert_allclose(by_year.values, [20.0, 20.0], rtol=1e-5)
+
+
+class TestEpisodeBigM:
+    def test_duration_big_m_is_per_episode(self):
+        """The duration-tracking big-M spans one episode, not the flat axis.
+
+        2 periods x 3 h: the uptime duration variable's upper bound (= M when
+        no uptime_max is set) must be the longest episode (3 h), not the
+        6 h flat-axis total — an inflated M loosens the MIP relaxation.
+        """
+        from fluxopt import FlowSystem, ModelData
+
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier('Heat')],
+            effects=[Effect('cost')],
+            ports=[
+                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10, 10])]),
+                Port(
+                    'Grid',
+                    imports=[
+                        Flow('Heat', size=10, relative_rate_min=0.5, status=Status(uptime_min=2)),
+                    ],
+                ),
+            ],
+            periods=[2030, 2040],
+            period_weights=[1, 1],
+        )
+        fs = FlowSystem(data)
+        fs._objective_effects = {'cost': 1.0}
+        fs.build()
+        assert float(fs.m.variables['uptime'].upper.max()) == 3.0

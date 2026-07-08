@@ -1425,9 +1425,13 @@ def _compute_period_weights(
 def _replicate_time_index(base: TimeIndex, period_idx: pd.Index) -> list[TimeIndex]:
     """Replicate a within-period time index once per period with shifted labels.
 
-    Datetime labels shift into each period's calendar by the year gap to the
-    first period; integer labels shift by the index span, giving a global
-    running index.
+    Datetime labels shift into each period's calendar by a whole-day offset
+    anchored at Jan 1 of the base year (the day count between the Jan 1s of
+    the base and target years). A constant offset preserves time-of-day,
+    strict ordering, and dt exactly — leap-day grids replicate safely; the
+    trade is that dates after Feb 28 drift one calendar day when base and
+    target year differ in leap parity. Integer labels shift by the index
+    span, giving a global running index.
 
     Args:
         base: Normalized within-period time index.
@@ -1435,9 +1439,13 @@ def _replicate_time_index(base: TimeIndex, period_idx: pd.Index) -> list[TimeInd
     """
     if isinstance(base, pd.DatetimeIndex):
         p0 = int(period_idx[0])
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')  # DateOffset add emits PerformanceWarning
-            return [pd.DatetimeIndex(base + pd.DateOffset(years=int(p) - p0)) for p in period_idx]
+        base_year = int(base[0].year)
+        anchor = pd.Timestamp(year=base_year, month=1, day=1)
+        segments: list[TimeIndex] = []
+        for p in period_idx:
+            offset = pd.Timestamp(year=base_year + int(p) - p0, month=1, day=1) - anchor
+            segments.append(base + offset)
+        return segments
     step = int(base[1] - base[0]) if len(base) > 1 else 1
     span = int(base[-1] - base[0]) + step
     return [base + k * span for k in range(len(period_idx))]
@@ -1589,9 +1597,11 @@ class Dims:
             return obj
         indexer = xr.DataArray(self.time_period.values, dims=['time'], coords={'time': self.time})
         result = obj.sel(period=indexer)
-        if hasattr(result, 'drop_vars'):  # linopy Variable lacks it; stray coord is harmless there
-            result = result.drop_vars('period', errors='ignore')
-        return result
+        if not hasattr(result, 'drop_vars'):
+            # linopy Variable lacks drop_vars; lift to a LinearExpression so
+            # the stray coord cannot trigger outer-join warnings downstream.
+            result = 1.0 * result
+        return result.drop_vars('period', errors='ignore')
 
     def sum_time(self, obj: Any) -> Any:
         """Sum over time within each period.
@@ -1804,6 +1814,11 @@ class _TimeMapper:
         if isinstance(value, pd.Series):
             if value.index.name in ('time', 'period'):
                 return self._from_dataarray(xr.DataArray(value), name)
+            if value.index.name is not None:
+                raise ValueError(
+                    f'{name}: Series index name {value.index.name!r} is not a model dim; '
+                    f"use 'time' or 'period', or an unnamed index for positional matching."
+                )
             return self._from_unnamed(np.asarray(value.values, dtype=float), name)
         if isinstance(value, np.ndarray):
             if value.ndim != 1:
@@ -1824,7 +1839,16 @@ class _TimeMapper:
         parts: list[np.ndarray] = []
         for p, slc in self._segments():
             seg_idx = flat_idx[slc]
-            parts.append(as_dataarray(value[p], {'time': seg_idx}, name=name).values)
+            try:
+                arr = as_dataarray(value[p], {'time': seg_idx}, name=name).values
+            except ValueError:
+                # Uniform mode shifts segment labels into each period's
+                # calendar internally; accept entries labeled by the base
+                # grid the user actually knows.
+                if self.base_time is None or len(self.base_time) != len(seg_idx):
+                    raise
+                arr = as_dataarray(value[p], {'time': self.base_time}, name=name).values
+            parts.append(arr)
         return xr.DataArray(np.concatenate(parts), dims=['time'], coords={'time': flat_idx}, name=name)
 
     def _from_dataarray(self, da: xr.DataArray, name: str) -> xr.DataArray:
