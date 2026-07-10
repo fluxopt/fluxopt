@@ -76,7 +76,7 @@ docs = [
     "mkdocstrings-python==2.0.5",
     "notebook==7.6.0",
     "pygments==2.20.0",
-    "pymdown-extensions==11.0",
+    "pymdown-extensions==11.0.1",
 ]
 
 [tool.ruff]
