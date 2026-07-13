@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import warnings
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, Self
 
@@ -110,8 +110,8 @@ def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
     attrs: dict[str, object] = {}
     for f in fields(obj):
         val = getattr(obj, f.name)
-        if val is None:
-            continue
+        if val is None or isinstance(val, dict):
+            continue  # dict fields serialize as DataTree child groups, not variables
         if isinstance(val, xr.DataArray):
             data_vars[f.name] = val
         else:
@@ -451,7 +451,8 @@ class FlowsData:
     rel_ub: xr.DataArray  # (flow, time[, period])
     fixed_profile: xr.DataArray  # (flow, time[, period]) — NaN where not fixed
     size: xr.DataArray  # (flow,) — NaN for unsized
-    effect_coeff: xr.DataArray | None  # (contribution, time[, period]) — see _stack_contributions; None = no effects
+    # signature -> (contribution, *signature_dims); see _stack_contributions; {} = no effects
+    effect_coeff: dict[str, xr.DataArray] = field(default_factory=dict)
     flow_hours_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     flow_hours_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     load_factor_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
@@ -503,31 +504,28 @@ class FlowsData:
             raise ValueError(
                 f'Lower bound > upper bound on flows: {list(self.rel_lb.coords["flow"][bad_order].values)}'
             )
-        if self.effect_coeff is not None:
-            pairs = list(
-                zip(
-                    self.effect_coeff.coords['contribution_flow'].values,
-                    self.effect_coeff.coords['contribution_effect'].values,
-                    strict=True,
-                )
-            )
-            if len(pairs) != len(set(pairs)):
-                dupes = sorted({p for p in pairs if pairs.count(p) > 1})
-                raise ValueError(f'Duplicate (flow, effect) contribution pairs in effect_coeff: {dupes}')
+        pairs: list[tuple[str, str]] = []
+        for arr in self.effect_coeff.values():
+            pairs += list(zip(arr.coords['flow'].values, arr.coords['effect'].values, strict=True))
+        if len(pairs) != len(set(pairs)):
+            dupes = sorted({p for p in pairs if pairs.count(p) > 1})
+            raise ValueError(f'Duplicate (flow, effect) contribution pairs in effect_coeff: {dupes}')
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
         return _to_dataset(self)
 
     @classmethod
-    def from_dataset(cls, ds: xr.Dataset) -> Self:
+    def from_dataset(cls, ds: xr.Dataset, effect_coeff: dict[str, xr.DataArray] | None = None) -> Self:
         """Deserialize from xr.Dataset.
 
         Args:
             ds: Dataset with matching variable names.
+            effect_coeff: Signature-grouped coefficients parsed from the
+                DataTree child groups (see ``ModelData.from_netcdf``).
         """
-        kwargs: dict[str, Any] = {f.name: ds.get(f.name) for f in fields(cls)}
-        return cls(**kwargs)
+        kwargs: dict[str, Any] = {f.name: ds.get(f.name) for f in fields(cls) if f.name != 'effect_coeff'}
+        return cls(effect_coeff=effect_coeff or {}, **kwargs)
 
     @classmethod
     def build(
@@ -638,7 +636,7 @@ class FlowsData:
                     raise ValueError(f'Unknown effect {effect_label!r} in Flow.effects_per_flow_hour on {f.id!r}')
                 contrib_flows.append(f.id)
                 contrib_effects.append(effect_label)
-                contrib_vals.append(as_dataarray(factor, envelope_coords))
+                contrib_vals.append(as_dataarray(factor, envelope_coords, broadcast=False))
 
             if f.status is not None:
                 status_items.append((f.id, f.status))
@@ -712,44 +710,65 @@ class FlowsData:
         )
 
 
+_SIGNATURE_DIM_ORDER = ('time', 'period')  # canonical envelope dim order for signature names
+
+
+def _signature_name(dims: tuple[str, ...]) -> str:
+    """Name a dims signature: ``()`` -> 'scalar', ``('time', 'period')`` -> 'time_period'."""
+    return '_'.join(dims) if dims else 'scalar'
+
+
 def _stack_contributions(
     flows: list[str],
     effects: list[str],
     values: list[xr.DataArray],
     envelope_coords: dict[str, Any],
-) -> xr.DataArray | None:
-    """Stack per-pair effect coefficients into a sparse ``(contribution, ...)`` array.
+) -> dict[str, xr.DataArray]:
+    """Group per-pair effect coefficients by dims signature and stack each group.
 
     One row per (flow, effect) pair that has coefficients — pairs without
-    coefficients are simply absent, never stored as zeros. ``contribution``
-    is a bare positional dim (no index coord, so it can never participate in
-    alignment); each row's pair is labeled by the non-dim coords
-    ``contribution_flow`` / ``contribution_effect``. For ad-hoc lookups,
-    build an index on demand:
-    ``ec.set_xindex(['contribution_flow', 'contribution_effect']).sel(...)``.
+    coefficients are simply absent, never stored as zeros. Rows are grouped
+    by the *natural* dims of their input (``()``, ``('time',)``,
+    ``('period',)``, ``('time', 'period')``) so scalar coefficients never
+    carry a time envelope; groups without rows are absent from the dict.
+
+    Within each group, ``contribution`` is a bare positional dim (no index
+    coord, so it can never participate in alignment); each row's pair is
+    labeled by the non-dim coords ``flow`` / ``effect``. Signature arrays
+    never merge into one Dataset, so at runtime the plain coord names
+    cannot collide with the real ``flow``/``effect`` dims. (On disk they
+    are prefixed ``contribution_*`` — DataTree coordinate inheritance leaks
+    ancestor indexes into child groups; see ``ModelData.to_datatree``.)
 
     Args:
         flows: Flow id per contribution row.
         effects: Effect id per contribution row.
-        values: Coefficient envelope per row, spanning *envelope_coords*.
-        envelope_coords: Operational coords (``time``[, ``period``]).
+        values: Natural-dims coefficient per row
+            (``as_dataarray(..., broadcast=False)``).
+        envelope_coords: Operational coords (``time``[, ``period``]) the
+            signature dims draw from.
 
     Returns:
-        Stacked coefficients ``(contribution, time[, period])``, or None
-        when there are no rows.
+        Mapping of signature name -> stacked coefficients
+        ``(contribution, *signature_dims)``; empty when there are no rows.
     """
-    if not values:
-        return None
-    envelope_dims = list(envelope_coords)
-    return xr.DataArray(
-        np.stack([v.transpose(*envelope_dims).values for v in values]),
-        dims=['contribution', *envelope_dims],
-        coords={
-            **envelope_coords,
-            'contribution_flow': ('contribution', flows),
-            'contribution_effect': ('contribution', effects),
-        },
-    )
+    groups: dict[tuple[str, ...], list[int]] = {}
+    for i, v in enumerate(values):
+        sig = tuple(d for d in _SIGNATURE_DIM_ORDER if d in v.dims)
+        groups.setdefault(sig, []).append(i)
+
+    out: dict[str, xr.DataArray] = {}
+    for sig, idxs in groups.items():
+        out[_signature_name(sig)] = xr.DataArray(
+            np.stack([values[i].transpose(*sig).values for i in idxs]),
+            dims=['contribution', *sig],
+            coords={
+                **{d: envelope_coords[d] for d in sig},
+                'flow': ('contribution', [flows[i] for i in idxs]),
+                'effect': ('contribution', [effects[i] for i in idxs]),
+            },
+        )
+    return out
 
 
 def _flow_bound_or_none(vals: np.ndarray, flow_ids: list[str]) -> xr.DataArray | None:
@@ -1573,15 +1592,15 @@ class ModelData:
     dims: Dims
     piecewise: PiecewiseData | None = None  # None when no piecewise converters
 
-    def to_netcdf(self, path: str | Path, *, mode: Literal['w', 'a'] = 'a') -> None:
-        """Write model data as NetCDF groups under ``/model/``.
+    def datatree_nodes(self) -> dict[str, xr.Dataset]:
+        """Group-path -> Dataset mapping for the persistence tree.
 
-        Args:
-            path: Output file path.
-            mode: Write mode ('w' to overwrite, 'a' to append).
+        One node per table under ``model/``. Dict fields (signature-grouped
+        coefficients) become child groups so each signature keeps its own
+        ``contribution`` dim — node-scoped dims never collide.
         """
-        p = Path(path)
-        dataset_fields: dict[
+        nodes: dict[str, xr.Dataset] = {}
+        tables: dict[
             str,
             FlowsData | CarriersData | ConvertersData | EffectsData | StoragesData | PiecewiseData | None,
         ] = {
@@ -1592,12 +1611,30 @@ class ModelData:
             'storages': self.storages,
             'piecewise': self.piecewise,
         }
-        current_mode = mode
-        for name, obj in dataset_fields.items():
+        for name, obj in tables.items():
             if obj is not None:
-                obj.to_dataset().to_netcdf(p, mode=current_mode, group=_NC_GROUPS[name], engine='netcdf4')
-                current_mode = 'a'
-        self.dims.to_dataset().to_netcdf(p, mode=current_mode, group='model/meta', engine='netcdf4')
+                nodes[_NC_GROUPS[name]] = obj.to_dataset()
+        # Persisted names are prefixed: DataTree coordinate inheritance leaks
+        # ancestor indexes into child groups, so a plain 'flow' coord or a
+        # group named 'time' would collide with the model's own dims.
+        for signature, arr in self.flows.effect_coeff.items():
+            persisted = arr.rename({'flow': 'contribution_flow', 'effect': 'contribution_effect'})
+            nodes[f'{_NC_GROUPS["flows"]}/effect_coeff/sig_{signature}'] = xr.Dataset({'value': persisted})
+        nodes['model/meta'] = self.dims.to_dataset()
+        return nodes
+
+    def to_datatree(self) -> xr.DataTree:
+        """Assemble the persistence tree (see :meth:`datatree_nodes`)."""
+        return xr.DataTree.from_dict(self.datatree_nodes())
+
+    def to_netcdf(self, path: str | Path, *, mode: Literal['w', 'a'] = 'a') -> None:
+        """Write model data as NetCDF groups under ``/model/``.
+
+        Args:
+            path: Output file path.
+            mode: Write mode ('w' to overwrite, 'a' to append).
+        """
+        self.to_datatree().to_netcdf(Path(path), mode=mode, engine='netcdf4')
 
     @classmethod
     def from_netcdf(cls, path: str | Path) -> ModelData:
@@ -1612,23 +1649,38 @@ class ModelData:
         """
         p = Path(path)
         try:
-            meta = xr.load_dataset(p, group='model/meta', engine='netcdf4')
+            with xr.open_datatree(p, engine='netcdf4') as t:
+                tree = t.load()
         except OSError as e:
             _raise_netcdf_read_error(p, e)
+        groups = set(tree.groups)
+        if '/model/meta' not in groups:
+            raise OSError(f'No model data groups found in {p}')
+        meta = tree['model/meta'].to_dataset()
 
-        datasets: dict[str, xr.Dataset] = {}
-        for name, group in _NC_GROUPS.items():
-            try:
-                datasets[name] = xr.load_dataset(p, group=group, engine='netcdf4')
-            except OSError:
-                datasets[name] = xr.Dataset()
+        def table(name: str) -> xr.Dataset:
+            group = _NC_GROUPS[name]
+            return tree[group].to_dataset() if f'/{group}' in groups else xr.Dataset()
 
-        flows = FlowsData.from_dataset(datasets['flows'])
-        carriers = CarriersData.from_dataset(datasets['carriers'])
-        converters = ConvertersData.from_dataset(datasets['converters']) if datasets['converters'].data_vars else None
-        effects = EffectsData.from_dataset(datasets['effects'])
-        storages = StoragesData.from_dataset(datasets['storages']) if datasets['storages'].data_vars else None
-        piecewise = PiecewiseData.from_dataset(datasets['piecewise']) if datasets['piecewise'].data_vars else None
+        effect_coeff: dict[str, xr.DataArray] = {}
+        coeff_group = f'{_NC_GROUPS["flows"]}/effect_coeff'
+        if f'/{coeff_group}' in groups:
+            effect_coeff = {
+                name.removeprefix('sig_'): child.dataset['value'].rename(
+                    {'contribution_flow': 'flow', 'contribution_effect': 'effect'}
+                )
+                for name, child in tree[coeff_group].children.items()
+            }
+
+        flows = FlowsData.from_dataset(table('flows'), effect_coeff=effect_coeff)
+        carriers = CarriersData.from_dataset(table('carriers'))
+        converters_ds = table('converters')
+        converters = ConvertersData.from_dataset(converters_ds) if converters_ds.data_vars else None
+        effects = EffectsData.from_dataset(table('effects'))
+        storages_ds = table('storages')
+        storages = StoragesData.from_dataset(storages_ds) if storages_ds.data_vars else None
+        piecewise_ds = table('piecewise')
+        piecewise = PiecewiseData.from_dataset(piecewise_ds) if piecewise_ds.data_vars else None
 
         return cls(
             flows=flows,

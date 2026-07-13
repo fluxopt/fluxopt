@@ -151,20 +151,22 @@ def _compute_investment_lump(
 
 
 def _scatter_temporal_flow(
-    ec: xr.DataArray | None,
+    ec: dict[str, xr.DataArray],
     rate_dt: xr.DataArray,
     flow_ids: list[str],
     effect_ids: list[str],
 ) -> xr.DataArray:
-    """Expand stacked effect rows into the dense per-flow temporal view.
+    """Expand signature-grouped effect rows into the dense per-flow temporal view.
 
     Builds a zeros ``(flow, effect, time[, period])`` array and scatters each
     stacked contribution — coefficient * rate * dt — into its (flow, effect)
-    cell. Pairs are unique by construction (dict keys per flow), so plain
-    assignment suffices.
+    cell. Multiplying by the solved rate broadcasts any dims a signature
+    lacks. Pairs are unique across all signatures (validated at build), so
+    the scattered cells are disjoint and plain assignment suffices.
 
     Args:
-        ec: Stacked ``FlowsData.effect_coeff``, or None when no flow has effects.
+        ec: Signature-grouped ``FlowsData.effect_coeff``; empty when no flow
+            has effects.
         rate_dt: Solved flow rate x timestep duration ``(flow, time[, period])``.
         flow_ids: All flow ids, in contributor order.
         effect_ids: All effect ids.
@@ -179,15 +181,15 @@ def _scatter_temporal_flow(
             **{d: rate_dt.coords[d] for d in extra_dims if d in rate_dt.coords},
         },
     )
-    if ec is None:
-        return temporal_flow
-    pair_flow = xr.DataArray(ec.coords['contribution_flow'].values, dims=['contribution'])
-    contrib = (ec * rate_dt.sel(flow=pair_flow).drop_vars('flow')).transpose('contribution', *extra_dims)
     flow_pos = {fid: i for i, fid in enumerate(flow_ids)}
     eff_pos = {eid: i for i, eid in enumerate(effect_ids)}
-    rows_f = [flow_pos[str(v)] for v in ec.coords['contribution_flow'].values]
-    rows_e = [eff_pos[str(v)] for v in ec.coords['contribution_effect'].values]
-    temporal_flow.values[rows_f, rows_e] = contrib.values
+    for coeff in ec.values():
+        pair_flow = xr.DataArray(coeff.coords['flow'].values, dims=['contribution'])
+        values = coeff.drop_vars(['flow', 'effect'])
+        contrib = (values * rate_dt.sel(flow=pair_flow).drop_vars('flow')).transpose('contribution', *extra_dims)
+        rows_f = [flow_pos[str(v)] for v in coeff.coords['flow'].values]
+        rows_e = [eff_pos[str(v)] for v in coeff.coords['effect'].values]
+        temporal_flow.values[rows_f, rows_e] = contrib.values
     return temporal_flow
 
 

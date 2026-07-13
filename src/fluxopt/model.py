@@ -1156,28 +1156,35 @@ class FlowSystem:
                     name=f'pw_avail_{conv_id}',
                 )
 
-    def _flow_effect_temporal(self, coeff: xr.DataArray, effect_ids: xr.DataArray) -> Any:
+    def _flow_effect_temporal(self, coeffs: dict[str, xr.DataArray], effect_ids: xr.DataArray) -> Any:
         """Flow contributions to effects: Σ_f coeff_{f,k,t} · P_{f,t} · dt_t.
 
-        *coeff* is stacked ``(contribution, time[, period])``: each row's flow
-        rate is selected via its ``contribution_flow`` label, weighted by
-        coefficient * dt, and group-summed onto the ``effect`` dim. Reindexing
-        to the full effect set zero-fills effects without contributions.
+        *coeffs* maps dims signature -> stacked ``(contribution, *sig_dims)``
+        rows. Per signature: each row's flow rate is selected via its
+        ``flow`` label, weighted by coefficient * dt (broadcasting supplies
+        any dims the signature lacks), and group-summed onto the ``effect``
+        dim. Reindexing every partial to the full effect set zero-fills
+        effects without contributions AND establishes the exact index
+        alignment that linopy addition requires (it neither reorders nor
+        verifies labels).
 
         Args:
-            coeff: Stacked effect coefficients from ``FlowsData.effect_coeff``.
+            coeffs: Signature-grouped coefficients from ``FlowsData.effect_coeff``.
             effect_ids: Full effect coordinate for the result.
         """
-        pair_flow = xr.DataArray(coeff.coords['contribution_flow'].values, dims=['contribution'])
-        pair_effect = xr.DataArray(coeff.coords['contribution_effect'].values, dims=['contribution'], name='effect')
-        coeff_dt = (coeff * self.data.dims.dt).drop_vars(['contribution_flow', 'contribution_effect'])
-        return (
-            (self.flow_rate.sel(flow=pair_flow) * coeff_dt)
-            .groupby(pair_effect)
-            .sum()
-            .reindex(effect=effect_ids.to_index())
-            .drop_vars('flow', errors='ignore')
-        )
+        expr: Any = 0
+        for coeff in coeffs.values():
+            pair_flow = xr.DataArray(coeff.coords['flow'].values, dims=['contribution'])
+            pair_effect = xr.DataArray(coeff.coords['effect'].values, dims=['contribution'], name='effect')
+            coeff_dt = (coeff * self.data.dims.dt).drop_vars(['flow', 'effect'])
+            expr = expr + (
+                (self.flow_rate.sel(flow=pair_flow) * coeff_dt)
+                .groupby(pair_effect)
+                .sum()
+                .reindex(effect=effect_ids.to_index())
+                .drop_vars('flow', errors='ignore')
+            )
+        return expr
 
     def _create_effects(self) -> None:
         """Effect tracking: temporal expressions folded into totals, plus lump domain.
@@ -1199,7 +1206,7 @@ class FlowSystem:
 
         # --- Temporal domain: expressions, no variables ---
         temporal_direct: Any = 0
-        if d.flows.effect_coeff is not None:
+        if d.flows.effect_coeff:
             temporal_direct = self._flow_effect_temporal(d.flows.effect_coeff, effect_ids)
 
         # Status running costs: sum_f(running_coeff[f,k,t] * on[f,t] * dt[t])

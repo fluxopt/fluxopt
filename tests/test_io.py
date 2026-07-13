@@ -256,8 +256,8 @@ class TestContributionsRoundtrip:
     def test_old_file_without_contributions(self, tmp_nc: Path) -> None:
         """Loading a file without contributions group falls back gracefully and warns."""
         result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
-        # Write without contributions (simulate old format)
-        result.solution.to_netcdf(tmp_nc, mode='w', engine='netcdf4')
+        # Write without the contributions group
+        result.solution.to_netcdf(tmp_nc, mode='w', group='solution', engine='netcdf4')
         result.data.to_netcdf(tmp_nc)
 
         with pytest.warns(UserWarning, match="no 'contributions' group"):
@@ -280,15 +280,16 @@ class TestContributionsRoundtrip:
         assert loaded.contributions is not None
 
     def test_netcdf_group_structure(self, tmp_nc: Path) -> None:
-        """The saved file has a 'contributions' NetCDF group with temporal/lump/total
-        variables on the (contributor, effect[, time]) dims — verified by opening
-        the group directly, independent of Result.from_netcdf."""
+        """The saved file has 'solution' and 'contributions' NetCDF groups with
+        an empty root — a dataset at the root would leak its indexes into
+        every group via DataTree coordinate inheritance on read."""
         result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
         assert result.contributions is not None
         result.to_netcdf(tmp_nc)
 
-        # Main group (solution) loads without specifying group=
-        solution = xr.load_dataset(tmp_nc)
+        assert not xr.load_dataset(tmp_nc).data_vars  # root stays empty
+
+        solution = xr.load_dataset(tmp_nc, group='solution')
         assert 'flow--rate' in solution
 
         # The contributions group is its own NetCDF group on the same file.

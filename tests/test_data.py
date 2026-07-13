@@ -116,7 +116,8 @@ class TestConvertersTable:
 
 
 class TestEffectsTable:
-    def test_flow_coefficients(self):
+    def test_scalar_coefficient_carries_no_time_envelope(self):
+        """A scalar coefficient lands in the 'scalar' signature as one value."""
         flow = Flow('b', size=100, effects_per_flow_hour={'cost': 0.04})
         data = ModelData.build(
             ts(3),
@@ -125,14 +126,15 @@ class TestEffectsTable:
             ports=[Port('src', imports=[flow])],
         )
         ec = data.flows.effect_coeff
-        assert ec is not None
-        mask = (ec.coords['contribution_flow'] == 'src(b)') & (ec.coords['contribution_effect'] == 'cost')
-        coeff = ec.isel(contribution=mask.values.nonzero()[0])
-        assert coeff.sizes['contribution'] == 1
-        assert all(v == 0.04 for v in coeff.values.ravel())
+        assert set(ec) == {'scalar'}
+        scalar = ec['scalar']
+        assert scalar.dims == ('contribution',)  # no time envelope
+        assert list(scalar.coords['flow'].values) == ['src(b)']
+        assert list(scalar.coords['effect'].values) == ['cost']
+        assert float(scalar.values[0]) == 0.04
 
-    def test_stacked_one_row_per_flow_effect_pair(self):
-        """effect_coeff holds only (flow, effect) pairs that have coefficients."""
+    def test_rows_grouped_by_natural_signature(self):
+        """Rows land in the signature matching their input's natural dims."""
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('b')],
@@ -140,27 +142,32 @@ class TestEffectsTable:
             ports=[
                 Port(
                     'src',
-                    imports=[Flow('b', size=100, effects_per_flow_hour={'cost': 0.04, 'co2': 0.2})],
+                    imports=[
+                        Flow('b', size=100, effects_per_flow_hour={'cost': 0.04, 'co2': [0.2, 0.3, 0.1]}),
+                    ],
                 ),
                 Port('snk', exports=[Flow('b', size=100)]),
             ],
         )
         ec = data.flows.effect_coeff
-        assert ec is not None
-        assert ec.sizes['contribution'] == 2  # only src(b) x {cost, co2}
-        assert list(ec.coords['contribution_flow'].values) == ['src(b)', 'src(b)']
-        assert set(ec.coords['contribution_effect'].values) == {'cost', 'co2'}
-        assert 'contribution' not in ec.indexes  # bare dim — never aligns
+        assert set(ec) == {'scalar', 'time'}
+        assert ec['scalar'].dims == ('contribution',)
+        assert ec['time'].dims == ('contribution', 'time')
+        assert list(ec['time'].coords['effect'].values) == ['co2']
+        assert list(ec['time'].values.ravel()) == [0.2, 0.3, 0.1]
+        # bare dim — never participates in alignment
+        assert 'contribution' not in ec['scalar'].indexes
+        assert 'contribution' not in ec['time'].indexes
 
-    def test_none_when_no_flow_has_effects(self):
-        """effect_coeff is None when no flow carries effects_per_flow_hour."""
+    def test_empty_when_no_flow_has_effects(self):
+        """effect_coeff is empty when no flow carries effects_per_flow_hour."""
         data = ModelData.build(
             ts(3),
             carriers=[Carrier('b')],
             effects=[Effect('cost')],
             ports=[Port('src', imports=[Flow('b', size=100)])],
         )
-        assert data.flows.effect_coeff is None
+        assert data.flows.effect_coeff == {}
 
 
 class TestFlowNodeId:

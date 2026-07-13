@@ -168,17 +168,24 @@ class Result:
 
         return StatsAccessor(self)
 
+    def to_datatree(self) -> xr.DataTree:
+        """Assemble the full result tree: ``solution/``, ``model/``, ``contributions/``.
+
+        The root stays empty — a root dataset would leak its indexes into
+        every group via DataTree coordinate inheritance on read.
+        """
+        nodes: dict[str, xr.Dataset] = {'solution': self.solution, **self.data.datatree_nodes()}
+        if self.contributions is not None:
+            nodes['contributions'] = self.contributions
+        return xr.DataTree.from_dict(nodes)
+
     def to_netcdf(self, path: str | Path) -> None:
-        """Write solution and model data to NetCDF.
+        """Write solution, model data, and contributions to NetCDF.
 
         Args:
             path: Output file path.
         """
-        p = Path(path)
-        self.solution.to_netcdf(p, mode='w', engine='netcdf4')
-        self.data.to_netcdf(p)
-        if self.contributions is not None:
-            self.contributions.to_netcdf(p, mode='a', group='contributions', engine='netcdf4')
+        self.to_datatree().to_netcdf(Path(path), mode='w', engine='netcdf4')
 
     @classmethod
     def from_netcdf(cls, path: str | Path) -> Result:
@@ -194,9 +201,11 @@ class Result:
 
         p = Path(path)
         try:
-            solution = xr.load_dataset(p, engine='netcdf4')
+            solution = xr.load_dataset(p, group='solution', engine='netcdf4')
         except OSError as e:
             _raise_netcdf_read_error(p, e)
+        except KeyError as e:
+            raise OSError(f"No 'solution' group in {p} — not a fluxopt Result file") from e
         data = ModelData.from_netcdf(p)
 
         try:
