@@ -124,8 +124,43 @@ class TestEffectsTable:
             effects=[Effect('cost')],
             ports=[Port('src', imports=[flow])],
         )
-        coeff = data.flows.effect_coeff.sel(flow='src(b)', effect='cost')
-        assert all(v == 0.04 for v in coeff.values)
+        ec = data.flows.effect_coeff
+        assert ec is not None
+        mask = (ec.coords['contribution_flow'] == 'src(b)') & (ec.coords['contribution_effect'] == 'cost')
+        coeff = ec.isel(contribution=mask.values.nonzero()[0])
+        assert coeff.sizes['contribution'] == 1
+        assert all(v == 0.04 for v in coeff.values.ravel())
+
+    def test_stacked_one_row_per_flow_effect_pair(self):
+        """effect_coeff holds only (flow, effect) pairs that have coefficients."""
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier('b')],
+            effects=[Effect('cost'), Effect('co2'), Effect('land')],
+            ports=[
+                Port(
+                    'src',
+                    imports=[Flow('b', size=100, effects_per_flow_hour={'cost': 0.04, 'co2': 0.2})],
+                ),
+                Port('snk', exports=[Flow('b', size=100)]),
+            ],
+        )
+        ec = data.flows.effect_coeff
+        assert ec is not None
+        assert ec.sizes['contribution'] == 2  # only src(b) x {cost, co2}
+        assert list(ec.coords['contribution_flow'].values) == ['src(b)', 'src(b)']
+        assert set(ec.coords['contribution_effect'].values) == {'cost', 'co2'}
+        assert 'contribution' not in ec.indexes  # bare dim — never aligns
+
+    def test_none_when_no_flow_has_effects(self):
+        """effect_coeff is None when no flow carries effects_per_flow_hour."""
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier('b')],
+            effects=[Effect('cost')],
+            ports=[Port('src', imports=[Flow('b', size=100)])],
+        )
+        assert data.flows.effect_coeff is None
 
 
 class TestFlowNodeId:

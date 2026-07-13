@@ -451,7 +451,11 @@ class FlowsData:
     rel_ub: xr.DataArray  # (flow, time[, period])
     fixed_profile: xr.DataArray  # (flow, time[, period]) — NaN where not fixed
     size: xr.DataArray  # (flow,) — NaN for unsized
-    effect_coeff: xr.DataArray  # (flow, effect, time[, period])
+    # Stacked: one row per (flow, effect) pair with coefficients; pairs labeled
+    # by non-dim coords contribution_flow/contribution_effect. None = no flow
+    # has effects_per_flow_hour. For ad-hoc lookups, build an index on demand:
+    # ec.set_xindex(['contribution_flow', 'contribution_effect']).sel(...)
+    effect_coeff: xr.DataArray | None  # (contribution, time[, period])
     flow_hours_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     flow_hours_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     load_factor_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
@@ -493,7 +497,7 @@ class FlowsData:
     cstatus_governed_flows: xr.DataArray | None = None  # (cstatus_component, governed_idx) — qualified flow ids
 
     def __post_init__(self) -> None:
-        """Validate relative bounds: non-negative and lb <= ub."""
+        """Validate relative bounds (non-negative, lb <= ub) and contribution pair uniqueness."""
         reduce_dims = [d for d in self.rel_lb.dims if d != 'flow']
         bad_neg = (self.rel_lb < -1e-12).any(reduce_dims)
         if bad_neg.any():
@@ -503,6 +507,17 @@ class FlowsData:
             raise ValueError(
                 f'Lower bound > upper bound on flows: {list(self.rel_lb.coords["flow"][bad_order].values)}'
             )
+        if self.effect_coeff is not None:
+            pairs = list(
+                zip(
+                    self.effect_coeff.coords['contribution_flow'].values,
+                    self.effect_coeff.coords['contribution_effect'].values,
+                    strict=True,
+                )
+            )
+            if len(pairs) != len(set(pairs)):
+                dupes = sorted({p for p in pairs if pairs.count(p) > 1})
+                raise ValueError(f'Duplicate (flow, effect) contribution pairs in effect_coeff: {dupes}')
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -550,8 +565,6 @@ class FlowsData:
         flow_ids = [f.id for f in flows]
         effect_ids = [e.id for e in effects]
         effect_set = set(effect_ids)
-        n_time = len(time)
-        n_effects = len(effect_ids)
 
         bound_type: list[str] = []
         rel_lbs: list[xr.DataArray] = []
@@ -566,7 +579,9 @@ class FlowsData:
         ramp_downs: list[xr.DataArray] = []
         has_ramp_up = False
         has_ramp_down = False
-        effect_coeffs: list[xr.DataArray] = []
+        contrib_flows: list[str] = []
+        contrib_effects: list[str] = []
+        contrib_vals: list[xr.DataArray] = []
         sizing_items: list[tuple[str, Sizing]] = []
         invest_items: list[tuple[str, Investment]] = []
         status_items: list[tuple[str, Status]] = []
@@ -622,27 +637,16 @@ class FlowsData:
                 profiles.append(nan_envelope)
                 bound_type.append('bounded')
 
-            # Effect coefficients for this flow
-            ec_coords: dict[str, Any] = {'effect': effect_ids, 'time': time}
-            ec_shape = [n_effects, n_time]
-            ec_dims = ['effect', 'time']
-            if period is not None:
-                ec_coords['period'] = period
-                ec_shape.append(len(period))
-                ec_dims.append('period')
-            ec = xr.DataArray(
-                np.zeros(ec_shape),
-                dims=ec_dims,
-                coords=ec_coords,
-            )
+            # Effect coefficients for this flow — one stacked row per effect
             as_da_coords: dict[str, Any] = {'time': time}
             if period is not None:
                 as_da_coords['period'] = period
             for effect_label, factor in f.effects_per_flow_hour.items():
                 if effect_label not in effect_set:
                     raise ValueError(f'Unknown effect {effect_label!r} in Flow.effects_per_flow_hour on {f.id!r}')
-                ec.loc[effect_label] = as_dataarray(factor, as_da_coords)
-            effect_coeffs.append(ec)
+                contrib_flows.append(f.id)
+                contrib_effects.append(effect_label)
+                contrib_vals.append(as_dataarray(factor, as_da_coords))
 
             if f.status is not None:
                 status_items.append((f.id, f.status))
@@ -651,6 +655,24 @@ class FlowsData:
                 prior_rates_map[f.id] = f.prior_rates
 
         flow_idx = pd.Index(flow_ids, name='flow')
+
+        # Stack effect contributions: one row per (flow, effect) pair that has
+        # coefficients. `contribution` is a bare positional dim (no index coord,
+        # so it can never participate in alignment); the pair is labeled by the
+        # non-dim coords `contribution_flow` / `contribution_effect`.
+        effect_coeff: xr.DataArray | None = None
+        if contrib_vals:
+            envelope_dims = list(envelope_coords)
+            effect_coeff = xr.DataArray(
+                np.stack([v.transpose(*envelope_dims).values for v in contrib_vals]),
+                dims=['contribution', *envelope_dims],
+                coords={
+                    **envelope_coords,
+                    'contribution_flow': ('contribution', contrib_flows),
+                    'contribution_effect': ('contribution', contrib_effects),
+                },
+            )
+
         sz = _SizingArrays.build(sizing_items, effect_ids, dim='sizing_flow', period=period)
         inv = _InvestmentArrays.build(invest_items, effect_ids, dim='invest_flow', period=period)
         st = _StatusArrays.build(
@@ -672,7 +694,7 @@ class FlowsData:
             rel_ub=fast_concat(rel_ubs, flow_idx),
             fixed_profile=fast_concat(profiles, flow_idx),
             size=xr.DataArray(size_vals, dims=['flow'], coords={'flow': flow_ids}),
-            effect_coeff=fast_concat(effect_coeffs, flow_idx),
+            effect_coeff=effect_coeff,
             flow_hours_min=_flow_bound_or_none(fh_min_vals, flow_ids),
             flow_hours_max=_flow_bound_or_none(fh_max_vals, flow_ids),
             load_factor_min=_flow_bound_or_none(lf_min_vals, flow_ids),

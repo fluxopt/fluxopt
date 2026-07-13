@@ -1172,13 +1172,25 @@ class FlowSystem:
         )
 
         # Flow contributions: sum_f(coeff_{f,k,t} * P_{f,t} * dt_t)
-        effect_coeff = d.flows.effect_coeff  # (flow, effect, time)
-        has_any_coeff = (effect_coeff != 0).any()
+        # effect_coeff is stacked (contribution, time[, period]): select the
+        # paired flow per row, weight, group-sum onto the effect dim, and
+        # reindex to all effects (zero rows for effects without contributions).
+        effect_coeff = d.flows.effect_coeff
 
         temporal_rhs: Any = 0
-        if has_any_coeff:
-            coeff_dt = effect_coeff * d.dims.dt
-            temporal_rhs = sparse_weighted_sum(self.flow_rate, coeff_dt, sum_dim='flow', group_dim='effect')
+        if effect_coeff is not None:
+            pair_flow = xr.DataArray(effect_coeff.coords['contribution_flow'].values, dims=['contribution'])
+            pair_effect = xr.DataArray(
+                effect_coeff.coords['contribution_effect'].values, dims=['contribution'], name='effect'
+            )
+            coeff_dt = (effect_coeff * d.dims.dt).drop_vars(['contribution_flow', 'contribution_effect'])
+            temporal_rhs = (
+                (self.flow_rate.sel(flow=pair_flow) * coeff_dt)
+                .groupby(pair_effect)
+                .sum()
+                .reindex(effect=effect_ids.to_index())
+                .drop_vars('flow', errors='ignore')
+            )
 
         # Status running costs: sum_f(running_coeff[f,k,t] * on[f,t] * dt[t])
         if d.flows.status_effects_running is not None:
