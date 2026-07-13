@@ -1155,6 +1155,29 @@ class FlowSystem:
                     name=f'pw_avail_{conv_id}',
                 )
 
+    def _flow_effect_temporal(self, coeff: xr.DataArray, effect_ids: xr.DataArray) -> Any:
+        """Flow contributions to effects: Σ_f coeff_{f,k,t} · P_{f,t} · dt_t.
+
+        *coeff* is stacked ``(contribution, time[, period])``: each row's flow
+        rate is selected via its ``contribution_flow`` label, weighted by
+        coefficient * dt, and group-summed onto the ``effect`` dim. Reindexing
+        to the full effect set zero-fills effects without contributions.
+
+        Args:
+            coeff: Stacked effect coefficients from ``FlowsData.effect_coeff``.
+            effect_ids: Full effect coordinate for the result.
+        """
+        pair_flow = xr.DataArray(coeff.coords['contribution_flow'].values, dims=['contribution'])
+        pair_effect = xr.DataArray(coeff.coords['contribution_effect'].values, dims=['contribution'], name='effect')
+        coeff_dt = (coeff * self.data.dims.dt).drop_vars(['contribution_flow', 'contribution_effect'])
+        return (
+            (self.flow_rate.sel(flow=pair_flow) * coeff_dt)
+            .groupby(pair_effect)
+            .sum()
+            .reindex(effect=effect_ids.to_index())
+            .drop_vars('flow', errors='ignore')
+        )
+
     def _create_effects(self) -> None:
         """Effect tracking: temporal and lump domains."""
         d = self.data
@@ -1171,26 +1194,9 @@ class FlowSystem:
             name='effect--temporal',
         )
 
-        # Flow contributions: sum_f(coeff_{f,k,t} * P_{f,t} * dt_t)
-        # effect_coeff is stacked (contribution, time[, period]): select the
-        # paired flow per row, weight, group-sum onto the effect dim, and
-        # reindex to all effects (zero rows for effects without contributions).
-        effect_coeff = d.flows.effect_coeff
-
         temporal_rhs: Any = 0
-        if effect_coeff is not None:
-            pair_flow = xr.DataArray(effect_coeff.coords['contribution_flow'].values, dims=['contribution'])
-            pair_effect = xr.DataArray(
-                effect_coeff.coords['contribution_effect'].values, dims=['contribution'], name='effect'
-            )
-            coeff_dt = (effect_coeff * d.dims.dt).drop_vars(['contribution_flow', 'contribution_effect'])
-            temporal_rhs = (
-                (self.flow_rate.sel(flow=pair_flow) * coeff_dt)
-                .groupby(pair_effect)
-                .sum()
-                .reindex(effect=effect_ids.to_index())
-                .drop_vars('flow', errors='ignore')
-            )
+        if d.flows.effect_coeff is not None:
+            temporal_rhs = self._flow_effect_temporal(d.flows.effect_coeff, effect_ids)
 
         # Status running costs: sum_f(running_coeff[f,k,t] * on[f,t] * dt[t])
         if d.flows.status_effects_running is not None:

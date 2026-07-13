@@ -451,11 +451,7 @@ class FlowsData:
     rel_ub: xr.DataArray  # (flow, time[, period])
     fixed_profile: xr.DataArray  # (flow, time[, period]) — NaN where not fixed
     size: xr.DataArray  # (flow,) — NaN for unsized
-    # Stacked: one row per (flow, effect) pair with coefficients; pairs labeled
-    # by non-dim coords contribution_flow/contribution_effect. None = no flow
-    # has effects_per_flow_hour. For ad-hoc lookups, build an index on demand:
-    # ec.set_xindex(['contribution_flow', 'contribution_effect']).sel(...)
-    effect_coeff: xr.DataArray | None  # (contribution, time[, period])
+    effect_coeff: xr.DataArray | None  # (contribution, time[, period]) — see _stack_contributions; None = no effects
     flow_hours_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     flow_hours_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     load_factor_min: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
@@ -637,16 +633,12 @@ class FlowsData:
                 profiles.append(nan_envelope)
                 bound_type.append('bounded')
 
-            # Effect coefficients for this flow — one stacked row per effect
-            as_da_coords: dict[str, Any] = {'time': time}
-            if period is not None:
-                as_da_coords['period'] = period
             for effect_label, factor in f.effects_per_flow_hour.items():
                 if effect_label not in effect_set:
                     raise ValueError(f'Unknown effect {effect_label!r} in Flow.effects_per_flow_hour on {f.id!r}')
                 contrib_flows.append(f.id)
                 contrib_effects.append(effect_label)
-                contrib_vals.append(as_dataarray(factor, as_da_coords))
+                contrib_vals.append(as_dataarray(factor, envelope_coords))
 
             if f.status is not None:
                 status_items.append((f.id, f.status))
@@ -655,24 +647,7 @@ class FlowsData:
                 prior_rates_map[f.id] = f.prior_rates
 
         flow_idx = pd.Index(flow_ids, name='flow')
-
-        # Stack effect contributions: one row per (flow, effect) pair that has
-        # coefficients. `contribution` is a bare positional dim (no index coord,
-        # so it can never participate in alignment); the pair is labeled by the
-        # non-dim coords `contribution_flow` / `contribution_effect`.
-        effect_coeff: xr.DataArray | None = None
-        if contrib_vals:
-            envelope_dims = list(envelope_coords)
-            effect_coeff = xr.DataArray(
-                np.stack([v.transpose(*envelope_dims).values for v in contrib_vals]),
-                dims=['contribution', *envelope_dims],
-                coords={
-                    **envelope_coords,
-                    'contribution_flow': ('contribution', contrib_flows),
-                    'contribution_effect': ('contribution', contrib_effects),
-                },
-            )
-
+        effect_coeff = _stack_contributions(contrib_flows, contrib_effects, contrib_vals, envelope_coords)
         sz = _SizingArrays.build(sizing_items, effect_ids, dim='sizing_flow', period=period)
         inv = _InvestmentArrays.build(invest_items, effect_ids, dim='invest_flow', period=period)
         st = _StatusArrays.build(
@@ -735,6 +710,46 @@ class FlowsData:
             cstatus_previous_downtime=cst.previous_downtime,
             cstatus_governed_flows=cst.governed_flows,
         )
+
+
+def _stack_contributions(
+    flows: list[str],
+    effects: list[str],
+    values: list[xr.DataArray],
+    envelope_coords: dict[str, Any],
+) -> xr.DataArray | None:
+    """Stack per-pair effect coefficients into a sparse ``(contribution, ...)`` array.
+
+    One row per (flow, effect) pair that has coefficients — pairs without
+    coefficients are simply absent, never stored as zeros. ``contribution``
+    is a bare positional dim (no index coord, so it can never participate in
+    alignment); each row's pair is labeled by the non-dim coords
+    ``contribution_flow`` / ``contribution_effect``. For ad-hoc lookups,
+    build an index on demand:
+    ``ec.set_xindex(['contribution_flow', 'contribution_effect']).sel(...)``.
+
+    Args:
+        flows: Flow id per contribution row.
+        effects: Effect id per contribution row.
+        values: Coefficient envelope per row, spanning *envelope_coords*.
+        envelope_coords: Operational coords (``time``[, ``period``]).
+
+    Returns:
+        Stacked coefficients ``(contribution, time[, period])``, or None
+        when there are no rows.
+    """
+    if not values:
+        return None
+    envelope_dims = list(envelope_coords)
+    return xr.DataArray(
+        np.stack([v.transpose(*envelope_dims).values for v in values]),
+        dims=['contribution', *envelope_dims],
+        coords={
+            **envelope_coords,
+            'contribution_flow': ('contribution', flows),
+            'contribution_effect': ('contribution', effects),
+        },
+    )
 
 
 def _flow_bound_or_none(vals: np.ndarray, flow_ids: list[str]) -> xr.DataArray | None:

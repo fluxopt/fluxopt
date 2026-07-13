@@ -150,6 +150,47 @@ def _compute_investment_lump(
     return result
 
 
+def _scatter_temporal_flow(
+    ec: xr.DataArray | None,
+    rate_dt: xr.DataArray,
+    flow_ids: list[str],
+    effect_ids: list[str],
+) -> xr.DataArray:
+    """Expand stacked effect rows into the dense per-flow temporal view.
+
+    Builds a zeros ``(flow, effect, time[, period])`` array and scatters each
+    stacked contribution — coefficient * rate * dt — into its (flow, effect)
+    cell. Pairs are unique by construction (dict keys per flow), so plain
+    assignment suffices.
+
+    Args:
+        ec: Stacked ``FlowsData.effect_coeff``, or None when no flow has effects.
+        rate_dt: Solved flow rate x timestep duration ``(flow, time[, period])``.
+        flow_ids: All flow ids, in contributor order.
+        effect_ids: All effect ids.
+    """
+    extra_dims = [d for d in rate_dt.dims if d != 'flow']
+    temporal_flow = xr.DataArray(
+        np.zeros((len(flow_ids), len(effect_ids), *(rate_dt.sizes[d] for d in extra_dims))),
+        dims=['flow', 'effect', *extra_dims],
+        coords={
+            'flow': flow_ids,
+            'effect': effect_ids,
+            **{d: rate_dt.coords[d] for d in extra_dims if d in rate_dt.coords},
+        },
+    )
+    if ec is None:
+        return temporal_flow
+    pair_flow = xr.DataArray(ec.coords['contribution_flow'].values, dims=['contribution'])
+    contrib = (ec * rate_dt.sel(flow=pair_flow).drop_vars('flow')).transpose('contribution', *extra_dims)
+    flow_pos = {fid: i for i, fid in enumerate(flow_ids)}
+    eff_pos = {eid: i for i, eid in enumerate(effect_ids)}
+    rows_f = [flow_pos[str(v)] for v in ec.coords['contribution_flow'].values]
+    rows_e = [eff_pos[str(v)] for v in ec.coords['contribution_effect'].values]
+    temporal_flow.values[rows_f, rows_e] = contrib.values
+    return temporal_flow
+
+
 def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray, xr.DataArray, list[str]]:
     """Compute direct (no cross-effect propagation) per-contributor temporal and lump.
 
@@ -164,29 +205,7 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
     rate = solution['flow--rate']  # (flow, time)
     dt = data.dims.dt  # (time,)
 
-    # --- Temporal: per-flow contributions (flow, effect, time) ---
-    # Scatter the stacked (contribution,) rows into the dense per-contributor view.
-    rate_dt = rate * dt  # (flow, time[, period])
-    extra_dims = [d for d in rate_dt.dims if d != 'flow']  # time[, period]
-    temporal_flow = xr.DataArray(
-        np.zeros((len(flow_ids), len(effect_ids), *(rate_dt.sizes[d] for d in extra_dims))),
-        dims=['flow', 'effect', *extra_dims],
-        coords={
-            'flow': flow_ids,
-            'effect': effect_ids,
-            **{d: rate_dt.coords[d] for d in extra_dims if d in rate_dt.coords},
-        },
-    )
-    ec = data.flows.effect_coeff  # stacked (contribution, time[, period]) or None
-    if ec is not None:
-        pair_flow = xr.DataArray(ec.coords['contribution_flow'].values, dims=['contribution'])
-        contrib = (ec * rate_dt.sel(flow=pair_flow).drop_vars('flow')).transpose('contribution', *extra_dims)
-        flow_pos = {fid: i for i, fid in enumerate(flow_ids)}
-        eff_pos = {eid: i for i, eid in enumerate(effect_ids)}
-        rows_f = [flow_pos[str(v)] for v in ec.coords['contribution_flow'].values]
-        rows_e = [eff_pos[str(v)] for v in ec.coords['contribution_effect'].values]
-        # (flow, effect) pairs are unique by construction (dict keys per flow)
-        temporal_flow.values[rows_f, rows_e] = contrib.values
+    temporal_flow = _scatter_temporal_flow(data.flows.effect_coeff, rate * dt, flow_ids, effect_ids)
 
     # Status running costs
     if data.flows.status_effects_running is not None and 'flow--on' in solution:
