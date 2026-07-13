@@ -81,8 +81,7 @@ class TestCustomize:
             simple_system['effects'],
             simple_system['ports'],
         )
-        model = FlowSystem(data)
-        model._objective_effects = {'cost': 1.0}
+        model = FlowSystem(data, objective='cost')
         model.build()
 
         # Add custom variable and constraint
@@ -95,3 +94,51 @@ class TestCustomize:
         assert 'bonus' in result.solution
         for val in result.solution['bonus'].values:
             assert val == pytest.approx(5.0, abs=1e-6)
+
+
+class TestFlowSystemApi:
+    """Tests for the FlowSystem construction / inspection surface."""
+
+    @pytest.fixture
+    def simple_system(self):
+        """Single-bus system: grid source (size=100) feeding a fixed 50 MW demand."""
+        return {
+            'timesteps': ts(3),
+            'carriers': [Carrier('elec')],
+            'effects': [Effect('cost')],
+            'ports': [
+                Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
+                Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
+            ],
+        }
+
+    def test_from_elements_builds_inspectable_model(self, simple_system):
+        """from_elements + build yields an inspectable, unsolved model."""
+        fs = FlowSystem.from_elements(objective='cost', **simple_system)
+        assert fs.objective == {'cost': 1.0}
+        fs.build()
+        assert 'flow--rate' in fs.m.variables
+        result = fs.solve()
+        assert result.objective == pytest.approx(150.0, abs=1e-6)
+
+    def test_solve_before_build_raises(self, simple_system):
+        """Calling solve() on an unbuilt model is a clear error, not a silent no-op."""
+        fs = FlowSystem.from_elements(objective='cost', **simple_system)
+        with pytest.raises(RuntimeError, match='not built'):
+            fs.solve()
+
+    def test_objective_property_retarget(self, simple_system):
+        """The objective property normalizes assignment; optimize() reuses it."""
+        fs = FlowSystem.from_elements(**simple_system)
+        assert fs.objective == {}
+        fs.objective = 'cost'
+        assert fs.objective == {'cost': 1.0}
+        result = fs.optimize()  # no objective arg — uses the property
+        assert result.objective == pytest.approx(150.0, abs=1e-6)
+
+    def test_optimize_arg_overrides_objective(self, simple_system):
+        """An explicit optimize(objective_effects=...) overrides the stored objective."""
+        fs = FlowSystem.from_elements(objective='cost', **simple_system)
+        result = fs.optimize({'cost': 2.0})
+        assert fs.objective == {'cost': 2.0}
+        assert result.objective == pytest.approx(300.0, abs=1e-6)

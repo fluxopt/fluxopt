@@ -15,7 +15,22 @@ from fluxopt.types import as_dataarray
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from fluxopt.components import Converter, Port
+    from fluxopt.elements import Carrier, Effect, Storage
     from fluxopt.model_data import ModelData
+    from fluxopt.types import Timesteps
+
+
+def _normalize_objective(value: str | dict[str, float] | None) -> dict[str, float]:
+    """Coerce an objective spec into a ``{effect: weight}`` dict.
+
+    A bare effect name becomes ``{name: 1.0}``; ``None`` becomes ``{}``.
+    """
+    if value is None:
+        return {}
+    if isinstance(value, str):
+        return {value: 1.0}
+    return {k: float(v) for k, v in value.items()}
 
 
 class FlowSystem:
@@ -47,17 +62,84 @@ class FlowSystem:
     component_startup: Variable | None = None
     component_shutdown: Variable | None = None
 
-    def __init__(self, data: ModelData) -> None:
+    def __init__(self, data: ModelData, objective: str | dict[str, float] | None = None) -> None:
         """Initialize the flow system optimization model.
 
         Args:
             data: Pre-built model data.
+            objective: Effect(s) the objective minimizes — a single effect
+                name, or a dict mapping effect names to objective weights
+                (``{'cost': 1, 'co2': 50}``). May be left unset and assigned
+                later via the :attr:`objective` property or :meth:`optimize`.
+                See :meth:`optimize` for the full weighting semantics.
         """
         self.data = data
         self.m = Model()
-        self._objective_effects: dict[str, float] = {}
+        self._objective_effects: dict[str, float] = _normalize_objective(objective)
         self._objective_weights: dict[str, float] = {}
         self._piecewise: dict[str, Any] = {}  # conv_id -> linopy.PiecewiseFormulation
+        self._built = False
+
+    @classmethod
+    def from_elements(
+        cls,
+        timesteps: Timesteps,
+        carriers: list[Carrier],
+        effects: list[Effect],
+        ports: list[Port],
+        objective: str | dict[str, float] | None = None,
+        converters: list[Converter] | None = None,
+        storages: list[Storage] | None = None,
+        dt: float | list[float] | None = None,
+        periods: list[int] | None = None,
+        period_weights: list[float] | None = None,
+    ) -> FlowSystem:
+        """Build model data from elements and return an unbuilt FlowSystem.
+
+        Convenience constructor for the common case of going straight from
+        element objects to an inspectable model, skipping the explicit
+        ``ModelData.build`` step. Call :meth:`build` to populate the linopy
+        model, then :meth:`solve` (or use :meth:`optimize` for both at once).
+
+        Args:
+            timesteps: Time index for the optimization horizon.
+            carriers: Carrier declarations.
+            effects: Effects to track (costs, emissions, etc.).
+            ports: System boundary ports with imports/exports.
+            objective: Effect(s) the objective minimizes. See :meth:`optimize`.
+            converters: Linear converters between carriers.
+            storages: Energy storages.
+            dt: Timestep duration in hours. Auto-derived if None.
+            periods: Integer period labels for multi-period optimization.
+            period_weights: Explicit weights per period. Inferred from gaps if None.
+        """
+        from fluxopt.model_data import ModelData
+
+        data = ModelData.build(
+            timesteps,
+            carriers,
+            effects,
+            ports,
+            converters,
+            storages,
+            dt,
+            periods=periods,
+            period_weights=period_weights,
+        )
+        return cls(data, objective=objective)
+
+    @property
+    def objective(self) -> dict[str, float]:
+        """Effect(s) the objective minimizes, as ``{effect: weight}``.
+
+        Assign a name or a dict to retarget the objective; call :meth:`build`
+        again for the change to take effect in the linopy model.
+        """
+        return dict(self._objective_effects)
+
+    @objective.setter
+    def objective(self, value: str | dict[str, float] | None) -> None:
+        self._objective_effects = _normalize_objective(value)
 
     def _add_variables(
         self,
@@ -114,10 +196,11 @@ class FlowSystem:
         self._create_effects()
         self._set_objective()
         self._builtin_var_names: frozenset[str] = frozenset(self.m.variables)
+        self._built = True
 
     def optimize(
         self,
-        objective_effects: str | dict[str, float],
+        objective_effects: str | dict[str, float] | None = None,
         customize: Callable[[FlowSystem], None] | None = None,
         *,
         solver: str = 'highs',
@@ -126,21 +209,22 @@ class FlowSystem:
         """Build, optionally customize, and solve the model.
 
         Args:
-            objective_effects: Effect(s) to minimize. A single name, or a
-                dict mapping effect names to objective weights
+            objective_effects: Effect(s) to minimize, overriding any objective
+                already set on this FlowSystem. A single name, or a dict
+                mapping effect names to objective weights
                 (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
                 unaffected by the weighting. The built-in ``'penalty'``
                 effect is added at weight 1.0 unless the dict names it:
                 ``{'cost': 1, 'penalty': 0}`` opts out, other values scale
-                the steering pressure.
+                the steering pressure. If None, the current :attr:`objective`
+                is used.
             customize: Optional callback to modify the linopy model between build and solve.
                 Receives ``self``; use ``model.m`` to add variables/constraints.
             solver: Solver backend name.
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
-        self._objective_effects = (
-            {objective_effects: 1.0} if isinstance(objective_effects, str) else dict(objective_effects)
-        )
+        if objective_effects is not None:
+            self.objective = objective_effects
         self.build()
         if customize is not None:
             customize(self)
@@ -153,7 +237,13 @@ class FlowSystem:
 
         Args:
             **kwargs: Passed through to ``linopy.Model.solve()``.
+
+        Raises:
+            RuntimeError: If the model has not been built yet.
         """
+        if not self._built:
+            msg = 'Model not built — call build() (or optimize()) before solve().'
+            raise RuntimeError(msg)
         self.m.solve(**kwargs)
         return Result.from_model(self)
 
