@@ -9,6 +9,7 @@ from linopy import Model, Variable
 from fluxopt.constraints.sparse import sparse_weighted_sum
 from fluxopt.constraints.status import add_duration_tracking, add_switch_transitions
 from fluxopt.constraints.storage import add_accumulation_constraints
+from fluxopt.contributions import _leontief
 from fluxopt.results import Result
 from fluxopt.types import as_dataarray
 
@@ -1179,7 +1180,15 @@ class FlowSystem:
         )
 
     def _create_effects(self) -> None:
-        """Effect tracking: temporal and lump domains."""
+        """Effect tracking: temporal expressions folded into totals, plus lump domain.
+
+        No per-timestep effect variables exist: temporal contributions stay
+        expressions and are summed over time into ``effect--total`` at build
+        (temporal closure — see docs/design/model-data-tree.md §2.5).
+        Cross-effect chains substitute inline via the numeric Leontief
+        inverse; per-timestep effect series are reconstructed post-solve
+        from flow rates and coefficients.
+        """
         d = self.data
         ds = d.effects
 
@@ -1188,64 +1197,46 @@ class FlowSystem:
         if len(effect_ids) == 0:
             return
 
-        # --- Temporal domain: effect_temporal[effect, time(, period)] ---
-        self.effect_temporal = self.m.add_variables(
-            coords={'effect': effect_ids, **self.data.dims.coords(time=True, period=True)},
-            name='effect--temporal',
-        )
-
-        temporal_rhs: Any = 0
+        # --- Temporal domain: expressions, no variables ---
+        temporal_direct: Any = 0
         if d.flows.effect_coeff is not None:
-            temporal_rhs = self._flow_effect_temporal(d.flows.effect_coeff, effect_ids)
+            temporal_direct = self._flow_effect_temporal(d.flows.effect_coeff, effect_ids)
 
         # Status running costs: sum_f(running_coeff[f,k,t] * on[f,t] * dt[t])
         if d.flows.status_effects_running is not None:
             assert self.flow_on is not None
             er = d.flows.status_effects_running.rename({'status_flow': 'flow'})
             if (er != 0).any():
-                temporal_rhs = temporal_rhs + (er * self.flow_on * d.dims.dt).sum('flow')
+                temporal_direct = temporal_direct + (er * self.flow_on * d.dims.dt).sum('flow')
 
         # Status startup costs: sum_f(startup_coeff[f,k,t] * startup[f,t]) — per event, no dt
         if d.flows.status_effects_startup is not None:
             assert self.flow_startup is not None
             es = d.flows.status_effects_startup.rename({'status_flow': 'flow'})
             if (es != 0).any():
-                temporal_rhs = temporal_rhs + (es * self.flow_startup).sum('flow')
+                temporal_direct = temporal_direct + (es * self.flow_startup).sum('flow')
 
         # Component-level status running costs
         if d.flows.cstatus_effects_running is not None:
             assert self.component_on is not None
             cer = d.flows.cstatus_effects_running.rename({'cstatus_component': 'component'})
             if (cer != 0).any():
-                temporal_rhs = temporal_rhs + (cer * self.component_on * d.dims.dt).sum('component')
+                temporal_direct = temporal_direct + (cer * self.component_on * d.dims.dt).sum('component')
 
         # Component-level status startup costs
         if d.flows.cstatus_effects_startup is not None:
             assert self.component_startup is not None
             ces = d.flows.cstatus_effects_startup.rename({'cstatus_component': 'component'})
             if (ces != 0).any():
-                temporal_rhs = temporal_rhs + (ces * self.component_startup).sum('component')
+                temporal_direct = temporal_direct + (ces * self.component_startup).sum('component')
 
-        # Cross-effect temporal: cf_temporal[k,j,t] * effect_temporal[j,t]
-        if ds.cf_temporal is not None:
-            source_t = self.effect_temporal.rename({'effect': 'source_effect'})
-            temporal_rhs = temporal_rhs + (ds.cf_temporal * source_t).sum('source_effect')
-
-        self.m.add_constraints(self.effect_temporal == temporal_rhs, name='effect_temporal_eq')
-
-        # Per-hour bounds: effect[t] <= rate_max * dt[t]
-        # effect_temporal is in absolute units (e.g. EUR), so the per-hour rate
-        # must be scaled by the timestep duration to get the per-timestep limit.
-        dt = d.dims.dt
-        min_ph = ds.rate_min * dt  # (effect, time) — NaN = unbounded
-        has_min_ph = min_ph.notnull()
-        if has_min_ph.any():
-            self.m.add_constraints(self.effect_temporal >= min_ph, name='effect_min_ph', mask=has_min_ph)
-
-        max_ph = ds.rate_max * dt
-        has_max_ph = max_ph.notnull()
-        if has_max_ph.any():
-            self.m.add_constraints(self.effect_temporal <= max_ph, name='effect_max_ph', mask=has_max_ph)
+        # Cross-effect temporal chains: E = D + C·E has the closed form
+        # E = (I - C)^{-1}·D, so apply the numeric Leontief inverse inline
+        # instead of coupling per-timestep variables.
+        if ds.cf_temporal is not None and not isinstance(temporal_direct, int):
+            leontief = _leontief(ds.cf_temporal)  # (effect, source_effect, time[, period])
+            source_t = temporal_direct.rename({'effect': 'source_effect'})
+            temporal_direct = (source_t * leontief).sum('source_effect')
 
         # --- Lump domain: effect_lump[effect(, period)] ---
         # Combines all non-temporal contributions (sizing, investment recurring, investment at-build)
@@ -1371,8 +1362,9 @@ class FlowSystem:
 
         # --- Total: effect_total[effect(, period)] ---
         self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--total')
-        temporal_sum = (self.effect_temporal * d.dims.weights).sum('time')
-        rhs = temporal_sum + self.effect_lump
+        rhs: Any = self.effect_lump
+        if not isinstance(temporal_direct, int):
+            rhs = (temporal_direct * d.dims.weights).sum('time') + self.effect_lump
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
         # Per-period bounds on effect_total

@@ -95,8 +95,12 @@ class Result:
 
     @property
     def effects_temporal(self) -> xr.DataArray:
-        """Per-timestep effect values as (effect, time) DataArray."""
-        return self.solution['effect--temporal']
+        """Per-timestep effect values as (effect, time) DataArray.
+
+        Reconstructed from flow rates and coefficients — the model carries
+        no per-timestep effect variables (temporal closure).
+        """
+        return self.stats.effect_contributions['temporal'].sum('contributor')
 
     @property
     def effects_lump(self) -> xr.DataArray:
@@ -229,7 +233,6 @@ class Result:
         sol_vars: dict[str, xr.DataArray] = {
             'flow--rate': model.flow_rate.solution,
             'effect--total': model.effect_total.solution,
-            'effect--temporal': model.effect_temporal.solution,
             'effect--lump': model.effect_lump.solution,
         }
 

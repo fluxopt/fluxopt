@@ -21,7 +21,7 @@ Each symbol maps to a specific field or variable in the code.
 |---|---|---|---|---|
 | \(P_{f,t(,p)}\) | `flow--rate[flow, time(, period)]` | \(\geq 0\) | MW | Flow rate |
 | \(E_{s,t(,p)}\) | `storage--level[storage, time(, period)]` | \(\geq 0\) | MWh | Stored energy |
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | `effect--temporal[effect, time(, period)]` | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | expression (folded into totals at build) | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | `effect--lump[effect(, period)]` | \(\mathbb{R}\) | varies | Lump (sizing + one-time) effect |
 | \(\Phi_{k(,p)}\) | `effect--total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
 | \(S_{f(,p)}\) | `flow--size[flow(, period)]` | \(\geq 0\) | MW | Invested flow capacity |
@@ -100,8 +100,6 @@ omit unless we're discussing multi-period dynamics specifically.
 | \(\underline{\Phi}_k\) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_min)) | \(\mathbb{R}\) | varies | Minimum aggregate (weighted sum across periods) |
 | \(\bar{\Phi}_k^{\text{per period}}\) | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_max)) | \(\mathbb{R}\) | varies | Maximum per period |
 | \(\underline{\Phi}_k^{\text{per period}}\) | [`Effect.periodic_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_min)) | \(\mathbb{R}\) | varies | Minimum per period |
-| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | [`Effect.rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_max)) | \(\mathbb{R}\) | varies/h | Maximum per hour (rate, scaled by \(\Delta t_t\)) |
-| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | [`Effect.rate_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_min)) | \(\mathbb{R}\) | varies/h | Minimum per hour (rate, scaled by \(\Delta t_t\)) |
 | \(\mathrm{S}^-\) | [`Sizing.size_min`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(size_min)) | \(\geq 0\) | MW or MWh | Minimum invested size (flow or storage) |
 | \(\mathrm{S}^+\) | [`Sizing.size_max`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(size_max)) | \(\geq 0\) | MW or MWh | Maximum invested size (flow or storage) |
 | \(\gamma_{f,k}\), \(\gamma_{s,k}\) | [`Sizing.effects_per_size`](../api/fluxopt/elements.md#fluxopt.elements.Sizing(effects_per_size)) | \(\mathbb{R}\) | varies | Per-size investment cost (flow or storage; one-time, sized) |

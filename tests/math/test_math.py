@@ -195,48 +195,6 @@ class TestEffects:
         assert_allclose(co2, 25.0, rtol=1e-5)
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
-    def test_effect_rate_max(self):
-        """CO2 rate_max=8. Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2.
-        Demand=[15,5]. Dirty capped at 8/ts -> Dirty=[8,5], Clean=[7,0].
-        cost = 13*1 + 7*5 = 48.
-
-        Sensitivity: Without rate_max, all Dirty -> cost=20.
-        """
-        result = optimize(
-            ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', rate_max=8)],
-            objective_effects='cost',
-            ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[15, 5])]),
-                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
-                Port('Clean', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0})]),
-            ],
-        )
-        assert_allclose(result.objective, 48.0, rtol=1e-5)
-
-    def test_effect_rate_min(self):
-        """CO2 rate_min=10. Dirty: 1EUR+1kgCO2. Demand=[5,5].
-        Must produce >=10 CO2/ts -> Dirty >=10/ts. Excess absorbed by waste.
-        cost=20.
-
-        Sensitivity: Without rate_min, Dirty=5/ts -> cost=10.
-        """
-        result = optimize(
-            ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost'), Effect('CO2', rate_min=10)],
-            objective_effects='cost',
-            ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[5, 5])]),
-                Port('Dirty', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1})]),
-                waste('Heat'),
-            ],
-        )
-        assert_allclose(result.objective, 20.0, rtol=1e-5)
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
-        assert_allclose(co2, 20.0, rtol=1e-5)
-
     def test_effect_maximum_temporal(self):
         """CO2 total_max=12 (= maximum_temporal when no periodic effects).
         Dirty: 1EUR+1kgCO2. Clean: 5EUR+0kgCO2. Demand=[10,10].

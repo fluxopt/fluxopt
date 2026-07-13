@@ -32,8 +32,21 @@ flow-hour of flow \(f\) (e.g., €/MWh for cost, kg/MWh for emissions).
 
 The cross-effect factor \(\alpha_{k,j,t}\) can be time-varying or constant
 (both via `contribution_from`).
-Because \(\Phi_{k,t}^{\text{temporal}}\) is a **variable**, the solver resolves
-multi-level chains (e.g., PE → CO₂ → cost) automatically.
+
+\(\Phi_{k,t}^{\text{temporal}}\) is an **expression**, not a solver variable:
+no per-timestep effect variables exist in the model. The recursive definition
+above has the closed form
+
+\[
+\boldsymbol{\Phi}_t^{\text{temporal}} = (I - A_t)^{-1} \, \boldsymbol{D}_t
+\]
+
+where \(A_t = [\alpha_{k,j,t}]\) and \(\boldsymbol{D}_t\) collects the direct
+contributions — the Leontief inverse is computed numerically at build time and
+multi-level chains (e.g., PE → CO₂ → cost) substitute inline. The expression is
+summed over time directly into the total (see below); per-timestep effect
+series in results are reconstructed post-solve from flow rates and
+coefficients.
 
 ## Lump Domain
 
@@ -95,9 +108,7 @@ Single-period models drop the \(p\) index.
 
 ## Bounds
 
-Three levels of bound granularity, all per-effect:
-
-**Per-hour bounds** (`rate_max` / `rate_min`) — see [Per-Hour Bounds](#per-hour-bounds) below.
+Two levels of bound granularity, all per-effect:
 
 **Per-period bounds** (`periodic_max` / `periodic_min`) — each period independently:
 
@@ -115,25 +126,17 @@ Three levels of bound granularity, all per-effect:
 For physical quantities (e.g., total CO₂ across all years), `period_weights` should
 typically encode the period duration so the aggregate is a true physical sum.
 
-This is useful for emission caps or budget constraints:
+This is useful for emission caps or budget constraints.
 
-## Per-Hour Bounds
-
-The per-hour bounds are **rates** (e.g., kg/h, €/h) that scale with the timestep
-duration \(\Delta t_t\). This ensures the constraint is resolution-independent:
-
-\[
-\underline{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \leq \Phi_{k,t}^{\text{temporal}} \leq \bar{\Phi}_{k,t}^{\text{per hour}} \cdot \Delta t_t \quad \forall \, k \in \mathcal{K}, \; t \in \mathcal{T}
-\]
-
-For example, `rate_max=100` (kg/h) with a 4-hour timestep allows up to
-400 kg of emissions in that timestep:
+Per-timestep effect bounds do not exist: nothing binds effects per timestep,
+which is what allows the temporal domain to stay expression-only (temporal
+closure — see `docs/design/model-data-tree.md` §2.5).
 
 ## Parameters
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect--temporal[effect, time(, period)]` |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect expression (folded into totals at build) | reconstructed in results |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(effects_per_flow_hour)) |
@@ -146,8 +149,6 @@ For example, `rate_max=100` (kg/h) with a 4-hour timestep allows up to
 | \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_min)) |
 | \(\bar{\Phi}_{k,p}\) | Maximum per period (scalar or per-period values) | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_max)) |
 | \(\underline{\Phi}_{k,p}\) | Minimum per period (scalar or per-period values) | [`Effect.periodic_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_min)) |
-| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_max)) |
-| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_min)) |
 | \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect(period_weights)) / global `period_weights` |
 
 See [Notation](notation.md) for the full symbol table.
