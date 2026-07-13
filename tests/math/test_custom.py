@@ -127,6 +127,18 @@ class TestFlowSystemApi:
         with pytest.raises(RuntimeError, match='not built'):
             fs.solve()
 
+    def test_build_without_objective_raises(self, simple_system):
+        """Building with no objective set errors instead of silently minimizing penalty."""
+        fs = FlowSystem.from_elements(**simple_system)  # no objective
+        with pytest.raises(ValueError, match='No objective set'):
+            fs.build()
+
+    def test_optimize_without_objective_raises(self, simple_system):
+        """optimize() with neither a stored nor a passed objective errors."""
+        fs = FlowSystem.from_elements(**simple_system)
+        with pytest.raises(ValueError, match='No objective set'):
+            fs.optimize()
+
     def test_objective_property_retarget(self, simple_system):
         """The objective property normalizes assignment; optimize() reuses it."""
         fs = FlowSystem.from_elements(**simple_system)

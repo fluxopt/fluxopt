@@ -169,7 +169,11 @@ class FlowSystem:
         return self.m.add_variables(**kwargs)
 
     def build(self) -> None:
-        """Build all variables, constraints, and the objective."""
+        """Build all variables, constraints, and the objective.
+
+        Raises:
+            ValueError: If no objective has been set (see :attr:`objective`).
+        """
         # Phase 1: Decision variables
         self._create_flow_variables()
         self._create_sizing_variables()
@@ -1684,6 +1688,14 @@ class FlowSystem:
         contribute no term.
         """
         from fluxopt.elements import PENALTY_EFFECT_ID
+
+        if not self._objective_effects:
+            msg = (
+                'No objective set. Pass objective=... to FlowSystem/FlowSystem.from_elements, '
+                'assign the .objective property, or pass objective_effects to optimize(). '
+                '(Without one the model would silently minimize only the penalty effect.)'
+            )
+            raise ValueError(msg)
 
         ds = self.data.effects
         obj_expr: Any = 0
