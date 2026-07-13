@@ -127,21 +127,46 @@ class TestFlowSystemApi:
         with pytest.raises(RuntimeError, match='not built'):
             fs.solve()
 
-    def test_build_without_objective_raises(self, simple_system):
-        """Building with no objective set errors instead of silently minimizing penalty."""
-        fs = FlowSystem.from_elements(**simple_system)  # no objective
-        with pytest.raises(ValueError, match='No objective set'):
+    def test_objective_required_by_build(self, simple_system):
+        """Objective may be deferred at construction but is required by build/optimize."""
+        fs = FlowSystem.from_elements(**simple_system)  # deferred — no objective yet
+        assert fs.objective == {}
+        with pytest.raises(ValueError, match='non-penalty effect'):
             fs.build()
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.optimize()  # neither stored nor passed
 
-    def test_optimize_without_objective_raises(self, simple_system):
-        """optimize() with neither a stored nor a passed objective errors."""
-        fs = FlowSystem.from_elements(**simple_system)
-        with pytest.raises(ValueError, match='No objective set'):
-            fs.optimize()
+    def test_constructor_validates_objective_eagerly(self, simple_system):
+        """A bad objective passed at construction fails immediately, not at build."""
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            FlowSystem.from_elements(objective='penalty', **simple_system)
+
+    def test_objective_cannot_be_cleared(self, simple_system):
+        """The objective property rejects empty assignment — a model must minimize something."""
+        fs = FlowSystem.from_elements(objective='cost', **simple_system)
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.objective = {}
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.objective = None  # type: ignore[assignment]
+
+    def test_penalty_only_objective_rejected(self, simple_system):
+        """Penalty is auto-added steering, not a real objective — it can't stand alone."""
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            FlowSystem.from_elements(objective='penalty', **simple_system)
+        fs = FlowSystem.from_elements(objective='cost', **simple_system)
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.objective = {'penalty': 1.0}
+
+    def test_penalty_opt_out_allowed(self, simple_system):
+        """A real effect plus penalty:0 opts out of penalty steering and is valid."""
+        fs = FlowSystem.from_elements(objective={'cost': 1.0, 'penalty': 0.0}, **simple_system)
+        result = fs.optimize()
+        assert fs._objective_weights.get('penalty') == 0.0
+        assert result.objective == pytest.approx(150.0, abs=1e-6)
 
     def test_objective_property_retarget(self, simple_system):
-        """The objective property normalizes assignment; optimize() reuses it."""
-        fs = FlowSystem.from_elements(**simple_system)
+        """Deferred construction, then set via the property; optimize() reuses it."""
+        fs = FlowSystem.from_elements(**simple_system)  # deferred
         assert fs.objective == {}
         fs.objective = 'cost'
         assert fs.objective == {'cost': 1.0}

@@ -33,6 +33,27 @@ def _normalize_objective(value: str | dict[str, float] | None) -> dict[str, floa
     return {k: float(v) for k, v in value.items()}
 
 
+def _validate_objective(effects: dict[str, float]) -> None:
+    """Require the objective to name at least one non-penalty effect.
+
+    The built-in penalty effect is added automatically as soft-constraint
+    steering (see :meth:`FlowSystem._set_objective`) and cannot stand in for a
+    real objective, so an empty or penalty-only spec is rejected.
+
+    Raises:
+        ValueError: If no non-penalty effect is named.
+    """
+    from fluxopt.elements import PENALTY_EFFECT_ID
+
+    if not any(k != PENALTY_EFFECT_ID for k in effects):
+        msg = (
+            'objective must name at least one non-penalty effect to minimize '
+            '(a name like "cost", or a weight dict like {"cost": 1, "co2": 50}). '
+            'The built-in penalty effect is added automatically and cannot be the sole objective.'
+        )
+        raise ValueError(msg)
+
+
 class FlowSystem:
     # Sizing variables — None when no sizing is configured
     flow_size: Variable | None = None
@@ -50,8 +71,6 @@ class FlowSystem:
     storage_level: Variable | None = None
     prior_storage_level: Variable | None = None
 
-    # Effect / objective — set via optimize() or defaults to ['cost']
-
     # Status variables — None when no status is configured
     flow_on: Variable | None = None
     flow_startup: Variable | None = None
@@ -67,11 +86,16 @@ class FlowSystem:
 
         Args:
             data: Pre-built model data.
-            objective: Effect(s) the objective minimizes — a single effect
-                name, or a dict mapping effect names to objective weights
-                (``{'cost': 1, 'co2': 50}``). May be left unset and assigned
-                later via the :attr:`objective` property or :meth:`optimize`.
-                See :meth:`optimize` for the full weighting semantics.
+            objective: Effect(s) the objective minimizes. A single effect name,
+                or a dict mapping effect names to objective weights
+                (``{'cost': 1, 'co2': 50}``). May be deferred (left ``None``)
+                and supplied later via the :attr:`objective` property or
+                :meth:`optimize` — but a real (non-penalty) objective is
+                required by the time :meth:`build` runs. See :meth:`optimize`
+                for the full weighting semantics.
+
+        Raises:
+            ValueError: If ``objective`` is given but names no non-penalty effect.
         """
         self.data = data
         self.m = Model()
@@ -79,6 +103,8 @@ class FlowSystem:
         self._objective_weights: dict[str, float] = {}
         self._piecewise: dict[str, Any] = {}  # conv_id -> linopy.PiecewiseFormulation
         self._built = False
+        if objective is not None:
+            _validate_objective(self._objective_effects)
 
     @classmethod
     def from_elements(
@@ -106,7 +132,8 @@ class FlowSystem:
             carriers: Carrier declarations.
             effects: Effects to track (costs, emissions, etc.).
             ports: System boundary ports with imports/exports.
-            objective: Effect(s) the objective minimizes. See :meth:`optimize`.
+            objective: Effect(s) the objective minimizes. May be deferred and
+                supplied later; required by :meth:`build`. See :meth:`optimize`.
             converters: Linear converters between carriers.
             storages: Energy storages.
             dt: Timestep duration in hours. Auto-derived if None.
@@ -133,13 +160,16 @@ class FlowSystem:
         """Effect(s) the objective minimizes, as ``{effect: weight}``.
 
         Assign a name or a dict to retarget the objective; call :meth:`build`
-        again for the change to take effect in the linopy model.
+        again for the change to take effect in the linopy model. Assigning an
+        empty objective is rejected — a model must always minimize something.
         """
         return dict(self._objective_effects)
 
     @objective.setter
-    def objective(self, value: str | dict[str, float] | None) -> None:
-        self._objective_effects = _normalize_objective(value)
+    def objective(self, value: str | dict[str, float]) -> None:
+        normalized = _normalize_objective(value)
+        _validate_objective(normalized)
+        self._objective_effects = normalized
 
     def _add_variables(
         self,
@@ -172,8 +202,10 @@ class FlowSystem:
         """Build all variables, constraints, and the objective.
 
         Raises:
-            ValueError: If no objective has been set (see :attr:`objective`).
+            ValueError: If no real (non-penalty) objective has been set
+                (see :attr:`objective`).
         """
+        _validate_objective(self._objective_effects)  # fail fast, before building anything
         # Phase 1: Decision variables
         self._create_flow_variables()
         self._create_sizing_variables()
@@ -1688,14 +1720,6 @@ class FlowSystem:
         contribute no term.
         """
         from fluxopt.elements import PENALTY_EFFECT_ID
-
-        if not self._objective_effects:
-            msg = (
-                'No objective set. Pass objective=... to FlowSystem/FlowSystem.from_elements, '
-                'assign the .objective property, or pass objective_effects to optimize(). '
-                '(Without one the model would silently minimize only the penalty effect.)'
-            )
-            raise ValueError(msg)
 
         ds = self.data.effects
         obj_expr: Any = 0

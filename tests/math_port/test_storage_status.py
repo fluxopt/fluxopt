@@ -85,7 +85,7 @@ class TestStorageStatusValidation:
                 ),
             ],
         )
-        fs = FlowSystem(data)
+        fs = FlowSystem(data, objective='cost')
         with pytest.raises(NotImplementedError, match='Sizing/Investment'):
             fs.build()
 
