@@ -41,7 +41,31 @@ Downstream symptoms of the same disease:
 
 ## 2. Design
 
-### 2.1 Container: `xr.DataTree`
+### 2.0 Ownership: dataclasses own the data, the tree is the wire format
+
+linopy needs `xr.DataArray` coefficients only *at the expression-build
+boundary* — it is indifferent to the store's container. And the dim-name
+collision problem (§1.2) is a **serialization artifact**: it arises when
+`_to_dataset` merges a table's fields into one Dataset, not at runtime —
+two dataclass fields can already carry same-named, differently-sized dims
+because plain attributes never merge.
+
+Consequently the runtime store **stays typed dataclasses holding
+DataArrays** (validation in builders/`__post_init__`, pyrefly-checked
+access, DataArrays handed to linopy with zero extraction ceremony).
+`xr.DataTree` enters at exactly one level: **persistence**.
+`ModelData.to_netcdf` becomes *build tree → `tree.to_netcdf()`*; loading
+becomes *`xr.open_datatree()` → parse into dataclasses*. Data-dependent
+children (signature groups, §2.2) are `dict[str, xr.DataArray]` fields —
+the honest type for dynamic structure — mapping 1:1 to child groups on
+serialization.
+
+This is deliberately *not* "dataclasses as views over a runtime tree":
+that would route hot model-build access through stringly-typed paths and
+`['value']` extraction for a name-scoping benefit the runtime layer
+already has for free.
+
+### 2.1 Persistence format: `xr.DataTree`
 
 ```
 DataTree
@@ -57,18 +81,19 @@ DataTree
 └── storages
 ```
 
-Properties this buys:
+Properties this buys (all at the persistence layer):
 
 - **Node-scoped dims.** Every node is its own Dataset: `contribution` can
   have a different size in every node, and labeling coords can use plain
   names (`flow`, `effect`) because they no longer merge into a Dataset that
   owns real `flow`/`effect` dims. The prefix mangling from #220
-  (`contribution_flow`) disappears.
+  (`contribution_flow`) disappears from the file format — and the runtime
+  dataclasses never needed it in the first place (§2.0).
 - **Native IO.** `tree.to_netcdf(path)` / `xr.open_datatree(path)` replace
   the manual group loop. Groups nest arbitrarily deep, so signature
   children serialize for free.
-- **Same xarray idioms.** Nodes hold ordinary Datasets; model building and
-  results code keep working with DataArrays.
+- **Same xarray idioms.** Nodes hold ordinary Datasets; the parse back
+  into dataclasses is mechanical.
 
 ### 2.2 Signature grammar — long form from the start
 
@@ -127,13 +152,12 @@ implementation for the Effects-in-core push.
 ### 2.4 Model building pattern
 
 ```python
-def _channel_temporal(self, node: xr.DataTree, var, scale) -> Any:
+def _channel_temporal(self, coeffs: dict[str, xr.DataArray], var, scale) -> Any:
     """Σ_rows coeff · var[flow(row)] · scale, grouped onto the effect dim."""
     expr = 0
-    for child in node.children.values():
-        coeff = child['value']
-        pair_flow = xr.DataArray(child['flow'].values, dims=['contribution'])
-        pair_effect = xr.DataArray(child['effect'].values, dims=['contribution'], name='effect')
+    for coeff in coeffs.values():  # one stacked array per dims signature
+        pair_flow = xr.DataArray(coeff.coords['flow'].values, dims=['contribution'])
+        pair_effect = xr.DataArray(coeff.coords['effect'].values, dims=['contribution'], name='effect')
         expr = expr + (
             (var.sel(flow=pair_flow) * (coeff * scale).drop_vars(['flow', 'effect']))
             .groupby(pair_effect)
@@ -158,10 +182,11 @@ inside the solver expression, where that size is inherent to the model.
 ## 3. Migration plan
 
 - **Phase 0** — done: #220 (stacked `effect_coeff`, single array).
-- **Phase 1 — container swap.** `ModelData` holds a `DataTree`; the table
-  dataclasses become thin typed views over nodes (construction + validation
-  keep living there); IO becomes `to_netcdf`/`open_datatree`. No layout
-  changes inside tables yet. Pure refactor, bit-identical solves.
+- **Phase 1 — persistence swap.** The runtime dataclasses stay as-is;
+  `to_netcdf`/`from_netcdf` are rewired through
+  `to_datatree()`/`open_datatree` (fields → nodes, dict fields → child
+  groups), replacing the manual group loop and `_to_dataset` merging. No
+  layout changes inside tables yet. Pure refactor, bit-identical solves.
 - **Phase 2 — `effect_coeff` → signature node.** Drop the per-row envelope;
   plain `flow`/`effect` coord names. Model/contributions consume children.
 - **Phase 3 — remaining families.** Channel nodes for status / sizing /
@@ -197,10 +222,10 @@ envelopes simply use the flat `time` dim and `time_period` coord).
 
 ## 5. Open questions
 
-1. **Facade depth.** Do the table dataclasses survive as typed views
-   (recommended: yes — they carry validation and editor affordances), or is
-   the tree accessed raw? If they survive, do `to_dataset`/`from_dataset`
-   remain public?
+1. **Facade depth — resolved (§2.0).** Dataclasses own the runtime data;
+   the tree exists only at the IO boundary. Remaining sub-question: do
+   `to_dataset`/`from_dataset` per table survive as public API, or are
+   they subsumed by `to_datatree` on `ModelData`?
 2. **Node schema registry.** Field-comment schema doesn't scale to a tree.
    Introduce a small registry (name → dims, labeling coords, doc) that
    drives construction, validation, and docs — the PyPSA `component_attrs`
