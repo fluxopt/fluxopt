@@ -172,7 +172,71 @@ All linopy-native (vectorized `sel`, `groupby`, `reindex` — no custom
 sparse helpers), broadcasting the scalar signature against `dt`/time only
 inside the solver expression, where that size is inherent to the model.
 
-### 2.5 Results side
+**Alignment invariant (hard requirement).** linopy expression arithmetic
+is label-aligned *by assumption*: it requires exactly matching indexes
+and neither reorders nor verifies them. Same-sized partials with
+mismatched `effect` indexes combine positionally and silently — the
+result takes the left operand's labels, and a row present only in the
+right operand is absorbed into whichever row shares its position, its
+identity gone (verified on linopy 0.7.0; no error, no warning).
+Consequently every grouped partial MUST be normalized with
+`.reindex(<group_dim>=canonical_index)` immediately after `groupby` —
+this establishes exact alignment by construction and zero-fills groups
+with no rows, in one op. The row axis needs no guard: the bare
+`contribution` dim has no index and is grouped away before any `+`.
+Phase tests must include the silent-mismatch scenario (same-size,
+differently-labeled partials).
+
+### 2.5 Temporal closure — sum over time at build where nothing binds per timestep
+
+The storage work (§2.2) shrinks the data layer; this rule shrinks the LP.
+Per-timestep effect resolution has exactly two consumers that bind per t:
+rate bounds (`Effect.rate_min/rate_max`) and genuinely time-varying
+cross-effect couplings. For every other effect, the per-t variable and
+equality row are ballast:
+
+> An effect is materialized per timestep **iff** it carries a rate bound
+> or is coupled via time-varying `cf` to one that does. All other effects
+> collapse to per-period sums at expression build.
+
+The signature grammar maps directly onto expression strategy:
+
+- **scalar rows** factor through a shared flow-hour aggregate:
+  `effect_total[k] += coeff · flow_hours[f]` — one term per pair instead
+  of T, with `flow_hours[f] = Σ_t P[f,t]·dt[t]` defined once per flow and
+  reused by every effect touching it (aux variable worth introducing when
+  ≥2 effects reference the same flow; presolve substitutes it back
+  otherwise);
+- **time-varying rows** sum inline (`Σ_t coeff[t]·P[f,t]·dt[t]` in the
+  total row) — same nonzeros, but the K·T `effect_temporal` variables and
+  equality rows still disappear.
+
+Nothing is lost downstream: per-timestep effect series are already
+reconstructed post-solve from `flow--rate` × coefficients
+(`contributions.py`), and per-t duals only exist where per-t constraints
+do — which force materialization anyway. Caveat: solver presolve already
+eliminates much of the equality structure, so the dependable wins are
+linopy build time/memory and presolve time, not necessarily simplex/IPM
+iterations.
+
+This mirrors the effect-axis closure rule of the PyPSA Effects brief
+(materialize an effect iff objective/bounded/priced) — one closure per
+axis; PyPSA's single-row CO₂ GlobalConstraint is the special case of both.
+
+**Decision: drop per-timestep effect bounds now.** `Effect.rate_min` /
+`rate_max` are removed pre-1.0 rather than special-cased. With them gone,
+the closure's forcing set is empty by default: time-varying cross-effect
+couplings substitute inline as expressions (all couplings are linear), so
+the `effect--temporal` variables and their K·T equality rows disappear
+entirely — the temporal domain becomes expressions folded into
+per-period totals at build. This also matches the PyPSA Effects brief,
+which defers per-hour rate bounds for the same reason (GlobalConstraint
+carries no time-series fields). The closure rule above is the principled
+re-add path: if hourly-matching-style constraints are needed later
+(e.g. 24/7 CFE), rate-bounded effects get materialized per timestep —
+and only those.
+
+### 2.6 Results side
 
 - Contribution breakdowns are computed from the ledger and kept **stacked**;
   the dense `(contributor, effect, time)` view becomes an on-demand
