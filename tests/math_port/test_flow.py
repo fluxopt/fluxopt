@@ -24,7 +24,7 @@ class TestFlowConstraints:
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -70,7 +70,7 @@ class TestFlowConstraints:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -113,7 +113,7 @@ class TestFlowConstraints:
             timesteps=ts(3),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20, 20]))]),
                 Port('CheapSrc', imports=[Flow('Heat', flow_hours_max=30, effects_per_flow_hour={'cost': 1})]),
@@ -138,7 +138,7 @@ class TestFlowConstraints:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
                 Port('CheapSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
@@ -163,7 +163,7 @@ class TestFlowConstraints:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([40, 40]))]),
                 Port(
@@ -191,7 +191,7 @@ class TestFlowConstraints:
             timesteps=ts(2),
             carriers=[Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
                 Port('CheapSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),

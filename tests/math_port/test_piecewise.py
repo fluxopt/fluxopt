@@ -102,7 +102,7 @@ class TestPiecewise:
             timesteps=ts(3),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
@@ -133,7 +133,7 @@ class TestPiecewise:
                 timesteps=ts(2),
                 carriers=[Carrier('Gas'), Carrier('Heat')],
                 effects=[Effect('cost')],
-                objective_effects='cost',
+                objective='cost',
                 ports=[
                     Port(
                         'Demand',
@@ -167,7 +167,7 @@ class TestPiecewise:
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Power'), Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('PowerDmd', exports=[Flow('Power', size=1, fixed_relative_profile=np.array([10, 0]))]),
                 Port('HeatDmd', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([15, 0]))]),
@@ -203,7 +203,7 @@ class TestPiecewise:
             timesteps=ts(2),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20]))]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
@@ -234,7 +234,7 @@ class TestPiecewiseStatus:
             timesteps=ts(3),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
@@ -271,7 +271,7 @@ class TestPiecewiseStatus:
             timesteps=ts(3),
             carriers=[Carrier('Gas'), Carrier('Heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
                 Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),

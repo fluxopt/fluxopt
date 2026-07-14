@@ -32,7 +32,7 @@ class TestEndToEnd:
             timesteps=ts(4),
             carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
@@ -69,7 +69,7 @@ class TestEndToEnd:
             timesteps=ts(4),
             carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),
@@ -99,7 +99,7 @@ class TestEndToEnd:
         data.flows.fixed_profile.loc[{'flow': 'demand(elec)'}] = 0.7
 
         model = FlowSystem(data)
-        result = model.optimize(objective_effects='cost')
+        result = model.optimize(objective='cost')
 
         source_rates = result.flow_rate('grid(elec)').values
         for rate in source_rates:
@@ -115,7 +115,7 @@ class TestEndToEnd:
             timesteps=ts(3),
             carriers=[Carrier('elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
         )
 
@@ -148,7 +148,7 @@ class TestEndToEnd:
             timesteps=timesteps,
             carriers=[Carrier('gas'), Carrier('heat')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('grid', imports=[gas_source]),
                 Port('demand', exports=[demand_flow]),

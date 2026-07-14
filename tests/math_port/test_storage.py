@@ -20,7 +20,7 @@ class TestStorage:
             timesteps=ts(3),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -61,7 +61,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -102,7 +102,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -143,7 +143,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -185,7 +185,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -245,7 +245,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([10, 0]))]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
@@ -281,7 +281,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('MustRun', imports=[Flow('Elec', size=1, fixed_relative_profile=np.array([30, 30]))]),
                 Port('Dump', exports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
@@ -318,7 +318,7 @@ class TestStorage:
             timesteps=ts(2),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([10, 10]))]),
                 Port('Dump', exports=[Flow('Elec')]),

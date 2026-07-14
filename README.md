@@ -47,7 +47,7 @@ result = optimize(
             thermal_flow=Flow('heat', size=200)
         )
     ],
-    objective_effects='cost',
+    objective='cost',
 )
 
 print(f"Total cost: {result.objective:.2f}")

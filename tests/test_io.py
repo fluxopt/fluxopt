@@ -27,7 +27,7 @@ def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
         timesteps=timesteps,
         carriers=[Carrier('elec')],
         effects=[Effect('cost')],
-        objective_effects='cost',
+        objective='cost',
         ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
     )
 
@@ -45,7 +45,7 @@ def _solve_with_storage(timesteps: list[datetime]) -> Result:
         timesteps=timesteps,
         carriers=[Carrier('gas'), Carrier('heat')],
         effects=[Effect('cost')],
-        objective_effects='cost',
+        objective='cost',
         ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
@@ -111,7 +111,7 @@ class TestRoundtrip:
         from fluxopt import FlowSystem
 
         model = FlowSystem(loaded.data)
-        result2 = model.optimize(objective_effects='cost')
+        result2 = model.optimize(objective='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 
 
@@ -178,7 +178,7 @@ class TestCarrierMetadataRoundtrip:
             timesteps=ts,
             carriers=[Carrier('elec', unit='kWh', color='#ff0000', description='Electrical energy')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
         )
         assert result.data is not None
@@ -206,7 +206,7 @@ class TestRoundtripContributionFrom:
                 Effect('cost', contribution_from={'co2': 50}),
                 Effect('co2', unit='kg'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
         )
         assert result.data is not None
@@ -223,7 +223,7 @@ class TestRoundtripContributionFrom:
         from fluxopt import FlowSystem
 
         model = FlowSystem(loaded.data)
-        result2 = model.optimize(objective_effects='cost')
+        result2 = model.optimize(objective='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 
 

@@ -97,7 +97,7 @@ class TestStorageComponentStatus:
             timesteps=ts(3),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 10]))]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
@@ -125,7 +125,7 @@ class TestStorageComponentStatus:
             timesteps=ts(3),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
@@ -166,7 +166,7 @@ class TestStorageComponentStatus:
             timesteps=ts(5),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 10, 0, 10, 0]))]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
@@ -194,7 +194,7 @@ class TestStorageComponentStatus:
             timesteps=ts(4),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 0, 10]))]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
@@ -229,7 +229,7 @@ class TestStorageComponentStatus:
             timesteps=ts(3),
             carriers=[Carrier('Elec')],
             effects=[Effect('cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
                 Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),

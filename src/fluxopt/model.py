@@ -99,12 +99,12 @@ class FlowSystem:
         """
         self.data = data
         self.m = Model()
-        self._objective_effects: dict[str, float] = _normalize_objective(objective)
+        self._objective: dict[str, float] = _normalize_objective(objective)
         self._objective_weights: dict[str, float] = {}
         self._piecewise: dict[str, Any] = {}  # conv_id -> linopy.PiecewiseFormulation
         self._built = False
         if objective is not None:
-            _validate_objective(self._objective_effects)
+            _validate_objective(self._objective)
 
     @classmethod
     def from_elements(
@@ -163,13 +163,13 @@ class FlowSystem:
         again for the change to take effect in the linopy model. Assigning an
         empty objective is rejected — a model must always minimize something.
         """
-        return dict(self._objective_effects)
+        return dict(self._objective)
 
     @objective.setter
     def objective(self, value: str | dict[str, float]) -> None:
         normalized = _normalize_objective(value)
         _validate_objective(normalized)
-        self._objective_effects = normalized
+        self._objective = normalized
 
     def _add_variables(
         self,
@@ -205,7 +205,7 @@ class FlowSystem:
             ValueError: If no real (non-penalty) objective has been set
                 (see :attr:`objective`).
         """
-        _validate_objective(self._objective_effects)  # fail fast, before building anything
+        _validate_objective(self._objective)  # fail fast, before building anything
         # Phase 1: Decision variables
         self._create_flow_variables()
         self._create_sizing_variables()
@@ -236,7 +236,7 @@ class FlowSystem:
 
     def optimize(
         self,
-        objective_effects: str | dict[str, float] | None = None,
+        objective: str | dict[str, float] | None = None,
         customize: Callable[[FlowSystem], None] | None = None,
         *,
         solver: str = 'highs',
@@ -245,7 +245,7 @@ class FlowSystem:
         """Build, optionally customize, and solve the model.
 
         Args:
-            objective_effects: Effect(s) to minimize, overriding any objective
+            objective: Effect(s) to minimize, overriding any objective
                 already set on this FlowSystem. A single name, or a dict
                 mapping effect names to objective weights
                 (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
@@ -259,8 +259,8 @@ class FlowSystem:
             solver: Solver backend name.
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
-        if objective_effects is not None:
-            self.objective = objective_effects
+        if objective is not None:
+            self.objective = objective
         self.build()
         if customize is not None:
             customize(self)
@@ -1714,7 +1714,7 @@ class FlowSystem:
 
         ω falls back to global period_weights (or 1 in single-period).
         The built-in penalty effect enters at weight 1.0 unless named in
-        ``objective_effects`` (see :meth:`optimize`), so
+        ``objective`` (see :meth:`optimize`), so
         ``effects_per_*={'penalty': ...}`` works as soft steering without
         touching the tracked effects. Zero-weight effects are validated but
         contribute no term.
@@ -1725,7 +1725,7 @@ class FlowSystem:
         obj_expr: Any = 0
         effect_ids = list(ds.total_min.coords['effect'].values)
 
-        weights = dict(self._objective_effects)
+        weights = dict(self._objective)
         if PENALTY_EFFECT_ID not in weights and PENALTY_EFFECT_ID in effect_ids:
             weights[PENALTY_EFFECT_ID] = 1.0
         self._objective_weights = {k: float(v) for k, v in weights.items()}

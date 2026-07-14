@@ -17,7 +17,7 @@ class TestCustomize:
             'timesteps': ts(3),
             'carriers': [Carrier('elec')],
             'effects': [Effect('cost')],
-            'objective_effects': 'cost',
+            'objective': 'cost',
             'ports': [
                 Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
                 Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
@@ -174,7 +174,7 @@ class TestFlowSystemApi:
         assert result.objective == pytest.approx(150.0, abs=1e-6)
 
     def test_optimize_arg_overrides_objective(self, simple_system):
-        """An explicit optimize(objective_effects=...) overrides the stored objective."""
+        """An explicit optimize(objective=...) overrides the stored objective."""
         fs = FlowSystem.from_elements(objective='cost', **simple_system)
         result = fs.optimize({'cost': 2.0})
         assert fs.objective == {'cost': 2.0}

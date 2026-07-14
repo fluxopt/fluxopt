@@ -32,7 +32,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -69,7 +69,7 @@ class TestEffects:
                 Effect('cost', contribution_from={'CO2': 0.5}),
                 Effect('CO2'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -101,7 +101,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', total_max=15),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -145,7 +145,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', total_min=25),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -191,7 +191,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', rate_max=8),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -234,7 +234,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', rate_min=10),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -279,7 +279,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', rate_max=4),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -326,7 +326,7 @@ class TestEffects:
                 Effect('cost'),
                 Effect('CO2', rate_min=5),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
@@ -392,7 +392,7 @@ class TestEffects:
                 Effect('cost', contribution_from={'CO2': 10}),
                 Effect('CO2'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     'Demand',
