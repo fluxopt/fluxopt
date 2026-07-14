@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import xarray as xr
 
+from fluxopt.model_data import _split_rows
+
 if TYPE_CHECKING:
     from fluxopt.model_data import FlowsData, ModelData
 
@@ -57,62 +59,107 @@ def _apply_leontief(
     return result
 
 
+def _dense_channel(
+    coeffs: dict[str, xr.DataArray],
+    sol_values: xr.DataArray | None,
+    entity_dim: str,
+    contributor_ids: list[str],
+    effect_ids: list[str],
+) -> xr.DataArray | float:
+    """Densify one lump channel: rows x solved values, zero-filled.
+
+    Each signature's rows are multiplied by the solved variable slice they
+    select (via their entity label), then unstacked onto
+    ``(contributor, effect[, ...])`` — pairs are unique per family, so the
+    unstack cannot collide.
+
+    Args:
+        coeffs: Signature-grouped channel coefficients.
+        sol_values: Solved variable with dim *entity_dim*, or None.
+        entity_dim: Entity dim of *sol_values* and label coord on the rows.
+        contributor_ids: Full contributor index for the result.
+        effect_ids: All effect ids.
+
+    Returns:
+        Dense channel total, or ``0.0`` when the channel is empty.
+    """
+    total: xr.DataArray | float = 0.0
+    if not coeffs or sol_values is None:
+        return total
+    for coeff in coeffs.values():
+        labels = [str(v) for v in coeff.coords[entity_dim].values]
+        sel = xr.DataArray(labels, dims=['contribution'])
+        vals = coeff.drop_vars([entity_dim, 'effect']) * sol_values.sel({entity_dim: sel}).drop_vars(
+            entity_dim, errors='ignore'
+        )
+        vals = vals.assign_coords(
+            contributor=('contribution', labels),
+            effect=('contribution', [str(v) for v in coeff.coords['effect'].values]),
+        )
+        dense = (
+            vals.set_index(contribution=['contributor', 'effect'])
+            .unstack('contribution', fill_value=0.0)
+            .reindex(contributor=contributor_ids, effect=effect_ids, fill_value=0.0)
+        )
+        total = total + dense
+    return total
+
+
+def _dense_constant(
+    coeffs: dict[str, xr.DataArray],
+    entity_dim: str,
+    contributor_ids: list[str],
+    effect_ids: list[str],
+) -> xr.DataArray | float:
+    """Densify constant rows (mandatory fixed costs): no variable multiplier."""
+    total: xr.DataArray | float = 0.0
+    for coeff in coeffs.values():
+        vals = coeff.drop_vars([entity_dim, 'effect']).assign_coords(
+            contributor=('contribution', [str(v) for v in coeff.coords[entity_dim].values]),
+            effect=('contribution', [str(v) for v in coeff.coords['effect'].values]),
+        )
+        dense = (
+            vals.set_index(contribution=['contributor', 'effect'])
+            .unstack('contribution', fill_value=0.0)
+            .reindex(contributor=contributor_ids, effect=effect_ids, fill_value=0.0)
+        )
+        total = total + dense
+    return total
+
+
 def _compute_sizing_lump(
-    effects_per_size: xr.DataArray | None,
-    effects_fixed: xr.DataArray | None,
+    effects_per_size: dict[str, xr.DataArray],
+    effects_fixed: dict[str, xr.DataArray],
     mandatory: xr.DataArray | None,
     solution: xr.Dataset,
     contributor_ids: list[str],
     effect_ids: list[str],
-    sizing_dim: str,
     entity_dim: str,
     size_var: str,
     indicator_var: str,
-) -> xr.DataArray:
+) -> xr.DataArray | float:
     """Compute Sizing lump contributions for flows or storages.
 
     Args:
-        effects_per_size: Per-unit sizing costs ``(sizing_dim, effect)`` or None.
-        effects_fixed: Fixed sizing costs ``(sizing_dim, effect)`` or None.
-        mandatory: Boolean mask for mandatory sizing ``(sizing_dim,)`` or None.
+        effects_per_size: Signature-grouped per-unit sizing costs.
+        effects_fixed: Signature-grouped fixed sizing costs.
+        mandatory: Boolean mask ``(sizing_dim,)`` or None.
         solution: Solved variable dataset.
         contributor_ids: Contributor ids for this entity type.
         effect_ids: All effect ids.
-        sizing_dim: Sizing dimension name (``sizing_flow`` or ``sizing_storage``).
-        entity_dim: Entity dimension name (``flow`` or ``storage``).
+        entity_dim: Entity dim name (``flow`` or ``storage``).
         size_var: Solution variable name for size.
         indicator_var: Solution variable name for binary indicator.
     """
-    result = xr.DataArray(
-        np.zeros((len(contributor_ids), len(effect_ids))),
-        dims=['contributor', 'effect'],
-        coords={'contributor': contributor_ids, 'effect': effect_ids},
-    )
-    rename = {sizing_dim: entity_dim}
-
-    # Per-size costs
-    if effects_per_size is not None and size_var in solution:
-        eps = effects_per_size.rename(rename)
-        term = (eps * solution[size_var]).reindex({entity_dim: contributor_ids}, fill_value=0.0)
-        result = result + term.rename({entity_dim: 'contributor'})
-
-    # Fixed costs — optional (binary indicator * cost)
-    if effects_fixed is not None and indicator_var in solution:
-        indicator = solution[indicator_var].dropna(entity_dim)
-        opt_ids = list(indicator.coords[entity_dim].values)
-        ef = effects_fixed.rename(rename).reindex({entity_dim: opt_ids}, fill_value=0.0)
-        term = (ef * indicator).reindex({entity_dim: contributor_ids}, fill_value=0.0)
-        result = result + term.rename({entity_dim: 'contributor'})
-
-    # Fixed costs — mandatory (constant)
-    if effects_fixed is not None and mandatory is not None:
-        mand_mask = mandatory.values
-        if mand_mask.any():
-            mand_ids = list(mandatory.coords[sizing_dim].values[mand_mask])
-            ef_mand = effects_fixed.sel({sizing_dim: mand_ids}).rename(rename)
-            term = ef_mand.reindex({entity_dim: contributor_ids}, fill_value=0.0)
-            result = result + term.rename({entity_dim: 'contributor'})
-
+    result = _dense_channel(effects_per_size, solution.get(size_var), entity_dim, contributor_ids, effect_ids)
+    if effects_fixed:
+        assert mandatory is not None
+        lookup = dict(zip(mandatory.coords[mandatory.dims[0]].values, mandatory.values, strict=True))
+        optional_rows, mandatory_rows = _split_rows(effects_fixed, entity_dim, lookup)
+        result = result + _dense_channel(
+            optional_rows, solution.get(indicator_var), entity_dim, contributor_ids, effect_ids
+        )
+        result = result + _dense_constant(mandatory_rows, entity_dim, contributor_ids, effect_ids)
     return result
 
 
@@ -121,76 +168,71 @@ def _compute_investment_lump(
     solution: xr.Dataset,
     flow_ids: list[str],
     effect_ids: list[str],
-) -> xr.DataArray:
+) -> xr.DataArray | float:
     """Compute Investment lump contributions per (flow, effect).
 
     Each of the 4 Investment cost parameters multiplies a different solver
     variable, but all accumulate into the same lump bucket per flow.
     """
-    result = xr.DataArray(
-        np.zeros((len(flow_ids), len(effect_ids))),
-        dims=['contributor', 'effect'],
-        coords={'contributor': flow_ids, 'effect': effect_ids},
-    )
-    pairs = [
+    channels = [
         (fds.invest_effects_per_size_at_build, 'invest--size_at_build'),
         (fds.invest_effects_fixed_at_build, 'invest--build'),
-        (fds.invest_effects_per_size_recurring, 'flow--size'),  # selected to invest flows
+        (fds.invest_effects_per_size_recurring, 'flow--size'),  # rows select the invest flows
         (fds.invest_effects_fixed_recurring, 'invest--active'),
     ]
-    for coeff, var_name in pairs:
-        if coeff is None:
-            continue
-        c = coeff.rename({'invest_flow': 'flow'})
-        var = solution[var_name]
-        if var_name == 'flow--size':
-            var = var.sel(flow=list(coeff.coords['invest_flow'].values))
-        term = (c * var).reindex(flow=flow_ids, fill_value=0.0)
-        result = result + term.rename({'flow': 'contributor'})
+    result: xr.DataArray | float = 0.0
+    for coeffs, var_name in channels:
+        result = result + _dense_channel(coeffs, solution.get(var_name), 'flow', flow_ids, effect_ids)
     return result
 
 
-def _scatter_temporal_flow(
-    ec: dict[str, xr.DataArray],
-    rate_dt: xr.DataArray,
-    flow_ids: list[str],
-    effect_ids: list[str],
-) -> xr.DataArray:
-    """Expand signature-grouped effect rows into the dense per-flow temporal view.
+def _add_temporal_rows(
+    target: xr.DataArray,
+    coeffs: dict[str, xr.DataArray],
+    sol_values: xr.DataArray | None,
+    entity_dim: str,
+    scale: xr.DataArray | None = None,
+    remap: dict[str, str] | None = None,
+) -> None:
+    """Accumulate one temporal channel into the dense per-flow view, in place.
 
-    Builds a zeros ``(flow, effect, time[, period])`` array and scatters each
-    stacked contribution — coefficient * rate * dt — into its (flow, effect)
-    cell. Multiplying by the solved rate broadcasts any dims a signature
-    lacks. Pairs are unique across all signatures (validated at build), so
-    the scattered cells are disjoint and plain assignment suffices.
+    Each row's coefficient is multiplied by the solved variable slice it
+    selects (x *scale* when given, e.g. dt) and added into its
+    (contributor flow, effect) cell via unbuffered ``np.add.at`` — rows from
+    different channels (or components remapped onto the same flow) may hit
+    the same cell.
 
     Args:
-        ec: Signature-grouped ``FlowsData.effect_coeff``; empty when no flow
-            has effects.
-        rate_dt: Solved flow rate x timestep duration ``(flow, time[, period])``.
-        flow_ids: All flow ids, in contributor order.
-        effect_ids: All effect ids.
+        target: Dense ``(flow, effect, time[, period])`` accumulator.
+        coeffs: Signature-grouped channel coefficients.
+        sol_values: Solved variable with dim *entity_dim*, or None.
+        entity_dim: Entity dim of *sol_values* and label coord on the rows.
+        scale: Optional per-timestep multiplier (dt).
+        remap: Optional entity id -> contributor flow id (component status
+            attributes to the first governed flow); unmapped rows are skipped.
     """
-    extra_dims = [d for d in rate_dt.dims if d != 'flow']
-    temporal_flow = xr.DataArray(
-        np.zeros((len(flow_ids), len(effect_ids), *(rate_dt.sizes[d] for d in extra_dims))),
-        dims=['flow', 'effect', *extra_dims],
-        coords={
-            'flow': flow_ids,
-            'effect': effect_ids,
-            **{d: rate_dt.coords[d] for d in extra_dims if d in rate_dt.coords},
-        },
-    )
-    flow_pos = {fid: i for i, fid in enumerate(flow_ids)}
-    eff_pos = {eid: i for i, eid in enumerate(effect_ids)}
-    for coeff in ec.values():
-        pair_flow = xr.DataArray(coeff.coords['flow'].values, dims=['contribution'])
-        values = coeff.drop_vars(['flow', 'effect'])
-        contrib = (values * rate_dt.sel(flow=pair_flow).drop_vars('flow')).transpose('contribution', *extra_dims)
-        rows_f = [flow_pos[str(v)] for v in coeff.coords['flow'].values]
-        rows_e = [eff_pos[str(v)] for v in coeff.coords['effect'].values]
-        temporal_flow.values[rows_f, rows_e] = contrib.values
-    return temporal_flow
+    if not coeffs or sol_values is None:
+        return
+    extra_dims = [d for d in target.dims if d not in ('flow', 'effect')]
+    flow_pos = {str(v): i for i, v in enumerate(target.coords['flow'].values)}
+    eff_pos = {str(v): i for i, v in enumerate(target.coords['effect'].values)}
+    for coeff in coeffs.values():
+        labels = [str(v) for v in coeff.coords[entity_dim].values]
+        contributors = [remap.get(lb) if remap is not None else lb for lb in labels]
+        keep = [i for i, c in enumerate(contributors) if c is not None and c in flow_pos]
+        if not keep:
+            continue
+        sub = coeff.isel(contribution=keep)
+        sel = xr.DataArray([labels[i] for i in keep], dims=['contribution'])
+        vals = sub.drop_vars([entity_dim, 'effect']) * sol_values.sel({entity_dim: sel}).drop_vars(
+            entity_dim, errors='ignore'
+        )
+        if scale is not None:
+            vals = vals * scale
+        vals = vals.transpose('contribution', *extra_dims)
+        rows_f = [flow_pos[str(contributors[i])] for i in keep]
+        rows_e = [eff_pos[str(v)] for v in sub.coords['effect'].values]
+        np.add.at(target.values, (rows_f, rows_e), vals.values)
 
 
 def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray, xr.DataArray, list[str]]:
@@ -207,19 +249,20 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
     rate = solution['flow--rate']  # (flow, time)
     dt = data.dims.dt  # (time,)
 
-    temporal_flow = _scatter_temporal_flow(data.flows.effect_coeff, rate * dt, flow_ids, effect_ids)
+    rate_dt = rate * dt
+    extra_dims = [d for d in rate_dt.dims if d != 'flow']
+    temporal_flow = xr.DataArray(
+        np.zeros((len(flow_ids), len(effect_ids), *(rate_dt.sizes[d] for d in extra_dims))),
+        dims=['flow', 'effect', *extra_dims],
+        coords={
+            'flow': flow_ids,
+            'effect': effect_ids,
+            **{d: rate_dt.coords[d] for d in extra_dims if d in rate_dt.coords},
+        },
+    )
 
-    # Status running costs
-    if data.flows.status_effects_running is not None and 'flow--on' in solution:
-        er = data.flows.status_effects_running.rename({'status_flow': 'flow'})
-        temporal_flow = temporal_flow + (er * solution['flow--on'] * dt).reindex(flow=flow_ids, fill_value=0.0)
-
-    # Status startup costs
-    if data.flows.status_effects_startup is not None and 'flow--startup' in solution:
-        es = data.flows.status_effects_startup.rename({'status_flow': 'flow'})
-        temporal_flow = temporal_flow + (es * solution['flow--startup']).reindex(flow=flow_ids, fill_value=0.0)
-
-    # Component-level status: attribute running and startup costs to first governed flow
+    # Component status attributes to the first governed flow
+    first_flow_per_comp: dict[str, str] = {}
     if data.flows.cstatus_governed_flows is not None:
         gf = data.flows.cstatus_governed_flows
         first_flow_per_comp = {
@@ -228,40 +271,42 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
             if str(gf.sel(cstatus_component=comp_id).values[0])
         }
 
-        if data.flows.cstatus_effects_running is not None and 'component--on' in solution:
-            cer = data.flows.cstatus_effects_running.rename({'cstatus_component': 'component'})
-            comp_temporal = cer * solution['component--on'] * dt  # (component, effect, time)
-            for comp_id, fid in first_flow_per_comp.items():
-                if fid in flow_ids:
-                    add = comp_temporal.sel(component=comp_id).drop_vars('component')
-                    temporal_flow.loc[{'flow': fid}] = temporal_flow.sel(flow=fid) + add
-
-        if data.flows.cstatus_effects_startup is not None and 'component--startup' in solution:
-            ces = data.flows.cstatus_effects_startup.rename({'cstatus_component': 'component'})
-            comp_startup = ces * solution['component--startup']  # (component, effect, time)
-            for comp_id, fid in first_flow_per_comp.items():
-                if fid in flow_ids:
-                    add = comp_startup.sel(component=comp_id).drop_vars('component')
-                    temporal_flow.loc[{'flow': fid}] = temporal_flow.sel(flow=fid) + add
+    fds = data.flows
+    _add_temporal_rows(temporal_flow, fds.effect_coeff, rate, 'flow', scale=dt)
+    _add_temporal_rows(temporal_flow, fds.status_effects_running, solution.get('flow--on'), 'flow', scale=dt)
+    _add_temporal_rows(temporal_flow, fds.status_effects_startup, solution.get('flow--startup'), 'flow')
+    _add_temporal_rows(
+        temporal_flow,
+        fds.cstatus_effects_running,
+        solution.get('component--on'),
+        'component',
+        scale=dt,
+        remap=first_flow_per_comp,
+    )
+    _add_temporal_rows(
+        temporal_flow,
+        fds.cstatus_effects_startup,
+        solution.get('component--startup'),
+        'component',
+        remap=first_flow_per_comp,
+    )
 
     temporal = temporal_flow.rename({'flow': 'contributor'})
 
-    # --- Lump: flow sizing costs ---
+    # --- Lump: flow sizing + investment costs ---
     flow_lump = _compute_sizing_lump(
-        data.flows.sizing_effects_per_size,
-        data.flows.sizing_effects_fixed,
-        data.flows.sizing_mandatory,
+        fds.sizing_effects_per_size,
+        fds.sizing_effects_fixed,
+        fds.sizing_mandatory,
         solution,
         flow_ids,
         effect_ids,
-        'sizing_flow',
         'flow',
         'flow--size',
         'flow--size_indicator',
     )
-
-    # --- Lump: flow investment costs (at_build + recurring) ---
-    flow_lump = flow_lump + _compute_investment_lump(data.flows, solution, flow_ids, effect_ids)
+    flow_lump = flow_lump + _compute_investment_lump(fds, solution, flow_ids, effect_ids)
+    flow_lump = _as_dense_lump(flow_lump, flow_ids, effect_ids)
 
     # --- Lump: storage sizing costs ---
     if stor_ids:
@@ -273,16 +318,26 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
             solution,
             stor_ids,
             effect_ids,
-            'sizing_storage',
             'storage',
             'storage--capacity',
             'storage--size_indicator',
         )
-        lump = xr.concat([flow_lump, stor_lump], dim='contributor')
+        lump = xr.concat([flow_lump, _as_dense_lump(stor_lump, stor_ids, effect_ids)], dim='contributor')
     else:
         lump = flow_lump
 
     return temporal, lump, all_ids
+
+
+def _as_dense_lump(lump: xr.DataArray | float, contributor_ids: list[str], effect_ids: list[str]) -> xr.DataArray:
+    """Guarantee a dense (contributor, effect) array even for empty channel sums."""
+    if isinstance(lump, xr.DataArray):
+        return lump
+    return xr.DataArray(
+        np.zeros((len(contributor_ids), len(effect_ids))),
+        dims=['contributor', 'effect'],
+        coords={'contributor': contributor_ids, 'effect': effect_ids},
+    )
 
 
 def _apply_cross_effects(
