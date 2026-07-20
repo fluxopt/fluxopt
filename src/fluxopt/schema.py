@@ -1,14 +1,16 @@
-"""JSON Schema generation for the element layer.
+"""JSON Schema and dict/JSON round-trip for the element layer.
 
 The user-facing elements are ``pydantic.dataclasses``, so pydantic can emit a
-JSON Schema for each type. This is the machine-readable contract behind a future
-config front-end, GUI, or LLM-assisted authoring surface.
+JSON Schema for each type and round-trip instances to plain dicts. This is the
+machine-readable contract behind a future config front-end, GUI, or
+LLM-assisted authoring surface.
 
-Array-valued ``Variate`` fields (inline time-series) appear as permissive
-``{}`` in the schema — profiles are meant to live in data files and be
-referenced, not inlined (see ``docs/design/config-and-pydantic-direction.md``).
-Full instance round-trip (``to_dict``/``from_dict``) is a separate follow-up: it
-needs ``IdList`` serialization and idempotent component qualification.
+Structural round-trip (:func:`to_dict` / :func:`from_dict`) preserves ids,
+scalars, nested elements, and :class:`~fluxopt.types.ProfileRef` references.
+Inline array-valued ``Variate`` fields (raw time-series) do *not* serialize —
+use a ``ProfileRef`` instead, so profiles live in data files rather than in the
+config (see ``docs/design/config-and-pydantic-direction.md``). Such fields also
+appear as permissive ``{}`` in the JSON Schema.
 """
 
 from __future__ import annotations
@@ -49,3 +51,26 @@ def element_schema(element_type: type) -> dict[str, Any]:
 def all_element_schemas() -> Mapping[str, dict[str, Any]]:
     """Return JSON Schemas for every element type, keyed by class name."""
     return {t.__name__: element_schema(t) for t in ELEMENT_TYPES}
+
+
+def to_dict(element: object) -> dict[str, Any]:
+    """Serialize an element to a JSON-safe dict.
+
+    Nested elements, ``IdList`` fields, and ``ProfileRef`` references are
+    included; inline array-valued ``Variate`` fields are not serializable —
+    reference them with a ``ProfileRef`` instead.
+
+    Args:
+        element: Any element instance (e.g. ``Flow``, ``Converter``).
+    """
+    return TypeAdapter(type(element)).dump_python(element, mode='json')
+
+
+def from_dict[T](element_type: type[T], data: Mapping[str, Any]) -> T:
+    """Reconstruct an element from a dict produced by :func:`to_dict`.
+
+    Args:
+        element_type: The element class to build (e.g. ``Flow``).
+        data: A mapping of field values.
+    """
+    return TypeAdapter(element_type).validate_python(data)
