@@ -16,21 +16,22 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+from collections import Counter
 from dataclasses import field
 from typing import TYPE_CHECKING, Any
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 from pydantic.dataclasses import dataclass
 
 from fluxopt.components import Converter, Port
-from fluxopt.elements import Carrier, Effect, Storage
+from fluxopt.elements import PENALTY_EFFECT_ID, Carrier, Effect, Storage
 from fluxopt.model import FlowSystemModel
 from fluxopt.model_data import ModelData
 from fluxopt.schema import from_dict, to_dict
 from fluxopt.types import IdList, ProfileRef, Timesteps
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterator, Mapping
     from pathlib import Path
 
     from fluxopt.results import Result
@@ -69,6 +70,45 @@ def _resolve_refs(obj: Any, sources: Mapping[str, Any]) -> Any:
     return obj
 
 
+def _check_unique(ids: list[str], kind: str) -> None:
+    """Raise if *ids* contains duplicates.
+
+    Args:
+        ids: Identifiers to check.
+        kind: Human label used in the error (e.g. ``'effect'``).
+    """
+    dupes = sorted(i for i, n in Counter(ids).items() if n > 1)
+    if dupes:
+        raise ValueError(f'Duplicate {kind} id(s): {dupes}')
+
+
+def _iter_flows(system: FlowSystem) -> Iterator[Any]:
+    """Yield every flow across ports, converters, and storages."""
+    for p in system.ports:
+        yield from p.imports
+        yield from p.exports
+    for c in system.converters:
+        yield from c.inputs
+        yield from c.outputs
+    for s in system.storages:
+        yield s.charging
+        yield s.discharging
+
+
+def _collect_effect_refs(obj: Any, out: set[str]) -> None:
+    """Collect effect ids referenced by ``effects_*`` / ``contribution_from`` dicts."""
+    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+        for f in dataclasses.fields(obj):
+            val = getattr(obj, f.name)
+            if isinstance(val, dict) and (f.name.startswith('effects_') or f.name == 'contribution_from'):
+                out.update(val)
+            else:
+                _collect_effect_refs(val, out)
+    elif isinstance(obj, (list, IdList)):
+        for item in obj:
+            _collect_effect_refs(item, out)
+
+
 @dataclass(config=_PYDANTIC_CFG)
 class FlowSystem:
     """A declarative flow-system description (see module docstring).
@@ -96,6 +136,31 @@ class FlowSystem:
     dt: float | list[float] | None = None
     periods: list[int] | None = None
     period_weights: list[float] | None = None
+
+    @model_validator(mode='after')
+    def _validate_references(self) -> FlowSystem:
+        """Fail fast on undeclared references and duplicate ids (at construction/load)."""
+        _check_unique([e.id for e in self.effects], 'effect')
+        _check_unique([c.id for c in self.carriers], 'carrier')
+        _check_unique([comp.id for comp in (*self.ports, *self.converters, *self.storages)], 'component')
+
+        effect_ids = {e.id for e in self.effects} | {PENALTY_EFFECT_ID}
+        obj_keys = [self.objective_effects] if isinstance(self.objective_effects, str) else list(self.objective_effects)
+        if unknown := sorted(set(obj_keys) - effect_ids):
+            raise ValueError(
+                f'objective_effects references undeclared effect(s) {unknown}; declared {sorted(effect_ids)}'
+            )
+
+        refs: set[str] = set()
+        for group in (self.effects, self.ports, self.converters, self.storages):
+            _collect_effect_refs(group, refs)
+        if unknown := sorted(refs - effect_ids):
+            raise ValueError(f'Elements reference undeclared effect(s) {unknown}; declared {sorted(effect_ids)}')
+
+        carrier_ids = {c.id for c in self.carriers}
+        if unknown := sorted({f.carrier for f in _iter_flows(self)} - carrier_ids):
+            raise ValueError(f'Flows reference undeclared carrier(s) {unknown}; declared {sorted(carrier_ids)}')
+        return self
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> FlowSystem:

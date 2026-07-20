@@ -219,11 +219,29 @@ by a builder — not a mutable domain object. This mirrors the codebase's existi
   rejected — it decorates the primary user object; the qualifier belongs on the
   internal solver. Narrow rename, done pre-1.0.
 
-**Still deferred (Phase 4):**
+**Phase 4 landed (stacked PR)** — fail-fast aggregate validation on `FlowSystem`.
 
+A `@model_validator(mode='after')` runs at construction (and inside `from_dict`/
+`from_yaml`) and rejects, with clear messages: undeclared effect references
+(`effects_*` / `contribution_from` / `objective_effects`), undeclared carrier
+references, and duplicate effect / carrier / component ids. This moves the common
+authoring mistakes from build-time (`.optimize()`) to load-time — the point of a
+declarative workflow. Runs once after all fields are assembled, so element order
+is irrelevant.
+
+**Split / save deliberately dropped.** An earlier plan added `split()`/`save()`/
+`load()` to externalize inline arrays into a data bundle. Cut as unneeded:
+authoring with `ProfileRef` already keeps data external, and spec-→-YAML export is
+not a priority. The genuinely wanted future feature is **arithmetic / expressions
+in the YAML** (e.g. `2 * base_cost`, shared parameters) — the Calliope/linopy
+YAML-math direction (§5), deferred.
+
+**Still deferred (Phase 5+):**
+
+- **Arithmetic / expressions in YAML** (the real future want above).
 - **Porting `__post_init__` guards to pydantic validators**, and moving id
-  qualification from element construction to the build step (the declaration-vs-use
-  tightening). Both are incremental cleanup, not required for the win.
+  qualification from element construction to the build step (declaration-vs-use
+  tightening). Incremental cleanup, not required for the win.
 
 ## 7. Non-goals
 
