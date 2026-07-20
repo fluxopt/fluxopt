@@ -192,15 +192,44 @@ rival. That demo is a strong card in the #1788 ↔ #1796 discussion.
   `b(b(gas))`). Inline raw-array `Variate` still doesn't serialize — that's the
   `ProfileRef` path.
 
-**Still deferred (Phase 3):**
+**Phase 3 landed (stacked PR)** — the YAML front door + layer naming.
 
-- **Build-time auto-resolution** of `ProfileRef` inside `optimize()` /
-  `model_data` builders (today: resolve explicitly before building).
-- **Porting `__post_init__` guards to pydantic validators.** They run correctly
-  as-is; converting them is incremental cleanup, not required for the win.
+Philosophy **B** (chosen): layer 1 is an inert, validated *declaration*, consumed
+by a builder — not a mutable domain object. This mirrors the codebase's existing
+"declaration vs use" principle. The three layers, named to match:
+
+| layer | name | role | serialization |
+|---|---|---|---|
+| 1 | **`FlowSystem`** | what the user authors (elements + config) | dict / YAML |
+| 2 | `ModelData` | materialized xarray | netCDF |
+| 3 | **`FlowSystemModel`** | the linopy solver; owns `.m` (escape hatch) | → `Result` |
+
+- **`FlowSystem`** (`flow_system.py`): a pydantic aggregate mirroring `optimize()`;
+  `from_dict`/`from_yaml`/`to_dict`/`to_yaml`; `.optimize(sources=...)` delegates to
+  the existing pipeline (`ModelData.build → FlowSystemModel`). Python construction
+  stays first-class — the same object is built in code or loaded from YAML.
+- **`ProfileRef` auto-resolution**: `.optimize(sources=...)` runs a recursive
+  pre-pass (`_resolve_refs`) that swaps every `ProfileRef` for `resolve(sources)`
+  on a **deep copy**, so the `FlowSystem` stays reusable across different data.
+  Sources are passed **in code** (`{id: Dataset}`), not via file paths in YAML —
+  structure is declarative, data supply is explicit.
+- **Naming decision**: the flagship name `FlowSystem` goes to the *user-authored*
+  layer; today's solver was renamed `FlowSystem` → **`FlowSystemModel`** (it owns
+  a linopy `Model` as `.m`, so `...Model` fits and there's no clash). `*Spec` was
+  rejected — it decorates the primary user object; the qualifier belongs on the
+  internal solver. Narrow rename, done pre-1.0.
+
+**Still deferred (Phase 4):**
+
+- **Porting `__post_init__` guards to pydantic validators**, and moving id
+  qualification from element construction to the build step (the declaration-vs-use
+  tightening). Both are incremental cleanup, not required for the win.
 
 ## 7. Non-goals
 
-- Defining the *whole system* in YAML (profiles belong in data files).
+- Inlining time-series *profiles* in YAML (they belong in data files, referenced
+  by `ProfileRef`). Declaring system *structure* in YAML is exactly the goal.
+- A mutable domain object with `.add()`/`.remove()` (philosophy A) — `FlowSystem`
+  is an inert declaration; assemble the lists, then hand them to the builder.
 - Replacing `constraints/` with declarative math.
 - Blocking any of the above on an unmerged linopy feature.
