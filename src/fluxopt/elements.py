@@ -152,6 +152,7 @@ class Flow(Element):
     is stored in ``id``.
     """
     id: str = Field(default='', init=False)
+    """Qualified id ``component(short_id)``, set by the parent component."""
     node: str | None = None
     """Sub-node for multi-node carrier balancing."""
     size: float | Sizing | Investment | None = None  # P̄_f  [MW]

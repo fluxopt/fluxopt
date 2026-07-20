@@ -21,11 +21,18 @@ def _qualify_flows(component_id: str, flows: list[Flow]) -> IdList[Flow]:
 
 
 class Port(Element):
-    """System boundary that imports from or exports to buses."""
+    """System boundary exchanging a carrier with a bus.
+
+    ``imports`` bring flow into the system (sources); ``exports`` send it out
+    of the system (sinks).
+    """
 
     id: str
+    """Port id (prefixes qualified flow ids)."""
     imports: list[Flow] | IdList[Flow] = Field(default_factory=list)
+    """Flows bringing the carrier into the system (sources, e.g. grid supply)."""
     exports: list[Flow] | IdList[Flow] = Field(default_factory=list)
+    """Flows sending the carrier out of the system (sinks, e.g. demand)."""
 
     @override
     def model_post_init(self, __context: Any) -> None:
