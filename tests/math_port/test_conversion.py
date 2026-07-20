@@ -17,20 +17,20 @@ class TestConversionEfficiency:
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 20, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 20, 10])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -38,8 +38,8 @@ class TestConversionEfficiency:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=0.8,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    thermal_flow=Flow(carrier='Heat'),
                 ),
             ],
         )
@@ -55,20 +55,20 @@ class TestConversionEfficiency:
 
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -76,8 +76,8 @@ class TestConversionEfficiency:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=np.array([0.5, 1.0]),
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    thermal_flow=Flow(carrier='Heat'),
                 ),
             ],
         )
@@ -94,26 +94,26 @@ class TestConversionEfficiency:
 
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec'), Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec'), Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'HeatDemand',
+                    id='HeatDemand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([50, 50])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([50, 50])),
                     ],
                 ),
                 Port(
-                    'ElecGrid',
+                    id='ElecGrid',
                     exports=[
-                        Flow('Elec', effects_per_flow_hour={'cost': -2}),
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': -2}),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -122,9 +122,9 @@ class TestConversionEfficiency:
                     'CHP',
                     eta_el=0.4,
                     eta_th=0.5,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    electrical_flow=Flow('Elec'),
-                    thermal_flow=Flow('Heat'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    electrical_flow=Flow(carrier='Elec'),
+                    thermal_flow=Flow(carrier='Heat'),
                 ),
             ],
         )

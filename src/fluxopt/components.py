@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import field
+from typing import Any, override
 
-from pydantic import ConfigDict
-from pydantic.dataclasses import dataclass
+from pydantic import Field, PrivateAttr
 
-from fluxopt.elements import Flow, PiecewiseConversion, qualified_id
+from fluxopt.elements import Element, Flow, PiecewiseConversion, qualified_id
 from fluxopt.types import IdList, Variate
-
-_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
 
 
 def _qualify_flows(component_id: str, flows: list[Flow]) -> IdList[Flow]:
@@ -23,22 +20,21 @@ def _qualify_flows(component_id: str, flows: list[Flow]) -> IdList[Flow]:
     return IdList(flows)
 
 
-@dataclass(config=_PYDANTIC_CFG)
-class Port:
+class Port(Element):
     """System boundary that imports from or exports to buses."""
 
     id: str
-    imports: list[Flow] | IdList[Flow] = field(default_factory=list)
-    exports: list[Flow] | IdList[Flow] = field(default_factory=list)
+    imports: list[Flow] | IdList[Flow] = Field(default_factory=list)
+    exports: list[Flow] | IdList[Flow] = Field(default_factory=list)
 
-    def __post_init__(self) -> None:
+    @override
+    def model_post_init(self, __context: Any) -> None:
         """Qualify flow ids with the port id."""
         self.imports = _qualify_flows(self.id, list(self.imports))
         self.exports = _qualify_flows(self.id, list(self.exports))
 
 
-@dataclass(config=_PYDANTIC_CFG)
-class Converter:
+class Converter(Element):
     """Conversion between input and output flows.
 
     Two mutually exclusive modes:
@@ -48,24 +44,24 @@ class Converter:
     - **Piecewise** — ``conversion=PiecewiseConversion(...)``; the solver
       interpolates between breakpoints, optionally with on/off via
       ``PiecewiseConversion.status``.
-
-    Args:
-        id: Converter id.
-        inputs: Input flows.
-        outputs: Output flows.
-        conversion_factors: Linear-mode equations. Empty when
-            ``conversion`` is set.
-        conversion: Piecewise-mode curve. ``None`` for linear mode.
     """
 
     id: str
+    """Converter id."""
     inputs: list[Flow] | IdList[Flow]
+    """Input flows."""
     outputs: list[Flow] | IdList[Flow]
-    conversion_factors: list[dict[str, Variate]] = field(default_factory=list)  # a_f
+    """Output flows."""
+    conversion_factors: list[dict[str, Variate]] = Field(default_factory=list)  # a_f
+    """Linear-mode equations. Empty when
+    ``conversion`` is set.
+    """
     conversion: PiecewiseConversion | None = None
-    _short_to_id: dict[str, str] = field(init=False, default_factory=dict)
+    """Piecewise-mode curve. ``None`` for linear mode."""
+    _short_to_id: dict[str, str] = PrivateAttr(default_factory=dict)
 
-    def __post_init__(self) -> None:
+    @override
+    def model_post_init(self, __context: Any) -> None:
         """Qualify flow ids and validate mode exclusivity."""
         self.inputs = _qualify_flows(self.id, list(self.inputs))
         self.outputs = _qualify_flows(self.id, list(self.outputs))
@@ -108,7 +104,7 @@ class Converter:
     def _single_io(cls, id: str, coefficient: Variate, input_flow: Flow, output_flow: Flow) -> Converter:
         """Create a single-input/single-output converter: input * coefficient = output."""
         return cls(
-            id,
+            id=id,
             inputs=[input_flow],
             outputs=[output_flow],
             conversion_factors=[{input_flow.short_id: coefficient, output_flow.short_id: -1}],
@@ -149,7 +145,7 @@ class Converter:
             thermal_flow: Output thermal flow.
         """
         return cls(
-            id,
+            id=id,
             inputs=[electrical_flow, source_flow],
             outputs=[thermal_flow],
             conversion_factors=[
@@ -191,7 +187,7 @@ class Converter:
             thermal_flow: Output thermal flow.
         """
         return cls(
-            id,
+            id=id,
             inputs=[fuel_flow],
             outputs=[electrical_flow, thermal_flow],
             conversion_factors=[

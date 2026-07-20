@@ -9,15 +9,19 @@ from fluxopt import Carrier, Converter, Effect, Flow, FlowSystem, Port
 
 _BASE = {
     'timesteps': [0, 1],
-    'carriers': [Carrier('Heat')],
-    'effects': [Effect('cost')],
+    'carriers': [Carrier(id='Heat')],
+    'effects': [Effect(id='cost')],
     'objective_effects': 'cost',
 }
 
 
 def _system(**overrides: object) -> FlowSystem:
     return FlowSystem(
-        **{**_BASE, 'ports': [Port('S', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})])], **overrides}
+        **{
+            **_BASE,
+            'ports': [Port(id='S', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})])],
+            **overrides,
+        }
     )
 
 
@@ -35,14 +39,14 @@ class TestValidReferences:
 
         assert (
             _system(
-                effects=[Effect('cost'), Effect('co2')],
+                effects=[Effect(id='cost'), Effect(id='co2')],
                 ports=[
                     Port(
-                        'S',
+                        id='S',
                         imports=[
                             Flow(
-                                'Heat',
-                                size=Sizing(0, 10, effects_per_size={'co2': 1}),
+                                carrier='Heat',
+                                size=Sizing(size_min=0, size_max=10, effects_per_size={'co2': 1}),
                                 relative_rate_min=0.1,
                                 status=Status(effects_per_startup={'cost': 5}),
                             )
@@ -57,15 +61,15 @@ class TestValidReferences:
 class TestFailFast:
     def test_unknown_effect_in_flow(self) -> None:
         with pytest.raises(ValidationError, match='undeclared effect'):
-            _system(ports=[Port('S', imports=[Flow('Heat', effects_per_flow_hour={'co2': 1})])])
+            _system(ports=[Port(id='S', imports=[Flow(carrier='Heat', effects_per_flow_hour={'co2': 1})])])
 
     def test_unknown_effect_in_contribution_from(self) -> None:
         with pytest.raises(ValidationError, match='undeclared effect'):
-            _system(effects=[Effect('cost', contribution_from={'co2': 1})])
+            _system(effects=[Effect(id='cost', contribution_from={'co2': 1})])
 
     def test_unknown_carrier(self) -> None:
         with pytest.raises(ValidationError, match='undeclared carrier'):
-            _system(ports=[Port('S', imports=[Flow('gas')])])
+            _system(ports=[Port(id='S', imports=[Flow(carrier='gas')])])
 
     def test_bad_objective(self) -> None:
         with pytest.raises(ValidationError, match='objective_effects references undeclared'):
@@ -73,14 +77,14 @@ class TestFailFast:
 
     def test_duplicate_effect_id(self) -> None:
         with pytest.raises(ValidationError, match='Duplicate effect'):
-            _system(effects=[Effect('cost'), Effect('cost')])
+            _system(effects=[Effect(id='cost'), Effect(id='cost')])
 
     def test_duplicate_component_id(self) -> None:
         with pytest.raises(ValidationError, match='Duplicate component'):
             _system(
-                ports=[Port('S', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})])],
-                converters=[Converter.boiler('S', 0.9, Flow('gas'), Flow('Heat'))],
-                carriers=[Carrier('Heat'), Carrier('gas')],
+                ports=[Port(id='S', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})])],
+                converters=[Converter.boiler('S', 0.9, Flow(carrier='gas'), Flow(carrier='Heat'))],
+                carriers=[Carrier(id='Heat'), Carrier(id='gas')],
             )
 
     def test_validation_runs_from_dict(self) -> None:

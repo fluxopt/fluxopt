@@ -21,13 +21,13 @@ def _merit_order_spec(demand: object) -> FlowSystem:
     """Two priced sources meeting a fixed heat demand (see test_bus.py)."""
     return FlowSystem(
         timesteps=[0, 1],
-        carriers=[Carrier('Heat')],
-        effects=[Effect('cost')],
+        carriers=[Carrier(id='Heat')],
+        effects=[Effect(id='cost')],
         objective_effects='cost',
         ports=[
-            Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=demand)]),
-            Port('Src1', imports=[Flow('Heat', size=20, effects_per_flow_hour={'cost': 1})]),
-            Port('Src2', imports=[Flow('Heat', size=20, effects_per_flow_hour={'cost': 2})]),
+            Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=demand)]),
+            Port(id='Src1', imports=[Flow(carrier='Heat', size=20, effects_per_flow_hour={'cost': 1})]),
+            Port(id='Src2', imports=[Flow(carrier='Heat', size=20, effects_per_flow_hour={'cost': 2})]),
         ],
     )
 

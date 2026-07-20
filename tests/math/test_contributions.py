@@ -12,15 +12,15 @@ class TestSumToTotal:
     def test_single_source(self):
         """Single source gets 100% of effects."""
 
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -31,19 +31,19 @@ class TestSumToTotal:
     def test_two_sources_sum_to_total(self):
         """Two sources' contributions sum to the solver total."""
 
-        cheap = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.02})
-        expensive = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.10})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        cheap = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.02})
+        expensive = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.10})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('cheap_src', imports=[cheap]),
-                Port('exp_src', imports=[expensive]),
-                Port('demand', exports=[sink]),
+                Port(id='cheap_src', imports=[cheap]),
+                Port(id='exp_src', imports=[expensive]),
+                Port(id='demand', exports=[sink]),
             ],
         )
 
@@ -55,15 +55,15 @@ class TestSumToTotal:
     def test_per_timestep_sum_to_effect_temporal(self):
         """Temporal contributions summed over contributors match effect_temporal."""
 
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -76,19 +76,19 @@ class TestProportionalSplit:
     def test_cheap_gets_all_demand(self):
         """With fixed demand, cheaper source serves everything -> gets all cost."""
 
-        cheap = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.02})
-        expensive = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.10})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        cheap = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.02})
+        expensive = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.10})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('cheap_src', imports=[cheap]),
-                Port('exp_src', imports=[expensive]),
-                Port('demand', exports=[sink]),
+                Port(id='cheap_src', imports=[cheap]),
+                Port(id='exp_src', imports=[expensive]),
+                Port(id='demand', exports=[sink]),
             ],
         )
 
@@ -105,18 +105,18 @@ class TestCrossEffects:
         """Carbon tax cost is attributed to the CO2-emitting flow."""
 
         demand = [50.0, 80.0, 60.0]
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -136,23 +136,23 @@ class TestCrossEffects:
     def test_cross_effect_two_emitters(self):
         """Carbon tax is split proportionally between two emitting sources."""
 
-        dirty = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
-        clean = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        dirty = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.02, 'co2': 1.0})
+        clean = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.10, 'co2': 0.0})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         co2_limit = 100.0
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', total_max=co2_limit),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', total_max=co2_limit),
             ],
             objective_effects='cost',
             ports=[
-                Port('dirty_src', imports=[dirty]),
-                Port('clean_src', imports=[clean]),
-                Port('demand', exports=[sink]),
+                Port(id='dirty_src', imports=[dirty]),
+                Port(id='clean_src', imports=[clean]),
+                Port(id='demand', exports=[sink]),
             ],
         )
 
@@ -169,19 +169,19 @@ class TestCrossEffects:
         """PE -> CO2 -> cost chain: contributions propagate transitively."""
 
         demand = [50.0, 80.0, 60.0]
-        source = Flow('elec', size=200, effects_per_flow_hour={'pe': 2.0})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'pe': 2.0})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
-                Effect('pe', unit='kWh'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg', contribution_from={'pe': 0.3}),
+                Effect(id='pe', unit='kWh'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -199,18 +199,18 @@ class TestSizing:
         """Investment costs appear on the flow that has sizing."""
 
         source = Flow(
-            'elec',
+            carrier='elec',
             size=Sizing(size_min=50, size_max=200, mandatory=True, effects_per_size={'cost': 100}),
             effects_per_flow_hour={'cost': 0.04},
         )
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -229,18 +229,18 @@ class TestSizing:
         """Optional sizing with fixed costs uses binary indicator in contributions."""
 
         source = Flow(
-            'elec',
+            carrier='elec',
             size=Sizing(size_min=0, size_max=200, mandatory=False, effects_fixed={'cost': 1000}),
             effects_per_flow_hour={'cost': 0.04},
         )
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -255,21 +255,21 @@ class TestSizing:
         """Sizing CO2 priced into cost via contribution_from."""
 
         source = Flow(
-            'elec',
+            carrier='elec',
             size=Sizing(size_min=50, size_max=200, mandatory=True, effects_per_size={'co2': 10}),
             effects_per_flow_hour={'cost': 0.04, 'co2': 0.5},
         )
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -289,20 +289,20 @@ class TestStatus:
         """Running costs appear on the flow that has status."""
 
         source = Flow(
-            'elec',
+            carrier='elec',
             size=100,
             relative_rate_min=0.3,
             effects_per_flow_hour={'cost': 0.04},
             status=Status(effects_per_running_hour={'cost': 5.0}),
         )
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -323,17 +323,17 @@ class TestConverter:
     def test_converter_contributions(self):
         """Converter flows are attributed to their respective flows."""
 
-        fuel = Flow('gas', size=200, effects_per_flow_hour={'cost': 0.03})
-        heat_flow = Flow('heat', size=200)
-        gas_supply = Flow('gas', size=200)
-        heat_sink = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        fuel = Flow(carrier='gas', size=200, effects_per_flow_hour={'cost': 0.03})
+        heat_flow = Flow(carrier='heat', size=200)
+        gas_supply = Flow(carrier='gas', size=200)
+        heat_sink = Flow(carrier='heat', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='gas'), Carrier(id='heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('gas_grid', imports=[gas_supply]), Port('demand', exports=[heat_sink])],
+            ports=[Port(id='gas_grid', imports=[gas_supply]), Port(id='demand', exports=[heat_sink])],
             converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_flow)],
         )
 
@@ -354,20 +354,20 @@ class TestStorage:
     def test_storage_sizing_costs(self):
         """Storage sizing investment costs appear on contributor dim."""
 
-        charge = Flow('elec')
-        discharge = Flow('elec')
-        source = Flow('elec', size=100, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02, 0.08]})
-        sink = Flow('elec', size=50, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+        charge = Flow(carrier='elec')
+        discharge = Flow(carrier='elec')
+        source = Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02, 0.08]})
+        sink = Flow(carrier='elec', size=50, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(4),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
             storages=[
                 Storage(
-                    'battery',
+                    id='battery',
                     charging=charge,
                     discharging=discharge,
                     capacity=Sizing(size_min=10, size_max=100, mandatory=True, effects_per_size={'cost': 50}),
@@ -389,23 +389,23 @@ class TestStorage:
     def test_storage_sizing_cross_effect(self):
         """Storage sizing CO2 priced into cost via contribution_from."""
 
-        charge = Flow('elec')
-        discharge = Flow('elec')
-        source = Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04, 'co2': 0.1})
-        sink = Flow('elec', size=50, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+        charge = Flow(carrier='elec')
+        discharge = Flow(carrier='elec')
+        source = Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 0.04, 'co2': 0.1})
+        sink = Flow(carrier='elec', size=50, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(4),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
             storages=[
                 Storage(
-                    'battery',
+                    id='battery',
                     charging=charge,
                     discharging=discharge,
                     capacity=Sizing(size_min=10, size_max=100, mandatory=True, effects_per_size={'co2': 5}),
@@ -430,15 +430,15 @@ class TestEdgeCases:
     def test_no_cost_flows(self):
         """With no effects_per_flow_hour, contributions are zero."""
 
-        source = Flow('elec', size=100)
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        source = Flow(carrier='elec', size=100)
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -447,15 +447,15 @@ class TestEdgeCases:
     def test_multiple_effects_sum_to_total(self):
         """Multiple effects tracked simultaneously all sum correctly."""
 
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost'), Effect('co2', unit='kg')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost'), Effect(id='co2', unit='kg')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         contrib = result.stats.effect_contributions
@@ -467,15 +467,15 @@ class TestEdgeCases:
     def test_caching(self):
         """Stats accessor and its properties are cached."""
 
-        source = Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        source = Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 0.04})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         assert result.stats is result.stats
@@ -490,15 +490,15 @@ class TestDirectContributions:
     def test_direct_equals_with_cross_when_no_contribution_from(self):
         """Without contribution_from, direct and with-cross views match."""
 
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost'), Effect('co2', unit='kg')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost'), Effect(id='co2', unit='kg')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         with_cross = result.stats.effect_contributions
@@ -512,18 +512,18 @@ class TestDirectContributions:
         disagree on at least one (contributor, effect) — otherwise the direct
         accessor is silently returning the with-cross result (or vice versa)."""
 
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         with_cross = result.stats.effect_contributions
@@ -535,18 +535,18 @@ class TestDirectContributions:
         """Direct cost = direct flow cost only, ignoring CO₂→cost cross-effect."""
 
         demand = [50.0, 80.0, 60.0]
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         direct = result.stats.effect_contributions_direct
@@ -570,18 +570,18 @@ class TestDirectContributions:
         (no cross-effects mean physical totals are unchanged)."""
 
         demand = [50.0, 80.0, 60.0]
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         direct = result.stats.effect_contributions_direct
@@ -593,19 +593,19 @@ class TestDirectContributions:
         full chain only appears in the with-cross view."""
 
         demand = [50.0, 80.0, 60.0]
-        source = Flow('elec', size=200, effects_per_flow_hour={'pe': 2.0})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'pe': 2.0})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg', contribution_from={'pe': 0.3}),
-                Effect('pe', unit='kWh'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg', contribution_from={'pe': 0.3}),
+                Effect(id='pe', unit='kWh'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         direct = result.stats.effect_contributions_direct
@@ -631,18 +631,18 @@ class TestDirectContributions:
         Sanity: direct cost total is less than solver cost total when CO₂→cost is set."""
 
         demand = [50.0, 80.0, 60.0]
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         direct = result.stats.effect_contributions_direct
@@ -656,21 +656,21 @@ class TestDirectContributions:
         """Sizing CO₂ stays as CO₂ in direct view, not priced into cost."""
 
         source = Flow(
-            'elec',
+            carrier='elec',
             size=Sizing(size_min=50, size_max=200, mandatory=True, effects_per_size={'co2': 10}),
             effects_per_flow_hour={'cost': 0.04},
         )
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         direct = result.stats.effect_contributions_direct
@@ -726,18 +726,18 @@ class TestComputeEffectContributionsAPI:
         with-cross result as accessing result.stats.effect_contributions."""
         from fluxopt.contributions import compute_effect_contributions
 
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         via_function = compute_effect_contributions(result.solution, result.data, cross_effects=True)
@@ -756,18 +756,18 @@ class TestComputeEffectContributionsAPI:
         """
         from fluxopt.contributions import compute_effect_contributions
 
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
         via_function = compute_effect_contributions(result.solution, result.data, cross_effects=False)

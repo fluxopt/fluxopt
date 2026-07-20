@@ -15,13 +15,10 @@ and use (building/solving) stay separate.
 from __future__ import annotations
 
 import copy
-import dataclasses
 from collections import Counter
-from dataclasses import field
 from typing import TYPE_CHECKING, Any
 
-from pydantic import ConfigDict, model_validator
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fluxopt.components import Converter, Port
 from fluxopt.elements import PENALTY_EFFECT_ID, Carrier, Effect, Storage
@@ -63,9 +60,9 @@ def _resolve_refs(obj: Any, sources: Mapping[str, Any]) -> Any:
         for item in obj:
             _resolve_refs(item, sources)
         return obj
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        for f in dataclasses.fields(obj):
-            setattr(obj, f.name, _resolve_refs(getattr(obj, f.name), sources))
+    if isinstance(obj, BaseModel):
+        for name in type(obj).model_fields:
+            setattr(obj, name, _resolve_refs(getattr(obj, name), sources))
         return obj
     return obj
 
@@ -97,10 +94,10 @@ def _iter_flows(system: FlowSystem) -> Iterator[Any]:
 
 def _collect_effect_refs(obj: Any, out: set[str]) -> None:
     """Collect effect ids referenced by ``effects_*`` / ``contribution_from`` dicts."""
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        for f in dataclasses.fields(obj):
-            val = getattr(obj, f.name)
-            if isinstance(val, dict) and (f.name.startswith('effects_') or f.name == 'contribution_from'):
+    if isinstance(obj, BaseModel):
+        for name in type(obj).model_fields:
+            val = getattr(obj, name)
+            if isinstance(val, dict) and (name.startswith('effects_') or name == 'contribution_from'):
                 out.update(val)
             else:
                 _collect_effect_refs(val, out)
@@ -109,33 +106,31 @@ def _collect_effect_refs(obj: Any, out: set[str]) -> None:
             _collect_effect_refs(item, out)
 
 
-@dataclass(config=_PYDANTIC_CFG)
-class FlowSystem:
-    """A declarative flow-system description (see module docstring).
+class FlowSystem(BaseModel):
+    """A declarative flow-system description (see module docstring)."""
 
-    Args:
-        timesteps: Time index for the optimization horizon.
-        carriers: Carrier declarations.
-        effects: Effects to track (costs, emissions, …).
-        ports: System boundary ports with imports/exports.
-        objective_effects: Effect(s) to minimize — a name or ``{effect: weight}``.
-        converters: Linear/piecewise converters between carriers.
-        storages: Energy storages.
-        dt: Timestep duration in hours. Auto-derived if None.
-        periods: Integer period labels for multi-period optimization.
-        period_weights: Explicit weights per period. Inferred from gaps if None.
-    """
+    model_config = _PYDANTIC_CFG
 
     timesteps: Timesteps
+    """Time index for the optimization horizon."""
     carriers: list[Carrier]
+    """Carrier declarations."""
     effects: list[Effect]
+    """Effects to track (costs, emissions, …)."""
     ports: list[Port]
+    """System boundary ports with imports/exports."""
     objective_effects: str | dict[str, float]
-    converters: list[Converter] = field(default_factory=list)
-    storages: list[Storage] = field(default_factory=list)
+    """Effect(s) to minimize — a name or ``{effect: weight}``."""
+    converters: list[Converter] = Field(default_factory=list)
+    """Linear/piecewise converters between carriers."""
+    storages: list[Storage] = Field(default_factory=list)
+    """Energy storages."""
     dt: float | list[float] | None = None
+    """Timestep duration in hours. Auto-derived if None."""
     periods: list[int] | None = None
+    """Integer period labels for multi-period optimization."""
     period_weights: list[float] | None = None
+    """Explicit weights per period. Inferred from gaps if None."""
 
     @model_validator(mode='after')
     def _validate_references(self) -> FlowSystem:

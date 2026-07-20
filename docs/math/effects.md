@@ -136,19 +136,19 @@ For example, `rate_max=100` (kg/h) with a 4-hour timestep allows up to
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect--temporal[effect, time(, period)]` |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
-| \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow(effects_per_flow_hour)) |
-| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (Variate) |
-| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect(contribution_from)) (scalar) |
+| \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow.effects_per_flow_hour) |
+| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) (Variate) |
+| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) (scalar) |
 | \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
-| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_max)) |
-| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(total_min)) |
-| \(\bar{\Phi}_{k,p}\) | Maximum per period (scalar or per-period values) | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_max)) |
-| \(\underline{\Phi}_{k,p}\) | Minimum per period (scalar or per-period values) | [`Effect.periodic_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(periodic_min)) |
-| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_max)) |
-| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect(rate_min)) |
-| \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect(period_weights)) / global `period_weights` |
+| \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.total_max) |
+| \(\underline{\Phi}_k\) | Minimum aggregate (weighted sum across periods) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect.total_min) |
+| \(\bar{\Phi}_{k,p}\) | Maximum per period (scalar or per-period values) | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.periodic_max) |
+| \(\underline{\Phi}_{k,p}\) | Minimum per period (scalar or per-period values) | [`Effect.periodic_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect.periodic_min) |
+| \(\bar{\Phi}_{k,t}^{\text{per hour}}\) | Maximum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.rate_max) |
+| \(\underline{\Phi}_{k,t}^{\text{per hour}}\) | Minimum per hour (rate, scaled by \(\Delta t_t\)) | [`Effect.rate_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect.rate_min) |
+| \(\omega_{k,p}\) | Period weight (per-effect, falls back to global, then 1) | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect.period_weights) / global `period_weights` |
 
 See [Notation](notation.md) for the full symbol table.
 

@@ -79,6 +79,7 @@ docs = [
     "notebook==7.6.0",
     "pygments==2.20.0",
     "pymdown-extensions==11.0",
+    "griffe-pydantic==1.3.1",
 ]
 
 [tool.ruff]
@@ -129,9 +130,9 @@ docstring-code-format = true
 keep-runtime-typing = false
 
 [tool.ruff.lint.flake8-type-checking]
-# pydantic dataclasses evaluate annotations at runtime to build validators, so
-# imports used only in annotations must stay at runtime (not moved to TYPE_CHECKING).
-runtime-evaluated-decorators = ["pydantic.dataclasses.dataclass"]
+# pydantic models evaluate annotations at runtime to build validators, so imports
+# used only in annotations must stay at runtime (not moved to TYPE_CHECKING).
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "fluxopt.elements.Element"]
 
 [tool.pyrefly]
 python-version = "3.12"
