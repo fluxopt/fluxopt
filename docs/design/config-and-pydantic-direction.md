@@ -162,6 +162,35 @@ rival. That demo is a strong card in the #1788 ↔ #1796 discussion.
 4. **Feed the sketch (§5.1) into the PyPSA discussion** as evidence Effects and
    YAML-math compose.
 
+## 6a. Implementation status
+
+**Phase 1 landed in this PR** — element layer on pydantic, validation + schema:
+
+- `elements.py` / `components.py` element classes are now
+  `pydantic.dataclasses.dataclass` with `arbitrary_types_allowed` (so `Variate`
+  arrays / `IdList` pass through by `isinstance`). `__post_init__` guards,
+  `field(init=False)`, nested-instance identity, and in-place qualification all
+  survive unchanged (pydantic keeps instances — `revalidate_instances='never'`).
+- Construction now validates types with pydantic errors. `ruff`'s
+  `flake8-type-checking` is told `pydantic.dataclasses.dataclass` evaluates
+  annotations at runtime, so annotation imports stay at runtime.
+- **JSON Schema works for every element type** — `fluxopt.element_schema(Flow)`
+  and `all_element_schemas()`. Better than §4.2 feared: arbitrary `Variate`
+  fields degrade to permissive `{}` rather than erroring.
+
+**Deferred to Phase 2 (the ProfileRef PR):**
+
+- **`ProfileRef` + inline-profile serialization.** JSON round-trip of
+  *array-valued* `Variate` fails by design (arbitrary types) — the fix is
+  `ProfileRef` pointing at a data file, not inlining profiles.
+- **Full instance `to_dict`/`from_dict`.** Leaf value objects (`Effect`, `Flow`
+  scalars) already round-trip; components do not, for two reasons: `IdList`
+  fields don't serialize, and `__post_init__` qualification is **not idempotent**
+  (a round-tripped `Flow` would re-qualify `b(gas)` → `b(b(gas))`). Both need
+  design, not a quick serializer.
+- **Porting `__post_init__` guards to pydantic validators.** They run correctly
+  as-is; converting them is incremental cleanup, not required for the win.
+
 ## 7. Non-goals
 
 - Defining the *whole system* in YAML (profiles belong in data files).

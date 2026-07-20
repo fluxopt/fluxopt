@@ -16,6 +16,7 @@ from fluxopt.elements import (
 from fluxopt.model import FlowSystem
 from fluxopt.model_data import Dims, ModelData
 from fluxopt.results import Result
+from fluxopt.schema import all_element_schemas, element_schema
 from fluxopt.types import (
     IdList,
     TimeIndex,
@@ -103,6 +104,8 @@ __all__ = [
     'TimeIndex',
     'Timesteps',
     'Variate',
+    'all_element_schemas',
     'as_dataarray',
+    'element_schema',
     'optimize',
 ]
