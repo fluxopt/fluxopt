@@ -19,16 +19,16 @@ class TestStorageStatusValidation:
         """Flow.status on a storage flow conflicts with component-level Status."""
         with pytest.raises(ValueError, match='cannot have flow-level status'):
             Storage(
-                'Bat',
-                charging=Flow('Elec', size=10, relative_rate_min=0.1, status=Status(uptime_min=2)),
-                discharging=Flow('Elec', size=10),
+                id='Bat',
+                charging=Flow(carrier='Elec', size=10, relative_rate_min=0.1, status=Status(uptime_min=2)),
+                discharging=Flow(carrier='Elec', size=10),
                 capacity=100,
                 status=Status(),
             )
 
     def test_storage_status_optional(self):
         """Storage with status=None still constructs (default)."""
-        s = Storage('Bat', Flow('Elec'), Flow('Elec'), capacity=10)
+        s = Storage(id='Bat', charging=Flow(carrier='Elec'), discharging=Flow(carrier='Elec'), capacity=10)
         assert s.status is None
 
     def test_unsized_flow_forbidden(self):
@@ -41,9 +41,9 @@ class TestStorageStatusValidation:
         """
         with pytest.raises(ValueError, match='must have a size'):
             Storage(
-                'Bat',
-                charging=Flow('Elec'),  # no size
-                discharging=Flow('Elec', size=10),
+                id='Bat',
+                charging=Flow(carrier='Elec'),  # no size
+                discharging=Flow(carrier='Elec', size=10),
                 capacity=100,
                 status=Status(),
             )
@@ -56,9 +56,9 @@ class TestStorageStatusValidation:
         fixed dispatch profile is a legitimate use case.
         """
         s = Storage(
-            'Bat',
-            charging=Flow('Elec', size=10, fixed_relative_profile=0.5),
-            discharging=Flow('Elec', size=10),
+            id='Bat',
+            charging=Flow(carrier='Elec', size=10, fixed_relative_profile=0.5),
+            discharging=Flow(carrier='Elec', size=10),
             capacity=100,
             status=Status(),
         )
@@ -66,18 +66,20 @@ class TestStorageStatusValidation:
 
     def test_sized_flow_with_status_raises_at_build(self):
         """Sizing/Investment on a governed flow is not yet supported and raises clearly."""
-        from fluxopt import FlowSystem, ModelData
+        from fluxopt import FlowSystemModel, ModelData
 
         data = ModelData.build(
             timesteps=ts(3),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
-            ports=[Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))])],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))])
+            ],
             storages=[
                 Storage(
-                    'Bat',
-                    charging=Flow('Elec', size=Sizing(size_min=0, size_max=20)),
-                    discharging=Flow('Elec', size=10),
+                    id='Bat',
+                    charging=Flow(carrier='Elec', size=Sizing(size_min=0, size_max=20)),
+                    discharging=Flow(carrier='Elec', size=10),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -85,7 +87,7 @@ class TestStorageStatusValidation:
                 ),
             ],
         )
-        fs = FlowSystem(data)
+        fs = FlowSystemModel(data)
         with pytest.raises(NotImplementedError, match='Sizing/Investment'):
             fs.build()
 
@@ -95,18 +97,18 @@ class TestStorageComponentStatus:
         """Storage with status emits ``component--on/startup/shutdown`` solutions."""
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 10]))]),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 10]))]),
+                Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
             ],
             storages=[
                 Storage(
-                    'Bat',
-                    charging=Flow('Elec', size=20),
-                    discharging=Flow('Elec', size=20),
+                    id='Bat',
+                    charging=Flow(carrier='Elec', size=20),
+                    discharging=Flow(carrier='Elec', size=20),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -123,18 +125,18 @@ class TestStorageComponentStatus:
         """When component_on=0, both charging and discharging are forced to 0."""
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
+                Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
             ],
             storages=[
                 Storage(
-                    'Bat',
-                    charging=Flow('Elec', size=20),
-                    discharging=Flow('Elec', size=20),
+                    id='Bat',
+                    charging=Flow(carrier='Elec', size=20),
+                    discharging=Flow(carrier='Elec', size=20),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -164,18 +166,21 @@ class TestStorageComponentStatus:
         """
         result = optimize(
             timesteps=ts(5),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 10, 0, 10, 0]))]),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(
+                    id='Demand',
+                    exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 10, 0, 10, 0]))],
+                ),
+                Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
             ],
             storages=[
                 Storage(
-                    'Bat',
-                    charging=Flow('Elec', size=20),
-                    discharging=Flow('Elec', size=20),
+                    id='Bat',
+                    charging=Flow(carrier='Elec', size=20),
+                    discharging=Flow(carrier='Elec', size=20),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -192,18 +197,20 @@ class TestStorageComponentStatus:
         """``effects_per_running_hour`` charges (cost/h) * on * dt per timestep."""
         result = optimize(
             timesteps=ts(4),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 0, 10]))]),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(
+                    id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 0, 10]))]
+                ),
+                Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
             ],
             storages=[
                 Storage(
-                    'Bat',
-                    charging=Flow('Elec', size=20),
-                    discharging=Flow('Elec', size=20),
+                    id='Bat',
+                    charging=Flow(carrier='Elec', size=20),
+                    discharging=Flow(carrier='Elec', size=20),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -227,18 +234,18 @@ class TestStorageComponentStatus:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
+                Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
             ],
             storages=[
                 Storage(
-                    'Bat',
-                    charging=Flow('Elec', size=10, fixed_relative_profile=np.array([0.5, 0.5, 0])),
-                    discharging=Flow('Elec', size=10),
+                    id='Bat',
+                    charging=Flow(carrier='Elec', size=10, fixed_relative_profile=np.array([0.5, 0.5, 0])),
+                    discharging=Flow(carrier='Elec', size=10),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,

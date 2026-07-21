@@ -18,28 +18,28 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 0, 20])),
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 20])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Elec', effects_per_flow_hour={'cost': np.array([10, 1, 10])}),
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([10, 1, 10])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
-                    'Battery',
-                    charging=Flow('Elec', size=100),
-                    discharging=Flow('Elec', size=100),
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=100),
+                    discharging=Flow(carrier='Elec', size=100),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -59,28 +59,28 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 90])),
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 90])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Elec', effects_per_flow_hour={'cost': np.array([1, 1000])}),
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([1, 1000])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
-                    'Battery',
-                    charging=Flow('Elec', size=200),
-                    discharging=Flow('Elec', size=200),
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
                     capacity=200,
                     prior_level=0,
                     cyclic=False,
@@ -100,28 +100,28 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 72])),
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 72])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Elec', effects_per_flow_hour={'cost': np.array([1, 1000])}),
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([1, 1000])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
-                    'Battery',
-                    charging=Flow('Elec', size=200),
-                    discharging=Flow('Elec', size=200),
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
                     capacity=200,
                     prior_level=0,
                     cyclic=False,
@@ -141,28 +141,28 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 60])),
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 60])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Elec', effects_per_flow_hour={'cost': np.array([1, 100])}),
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([1, 100])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
-                    'Battery',
-                    charging=Flow('Elec', size=200),
-                    discharging=Flow('Elec', size=200),
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -183,28 +183,28 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Elec', size=1, fixed_relative_profile=np.array([0, 50])),
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 50])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Elec', effects_per_flow_hour={'cost': np.array([1, 10])}),
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([1, 10])}),
                     ],
                 ),
             ],
             storages=[
                 Storage(
-                    'Battery',
-                    charging=Flow('Elec', size=200),
-                    discharging=Flow('Elec', size=200),
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
                     capacity=Sizing(size_min=0, size_max=200, mandatory=False, effects_per_size={'cost': 1}),
                     prior_level=0,
                     cyclic=False,
@@ -243,18 +243,18 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([10, 0]))]),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([10, 0]))]),
+                Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
             ],
             storages=[
                 Storage(
-                    'Battery',
-                    charging=Flow('Elec', size=100),
-                    discharging=Flow('Elec', size=100),
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=100),
+                    discharging=Flow(carrier='Elec', size=100),
                     capacity=100,
                     prior_level=0,
                     cyclic=False,
@@ -279,18 +279,18 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('MustRun', imports=[Flow('Elec', size=1, fixed_relative_profile=np.array([30, 30]))]),
-                Port('Dump', exports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(id='MustRun', imports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([30, 30]))]),
+                Port(id='Dump', exports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
             ],
             storages=[
                 Storage(
-                    'Battery',
-                    charging=Flow('Elec', size=100),
-                    discharging=Flow('Elec', size=100),
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=100),
+                    discharging=Flow(carrier='Elec', size=100),
                     capacity=20,
                     prior_level=0,
                     cyclic=False,
@@ -316,18 +316,18 @@ class TestStorage:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Elec', size=1, fixed_relative_profile=np.array([10, 10]))]),
-                Port('Dump', exports=[Flow('Elec')]),
+                Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([10, 10]))]),
+                Port(id='Dump', exports=[Flow(carrier='Elec')]),
             ],
             storages=[
                 Storage(
-                    'Battery',
-                    charging=Flow('Elec', size=100),
-                    discharging=Flow('Elec', size=100, effects_per_flow_hour={'cost': 1}),
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=100),
+                    discharging=Flow(carrier='Elec', size=100, effects_per_flow_hour={'cost': 1}),
                     capacity=100,
                     prior_level=50,
                     cyclic=False,

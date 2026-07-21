@@ -1856,7 +1856,7 @@ class ModelData:
         dt_da = _compute_dt(time, dt)
 
         if not any(e.id == PENALTY_EFFECT_ID for e in effects):
-            effects = [*effects, Effect(PENALTY_EFFECT_ID)]
+            effects = [*effects, Effect(id=PENALTY_EFFECT_ID)]
 
         flows, carrier_coeff = _collect_flows(ports, converters, stor_list)
         _validate_system(effects, ports, converters, stor_list, flows, carriers)

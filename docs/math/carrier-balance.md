@@ -74,5 +74,5 @@ Node A's supply serves only node A's demand. Node B is balanced independently.
 
 ### Usage
 
-The flow id auto-includes the node: `Flow('heat', node='A')` gets `id='heat:A'`,
+The flow id auto-includes the node: `Flow(carrier='heat', node='A')` gets `id='heat:A'`,
 which qualifies to `src_a(heat:A)` after component qualification.
