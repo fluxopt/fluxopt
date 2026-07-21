@@ -22,7 +22,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(3),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -75,7 +75,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -127,7 +127,7 @@ class TestFlowInvest:
             timesteps=ts(2),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -172,7 +172,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -238,7 +238,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -296,7 +296,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -374,7 +374,7 @@ class TestFlowInvestWithStatus:
         result = optimize(
             timesteps=ts(4),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -427,7 +427,7 @@ class TestFlowInvestWithStatus:
         result = optimize(
             timesteps=ts(3),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',

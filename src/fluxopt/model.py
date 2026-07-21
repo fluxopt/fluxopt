@@ -18,6 +18,39 @@ if TYPE_CHECKING:
     from fluxopt.model_data import ModelData
 
 
+def _normalize_objective(value: str | dict[str, float] | None) -> dict[str, float]:
+    """Coerce an objective spec into a ``{effect: weight}`` dict.
+
+    A bare effect name becomes ``{name: 1.0}``; ``None`` becomes ``{}``.
+    """
+    if value is None:
+        return {}
+    if isinstance(value, str):
+        return {value: 1.0}
+    return {k: float(v) for k, v in value.items()}
+
+
+def _validate_objective(effects: dict[str, float]) -> None:
+    """Require the objective to name at least one non-penalty effect.
+
+    The built-in penalty effect is added automatically as soft-constraint
+    steering (see :meth:`FlowSystemModel._set_objective`) and cannot stand in
+    for a real objective, so an empty or penalty-only spec is rejected.
+
+    Raises:
+        ValueError: If no non-penalty effect is named.
+    """
+    from fluxopt.elements import PENALTY_EFFECT_ID
+
+    if not any(k != PENALTY_EFFECT_ID for k in effects):
+        msg = (
+            'objective must name at least one non-penalty effect to minimize '
+            '(a name like "cost", or a weight dict like {"cost": 1, "co2": 50}). '
+            'The built-in penalty effect is added automatically and cannot be the sole objective.'
+        )
+        raise ValueError(msg)
+
+
 class FlowSystemModel:
     # Sizing variables — None when no sizing is configured
     flow_size: Variable | None = None
@@ -47,17 +80,46 @@ class FlowSystemModel:
     component_startup: Variable | None = None
     component_shutdown: Variable | None = None
 
-    def __init__(self, data: ModelData) -> None:
+    def __init__(self, data: ModelData, objective: str | dict[str, float] | None = None) -> None:
         """Initialize the flow system optimization model.
 
         Args:
             data: Pre-built model data.
+            objective: Effect(s) the objective minimizes. A single effect name,
+                or a dict mapping effect names to objective weights
+                (``{'cost': 1, 'co2': 50}``). May be deferred (left ``None``)
+                and supplied later via the :attr:`objective` property or
+                :meth:`optimize` — but a real (non-penalty) objective is
+                required by the time :meth:`build` runs. See :meth:`optimize`
+                for the full weighting semantics.
+
+        Raises:
+            ValueError: If ``objective`` is given but names no non-penalty effect.
         """
         self.data = data
         self.m = Model()
-        self._objective_effects: dict[str, float] = {}
+        self._objective: dict[str, float] = _normalize_objective(objective)
         self._objective_weights: dict[str, float] = {}
         self._piecewise: dict[str, Any] = {}  # conv_id -> linopy.PiecewiseFormulation
+        self._built = False
+        if objective is not None:
+            _validate_objective(self._objective)
+
+    @property
+    def objective(self) -> dict[str, float]:
+        """Effect(s) the objective minimizes, as ``{effect: weight}``.
+
+        Assign a name or a dict to retarget the objective; call :meth:`build`
+        again for the change to take effect in the linopy model. Assigning an
+        empty objective is rejected — a model must always minimize something.
+        """
+        return dict(self._objective)
+
+    @objective.setter
+    def objective(self, value: str | dict[str, float]) -> None:
+        normalized = _normalize_objective(value)
+        _validate_objective(normalized)
+        self._objective = normalized
 
     def _add_variables(
         self,
@@ -87,7 +149,20 @@ class FlowSystemModel:
         return self.m.add_variables(**kwargs)
 
     def build(self) -> None:
-        """Build all variables, constraints, and the objective."""
+        """Build all variables, constraints, and the objective.
+
+        Idempotent with respect to retargeting: rebuilding starts from a
+        fresh linopy model, so assigning :attr:`objective` and calling
+        ``build()`` again is supported.
+
+        Raises:
+            ValueError: If no real (non-penalty) objective has been set
+                (see :attr:`objective`).
+        """
+        _validate_objective(self._objective)  # fail fast, before building anything
+        if self._built:
+            self.m = Model()
+            self._piecewise = {}
         # Phase 1: Decision variables
         self._create_flow_variables()
         self._create_sizing_variables()
@@ -114,10 +189,11 @@ class FlowSystemModel:
         self._create_effects()
         self._set_objective()
         self._builtin_var_names: frozenset[str] = frozenset(self.m.variables)
+        self._built = True
 
     def optimize(
         self,
-        objective_effects: str | dict[str, float],
+        objective: str | dict[str, float] | None = None,
         customize: Callable[[FlowSystemModel], None] | None = None,
         *,
         solver: str = 'highs',
@@ -126,21 +202,22 @@ class FlowSystemModel:
         """Build, optionally customize, and solve the model.
 
         Args:
-            objective_effects: Effect(s) to minimize. A single name, or a
-                dict mapping effect names to objective weights
+            objective: Effect(s) to minimize, overriding any objective
+                already set on this FlowSystemModel. A single name, or a dict
+                mapping effect names to objective weights
                 (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
                 unaffected by the weighting. The built-in ``'penalty'``
                 effect is added at weight 1.0 unless the dict names it:
                 ``{'cost': 1, 'penalty': 0}`` opts out, other values scale
-                the steering pressure.
+                the steering pressure. If None, the current :attr:`objective`
+                is used.
             customize: Optional callback to modify the linopy model between build and solve.
                 Receives ``self``; use ``model.m`` to add variables/constraints.
             solver: Solver backend name.
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
-        self._objective_effects = (
-            {objective_effects: 1.0} if isinstance(objective_effects, str) else dict(objective_effects)
-        )
+        if objective is not None:
+            self.objective = objective
         self.build()
         if customize is not None:
             customize(self)
@@ -153,7 +230,13 @@ class FlowSystemModel:
 
         Args:
             **kwargs: Passed through to ``linopy.Model.solve()``.
+
+        Raises:
+            RuntimeError: If the model has not been built yet.
         """
+        if not self._built:
+            msg = 'Model not built — call build() (or optimize()) before solve().'
+            raise RuntimeError(msg)
         self.m.solve(**kwargs)
         return Result.from_model(self)
 
@@ -1588,7 +1671,7 @@ class FlowSystemModel:
 
         ω falls back to global period_weights (or 1 in single-period).
         The built-in penalty effect enters at weight 1.0 unless named in
-        ``objective_effects`` (see :meth:`optimize`), so
+        ``objective`` (see :meth:`optimize`), so
         ``effects_per_*={'penalty': ...}`` works as soft steering without
         touching the tracked effects. Zero-weight effects are validated but
         contribute no term.
@@ -1599,7 +1682,7 @@ class FlowSystemModel:
         obj_expr: Any = 0
         effect_ids = list(ds.total_min.coords['effect'].values)
 
-        weights = dict(self._objective_effects)
+        weights = dict(self._objective)
         if PENALTY_EFFECT_ID not in weights and PENALTY_EFFECT_ID in effect_ids:
             weights[PENALTY_EFFECT_ID] = 1.0
         self._objective_weights = {k: float(v) for k, v in weights.items()}

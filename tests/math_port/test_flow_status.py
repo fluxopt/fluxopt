@@ -24,7 +24,7 @@ class TestFlowStatus:
             timesteps=ts(5),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -79,7 +79,7 @@ class TestFlowStatus:
         result = optimize(
             timesteps=ts(5),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -139,7 +139,7 @@ class TestFlowStatus:
         result = optimize(
             timesteps=ts(4),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -193,7 +193,7 @@ class TestFlowStatus:
             timesteps=ts(2),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -248,7 +248,7 @@ class TestFlowStatus:
         result = optimize(
             timesteps=ts(4),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -313,7 +313,7 @@ class TestFlowStatus:
         result = optimize(
             timesteps=ts(5),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -372,7 +372,7 @@ class TestPreviousFlowRate:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -416,7 +416,7 @@ class TestPreviousFlowRate:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -460,7 +460,7 @@ class TestPreviousFlowRate:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -507,7 +507,7 @@ class TestPreviousFlowRate:
         result = optimize(
             timesteps=ts(3),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -556,7 +556,7 @@ class TestPreviousFlowRate:
         result = optimize(
             timesteps=ts(3),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -612,7 +612,7 @@ class TestPreviousFlowRate:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',

@@ -18,7 +18,7 @@ class TestBusBalance:
             timesteps=ts(3),
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[sink_flow])],
         )
 
@@ -36,7 +36,7 @@ class TestBusBalance:
             timesteps=ts(3),
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[sink_flow])],
         )
 
@@ -54,7 +54,7 @@ class TestBusBalance:
             timesteps=ts(3),
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='cheap_src', imports=[cheap_flow]),
                 Port(id='exp_src', imports=[expensive_flow]),

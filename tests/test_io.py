@@ -27,7 +27,7 @@ def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
         timesteps=timesteps,
         carriers=[Carrier(id='elec')],
         effects=[Effect(id='cost')],
-        objective_effects='cost',
+        objective='cost',
         ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
     )
 
@@ -45,7 +45,7 @@ def _solve_with_storage(timesteps: list[datetime]) -> Result:
         timesteps=timesteps,
         carriers=[Carrier(id='gas'), Carrier(id='heat')],
         effects=[Effect(id='cost')],
-        objective_effects='cost',
+        objective='cost',
         ports=[Port(id='grid', imports=[gas_source]), Port(id='demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
@@ -111,7 +111,7 @@ class TestRoundtrip:
         from fluxopt import FlowSystemModel
 
         model = FlowSystemModel(loaded.data)
-        result2 = model.optimize(objective_effects='cost')
+        result2 = model.optimize(objective='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 
 
@@ -178,7 +178,7 @@ class TestCarrierMetadataRoundtrip:
             timesteps=ts,
             carriers=[Carrier(id='elec', unit='kWh', color='#ff0000', description='Electrical energy')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
         )
         assert result.data is not None
@@ -206,7 +206,7 @@ class TestRoundtripContributionFrom:
                 Effect(id='cost', contribution_from={'co2': 50}),
                 Effect(id='co2', unit='kg'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
         assert result.data is not None
@@ -223,7 +223,7 @@ class TestRoundtripContributionFrom:
         from fluxopt import FlowSystemModel
 
         model = FlowSystemModel(loaded.data)
-        result2 = model.optimize(objective_effects='cost')
+        result2 = model.optimize(objective='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 
 

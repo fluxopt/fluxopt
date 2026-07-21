@@ -72,28 +72,38 @@ class TestRoundTrip:
 
 class TestProfileRef:
     def test_profileref_roundtrips_as_variate(self) -> None:
-        f = Flow(carrier='gas', effects_per_flow_hour={'cost': ProfileRef(source='prices', variable='gas')})
+        f = Flow(carrier='gas', effects_per_flow_hour={'cost': ProfileRef(dataset='prices', variable='gas')})
         d = to_dict(f)
-        assert d['effects_per_flow_hour']['cost'] == {'source': 'prices', 'variable': 'gas', 'dim': 'time'}
+        assert d['effects_per_flow_hour']['cost'] == {'dataset': 'prices', 'variable': 'gas'}
         rebuilt = from_dict(Flow, d)
         assert isinstance(rebuilt.effects_per_flow_hour['cost'], ProfileRef)
 
     def test_resolve_pulls_from_sources(self) -> None:
-        ref = ProfileRef(source='prices', variable='gas')
+        ref = ProfileRef(dataset='prices', variable='gas')
         da = xr.DataArray([1.0, 2.0, 3.0], dims=['time'])
         resolved = ref.resolve({'prices': {'gas': da}})
         assert list(resolved.values) == [1.0, 2.0, 3.0]
 
-    def test_resolve_missing_source_raises(self) -> None:
-        with pytest.raises(KeyError, match='source'):
-            ProfileRef(source='nope', variable='x').resolve({'prices': {}})
+    def test_resolve_missing_dataset_raises(self) -> None:
+        with pytest.raises(KeyError, match='dataset'):
+            ProfileRef(dataset='nope', variable='x').resolve({'prices': {}})
 
     def test_resolve_missing_variable_raises(self) -> None:
         with pytest.raises(KeyError, match='variable'):
-            ProfileRef(source='prices', variable='nope').resolve({'prices': {}})
+            ProfileRef(dataset='prices', variable='nope').resolve({'prices': {}})
 
     def test_unresolved_ref_rejected_at_build(self) -> None:
         from fluxopt import as_dataarray
 
         with pytest.raises(ValueError, match='Unresolved ProfileRef'):
-            as_dataarray(ProfileRef(source='p', variable='x'), {'time': [0, 1, 2]})
+            as_dataarray(ProfileRef(dataset='p', variable='x'), {'time': [0, 1, 2]})
+
+
+class TestInlineArraySerialization:
+    def test_to_dict_names_inline_array_fields(self) -> None:
+        import numpy as np
+
+        f = Flow(carrier='gas', effects_per_flow_hour={'cost': np.array([1.0, 2.0])})
+        with pytest.raises(ValueError, match='ProfileRef') as exc:
+            to_dict(f)
+        assert "effects_per_flow_hour['cost']" in str(exc.value)

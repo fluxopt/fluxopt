@@ -228,7 +228,6 @@ def make_model_data(builder: Callable[..., Elements], **scale: int) -> ModelData
 
 def build_model(data: ModelData, objective: str = 'cost') -> FlowSystemModel:
     """ModelData → linopy model, without solving (mirrors optimize() before solve)."""
-    fs = FlowSystemModel(data)
-    fs._objective_effects = {objective: 1.0}
+    fs = FlowSystemModel(data, objective=objective)
     fs.build()
     return fs

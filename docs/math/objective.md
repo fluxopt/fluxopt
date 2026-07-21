@@ -3,7 +3,7 @@
 ## Formulation
 
 The model minimizes the total value of the designated objective effect \(k^*\)
-(specified via `optimize(objective_effects='cost')`).
+(specified via `optimize(objective='cost')`).
 
 ### Single-period
 
@@ -55,7 +55,7 @@ full formulations of each term.
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(k^*\) | Objective effect | `optimize(objective_effects='cost')` |
+| \(k^*\) | Objective effect | `optimize(objective='cost')` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow.effects_per_flow_hour) |
 | \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |

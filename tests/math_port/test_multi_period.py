@@ -22,7 +22,7 @@ class TestMultiPeriod:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -77,7 +77,7 @@ class TestMultiPeriod:
             timesteps=timesteps,
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -107,7 +107,7 @@ class TestMultiPeriod:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -144,7 +144,7 @@ class TestMultiPeriod:
             effects=[
                 Effect(id='cost', period_weights=[1, 2]),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -188,7 +188,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -225,7 +225,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -261,7 +261,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -304,7 +304,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -348,7 +348,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -383,7 +383,7 @@ class TestInvestment:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -426,7 +426,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -462,7 +462,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -498,7 +498,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -535,7 +535,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -571,7 +571,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -609,7 +609,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -646,7 +646,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -684,7 +684,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -727,7 +727,7 @@ class TestPeriodVaryingEffects:
                 Effect(id='co2'),
                 Effect(id='cost', contribution_from={'co2': carbon_price}),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -760,7 +760,7 @@ class TestPeriodVaryingEffects:
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
