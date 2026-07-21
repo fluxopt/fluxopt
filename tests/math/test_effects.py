@@ -439,3 +439,68 @@ class TestWeightedObjective:
         assert_allclose(result.effect_totals.sel(effect='co2').item(), 0.0, atol=1e-6)
         # Provenance: the resolved weights are recorded on the result
         assert result.objective_weights == {'cost': 1.0, 'co2': 50.0, 'penalty': 1.0}
+
+
+class TestCrossSignatureAlignment:
+    def test_mixed_signatures_solve_to_hand_computed_totals(self):
+        """Differently-labeled signature partials stay aligned through the merge.
+
+        'base' contributes cost via the scalar signature; 'peak' contributes
+        cost AND co2 via the time signature. All partials are reindexed to the
+        full effect set before the single-merge constraint assembly — a silent
+        label mismatch would swap or mix totals rather than raise, so each
+        effect is pinned to a distinct hand-computed value.
+
+        base (cheap, size 50) is maxed: [50, 50, 50]; peak covers the residual
+        [0, 30, 10].  cost = 0.5*150 + 0.6*40 = 99.  co2 = 0.2*30 + 0.3*10 = 9.
+        'land' has no contributions and must zero-fill to 0.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost'), Effect(id='co2'), Effect(id='land')],
+            objective_effects='cost',
+            ports=[
+                Port(id='base_src', imports=[Flow(carrier='elec', size=50, effects_per_flow_hour={'cost': 0.5})]),
+                Port(
+                    id='peak_src',
+                    imports=[
+                        Flow(
+                            carrier='elec',
+                            size=100,
+                            effects_per_flow_hour={'cost': [0.6, 0.6, 0.6], 'co2': [0.1, 0.2, 0.3]},
+                        )
+                    ],
+                ),
+                Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 99.0, rtol=1e-6)
+        assert_allclose(result.effect_totals.sel(effect='co2').item(), 9.0, rtol=1e-6)
+        assert_allclose(result.effect_totals.sel(effect='land').item(), 0.0, atol=1e-9)
+        # per-timestep reconstruction stays label-true as well
+        assert_allclose(result.effects_temporal.sel(effect='co2').values, [0.0, 6.0, 3.0], atol=1e-9)
+
+    def test_period_signature_coefficient_solves(self):
+        """A (period,)-signature coefficient prices each period independently.
+
+        Demand 10 MW x 2 h per period; cost coefficient 1 in 2030, 2 in 2040.
+        Per-period totals [20, 40]; weighted objective 60.
+        """
+        import xarray as xr
+
+        price = xr.DataArray([1.0, 2.0], dims=['period'], coords={'period': [2030, 2040]})
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            objective_effects='cost',
+            ports=[
+                Port(id='grid', imports=[Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': price})]),
+                Port(id='demand', exports=[Flow(carrier='elec', size=1, fixed_relative_profile=[10, 10])]),
+            ],
+            periods=[2030, 2040],
+            period_weights=[1, 1],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').values, [20.0, 40.0], rtol=1e-6)
+        assert_allclose(result.objective, 60.0, rtol=1e-6)
