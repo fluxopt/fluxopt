@@ -66,19 +66,19 @@ def optimize(
             Receives the built FlowSystemModel; use ``model.m`` to add variables/constraints.
         **kwargs: Passed through to ``linopy.Model.solve()``.
     """
-    model = FlowSystemModel.from_elements(
-        timesteps,
-        carriers,
-        effects,
-        ports,
+    system = FlowSystem(
+        timesteps=timesteps,
+        carriers=carriers,
+        effects=effects,
+        ports=ports,
         objective=objective,
-        converters=converters,
-        storages=storages,
+        converters=converters or [],
+        storages=storages or [],
         dt=dt,
         periods=periods,
         period_weights=period_weights,
     )
-    return model.optimize(customize=customize, solver=solver, **kwargs)
+    return system.optimize(customize=customize, solver=solver, **kwargs)
 
 
 __all__ = [

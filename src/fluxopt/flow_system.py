@@ -119,8 +119,9 @@ class FlowSystem(BaseModel):
     """Effects to track (costs, emissions, …)."""
     ports: list[Port]
     """System boundary ports with imports/exports."""
-    objective_effects: str | dict[str, float]
-    """Effect(s) to minimize — a name or ``{effect: weight}``."""
+    objective: str | dict[str, float]
+    """Effect(s) to minimize — a name or ``{effect: weight}``. Must name at
+    least one non-penalty effect."""
     converters: list[Converter] = Field(default_factory=list)
     """Linear/piecewise converters between carriers."""
     storages: list[Storage] = Field(default_factory=list)
@@ -140,10 +141,13 @@ class FlowSystem(BaseModel):
         _check_unique([comp.id for comp in (*self.ports, *self.converters, *self.storages)], 'component')
 
         effect_ids = {e.id for e in self.effects} | {PENALTY_EFFECT_ID}
-        obj_keys = [self.objective_effects] if isinstance(self.objective_effects, str) else list(self.objective_effects)
+        obj_keys = [self.objective] if isinstance(self.objective, str) else list(self.objective)
         if unknown := sorted(set(obj_keys) - effect_ids):
+            raise ValueError(f'objective references undeclared effect(s) {unknown}; declared {sorted(effect_ids)}')
+        if not any(k != PENALTY_EFFECT_ID for k in obj_keys):
             raise ValueError(
-                f'objective_effects references undeclared effect(s) {unknown}; declared {sorted(effect_ids)}'
+                'objective must name at least one non-penalty effect to minimize — '
+                'the built-in penalty effect is added automatically and cannot be the sole objective'
             )
 
         refs: set[str] = set()
@@ -189,38 +193,30 @@ class FlowSystem(BaseModel):
         with open(path, 'w') as fh:
             yaml.safe_dump(self.to_dict(), fh, sort_keys=False)
 
-    def optimize(
-        self,
-        sources: Mapping[str, Any] | None = None,
-        *,
-        solver: str = 'highs',
-        customize: Callable[[FlowSystemModel], None] | None = None,
-        **kwargs: Any,
-    ) -> Result:
-        """Resolve profile references, build the model, and solve.
+    def build_model(self, sources: Mapping[str, Any] | None = None) -> FlowSystemModel:
+        """Materialize an unbuilt solver model from this declaration.
 
-        The system is left untouched — ``ProfileRef`` resolution runs on a copy —
-        so it stays reusable across different ``sources``.
+        Resolves ``ProfileRef`` references (on a copy — the system stays
+        reusable across different ``sources``), builds the ``ModelData``, and
+        returns a :class:`FlowSystemModel` carrying this system's
+        :attr:`objective`. Call ``build()`` on the result to inspect the linopy
+        model before solving, or ``optimize()`` to build and solve in one step.
 
         Args:
             sources: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
                 holding the referenced variables. Required if the system uses
                 any ``ProfileRef``.
-            solver: Solver backend name.
-            customize: Callback to modify the linopy model between build and
-                solve; receives the built ``FlowSystemModel`` (use ``model.m``).
-            **kwargs: Passed through to ``linopy.Model.solve()``.
         """
         carriers, effects, ports, converters, storages = (
-            copy.deepcopy(self.carriers),
-            copy.deepcopy(self.effects),
-            copy.deepcopy(self.ports),
-            copy.deepcopy(self.converters),
-            copy.deepcopy(self.storages),
+            # No sources → nothing to substitute, so no copy needed: with an
+            # empty mapping the walk raises on the first ProfileRef it meets
+            # (before any mutation) and is a no-op otherwise.
+            (self.carriers, self.effects, self.ports, self.converters, self.storages)
+            if sources is None
+            else copy.deepcopy((self.carriers, self.effects, self.ports, self.converters, self.storages))
         )
-        srcs = sources or {}
         for group in (carriers, effects, ports, converters, storages):
-            _resolve_refs(group, srcs)
+            _resolve_refs(group, sources or {})
 
         data = ModelData.build(
             self.timesteps,
@@ -233,10 +229,27 @@ class FlowSystem(BaseModel):
             periods=self.periods,
             period_weights=self.period_weights,
         )
-        model = FlowSystemModel(data)
-        return model.optimize(
-            objective=self.objective_effects,
-            customize=customize,
-            solver=solver,
-            **kwargs,
-        )
+        return FlowSystemModel(data, objective=self.objective)
+
+    def optimize(
+        self,
+        sources: Mapping[str, Any] | None = None,
+        *,
+        solver: str = 'highs',
+        customize: Callable[[FlowSystemModel], None] | None = None,
+        **kwargs: Any,
+    ) -> Result:
+        """Resolve profile references, build the model, and solve.
+
+        Shorthand for ``build_model(sources).optimize(...)``.
+
+        Args:
+            sources: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
+                holding the referenced variables. Required if the system uses
+                any ``ProfileRef``.
+            solver: Solver backend name.
+            customize: Callback to modify the linopy model between build and
+                solve; receives the built ``FlowSystemModel`` (use ``model.m``).
+            **kwargs: Passed through to ``linopy.Model.solve()``.
+        """
+        return self.build_model(sources).optimize(customize=customize, solver=solver, **kwargs)

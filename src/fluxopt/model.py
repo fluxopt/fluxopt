@@ -15,10 +15,7 @@ from fluxopt.types import as_dataarray
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from fluxopt.components import Converter, Port
-    from fluxopt.elements import Carrier, Effect, Storage
     from fluxopt.model_data import ModelData
-    from fluxopt.types import Timesteps
 
 
 def _normalize_objective(value: str | dict[str, float] | None) -> dict[str, float]:
@@ -107,55 +104,6 @@ class FlowSystemModel:
         self._built = False
         if objective is not None:
             _validate_objective(self._objective)
-
-    @classmethod
-    def from_elements(
-        cls,
-        timesteps: Timesteps,
-        carriers: list[Carrier],
-        effects: list[Effect],
-        ports: list[Port],
-        objective: str | dict[str, float] | None = None,
-        converters: list[Converter] | None = None,
-        storages: list[Storage] | None = None,
-        dt: float | list[float] | None = None,
-        periods: list[int] | None = None,
-        period_weights: list[float] | None = None,
-    ) -> FlowSystemModel:
-        """Build model data from elements and return an unbuilt FlowSystemModel.
-
-        Convenience constructor for the common case of going straight from
-        element objects to an inspectable model, skipping the explicit
-        ``ModelData.build`` step. Call :meth:`build` to populate the linopy
-        model, then :meth:`solve` (or use :meth:`optimize` for both at once).
-
-        Args:
-            timesteps: Time index for the optimization horizon.
-            carriers: Carrier declarations.
-            effects: Effects to track (costs, emissions, etc.).
-            ports: System boundary ports with imports/exports.
-            objective: Effect(s) the objective minimizes. May be deferred and
-                supplied later; required by :meth:`build`. See :meth:`optimize`.
-            converters: Linear converters between carriers.
-            storages: Energy storages.
-            dt: Timestep duration in hours. Auto-derived if None.
-            periods: Integer period labels for multi-period optimization.
-            period_weights: Explicit weights per period. Inferred from gaps if None.
-        """
-        from fluxopt.model_data import ModelData
-
-        data = ModelData.build(
-            timesteps,
-            carriers,
-            effects,
-            ports,
-            converters,
-            storages,
-            dt,
-            periods=periods,
-            period_weights=period_weights,
-        )
-        return cls(data, objective=objective)
 
     @property
     def objective(self) -> dict[str, float]:

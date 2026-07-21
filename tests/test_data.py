@@ -198,7 +198,7 @@ class TestConverterValidation:
 class TestCarrierValidation:
     def test_undeclared_carrier_raises(self):
         """Flow referencing an undeclared carrier raises ValueError."""
-        with pytest.raises(ValueError, match='not in the declared carriers'):
+        with pytest.raises(ValueError, match='undeclared carrier'):
             optimize(
                 timesteps=ts(2),
                 carriers=[Carrier(id='gas')],

@@ -23,7 +23,7 @@ def _merit_order_spec(demand: object) -> FlowSystem:
         timesteps=[0, 1],
         carriers=[Carrier(id='Heat')],
         effects=[Effect(id='cost')],
-        objective_effects='cost',
+        objective='cost',
         ports=[
             Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=demand)]),
             Port(id='Src1', imports=[Flow(carrier='Heat', size=20, effects_per_flow_hour={'cost': 1})]),
@@ -78,3 +78,22 @@ class TestProfileRefResolution:
         spec = _merit_order_spec(ProfileRef(source='load', variable='demand'))
         with pytest.raises(KeyError, match='source'):
             spec.optimize()
+
+
+class TestBuildModel:
+    def test_build_model_returns_inspectable_unbuilt_model(self) -> None:
+        spec = _merit_order_spec([30, 30])
+        model = spec.build_model()
+        assert model.objective == {'cost': 1.0}
+        model.build()
+        assert 'flow--rate' in model.m.variables
+        result = model.solve()
+        assert result.effect_totals.sel(effect='cost').item() == pytest.approx(80.0)
+
+    def test_build_model_resolves_sources(self) -> None:
+        spec = _merit_order_spec(ProfileRef(source='load', variable='demand'))
+        sources = {'load': {'demand': xr.DataArray([30.0, 30.0], dims=['time'])}}
+        result = spec.build_model(sources).optimize()
+        assert result.effect_totals.sel(effect='cost').item() == pytest.approx(80.0)
+        # spec still carries the ref — resolution ran on a copy
+        assert isinstance(spec.ports[0].exports[0].fixed_relative_profile, ProfileRef)

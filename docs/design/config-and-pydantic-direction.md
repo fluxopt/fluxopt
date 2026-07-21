@@ -223,7 +223,7 @@ by a builder — not a mutable domain object. This mirrors the codebase's existi
 
 A `@model_validator(mode='after')` runs at construction (and inside `from_dict`/
 `from_yaml`) and rejects, with clear messages: undeclared effect references
-(`effects_*` / `contribution_from` / `objective_effects`), undeclared carrier
+(`effects_*` / `contribution_from` / `objective`), undeclared carrier
 references, and duplicate effect / carrier / component ids. This moves the common
 authoring mistakes from build-time (`.optimize()`) to load-time — the point of a
 declarative workflow. Runs once after all fields are assembled, so element order
