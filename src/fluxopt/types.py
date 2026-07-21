@@ -1,17 +1,57 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, Protocol, overload, override, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, get_args, overload, override, runtime_checkable
 
 import numpy as np
 import pandas as pd
 import xarray as xr
+from pydantic import BaseModel, ConfigDict, GetCoreSchemaHandler
+from pydantic_core import core_schema
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
 
+
+class ProfileRef(BaseModel):
+    """Reference to a time-series stored outside the model definition.
+
+    A serializable stand-in for an inline ``Variate`` array: the profile lives
+    in a data file / dataset and is named here, so structural definitions
+    round-trip to YAML/JSON without inlining 8760-point series. Resolve it to a
+    :class:`xr.DataArray` with :meth:`resolve` before building the model.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    source: str
+    """Identifier of the dataset holding the profile (e.g. a file key)."""
+    variable: str
+    """Variable / column name within *source*."""
+    dim: str = 'time'
+    """Dimension the series spans."""
+
+    def resolve(self, sources: Mapping[str, xr.Dataset | Mapping[str, xr.DataArray]]) -> xr.DataArray:
+        """Look up the referenced series in *sources*.
+
+        Args:
+            sources: Mapping from ``source`` id to a dataset (or mapping) that
+                contains ``variable``.
+
+        Raises:
+            KeyError: If *source* or *variable* is absent from *sources*.
+        """
+        if self.source not in sources:
+            raise KeyError(f'ProfileRef source {self.source!r} not in sources {sorted(sources)}')
+        ds = sources[self.source]
+        try:
+            return xr.DataArray(ds[self.variable])
+        except KeyError as exc:
+            raise KeyError(f'ProfileRef variable {self.variable!r} not in source {self.source!r}') from exc
+
+
 # -- User input types --------------------------------------------------
-type Variate = float | int | list[float] | np.ndarray | pd.Series | pd.DataFrame | xr.DataArray
+type Variate = float | int | list[float] | np.ndarray | pd.Series | pd.DataFrame | xr.DataArray | ProfileRef
 """Any input that varies over a subset of the model's variate dims (``time``,
 optionally ``period``, eventually ``scenario``).
 
@@ -90,6 +130,24 @@ class IdList[T: Identified]:
     def __repr__(self) -> str:
         return f'IdList({list(self._items)!r})'
 
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source: Any, handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
+        """Validate from a list (or existing IdList) and serialize to a list."""
+        args = get_args(source)
+        item_schema = handler.generate_schema(args[0]) if args else core_schema.any_schema()
+        list_schema = core_schema.list_schema(item_schema)
+
+        def _coerce(value: object) -> IdList[Any]:
+            return value if isinstance(value, IdList) else IdList(value)  # type: ignore[arg-type]
+
+        return core_schema.no_info_after_validator_function(
+            _coerce,
+            core_schema.union_schema([core_schema.is_instance_schema(IdList), list_schema]),
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                list, return_schema=list_schema, when_used='always'
+            ),
+        )
+
 
 def fast_concat(arrays: list[xr.DataArray], dim: pd.Index) -> xr.DataArray:
     """Stack DataArrays along a new leading dimension.
@@ -151,6 +209,12 @@ def as_dataarray(
         name: Name for the resulting DataArray.
         broadcast: Expand result to span all dimensions in *coords*.
     """
+    if isinstance(value, ProfileRef):
+        raise ValueError(
+            f'Unresolved ProfileRef {value!r}: resolve it to an array via ProfileRef.resolve(sources) '
+            f'before building the model.'
+        )
+
     coord_idx = {k: v if isinstance(v, pd.Index) else pd.Index(v) for k, v in coords.items()}
 
     # --- scalar: 0-dim unless broadcast ---

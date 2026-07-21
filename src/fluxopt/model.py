@@ -37,8 +37,8 @@ def _validate_objective(effects: dict[str, float]) -> None:
     """Require the objective to name at least one non-penalty effect.
 
     The built-in penalty effect is added automatically as soft-constraint
-    steering (see :meth:`FlowSystem._set_objective`) and cannot stand in for a
-    real objective, so an empty or penalty-only spec is rejected.
+    steering (see :meth:`FlowSystemModel._set_objective`) and cannot stand in
+    for a real objective, so an empty or penalty-only spec is rejected.
 
     Raises:
         ValueError: If no non-penalty effect is named.
@@ -54,7 +54,7 @@ def _validate_objective(effects: dict[str, float]) -> None:
         raise ValueError(msg)
 
 
-class FlowSystem:
+class FlowSystemModel:
     # Sizing variables — None when no sizing is configured
     flow_size: Variable | None = None
     flow_size_indicator: Variable | None = None
@@ -70,6 +70,8 @@ class FlowSystem:
     # Storage variables — None when no storages
     storage_level: Variable | None = None
     prior_storage_level: Variable | None = None
+
+    # Effect / objective — set via optimize() or defaults to ['cost']
 
     # Status variables — None when no status is configured
     flow_on: Variable | None = None
@@ -119,8 +121,8 @@ class FlowSystem:
         dt: float | list[float] | None = None,
         periods: list[int] | None = None,
         period_weights: list[float] | None = None,
-    ) -> FlowSystem:
-        """Build model data from elements and return an unbuilt FlowSystem.
+    ) -> FlowSystemModel:
+        """Build model data from elements and return an unbuilt FlowSystemModel.
 
         Convenience constructor for the common case of going straight from
         element objects to an inspectable model, skipping the explicit
@@ -201,11 +203,18 @@ class FlowSystem:
     def build(self) -> None:
         """Build all variables, constraints, and the objective.
 
+        Idempotent with respect to retargeting: rebuilding starts from a
+        fresh linopy model, so assigning :attr:`objective` and calling
+        ``build()`` again is supported.
+
         Raises:
             ValueError: If no real (non-penalty) objective has been set
                 (see :attr:`objective`).
         """
         _validate_objective(self._objective)  # fail fast, before building anything
+        if self._built:
+            self.m = Model()
+            self._piecewise = {}
         # Phase 1: Decision variables
         self._create_flow_variables()
         self._create_sizing_variables()
@@ -237,7 +246,7 @@ class FlowSystem:
     def optimize(
         self,
         objective: str | dict[str, float] | None = None,
-        customize: Callable[[FlowSystem], None] | None = None,
+        customize: Callable[[FlowSystemModel], None] | None = None,
         *,
         solver: str = 'highs',
         **kwargs: Any,
@@ -246,7 +255,7 @@ class FlowSystem:
 
         Args:
             objective: Effect(s) to minimize, overriding any objective
-                already set on this FlowSystem. A single name, or a dict
+                already set on this FlowSystemModel. A single name, or a dict
                 mapping effect names to objective weights
                 (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
                 unaffected by the weighting. The built-in ``'penalty'``

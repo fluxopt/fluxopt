@@ -18,76 +18,76 @@ from .conftest import ts
 
 class TestPiecewiseConversionValidation:
     def test_dict_form(self):
-        c = PiecewiseConversion({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
+        c = PiecewiseConversion(points={'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
         normalized = c._iter_normalized()
         assert [t[0] for t in normalized] == ['fuel', 'Heat']
         assert all(t[2] == '==' for t in normalized)
 
     def test_tuple_form_with_bound(self):
-        c = PiecewiseConversion([('fuel', [0, 50, 100]), ('Heat', [0, 45, 70], '>=')])
+        c = PiecewiseConversion(points=[('fuel', [0, 50, 100]), ('Heat', [0, 45, 70], '>=')])
         normalized = c._iter_normalized()
         assert normalized[1][2] == '>='
 
     def test_needs_two_flows(self):
         with pytest.raises(ValueError, match='>=2 flows'):
-            PiecewiseConversion({'fuel': [0, 1, 2]})
+            PiecewiseConversion(points={'fuel': [0, 1, 2]})
 
     def test_equal_lengths(self):
         with pytest.raises(ValueError, match='same length'):
-            PiecewiseConversion({'A': [0, 1, 2], 'B': [0, 1]})
+            PiecewiseConversion(points={'A': [0, 1, 2], 'B': [0, 1]})
 
     def test_needs_two_breakpoints(self):
         with pytest.raises(ValueError, match='>=2 breakpoints'):
-            PiecewiseConversion({'A': [0], 'B': [0]})
+            PiecewiseConversion(points={'A': [0], 'B': [0]})
 
     def test_at_most_one_bound(self):
         with pytest.raises(ValueError, match='At most one bounded flow'):
             PiecewiseConversion(
-                [('A', [0, 1], '<='), ('B', [0, 1], '>=')],
+                points=[('A', [0, 1], '<='), ('B', [0, 1], '>=')],
             )
 
     def test_inequality_requires_two_flows(self):
         with pytest.raises(ValueError, match='Inequality bounds require exactly 2 flows'):
             PiecewiseConversion(
-                [('A', [0, 1], '>='), ('B', [0, 1]), ('C', [0, 1])],
+                points=[('A', [0, 1], '>='), ('B', [0, 1]), ('C', [0, 1])],
             )
 
     def test_lp_requires_bound(self):
         with pytest.raises(ValueError, match="method='lp' requires"):
-            PiecewiseConversion({'A': [0, 1], 'B': [0, 1]}, method='lp')
+            PiecewiseConversion(points={'A': [0, 1], 'B': [0, 1]}, method='lp')
 
     def test_no_duplicate_flows(self):
         with pytest.raises(ValueError, match='duplicate flow'):
-            PiecewiseConversion([('A', [0, 1]), ('A', [0, 2])])
+            PiecewiseConversion(points=[('A', [0, 1]), ('A', [0, 2])])
 
 
 class TestConverterPiecewiseValidation:
     def test_mutually_exclusive_with_factors(self):
         with pytest.raises(ValueError, match='mutually exclusive'):
             Converter(
-                'X',
-                inputs=[Flow('A', short_id='a')],
-                outputs=[Flow('B')],
+                id='X',
+                inputs=[Flow(carrier='A', short_id='a')],
+                outputs=[Flow(carrier='B')],
                 conversion_factors=[{'a': 1, 'B': -1}],
-                conversion=PiecewiseConversion({'a': [0, 1], 'B': [0, 1]}),
+                conversion=PiecewiseConversion(points={'a': [0, 1], 'B': [0, 1]}),
             )
 
     def test_unknown_flow_in_curve(self):
         with pytest.raises(ValueError, match='unknown flow'):
             Converter(
-                'X',
-                inputs=[Flow('A', short_id='a')],
-                outputs=[Flow('B')],
-                conversion=PiecewiseConversion({'a': [0, 1], 'C': [0, 1]}),
+                id='X',
+                inputs=[Flow(carrier='A', short_id='a')],
+                outputs=[Flow(carrier='B')],
+                conversion=PiecewiseConversion(points={'a': [0, 1], 'C': [0, 1]}),
             )
 
     def test_flow_status_forbidden_with_curve_status(self):
         with pytest.raises(ValueError, match='cannot have flow-level status'):
             Converter(
-                'X',
-                inputs=[Flow('A', short_id='a')],
-                outputs=[Flow('B', size=10, relative_rate_min=0.1, status=Status())],
-                conversion=PiecewiseConversion({'a': [0, 1], 'B': [0, 1]}, status=Status()),
+                id='X',
+                inputs=[Flow(carrier='A', short_id='a')],
+                outputs=[Flow(carrier='B', size=10, relative_rate_min=0.1, status=Status())],
+                conversion=PiecewiseConversion(points={'a': [0, 1], 'B': [0, 1]}, status=Status()),
             )
 
 
@@ -100,19 +100,19 @@ class TestPiecewise:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
-                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter(
-                    'Boiler',
-                    inputs=[Flow('Gas', short_id='fuel')],
-                    outputs=[Flow('Heat', size=100)],
-                    conversion=PiecewiseConversion({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]}),
+                    id='Boiler',
+                    inputs=[Flow(carrier='Gas', short_id='fuel')],
+                    outputs=[Flow(carrier='Heat', size=100)],
+                    conversion=PiecewiseConversion(points={'fuel': [0, 50, 100], 'Heat': [0, 45, 70]}),
                 ),
             ],
         )
@@ -131,22 +131,22 @@ class TestPiecewise:
         def _run(demand_value: float):
             return optimize(
                 timesteps=ts(2),
-                carriers=[Carrier('Gas'), Carrier('Heat')],
-                effects=[Effect('cost')],
+                carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+                effects=[Effect(id='cost')],
                 objective='cost',
                 ports=[
                     Port(
-                        'Demand',
-                        exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([demand_value, 0]))],
+                        id='Demand',
+                        exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([demand_value, 0]))],
                     ),
-                    Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                    Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
                 ],
                 converters=[
                     Converter(
-                        'Boiler',
-                        inputs=[Flow('Gas', short_id='fuel')],
-                        outputs=[Flow('Heat', size=100)],
-                        conversion=PiecewiseConversion({'fuel': [0, 30, 100], 'Heat': [0, 30, 70]}),
+                        id='Boiler',
+                        inputs=[Flow(carrier='Gas', short_id='fuel')],
+                        outputs=[Flow(carrier='Heat', size=100)],
+                        conversion=PiecewiseConversion(points={'fuel': [0, 30, 100], 'Heat': [0, 30, 70]}),
                     ),
                 ],
             )
@@ -165,21 +165,21 @@ class TestPiecewise:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Gas'), Carrier('Power'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Power'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('PowerDmd', exports=[Flow('Power', size=1, fixed_relative_profile=np.array([10, 0]))]),
-                Port('HeatDmd', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([15, 0]))]),
-                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port(id='PowerDmd', exports=[Flow(carrier='Power', size=1, fixed_relative_profile=np.array([10, 0]))]),
+                Port(id='HeatDmd', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([15, 0]))]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter(
-                    'CHP',
-                    inputs=[Flow('Gas', short_id='fuel')],
-                    outputs=[Flow('Power', size=100), Flow('Heat', size=100)],
+                    id='CHP',
+                    inputs=[Flow(carrier='Gas', short_id='fuel')],
+                    outputs=[Flow(carrier='Power', size=100), Flow(carrier='Heat', size=100)],
                     conversion=PiecewiseConversion(
-                        {
+                        points={
                             'fuel': [0, 30, 60, 100],
                             'Power': [0, 10, 22, 40],
                             'Heat': [0, 15, 30, 45],
@@ -201,20 +201,20 @@ class TestPiecewise:
 
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20]))]),
-                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([20, 20]))]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter(
-                    'Boiler',
-                    inputs=[Flow('Gas', short_id='fuel')],
-                    outputs=[Flow('Heat', size=100)],
+                    id='Boiler',
+                    inputs=[Flow(carrier='Gas', short_id='fuel')],
+                    outputs=[Flow(carrier='Heat', size=100)],
                     conversion=PiecewiseConversion(
-                        {
+                        points={
                             'fuel': [np.array([0.0, 0.0]), bp_max_fuel],
                             'Heat': [np.array([0.0, 0.0]), bp_max_heat],
                         }
@@ -232,20 +232,20 @@ class TestPiecewiseStatus:
         """PiecewiseConversion.status forces all curve flows to 0 when on=0."""
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
-                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter(
-                    'Boiler',
-                    inputs=[Flow('Gas', short_id='fuel')],
-                    outputs=[Flow('Heat', size=100)],
+                    id='Boiler',
+                    inputs=[Flow(carrier='Gas', short_id='fuel')],
+                    outputs=[Flow(carrier='Heat', size=100)],
                     conversion=PiecewiseConversion(
-                        {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
+                        points={'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
                         status=Status(effects_per_startup={'cost': 1000}),
                     ),
                 ),
@@ -269,20 +269,20 @@ class TestPiecewiseStatus:
         """effects_per_running_hour accrues per timestep when on=1."""
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
-                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter(
-                    'Boiler',
-                    inputs=[Flow('Gas', short_id='fuel')],
-                    outputs=[Flow('Heat', size=100)],
+                    id='Boiler',
+                    inputs=[Flow(carrier='Gas', short_id='fuel')],
+                    outputs=[Flow(carrier='Heat', size=100)],
                     conversion=PiecewiseConversion(
-                        {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
+                        points={'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
                         status=Status(effects_per_running_hour={'cost': 100}),
                     ),
                 ),
@@ -305,17 +305,17 @@ class TestRedundantStatusWarning:
 
         return ModelData.build(
             timesteps=ts(3),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
-                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([0, 5, 0]))]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter(
-                    'Boiler',
-                    inputs=[Flow('Gas', short_id='fuel')],
-                    outputs=[Flow('Heat', size=100)],
+                    id='Boiler',
+                    inputs=[Flow(carrier='Gas', short_id='fuel')],
+                    outputs=[Flow(carrier='Heat', size=100)],
                     conversion=curve,
                 )
             ],
@@ -324,7 +324,7 @@ class TestRedundantStatusWarning:
     def test_warns_when_zero_breakpoint_with_status(self):
         """Curve with (0, 0) first breakpoint AND Status -> warn."""
         curve = PiecewiseConversion(
-            {'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
+            points={'fuel': [0, 50, 100], 'Heat': [0, 45, 70]},
             status=Status(effects_per_startup={'cost': 1}),
         )
         with pytest.warns(UserWarning, match=r'Boiler.*\(0, \.\.\., 0\) breakpoint'):
@@ -333,7 +333,7 @@ class TestRedundantStatusWarning:
     def test_warns_when_zero_breakpoint_not_first(self):
         """All-zero point anywhere in the curve (not just first) -> warn (SOS2 allows non-monotonic)."""
         curve = PiecewiseConversion(
-            {'fuel': [50, 0, 100], 'Heat': [45, 0, 70]},
+            points={'fuel': [50, 0, 100], 'Heat': [45, 0, 70]},
             method='sos2',
             status=Status(effects_per_startup={'cost': 1}),
         )
@@ -343,7 +343,7 @@ class TestRedundantStatusWarning:
     def test_no_warn_when_curve_avoids_zero(self):
         """Curve that never hits all-flows-zero -> no warning, even with Status."""
         curve = PiecewiseConversion(
-            {'fuel': [30, 70, 100], 'Heat': [22.5, 58.5, 78.5]},
+            points={'fuel': [30, 70, 100], 'Heat': [22.5, 58.5, 78.5]},
             status=Status(effects_per_startup={'cost': 1}),
         )
         with warnings.catch_warnings():
@@ -352,7 +352,7 @@ class TestRedundantStatusWarning:
 
     def test_no_warn_without_status(self):
         """No Status -> no warning, even when curve includes (0, 0)."""
-        curve = PiecewiseConversion({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
+        curve = PiecewiseConversion(points={'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
         with warnings.catch_warnings():
             warnings.simplefilter('error', UserWarning)
             self._build_with_curve(curve)
@@ -361,7 +361,7 @@ class TestRedundantStatusWarning:
         """Only one flow is zero at a breakpoint (not all) -> no warning."""
         # heat=0 at first bp but fuel=10 -> the curve doesn't include the origin.
         curve = PiecewiseConversion(
-            {'fuel': [10, 50, 100], 'Heat': [0, 45, 70]},
+            points={'fuel': [10, 50, 100], 'Heat': [0, 45, 70]},
             status=Status(effects_per_startup={'cost': 1}),
         )
         with warnings.catch_warnings():

@@ -10,19 +10,19 @@ from fluxopt.results import Result
 
 def _solve_with_converter() -> Result:
     """Boiler + storage system for topology testing."""
-    demand = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-    gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.02})
-    fuel = Flow('gas', size=300)
-    heat_out = Flow('heat', size=200)
-    charge = Flow('heat', size=100)
-    discharge = Flow('heat', size=100)
-    storage = Storage('heat_store', charging=charge, discharging=discharge, capacity=200.0)
+    demand = Flow(carrier='heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+    gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.02})
+    fuel = Flow(carrier='gas', size=300)
+    heat_out = Flow(carrier='heat', size=200)
+    charge = Flow(carrier='heat', size=100)
+    discharge = Flow(carrier='heat', size=100)
+    storage = Storage(id='heat_store', charging=charge, discharging=discharge, capacity=200.0)
     return optimize(
         timesteps=[datetime(2024, 1, 1, h) for h in range(3)],
-        carriers=[Carrier('gas'), Carrier('heat')],
-        effects=[Effect('cost')],
+        carriers=[Carrier(id='gas'), Carrier(id='heat')],
+        effects=[Effect(id='cost')],
         objective='cost',
-        ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
+        ports=[Port(id='grid', imports=[gas_source]), Port(id='demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
     )
@@ -72,14 +72,14 @@ class TestTopology:
 
     def test_no_converters(self) -> None:
         """Topology works when there are no converters."""
-        demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
         result = optimize(
             timesteps=[datetime(2024, 1, 1, h) for h in range(3)],
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
         )
         topo = result.topology
         assert topo['converters'] == {}

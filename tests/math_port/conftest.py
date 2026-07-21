@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 from conftest import ts, waste  # noqa: F401 — re-exported for test imports
 
-from fluxopt import FlowSystem, ModelData
+from fluxopt import FlowSystemModel, ModelData
 from fluxopt import optimize as fluxopt_optimize
 from fluxopt.results import Result
 
@@ -55,7 +55,7 @@ def optimize(request, tmp_path):
             path = tmp_path / 'data.nc'
             data.to_netcdf(path, mode='w')
             loaded = ModelData.from_netcdf(path)
-            model = FlowSystem(loaded)
+            model = FlowSystemModel(loaded)
             return model.optimize(objective=objective)
         # optimize->save->reload->validate
         result = fluxopt_optimize(**kwargs, objective=objective)

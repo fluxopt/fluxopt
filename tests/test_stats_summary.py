@@ -10,21 +10,21 @@ _DEMAND_ENERGY = 190.0
 
 def _solve(source, *, dt=None, storages=()):
     """One-bus electricity model: `source` imports, a fixed demand exports."""
-    demand = Flow('elec', size=100, fixed_relative_profile=_DEMAND_PROFILE)
+    demand = Flow(carrier='elec', size=100, fixed_relative_profile=_DEMAND_PROFILE)
     return optimize(
         timesteps=ts(3),
         dt=dt,
-        carriers=[Carrier('elec')],
-        effects=[Effect('cost')],
+        carriers=[Carrier(id='elec')],
+        effects=[Effect(id='cost')],
         objective='cost',
-        ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
+        ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
         storages=list(storages),
     )
 
 
 def test_stats_summary_quickstart():
     """`summary` is a KPI namespace: objective, effect totals, per-flow utilization."""
-    summary = _solve(Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})).stats.summary
+    summary = _solve(Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})).stats.summary
 
     # KPIs present; no storages -> no storage KPIs.
     assert set(summary.data_vars) == {
@@ -61,7 +61,7 @@ def test_stats_summary_quickstart():
 
 def test_unsized_flow_has_nan_size_but_real_throughput():
     """An unsized flow reports NaN size/CF, yet its throughput stays visible."""
-    stats = _solve(Flow('elec', effects_per_flow_hour={'cost': 0.04})).stats  # size=None
+    stats = _solve(Flow(carrier='elec', effects_per_flow_hour={'cost': 0.04})).stats  # size=None
     flow = 'grid(elec)'
 
     assert np.isnan(stats.resolved_sizes.sel(flow=flow).item())
@@ -74,7 +74,7 @@ def test_resolved_sizes_fills_in_invested_size():
     """For an invested flow, resolved_sizes uses the optimized size, and CF follows."""
     # A per-size cost makes the solver pick the smallest feasible size (the peak).
     sizing = Sizing(size_min=0, size_max=500, effects_per_size={'cost': 1.0})
-    result = _solve(Flow('elec', size=sizing, effects_per_flow_hour={'cost': 0.04}))
+    result = _solve(Flow(carrier='elec', size=sizing, effects_per_flow_hour={'cost': 0.04}))
     stats = result.stats
     flow = 'grid(elec)'
 
@@ -94,7 +94,7 @@ def test_capacity_factor_is_horizon_independent():
     """Scaling every timestep duration leaves CF unchanged while throughput scales."""
 
     def source():
-        return Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        return Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
     flow = 'grid(elec)'
 
@@ -116,16 +116,18 @@ def test_capacity_factor_is_horizon_independent():
 
 def test_stats_summary_with_storage():
     """With storages, `summary` adds capacity and relative mean level on `storage`."""
-    source = Flow('elec', size=100, effects_per_flow_hour={'cost': [0.1, 0.9, 0.1]})
-    demand = Flow('elec', size=50, fixed_relative_profile=[0.5, 0.5, 0.5])
-    storage = Storage('batt', charging=Flow('elec', size=80), discharging=Flow('elec', size=80), capacity=80)
+    source = Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': [0.1, 0.9, 0.1]})
+    demand = Flow(carrier='elec', size=50, fixed_relative_profile=[0.5, 0.5, 0.5])
+    storage = Storage(
+        id='batt', charging=Flow(carrier='elec', size=80), discharging=Flow(carrier='elec', size=80), capacity=80
+    )
 
     result = optimize(
         timesteps=ts(3),
-        carriers=[Carrier('elec')],
-        effects=[Effect('cost')],
+        carriers=[Carrier(id='elec')],
+        effects=[Effect(id='cost')],
         objective='cost',
-        ports=[Port('grid', imports=[source]), Port('load', exports=[demand])],
+        ports=[Port(id='grid', imports=[source]), Port(id='load', exports=[demand])],
         storages=[storage],
     )
     stats = result.stats

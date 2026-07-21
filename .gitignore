@@ -20,4 +20,6 @@ coverage.xml
 htmlcov/
 .mypy_cache/
 .pytest_cache/
+# The benchmark env is the one pinned thing in this repo (benchmark/pyproject.toml).
 uv.lock
+!benchmark/uv.lock

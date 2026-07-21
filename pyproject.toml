@@ -31,6 +31,8 @@ dependencies = [
     "netcdf4>=1.6.0",
     "numpy>=1.26",
     "pandas>=2.1",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
     "xarray>=2024.1.0",
 ]
 
@@ -57,7 +59,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-xdist==3.8.0",
     "pyrefly==1.1.1",
-    "ruff==0.15.18",
+    "ruff==0.15.22",
 ]
 docs = [
     "plotly>=6",
@@ -69,14 +71,15 @@ docs = [
     "mkdocs-include-markdown-plugin==7.3.0",
     "mkdocs-jupyter==0.26.3",
     "mkdocs-literate-nav==0.6.3",
-    "mkdocs-material==9.7.6",
+    "mkdocs-material==9.7.7",
     "mkdocs-minify-plugin==0.8.0",
     "mkdocs-plotly-plugin==0.1.3",
     "mkdocs-table-reader-plugin==3.1.0",
     "mkdocstrings-python==2.0.5",
     "notebook==7.6.0",
     "pygments==2.20.0",
-    "pymdown-extensions==11.0",
+    "pymdown-extensions==11.0.1",
+    "griffe-pydantic==1.3.1",
 ]
 
 [tool.ruff]
@@ -126,6 +129,11 @@ docstring-code-format = true
 [tool.ruff.lint.pyupgrade]
 keep-runtime-typing = false
 
+[tool.ruff.lint.flake8-type-checking]
+# pydantic models evaluate annotations at runtime to build validators, so imports
+# used only in annotations must stay at runtime (not moved to TYPE_CHECKING).
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "fluxopt.elements.Element"]
+
 [tool.pyrefly]
 python-version = "3.12"
 project-includes = ["src"]
@@ -150,6 +158,9 @@ variance-mismatch = true
 
 [tool.pytest.ini_options]
 addopts = "-n auto"
+# Default run covers the correctness suite only. Benchmarks live in benchmark/
+# and are opt-in: `pytest benchmark/ -p no:xdist --benchmark-only`.
+testpaths = ["tests"]
 pythonpath = ["tests"]
 markers = [
     "slow: marks tests as slow",

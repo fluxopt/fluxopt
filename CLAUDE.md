@@ -53,6 +53,11 @@ uv run pyrefly check src/ # Type check
   - No types in docstrings (types live in signatures only)
   - Always include `Args` section when there are parameters
   - `Returns` / `Raises` only when non-obvious
+  - **Exception — pydantic model fields**: document each field with an inline
+    attribute docstring (a `"""..."""` under the field), not an `Args:`/`Attributes:`
+    section. This is what makes griffe-pydantic emit per-field anchors that
+    `docs/math/*.md` cross-links to (`Class.field`). `Args:` still applies to
+    functions, methods, and non-model classes.
 - Python >= 3.12 — use modern syntax (PEP 604 unions `X | Y`, etc.)
 - **linopy**: use concise, vectorized syntax — no loops over coordinates
 - **xr.DataArray** is the primary data container; prefer broadcasting over iteration

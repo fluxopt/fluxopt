@@ -93,26 +93,26 @@ class TestHeatPump:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec'), Carrier(id='Env'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
                     ],
                 ),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
-                Port('Environment', imports=[Flow('Env', size=1000)]),
+                Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Environment', imports=[Flow(carrier='Env', size=1000)]),
             ],
             converters=[
                 Converter.heat_pump(
                     'HP',
                     cop=3.0,
-                    electrical_flow=Flow('Elec'),
-                    source_flow=Flow('Env'),
-                    thermal_flow=Flow('Heat'),
+                    electrical_flow=Flow(carrier='Elec'),
+                    source_flow=Flow(carrier='Env'),
+                    thermal_flow=Flow(carrier='Heat'),
                 ),
             ],
         )
@@ -126,26 +126,26 @@ class TestHeatPump:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Elec'), Carrier('Env'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Elec'), Carrier(id='Env'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([20, 20])),
                     ],
                 ),
-                Port('Grid', imports=[Flow('Elec', effects_per_flow_hour={'cost': 1})]),
-                Port('Environment', imports=[Flow('Env', size=1000)]),
+                Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Environment', imports=[Flow(carrier='Env', size=1000)]),
             ],
             converters=[
                 Converter.heat_pump(
                     'HP',
                     cop=np.array([2.0, 4.0]),
-                    electrical_flow=Flow('Elec'),
-                    source_flow=Flow('Env'),
-                    thermal_flow=Flow('Heat'),
+                    electrical_flow=Flow(carrier='Elec'),
+                    source_flow=Flow(carrier='Env'),
+                    thermal_flow=Flow(carrier='Heat'),
                 ),
             ],
         )

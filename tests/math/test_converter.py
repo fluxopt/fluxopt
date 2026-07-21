@@ -12,19 +12,19 @@ class TestBoiler:
         eta = 0.9
         heat_demand = [50.0, 80.0, 60.0]
 
-        demand_flow = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-        gas_flow = Flow('gas', size=200, effects_per_flow_hour={'cost': 0.04})
-        fuel = Flow('gas', size=200)
-        heat_flow = Flow('heat', size=100)
+        demand_flow = Flow(carrier='heat', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        gas_flow = Flow(carrier='gas', size=200, effects_per_flow_hour={'cost': 0.04})
+        fuel = Flow(carrier='gas', size=200)
+        heat_flow = Flow(carrier='heat', size=100)
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='gas'), Carrier(id='heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('grid', imports=[gas_flow]),
-                Port('demand', exports=[demand_flow]),
+                Port(id='grid', imports=[gas_flow]),
+                Port(id='demand', exports=[demand_flow]),
             ],
             converters=[Converter.boiler('boiler', eta, fuel, heat_flow)],
         )
@@ -37,19 +37,19 @@ class TestBoiler:
         """Total cost = sum(gas_rate * cost * dt)."""
         eta = 0.9
 
-        demand_flow = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-        gas_flow = Flow('gas', size=200, effects_per_flow_hour={'cost': 0.04})
-        fuel = Flow('gas', size=200)
-        heat_flow = Flow('heat', size=100)
+        demand_flow = Flow(carrier='heat', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        gas_flow = Flow(carrier='gas', size=200, effects_per_flow_hour={'cost': 0.04})
+        fuel = Flow(carrier='gas', size=200)
+        heat_flow = Flow(carrier='heat', size=100)
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='gas'), Carrier(id='heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('grid', imports=[gas_flow]),
-                Port('demand', exports=[demand_flow]),
+                Port(id='grid', imports=[gas_flow]),
+                Port(id='demand', exports=[demand_flow]),
             ],
             converters=[Converter.boiler('boiler', eta, fuel, heat_flow)],
         )
@@ -63,23 +63,23 @@ class TestCHP:
         """CHP: fuel * eta_el = elec, fuel * eta_th = heat."""
         eta_el, eta_th = 0.3, 0.5
 
-        fuel_flow = Flow('gas', size=200)
-        elec_flow = Flow('elec', size=100)
-        heat_flow = Flow('heat', size=100)
+        fuel_flow = Flow(carrier='gas', size=200)
+        elec_flow = Flow(carrier='elec', size=100)
+        heat_flow = Flow(carrier='heat', size=100)
 
-        gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        elec_demand = Flow('elec', size=100, fixed_relative_profile=[0.3, 0.3, 0.3])
-        heat_demand = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})
+        elec_demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.3, 0.3, 0.3])
+        heat_demand = Flow(carrier='heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('gas'), Carrier('elec'), Carrier('heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='gas'), Carrier(id='elec'), Carrier(id='heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('grid', imports=[gas_source]),
-                Port('elec_demand', exports=[elec_demand]),
-                Port('heat_demand', exports=[heat_demand]),
+                Port(id='grid', imports=[gas_source]),
+                Port(id='elec_demand', exports=[elec_demand]),
+                Port(id='heat_demand', exports=[heat_demand]),
             ],
             converters=[Converter.chp('chp', eta_el, eta_th, fuel_flow, elec_flow, heat_flow)],
         )

@@ -13,26 +13,26 @@ class TestCarrierBalance:
         """Verify merit-order dispatch yields Src1=20, Src2=10 for demand=30."""
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
                     ],
                 ),
                 Port(
-                    'Src1',
+                    id='Src1',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1}, size=20),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1}, size=20),
                     ],
                 ),
                 Port(
-                    'Src2',
+                    id='Src2',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 2}, size=20),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 2}, size=20),
                     ],
                 ),
             ],
@@ -52,16 +52,20 @@ class TestMultiNodeBalance:
         """Verify two nodes on the same carrier balance independently (no cross-node dispatch)."""
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('heat', nodes=['A', 'B'])],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='heat', nodes=['A', 'B'])],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('cheap_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 1})]),
-                Port('cheap_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 1})]),
-                Port('exp_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 5})]),
-                Port('exp_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 5})]),
-                Port('demand_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[50, 50])]),
-                Port('demand_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[80, 80])]),
+                Port(
+                    id='cheap_a', imports=[Flow(carrier='heat', node='A', size=100, effects_per_flow_hour={'cost': 1})]
+                ),
+                Port(
+                    id='cheap_b', imports=[Flow(carrier='heat', node='B', size=100, effects_per_flow_hour={'cost': 1})]
+                ),
+                Port(id='exp_a', imports=[Flow(carrier='heat', node='A', size=100, effects_per_flow_hour={'cost': 5})]),
+                Port(id='exp_b', imports=[Flow(carrier='heat', node='B', size=100, effects_per_flow_hour={'cost': 5})]),
+                Port(id='demand_a', exports=[Flow(carrier='heat', node='A', size=1, fixed_relative_profile=[50, 50])]),
+                Port(id='demand_b', exports=[Flow(carrier='heat', node='B', size=1, fixed_relative_profile=[80, 80])]),
             ],
         )
         # Each node dispatches its own cheap source, expensive unused
@@ -74,14 +78,18 @@ class TestMultiNodeBalance:
         """Verify a cheap source on node A cannot serve demand on node B."""
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('heat', nodes=['A', 'B'])],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='heat', nodes=['A', 'B'])],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port('cheap_a', imports=[Flow('heat', node='A', size=200, effects_per_flow_hour={'cost': 1})]),
-                Port('exp_b', imports=[Flow('heat', node='B', size=200, effects_per_flow_hour={'cost': 10})]),
-                Port('demand_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[50, 50])]),
-                Port('demand_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[50, 50])]),
+                Port(
+                    id='cheap_a', imports=[Flow(carrier='heat', node='A', size=200, effects_per_flow_hour={'cost': 1})]
+                ),
+                Port(
+                    id='exp_b', imports=[Flow(carrier='heat', node='B', size=200, effects_per_flow_hour={'cost': 10})]
+                ),
+                Port(id='demand_a', exports=[Flow(carrier='heat', node='A', size=1, fixed_relative_profile=[50, 50])]),
+                Port(id='demand_b', exports=[Flow(carrier='heat', node='B', size=1, fixed_relative_profile=[50, 50])]),
             ],
         )
         # Node B must use expensive source — can't tap into node A's cheap source
@@ -93,18 +101,22 @@ class TestMultiNodeBalance:
         """Verify single-node and multi-node carriers coexist in one optimization."""
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('elec'), Carrier('heat', nodes=['A', 'B'])],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec'), Carrier(id='heat', nodes=['A', 'B'])],
+            effects=[Effect(id='cost')],
             objective='cost',
             ports=[
                 # Electricity: single-node
-                Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.1})]),
-                Port('elec_demand', exports=[Flow('elec', size=1, fixed_relative_profile=[30, 30])]),
+                Port(id='grid', imports=[Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.1})]),
+                Port(id='elec_demand', exports=[Flow(carrier='elec', size=1, fixed_relative_profile=[30, 30])]),
                 # Heat: multi-node
-                Port('boiler_a', imports=[Flow('heat', node='A', size=100, effects_per_flow_hour={'cost': 1})]),
-                Port('boiler_b', imports=[Flow('heat', node='B', size=100, effects_per_flow_hour={'cost': 2})]),
-                Port('bldg_a', exports=[Flow('heat', node='A', size=1, fixed_relative_profile=[40, 40])]),
-                Port('bldg_b', exports=[Flow('heat', node='B', size=1, fixed_relative_profile=[60, 60])]),
+                Port(
+                    id='boiler_a', imports=[Flow(carrier='heat', node='A', size=100, effects_per_flow_hour={'cost': 1})]
+                ),
+                Port(
+                    id='boiler_b', imports=[Flow(carrier='heat', node='B', size=100, effects_per_flow_hour={'cost': 2})]
+                ),
+                Port(id='bldg_a', exports=[Flow(carrier='heat', node='A', size=1, fixed_relative_profile=[40, 40])]),
+                Port(id='bldg_b', exports=[Flow(carrier='heat', node='B', size=1, fixed_relative_profile=[60, 60])]),
             ],
         )
         # Electricity balance: grid serves 30 per timestep
