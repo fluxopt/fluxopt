@@ -13,7 +13,7 @@ from fluxopt import (
     Storage,
     optimize,
 )
-from fluxopt.model import FlowSystem
+from fluxopt.model import FlowSystemModel
 
 
 class TestEndToEnd:
@@ -23,19 +23,19 @@ class TestEndToEnd:
         eta = 0.9
         heat_demand = [40.0, 70.0, 50.0, 60.0]
 
-        demand_flow = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        fuel = Flow('gas', size=300)
-        heat_flow = Flow('heat', size=200)
+        demand_flow = Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+        gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})
+        fuel = Flow(carrier='gas', size=300)
+        heat_flow = Flow(carrier='heat', size=200)
 
         result = optimize(
             timesteps=ts(4),
-            carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='gas'), Carrier(id='heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('grid', imports=[gas_source]),
-                Port('demand', exports=[demand_flow]),
+                Port(id='grid', imports=[gas_source]),
+                Port(id='demand', exports=[demand_flow]),
             ],
             converters=[Converter.boiler('boiler', eta, fuel, heat_flow)],
         )
@@ -56,23 +56,23 @@ class TestEndToEnd:
         eta = 0.9
         gas_prices = [0.02, 0.08, 0.02, 0.08]
 
-        demand_flow = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
-        gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': gas_prices})
-        fuel = Flow('gas', size=300)
-        heat_out = Flow('heat', size=200)
+        demand_flow = Flow(carrier='heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+        gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': gas_prices})
+        fuel = Flow(carrier='gas', size=300)
+        heat_out = Flow(carrier='heat', size=200)
 
-        charge_flow = Flow('heat', size=100)
-        discharge_flow = Flow('heat', size=100)
-        storage = Storage('heat_store', charging=charge_flow, discharging=discharge_flow, capacity=200.0)
+        charge_flow = Flow(carrier='heat', size=100)
+        discharge_flow = Flow(carrier='heat', size=100)
+        storage = Storage(id='heat_store', charging=charge_flow, discharging=discharge_flow, capacity=200.0)
 
         result = optimize(
             timesteps=ts(4),
-            carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='gas'), Carrier(id='heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('grid', imports=[gas_source]),
-                Port('demand', exports=[demand_flow]),
+                Port(id='grid', imports=[gas_source]),
+                Port(id='demand', exports=[demand_flow]),
             ],
             converters=[Converter.boiler('boiler', eta, fuel, heat_out)],
             storages=[storage],
@@ -85,20 +85,20 @@ class TestEndToEnd:
     def test_modified_data(self):
         """Build data, modify bounds, solve -- verify modified result."""
 
-        sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        sink_flow = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        source_flow = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
         data = ModelData.build(
             ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
-            ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[sink_flow])],
         )
 
         # Change demand from 0.5 to 0.7 (relative); absolute = 0.7 * 100 = 70
         data.flows.fixed_profile.loc[{'flow': 'demand(elec)'}] = 0.7
 
-        model = FlowSystem(data)
+        model = FlowSystemModel(data)
         result = model.optimize(objective_effects='cost')
 
         source_rates = result.flow_rate('grid(elec)').values
@@ -108,15 +108,15 @@ class TestEndToEnd:
     def test_result_accessors(self):
         """Test Result accessor methods."""
 
-        sink_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        sink_flow = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source_flow = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('elec')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[sink_flow])],
+            ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[sink_flow])],
         )
 
         # flow_rate accessor
@@ -139,19 +139,19 @@ class TestEndToEnd:
 
         timesteps = [0, 1, 2, 3]
 
-        demand_flow = Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        fuel = Flow('gas', size=300)
-        heat_flow = Flow('heat', size=200)
+        demand_flow = Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+        gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})
+        fuel = Flow(carrier='gas', size=300)
+        heat_flow = Flow(carrier='heat', size=200)
 
         result = optimize(
             timesteps=timesteps,
-            carriers=[Carrier('gas'), Carrier('heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='gas'), Carrier(id='heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('grid', imports=[gas_source]),
-                Port('demand', exports=[demand_flow]),
+                Port(id='grid', imports=[gas_source]),
+                Port(id='demand', exports=[demand_flow]),
             ],
             converters=[Converter.boiler('boiler', 0.9, fuel, heat_flow)],
         )

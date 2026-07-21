@@ -23,7 +23,7 @@ def waste(carrier: str) -> Port:
     Args:
         carrier: Carrier id string.
     """
-    return Port(f'_waste_{carrier}', exports=[Flow(carrier)])
+    return Port(id=f'_waste_{carrier}', exports=[Flow(carrier=carrier)])
 
 
 def _block_lengths(on: np.ndarray, *, active: bool) -> list[tuple[int, int]]:

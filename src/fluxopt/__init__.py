@@ -13,11 +13,14 @@ from fluxopt.elements import (
     Status,
     Storage,
 )
-from fluxopt.model import FlowSystem
+from fluxopt.flow_system import FlowSystem
+from fluxopt.model import FlowSystemModel
 from fluxopt.model_data import Dims, ModelData
 from fluxopt.results import Result
+from fluxopt.schema import all_element_schemas, element_schema, from_dict, to_dict
 from fluxopt.types import (
     IdList,
+    ProfileRef,
     TimeIndex,
     Timesteps,
     Variate,
@@ -37,7 +40,7 @@ def optimize(
     periods: list[int] | None = None,
     period_weights: list[float] | None = None,
     solver: str = 'highs',
-    customize: Callable[[FlowSystem], None] | None = None,
+    customize: Callable[[FlowSystemModel], None] | None = None,
     **kwargs: Any,
 ) -> Result:
     """Build data, build model, optimize, return results.
@@ -61,7 +64,7 @@ def optimize(
         period_weights: Explicit weights per period. Inferred from gaps if None.
         solver: Solver backend name.
         customize: Optional callback to modify the linopy model between build and solve.
-            Receives the built FlowSystem; use ``model.m`` to add variables/constraints.
+            Receives the built FlowSystemModel; use ``model.m`` to add variables/constraints.
         **kwargs: Passed through to ``linopy.Model.solve()``.
     """
     data = ModelData.build(
@@ -75,7 +78,7 @@ def optimize(
         periods=periods,
         period_weights=period_weights,
     )
-    model = FlowSystem(data)
+    model = FlowSystemModel(data)
     return model.optimize(
         objective_effects=objective_effects,
         customize=customize,
@@ -92,11 +95,13 @@ __all__ = [
     'Effect',
     'Flow',
     'FlowSystem',
+    'FlowSystemModel',
     'IdList',
     'Investment',
     'ModelData',
     'PiecewiseConversion',
     'Port',
+    'ProfileRef',
     'Result',
     'Sizing',
     'Status',
@@ -104,6 +109,10 @@ __all__ = [
     'TimeIndex',
     'Timesteps',
     'Variate',
+    'all_element_schemas',
     'as_dataarray',
+    'element_schema',
+    'from_dict',
     'optimize',
+    'to_dict',
 ]

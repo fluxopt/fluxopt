@@ -20,20 +20,20 @@ class TestMultiPeriod:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -75,17 +75,17 @@ class TestMultiPeriod:
         )
         result = optimize(
             timesteps=timesteps,
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
-                    exports=[Flow('Heat', size=1, fixed_relative_profile=demand)],
+                    id='Demand',
+                    exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=demand)],
                 ),
                 Port(
-                    'Grid',
-                    imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})],
+                    id='Grid',
+                    imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})],
                 ),
             ],
             periods=list(periods),
@@ -105,20 +105,20 @@ class TestMultiPeriod:
         cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': cost_by_period}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': cost_by_period}),
                     ],
                 ),
             ],
@@ -140,22 +140,22 @@ class TestMultiPeriod:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost', period_weights=[1, 2]),
+                Effect(id='cost', period_weights=[1, 2]),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -186,22 +186,22 @@ class TestInvestment:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Investment(0, 20, effects_per_size_at_build={'cost': 10}),
+                            carrier='Heat',
+                            size=Investment(size_min=0, size_max=20, effects_per_size_at_build={'cost': 10}),
                             effects_per_flow_hour={'cost': 1},
                         ),
                     ],
@@ -223,22 +223,24 @@ class TestInvestment:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 0, 0])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([0, 0, 0])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Investment(0, 20, mandatory=False, effects_per_size_at_build={'cost': 100}),
+                            carrier='Heat',
+                            size=Investment(
+                                size_min=0, size_max=20, mandatory=False, effects_per_size_at_build={'cost': 100}
+                            ),
                         ),
                     ],
                 ),
@@ -257,31 +259,31 @@ class TestInvestment:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Cheap',
+                    id='Cheap',
                     imports=[
                         Flow(
-                            'Heat',
+                            carrier='Heat',
                             short_id='cheap',
-                            size=Investment(0, 20, lifetime=1, effects_per_size_at_build={'cost': 0}),
+                            size=Investment(size_min=0, size_max=20, lifetime=1, effects_per_size_at_build={'cost': 0}),
                             effects_per_flow_hour={'cost': 1},
                         ),
                     ],
                 ),
                 Port(
-                    'Expensive',
+                    id='Expensive',
                     imports=[
-                        Flow('Heat', short_id='expensive', effects_per_flow_hour={'cost': 100}),
+                        Flow(carrier='Heat', short_id='expensive', effects_per_flow_hour={'cost': 100}),
                     ],
                 ),
             ],
@@ -300,24 +302,24 @@ class TestInvestment:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
+                            carrier='Heat',
                             size=Investment(
-                                0,
-                                20,
+                                size_min=0,
+                                size_max=20,
                                 mandatory=False,
                                 prior_size=10,
                                 effects_per_size_at_build={'cost': 1000},
@@ -344,22 +346,22 @@ class TestInvestment:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Investment(10, 10, effects_per_size_at_build={'cost': 10}),
+                            carrier='Heat',
+                            size=Investment(size_min=10, size_max=10, effects_per_size_at_build={'cost': 10}),
                         ),
                     ],
                 ),
@@ -379,24 +381,24 @@ class TestInvestment:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
+                            carrier='Heat',
                             size=Investment(
-                                10,
-                                10,
+                                size_min=10,
+                                size_max=10,
                                 effects_per_size_recurring={'cost': 2},
                             ),
                         ),
@@ -422,22 +424,22 @@ class TestPeriodVaryingEffects:
         cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Sizing(10, 10, effects_per_size={'cost': cost_by_period}),
+                            carrier='Heat',
+                            size=Sizing(size_min=10, size_max=10, effects_per_size={'cost': cost_by_period}),
                         ),
                     ],
                 ),
@@ -458,22 +460,22 @@ class TestPeriodVaryingEffects:
         cost_by_period = xr.DataArray([5.0, 15.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Sizing(10, 10, effects_fixed={'cost': cost_by_period}),
+                            carrier='Heat',
+                            size=Sizing(size_min=10, size_max=10, effects_fixed={'cost': cost_by_period}),
                         ),
                     ],
                 ),
@@ -494,22 +496,24 @@ class TestPeriodVaryingEffects:
         om_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Investment(10, 10, effects_per_size_recurring={'cost': om_by_period}),
+                            carrier='Heat',
+                            size=Investment(
+                                size_min=10, size_max=10, effects_per_size_recurring={'cost': om_by_period}
+                            ),
                         ),
                     ],
                 ),
@@ -529,22 +533,22 @@ class TestPeriodVaryingEffects:
         cost_by_period = xr.DataArray([5.0, 15.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Investment(10, 10, effects_fixed_recurring={'cost': cost_by_period}),
+                            carrier='Heat',
+                            size=Investment(size_min=10, size_max=10, effects_fixed_recurring={'cost': cost_by_period}),
                         ),
                     ],
                 ),
@@ -565,22 +569,24 @@ class TestPeriodVaryingEffects:
         capex_by_period = xr.DataArray([10.0, 20.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Investment(10, 10, effects_per_size_at_build={'cost': capex_by_period}),
+                            carrier='Heat',
+                            size=Investment(
+                                size_min=10, size_max=10, effects_per_size_at_build={'cost': capex_by_period}
+                            ),
                         ),
                     ],
                 ),
@@ -601,22 +607,22 @@ class TestPeriodVaryingEffects:
         capex_by_period = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
-                            size=Investment(10, 10, effects_fixed_at_build={'cost': capex_by_period}),
+                            carrier='Heat',
+                            size=Investment(size_min=10, size_max=10, effects_fixed_at_build={'cost': capex_by_period}),
                         ),
                     ],
                 ),
@@ -638,21 +644,21 @@ class TestPeriodVaryingEffects:
         cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
+                            carrier='Heat',
                             size=10,
                             relative_rate_min=0.5,
                             status=Status(effects_per_running_hour={'cost': cost_by_period}),
@@ -676,21 +682,21 @@ class TestPeriodVaryingEffects:
         cost_by_period = xr.DataArray([100.0, 300.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 0, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 0, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
+                            carrier='Heat',
                             size=10,
                             relative_rate_min=0.5,
                             status=Status(effects_per_startup={'cost': cost_by_period}),
@@ -716,23 +722,23 @@ class TestPeriodVaryingEffects:
         carbon_price = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('co2'),
-                Effect('cost', contribution_from={'co2': carbon_price}),
+                Effect(id='co2'),
+                Effect(id='cost', contribution_from={'co2': carbon_price}),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'co2': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'co2': 1}),
                     ],
                 ),
             ],
@@ -752,29 +758,29 @@ class TestPeriodVaryingEffects:
         cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([5, 5, 5])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([5, 5, 5])),
                     ],
                 ),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
-                        Flow('Heat'),
+                        Flow(carrier='Heat'),
                     ],
                 ),
             ],
             storages=[
                 Storage(
-                    'store',
-                    charging=Flow('Heat'),
-                    discharging=Flow('Heat'),
-                    capacity=Sizing(10, 10, effects_per_size={'cost': cost_by_period}),
+                    id='store',
+                    charging=Flow(carrier='Heat'),
+                    discharging=Flow(carrier='Heat'),
+                    capacity=Sizing(size_min=10, size_max=10, effects_per_size={'cost': cost_by_period}),
                 ),
             ],
             periods=periods,

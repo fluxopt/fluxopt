@@ -32,8 +32,8 @@ class TestRaggedPeriods:
         }
         result = optimize(
             timesteps=timesteps,
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
@@ -46,7 +46,7 @@ class TestRaggedPeriods:
                         ),
                     ],
                 ),
-                Port('Grid', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Grid', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})]),
             ],
             period_weights=[1, 1],
         )
@@ -60,8 +60,8 @@ class TestRaggedPeriods:
         }
         result = optimize(
             timesteps=timesteps,
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
@@ -74,7 +74,7 @@ class TestRaggedPeriods:
                         ),
                     ],
                 ),
-                Port('Grid', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Grid', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})]),
             ],
             period_weights=[1, 1],
         )
@@ -100,18 +100,18 @@ class TestPeriodBoundaryIsolation:
         price = xr.DataArray([1.0, 100.0], dims=['period'], coords={'period': [2030, 2040]})
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[0, 10])]),
-                Port('Grid', imports=[Flow('Heat', effects_per_flow_hour={'cost': price})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[0, 10])]),
+                Port(id='Grid', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': price})]),
             ],
             storages=[
                 Storage(
-                    'store',
-                    charging=Flow('Heat'),
-                    discharging=Flow('Heat'),
+                    id='store',
+                    charging=Flow(carrier='Heat'),
+                    discharging=Flow(carrier='Heat'),
                     capacity=100,
                 ),
             ],
@@ -139,15 +139,15 @@ class TestPeriodBoundaryIsolation:
         )
         result = optimize(
             timesteps=timesteps,
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=demand)]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=demand)]),
                 Port(
                     'Grid',
                     imports=[
-                        Flow('Heat', size=100, ramp_up_per_hour=0.1, effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Heat', size=100, ramp_up_per_hour=0.1, effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -168,11 +168,11 @@ class TestPeriodBoundaryIsolation:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port(
                     'Grid',
                     imports=[
@@ -202,12 +202,12 @@ class TestUniformCalendarShift:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10])]),
-                Port('Grid', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 10])]),
+                Port(id='Grid', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})]),
             ],
             periods=[2030, 2040],
             period_weights=[1, 1],
@@ -228,25 +228,25 @@ class TestEpisodeBigM:
         no uptime_max is set) must be the longest episode (3 h), not the
         6 h flat-axis total — an inflated M loosens the MIP relaxation.
         """
-        from fluxopt import FlowSystem, ModelData
+        from fluxopt import FlowSystemModel, ModelData
 
         data = ModelData.build(
             ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=[10, 10, 10])]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 10, 10])]),
                 Port(
                     'Grid',
                     imports=[
-                        Flow('Heat', size=10, relative_rate_min=0.5, status=Status(uptime_min=2)),
+                        Flow(carrier='Heat', size=10, relative_rate_min=0.5, status=Status(uptime_min=2)),
                     ],
                 ),
             ],
             periods=[2030, 2040],
             period_weights=[1, 1],
         )
-        fs = FlowSystem(data)
+        fs = FlowSystemModel(data)
         fs._objective_effects = {'cost': 1.0}
         fs.build()
         assert float(fs.m.variables['uptime'].upper.max()) == 3.0

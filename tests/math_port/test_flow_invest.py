@@ -21,19 +21,19 @@ class TestFlowInvest:
 
         result = optimize(
             timesteps=ts(3),
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 50, 20])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 50, 20])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -41,9 +41,9 @@ class TestFlowInvest:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         size=Sizing(
                             size_min=0,
                             size_max=200,
@@ -54,7 +54,7 @@ class TestFlowInvest:
                     ),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # size = 50 (peak), invest cost = 10 + 50*1 = 60, fuel = 80
         # total = 140
@@ -74,19 +74,19 @@ class TestFlowInvest:
 
         result = optimize(
             timesteps=ts(2),
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -94,20 +94,20 @@ class TestFlowInvest:
                 Converter.boiler(
                     'InvestBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         size=Sizing(size_min=0, size_max=100, mandatory=False, effects_fixed={'cost': 99999}),
                     ),
                 ),
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat', size=100),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    thermal_flow=Flow(carrier='Heat', size=100),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         assert_allclose(result.solution['flow--size_indicator'].sel(flow='InvestBoiler(Heat)').item(), 0.0, atol=1e-5)
         # All demand served by CheapBoiler: fuel = 20/0.5 = 40
@@ -125,20 +125,20 @@ class TestFlowInvest:
 
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -146,9 +146,9 @@ class TestFlowInvest:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         size=Sizing(size_min=100, size_max=200, mandatory=True, effects_per_size={'cost': 1}),
                     ),
                 ),
@@ -171,19 +171,19 @@ class TestFlowInvest:
 
         result = optimize(
             timesteps=ts(2),
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -191,20 +191,20 @@ class TestFlowInvest:
                 Converter.boiler(
                     'FixedBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         size=Sizing(size_min=80, size_max=80, mandatory=False, effects_fixed={'cost': 10}),
                     ),
                 ),
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat', size=100),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    thermal_flow=Flow(carrier='Heat', size=100),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # size must be exactly 80 (not optimized to 30)
         assert_allclose(result.sizes.sel(flow='FixedBoiler(Heat)').item(), 80.0, rtol=1e-5)
@@ -237,19 +237,19 @@ class TestFlowInvest:
 
         result = optimize(
             timesteps=ts(2),
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -257,9 +257,9 @@ class TestFlowInvest:
                 Converter.boiler(
                     'ExpensiveBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         size=Sizing(
                             size_min=10,
                             size_max=100,
@@ -272,11 +272,11 @@ class TestFlowInvest:
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat', size=100),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    thermal_flow=Flow(carrier='Heat', size=100),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # mandatory=True forces ExpensiveBoiler to be built, size=10 (minimum needed)
         assert_allclose(result.sizes.sel(flow='ExpensiveBoiler(Heat)').item(), 10.0, rtol=1e-5)
@@ -295,19 +295,19 @@ class TestFlowInvest:
 
         result = optimize(
             timesteps=ts(2),
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -315,20 +315,20 @@ class TestFlowInvest:
                 Converter.boiler(
                     'ExpensiveBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         size=Sizing(size_min=10, size_max=100, mandatory=False, effects_fixed={'cost': 1000}),
                     ),
                 ),
                 Converter.boiler(
                     'CheapBoiler',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat', size=100),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    thermal_flow=Flow(carrier='Heat', size=100),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # mandatory=False allows skipping uneconomical investment
         assert_allclose(
@@ -373,19 +373,19 @@ class TestFlowInvestWithStatus:
 
         result = optimize(
             timesteps=ts(4),
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([0, 20, 0, 20])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([0, 20, 0, 20])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -393,9 +393,9 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         relative_rate_min=0.5,
                         size=Sizing(
                             size_min=0,
@@ -408,7 +408,7 @@ class TestFlowInvestWithStatus:
                     ),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # size=20 (peak), invest=10+20=30, fuel=40, 2 startups=100
         # total = 30 + 40 + 100 = 170
@@ -426,19 +426,19 @@ class TestFlowInvestWithStatus:
 
         result = optimize(
             timesteps=ts(3),
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([20, 10, 20])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([20, 10, 20])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
             ],
@@ -446,9 +446,9 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'InvestBoiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         relative_rate_min=0.1,
                         size=Sizing(size_min=0, size_max=100, mandatory=False, effects_per_size={'cost': 1}),
                         status=Status(uptime_min=2),
@@ -457,11 +457,11 @@ class TestFlowInvestWithStatus:
                 Converter.boiler(
                     'Backup',
                     thermal_efficiency=0.5,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat', size=100),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    thermal_flow=Flow(carrier='Heat', size=100),
                 ),
             ],
-            carriers=[Carrier('Gas'), Carrier('Heat')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # InvestBoiler is built (cheaper fuel @eta=1.0 vs Backup @eta=0.5)
         # size=20 (peak demand), invest=20

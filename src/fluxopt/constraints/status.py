@@ -1,7 +1,7 @@
 """Status (on/off) constraint helpers.
 
 Module-level functions that add binary status tracking constraints
-to a linopy Model. Used by FlowSystem to build status features.
+to a linopy Model. Used by FlowSystemModel to build status features.
 
 All temporal chains (duration tracking, switch transitions) respect
 episode boundaries: in multi-period models each period is an independent
