@@ -29,22 +29,22 @@ from fluxopt import Carrier, Converter, Effect, Flow, Port, optimize
 
 result = optimize(
     timesteps=[datetime(2024, 1, 1, h) for h in range(4)],
-    carriers=[Carrier('gas'), Carrier('heat')],
-    effects=[Effect('cost')],
+    carriers=[Carrier(id='gas'), Carrier(id='heat')],
+    effects=[Effect(id='cost')],
     ports=[
-        Port('grid', imports=[
-            Flow('gas', size=500, effects_per_flow_hour={'cost': 0.04})
+        Port(id='grid', imports=[
+            Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})
         ]),
-        Port('demand', exports=[
-            Flow('heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
+        Port(id='demand', exports=[
+            Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
         ])
     ],
     converters=[
         Converter.boiler(
             'boiler',
             thermal_efficiency=0.9,
-            fuel_flow=Flow('gas', size=300),
-            thermal_flow=Flow('heat', size=200)
+            fuel_flow=Flow(carrier='gas', size=300),
+            thermal_flow=Flow(carrier='heat', size=200)
         )
     ],
     objective_effects='cost',

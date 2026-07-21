@@ -15,12 +15,12 @@ class TestCustomize:
         """Single-bus system: grid source (size=100) feeding a fixed 50 MW demand."""
         return {
             'timesteps': ts(3),
-            'carriers': [Carrier('elec')],
-            'effects': [Effect('cost')],
+            'carriers': [Carrier(id='elec')],
+            'effects': [Effect(id='cost')],
             'objective_effects': 'cost',
             'ports': [
-                Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
-                Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
+                Port(id='grid', imports=[Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
+                Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
             ],
         }
 

@@ -27,23 +27,23 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost'),
-                Effect('CO2'),
+                Effect(id='cost'),
+                Effect(id='CO2'),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 20])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 20])),
                     ],
                 ),
                 Port(
-                    'HeatSrc',
+                    id='HeatSrc',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 2, 'CO2': 0.5}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 2, 'CO2': 0.5}),
                     ],
                 ),
             ],
@@ -64,20 +64,20 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost', contribution_from={'CO2': 0.5}),
-                Effect('CO2'),
+                Effect(id='cost', contribution_from={'CO2': 0.5}),
+                Effect(id='CO2'),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
-                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
+                    id='Demand',
+                    exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
                 ),
                 Port(
-                    'HeatSrc',
-                    imports=[Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 10})],
+                    id='HeatSrc',
+                    imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 10})],
                 ),
             ],
         )
@@ -96,29 +96,29 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost'),
-                Effect('CO2', total_max=15),
+                Effect(id='cost'),
+                Effect(id='CO2', total_max=15),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
-                    'Dirty',
+                    id='Dirty',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 Port(
-                    'Clean',
+                    id='Clean',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 10, 'CO2': 0}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 10, 'CO2': 0}),
                     ],
                 ),
             ],
@@ -140,29 +140,29 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost'),
-                Effect('CO2', total_min=25),
+                Effect(id='cost'),
+                Effect(id='CO2', total_min=25),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10])),
                     ],
                 ),
                 Port(
-                    'Dirty',
+                    id='Dirty',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 Port(
-                    'Clean',
+                    id='Clean',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 0}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 0}),
                     ],
                 ),
                 waste('Heat'),
@@ -186,29 +186,29 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost'),
-                Effect('CO2', rate_max=8),
+                Effect(id='cost'),
+                Effect(id='CO2', rate_max=8),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([15, 5])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([15, 5])),
                     ],
                 ),
                 Port(
-                    'Dirty',
+                    id='Dirty',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 Port(
-                    'Clean',
+                    id='Clean',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
                     ],
                 ),
             ],
@@ -229,23 +229,23 @@ class TestEffects:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost'),
-                Effect('CO2', rate_min=10),
+                Effect(id='cost'),
+                Effect(id='CO2', rate_min=10),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([5, 5])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([5, 5])),
                     ],
                 ),
                 Port(
-                    'Dirty',
+                    id='Dirty',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -274,29 +274,29 @@ class TestEffects:
         timesteps = [start, start + timedelta(hours=2)]
         result = optimize(
             timesteps=timesteps,
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost'),
-                Effect('CO2', rate_max=4),
+                Effect(id='cost'),
+                Effect(id='CO2', rate_max=4),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([15, 5])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([15, 5])),
                     ],
                 ),
                 Port(
-                    'Dirty',
+                    id='Dirty',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 Port(
-                    'Clean',
+                    id='Clean',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
                     ],
                 ),
             ],
@@ -321,23 +321,23 @@ class TestEffects:
         timesteps = [start, start + timedelta(hours=2)]
         result = optimize(
             timesteps=timesteps,
-            carriers=[Carrier('Heat')],
+            carriers=[Carrier(id='Heat')],
             effects=[
-                Effect('cost'),
-                Effect('CO2', rate_min=5),
+                Effect(id='cost'),
+                Effect(id='CO2', rate_min=5),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([3, 3])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([3, 3])),
                     ],
                 ),
                 Port(
-                    'Dirty',
+                    id='Dirty',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -387,26 +387,26 @@ class TestEffects:
 
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[
-                Effect('cost', contribution_from={'CO2': 10}),
-                Effect('CO2'),
+                Effect(id='cost', contribution_from={'CO2': 10}),
+                Effect(id='CO2'),
             ],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
-                    exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
+                    id='Demand',
+                    exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
                 ),
-                Port('GasSrc', imports=[Flow('Gas', effects_per_flow_hour={'cost': 1})]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas'),
+                    fuel_flow=Flow(carrier='Gas'),
                     thermal_flow=Flow(
-                        'Heat',
+                        carrier='Heat',
                         size=Sizing(size_min=50, size_max=50, mandatory=False, effects_fixed={'cost': 100, 'CO2': 5}),
                     ),
                 ),

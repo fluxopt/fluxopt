@@ -20,18 +20,16 @@ class ProfileRef(BaseModel):
     in a data file / dataset and is named here, so structural definitions
     round-trip to YAML/JSON without inlining 8760-point series. Resolve it to a
     :class:`xr.DataArray` with :meth:`resolve` before building the model.
-
-    Args:
-        source: Identifier of the dataset holding the profile (e.g. a file key).
-        variable: Variable / column name within *source*.
-        dim: Dimension the series spans.
     """
 
     model_config = ConfigDict(frozen=True)
 
     source: str
+    """Identifier of the dataset holding the profile (e.g. a file key)."""
     variable: str
+    """Variable / column name within *source*."""
     dim: str = 'time'
+    """Dimension the series spans."""
 
     def resolve(self, sources: Mapping[str, xr.Dataset | Mapping[str, xr.DataArray]]) -> xr.DataArray:
         """Look up the referenced series in *sources*.
