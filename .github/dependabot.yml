@@ -28,6 +28,16 @@ updates:
           - "markdown-include"
           - "notebook"
 
+  # Bench-scoped lock (benchmark/uv.lock) — the one pinned env in the repo.
+  - package-ecosystem: "uv"
+    directory: "/benchmark"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
