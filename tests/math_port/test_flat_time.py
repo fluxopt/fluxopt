@@ -37,10 +37,10 @@ class TestRaggedPeriods:
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
                         Flow(
-                            'Heat',
+                            carrier='Heat',
                             size=1,
                             fixed_relative_profile={2030: [10.0, 10.0, 10.0], 2040: [5.0, 5.0]},
                         ),
@@ -65,10 +65,10 @@ class TestRaggedPeriods:
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
                         Flow(
-                            'Heat',
+                            carrier='Heat',
                             size=1,
                             fixed_relative_profile={2030: [10.0, 10.0, 10.0], 2040: [5.0, 5.0]},
                         ),
@@ -145,7 +145,7 @@ class TestPeriodBoundaryIsolation:
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=demand)]),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(carrier='Heat', size=100, ramp_up_per_hour=0.1, effects_per_flow_hour={'cost': 1}),
                     ],
@@ -174,10 +174,10 @@ class TestPeriodBoundaryIsolation:
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(
-                            'Heat',
+                            carrier='Heat',
                             size=10,
                             relative_rate_min=0.5,
                             prior_rates=[0.0],
@@ -237,7 +237,7 @@ class TestEpisodeBigM:
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 10, 10])]),
                 Port(
-                    'Grid',
+                    id='Grid',
                     imports=[
                         Flow(carrier='Heat', size=10, relative_rate_min=0.5, status=Status(uptime_min=2)),
                     ],
