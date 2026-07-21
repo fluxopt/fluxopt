@@ -66,7 +66,7 @@ class TestStorageStatusValidation:
 
     def test_sized_flow_with_status_raises_at_build(self):
         """Sizing/Investment on a governed flow is not yet supported and raises clearly."""
-        from fluxopt import FlowSystem, ModelData
+        from fluxopt import FlowSystemModel, ModelData
 
         data = ModelData.build(
             timesteps=ts(3),
@@ -85,7 +85,7 @@ class TestStorageStatusValidation:
                 ),
             ],
         )
-        fs = FlowSystem(data)
+        fs = FlowSystemModel(data)
         with pytest.raises(NotImplementedError, match='Sizing/Investment'):
             fs.build()
 

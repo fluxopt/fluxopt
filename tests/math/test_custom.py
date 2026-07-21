@@ -4,7 +4,7 @@ import pytest
 from conftest import ts
 
 from fluxopt import Carrier, Effect, Flow, ModelData, Port, optimize
-from fluxopt.model import FlowSystem
+from fluxopt.model import FlowSystemModel
 
 
 class TestCustomize:
@@ -35,7 +35,7 @@ class TestCustomize:
         # With customize: cap grid import at 30 MW — this makes the problem infeasible
         # for a fixed 50 MW demand, so instead we test a less restrictive constraint.
         # Cap at 60 MW (above demand, so solution unchanged but constraint is present)
-        def cap_at_60(model: FlowSystem) -> None:
+        def cap_at_60(model: FlowSystemModel) -> None:
             grid_rate = model.m.variables['flow--rate'].sel(flow='grid(elec)')
             model.m.add_constraints(grid_rate <= 60, name='custom_grid_cap')
 
@@ -50,7 +50,7 @@ class TestCustomize:
     def test_custom_variable_in_results(self, simple_system):
         """A custom variable added via callback should appear in result.solution."""
 
-        def add_slack(model: FlowSystem) -> None:
+        def add_slack(model: FlowSystemModel) -> None:
             time = model.m.variables['flow--rate'].indexes['time']
             slack = model.m.add_variables(lower=0, coords=[time], name='my_slack')
             grid = model.m.variables['flow--rate'].sel(flow='grid(elec)')
@@ -74,14 +74,14 @@ class TestCustomize:
             assert rate == pytest.approx(50.0, abs=1e-6)
 
     def test_direct_model_customization(self, simple_system):
-        """Using FlowSystem directly with custom variable works."""
+        """Using FlowSystemModel directly with custom variable works."""
         data = ModelData.build(
             simple_system['timesteps'],
             simple_system['carriers'],
             simple_system['effects'],
             simple_system['ports'],
         )
-        model = FlowSystem(data)
+        model = FlowSystemModel(data)
         model._objective_effects = {'cost': 1.0}
         model.build()
 

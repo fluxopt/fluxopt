@@ -13,7 +13,7 @@ from fluxopt import (
     Storage,
     optimize,
 )
-from fluxopt.model import FlowSystem
+from fluxopt.model import FlowSystemModel
 
 
 class TestEndToEnd:
@@ -98,7 +98,7 @@ class TestEndToEnd:
         # Change demand from 0.5 to 0.7 (relative); absolute = 0.7 * 100 = 70
         data.flows.fixed_profile.loc[{'flow': 'demand(elec)'}] = 0.7
 
-        model = FlowSystem(data)
+        model = FlowSystemModel(data)
         result = model.optimize(objective_effects='cost')
 
         source_rates = result.flow_rate('grid(elec)').values
