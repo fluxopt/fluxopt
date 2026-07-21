@@ -178,16 +178,24 @@ rival. That demo is a strong card in the #1788 ↔ #1796 discussion.
   and `all_element_schemas()`. Better than §4.2 feared: arbitrary `Variate`
   fields degrade to permissive `{}` rather than erroring.
 
-**Deferred to Phase 2 (the ProfileRef PR):**
+**Phase 2 landed (stacked PR)** — `ProfileRef` + full structural round-trip:
 
-- **`ProfileRef` + inline-profile serialization.** JSON round-trip of
-  *array-valued* `Variate` fails by design (arbitrary types) — the fix is
-  `ProfileRef` pointing at a data file, not inlining profiles.
-- **Full instance `to_dict`/`from_dict`.** Leaf value objects (`Effect`, `Flow`
-  scalars) already round-trip; components do not, for two reasons: `IdList`
-  fields don't serialize, and `__post_init__` qualification is **not idempotent**
-  (a round-tripped `Flow` would re-qualify `b(gas)` → `b(b(gas))`). Both need
-  design, not a quick serializer.
+- **`ProfileRef`** (`float | list | ProfileRef` at last, in `types.py`): a
+  serializable reference to a time-series in a data file, with `.resolve(sources)`
+  → `DataArray`. Added to the `Variate` union so config round-trips without
+  inlining profiles; `as_dataarray` rejects an unresolved ref loudly.
+- **`to_dict` / `from_dict`** (`fluxopt.to_dict`, `fluxopt.from_dict`): JSON-safe
+  round-trip for **every** element type, components included. `IdList` got a
+  pydantic core schema (validate-from-list / serialize-to-list). The feared
+  "non-idempotent qualification" was a **non-issue**: `Flow.__post_init__` resets
+  `id = short_id`, so the parent re-qualifies cleanly on rebuild (`b(gas)`, not
+  `b(b(gas))`). Inline raw-array `Variate` still doesn't serialize — that's the
+  `ProfileRef` path.
+
+**Still deferred (Phase 3):**
+
+- **Build-time auto-resolution** of `ProfileRef` inside `optimize()` /
+  `model_data` builders (today: resolve explicitly before building).
 - **Porting `__post_init__` guards to pydantic validators.** They run correctly
   as-is; converting them is incremental cleanup, not required for the win.
 

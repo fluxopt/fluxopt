@@ -16,9 +16,10 @@ from fluxopt.elements import (
 from fluxopt.model import FlowSystem
 from fluxopt.model_data import Dims, ModelData
 from fluxopt.results import Result
-from fluxopt.schema import all_element_schemas, element_schema
+from fluxopt.schema import all_element_schemas, element_schema, from_dict, to_dict
 from fluxopt.types import (
     IdList,
+    ProfileRef,
     TimeIndex,
     Timesteps,
     Variate,
@@ -97,6 +98,7 @@ __all__ = [
     'ModelData',
     'PiecewiseConversion',
     'Port',
+    'ProfileRef',
     'Result',
     'Sizing',
     'Status',
@@ -107,5 +109,7 @@ __all__ = [
     'all_element_schemas',
     'as_dataarray',
     'element_schema',
+    'from_dict',
     'optimize',
+    'to_dict',
 ]
