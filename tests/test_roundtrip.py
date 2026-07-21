@@ -97,3 +97,13 @@ class TestProfileRef:
 
         with pytest.raises(ValueError, match='Unresolved ProfileRef'):
             as_dataarray(ProfileRef(dataset='p', variable='x'), {'time': [0, 1, 2]})
+
+
+class TestInlineArraySerialization:
+    def test_to_dict_names_inline_array_fields(self) -> None:
+        import numpy as np
+
+        f = Flow(carrier='gas', effects_per_flow_hour={'cost': np.array([1.0, 2.0])})
+        with pytest.raises(ValueError, match='ProfileRef') as exc:
+            to_dict(f)
+        assert "effects_per_flow_hour['cost']" in str(exc.value)
