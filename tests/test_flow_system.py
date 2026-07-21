@@ -122,3 +122,50 @@ class TestFreeOptimizeProfiles:
             profiles={'load': {'demand': xr.DataArray([30.0, 30.0], dims=['time'])}},
         )
         assert result.effect_totals.sel(effect='cost').item() == pytest.approx(60.0)
+
+
+class TestProfileErgonomics:
+    def _two_ref_spec(self) -> FlowSystem:
+        return FlowSystem(
+            timesteps=[0, 1],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(
+                            carrier='Heat', size=1, fixed_relative_profile=ProfileRef(dataset='load', variable='demand')
+                        )
+                    ],
+                ),
+                Port(
+                    id='Src',
+                    imports=[
+                        Flow(
+                            carrier='Heat',
+                            size=40,
+                            effects_per_flow_hour={'cost': ProfileRef(dataset='market', variable='price')},
+                        )
+                    ],
+                ),
+            ],
+        )
+
+    def test_required_profiles_enumerates_refs(self) -> None:
+        assert self._two_ref_spec().required_profiles() == {'load': {'demand'}, 'market': {'price'}}
+
+    def test_required_profiles_empty_for_inline_spec(self) -> None:
+        assert _merit_order_spec([30, 30]).required_profiles() == {}
+
+    def test_unresolvable_refs_reported_comprehensively(self) -> None:
+        # one dataset missing entirely, one variable missing — a single error names both, with paths
+        spec = self._two_ref_spec()
+        with pytest.raises(KeyError) as exc:
+            spec.optimize(profiles={'market': {'wrong_name': xr.DataArray([1.0, 1.0], dims=['time'])}})
+        msg = str(exc.value)
+        assert "dataset 'load' not supplied" in msg
+        assert "variable 'price' not in dataset 'market'" in msg
+        assert 'fixed_relative_profile' in msg  # element/field provenance
+        assert 'effects_per_flow_hour' in msg

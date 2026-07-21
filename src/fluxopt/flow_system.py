@@ -67,6 +67,55 @@ def _resolve_refs(obj: Any, profiles: Mapping[str, Any]) -> Any:
     return obj
 
 
+def _collect_profile_refs(obj: Any, path: str, out: list[tuple[str, ProfileRef]]) -> None:
+    """Recursively collect every ``ProfileRef`` in *obj* with a readable path.
+
+    Path segments name elements by class and id (``Flow('Demand(Heat)')``) and
+    descend through fields, dict keys, and list positions.
+
+    Args:
+        obj: The value or element to walk.
+        path: Path accumulated so far.
+        out: Collected ``(path, ref)`` pairs, appended in walk order.
+    """
+    if isinstance(obj, ProfileRef):
+        out.append((path, obj))
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            _collect_profile_refs(value, f'{path}[{key!r}]', out)
+    elif isinstance(obj, (list, IdList)):
+        for i, value in enumerate(obj):
+            _collect_profile_refs(value, f'{path}[{i}]', out)
+    elif isinstance(obj, BaseModel):
+        element_id = getattr(obj, 'id', '')
+        base = f'{type(obj).__name__}({element_id!r})' if element_id else path
+        for name in type(obj).model_fields:
+            _collect_profile_refs(getattr(obj, name), f'{base}.{name}', out)
+
+
+def _check_profiles_cover(refs: list[tuple[str, ProfileRef]], profiles: Mapping[str, Any]) -> None:
+    """Raise one comprehensive error if any ref cannot be resolved.
+
+    Args:
+        refs: ``(path, ref)`` pairs from :func:`_collect_profile_refs`.
+        profiles: The solve-time profile supply.
+
+    Raises:
+        KeyError: Listing every unresolvable ref with its element/field path.
+    """
+    missing = []
+    for path, ref in refs:
+        if ref.dataset not in profiles:
+            missing.append(f'{path}: dataset {ref.dataset!r} not supplied (have {sorted(profiles)})')
+        else:
+            try:
+                profiles[ref.dataset][ref.variable]
+            except KeyError:
+                missing.append(f'{path}: variable {ref.variable!r} not in dataset {ref.dataset!r}')
+    if missing:
+        raise KeyError('unresolvable ProfileRef(s):\n  ' + '\n  '.join(missing))
+
+
 def _check_unique(ids: list[str], kind: str) -> None:
     """Raise if *ids* contains duplicates.
 
@@ -193,6 +242,21 @@ class FlowSystem(BaseModel):
         with open(path, 'w') as fh:
             yaml.safe_dump(self.to_dict(), fh, sort_keys=False)
 
+    def required_profiles(self) -> dict[str, set[str]]:
+        """Enumerate the external data this system needs, as ``{dataset: variables}``.
+
+        The contract a ``profiles`` supply must cover before
+        :meth:`build_model` / :meth:`optimize` can run. Empty when every value
+        is inline.
+        """
+        refs: list[tuple[str, ProfileRef]] = []
+        for group in (self.carriers, self.effects, self.ports, self.converters, self.storages):
+            _collect_profile_refs(group, '', refs)
+        out: dict[str, set[str]] = {}
+        for _, ref in refs:
+            out.setdefault(ref.dataset, set()).add(ref.variable)
+        return out
+
     def build_model(self, profiles: Mapping[str, Any] | None = None) -> FlowSystemModel:
         """Materialize an unbuilt solver model from this declaration.
 
@@ -205,18 +269,26 @@ class FlowSystem(BaseModel):
         Args:
             profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
                 holding the referenced variables. Required if the system uses
-                any ``ProfileRef``.
+                any ``ProfileRef`` — see :meth:`required_profiles`.
+
+        Raises:
+            KeyError: If any ``ProfileRef`` cannot be resolved from *profiles*;
+                lists every unresolvable ref with its element/field path.
         """
+        refs: list[tuple[str, ProfileRef]] = []
+        for group in (self.carriers, self.effects, self.ports, self.converters, self.storages):
+            _collect_profile_refs(group, '', refs)
+        _check_profiles_cover(refs, profiles or {})
+
         carriers, effects, ports, converters, storages = (
-            # No profiles → nothing to substitute, so no copy needed: with an
-            # empty mapping the walk raises on the first ProfileRef it meets
-            # (before any mutation) and is a no-op otherwise.
+            # No refs → nothing to substitute, so no copy or walk needed.
             (self.carriers, self.effects, self.ports, self.converters, self.storages)
-            if profiles is None
+            if not refs
             else copy.deepcopy((self.carriers, self.effects, self.ports, self.converters, self.storages))
         )
-        for group in (carriers, effects, ports, converters, storages):
-            _resolve_refs(group, profiles or {})
+        if refs:
+            for group in (carriers, effects, ports, converters, storages):
+                _resolve_refs(group, profiles or {})
 
         data = ModelData.build(
             self.timesteps,
