@@ -21,32 +21,32 @@ def tmp_nc(tmp_path: Path) -> Path:
 
 def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
     """Simple source -> demand system with cost tracking."""
-    demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-    source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
+    demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+    source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
     return optimize(
         timesteps=timesteps,
-        carriers=[Carrier('elec')],
-        effects=[Effect('cost')],
+        carriers=[Carrier(id='elec')],
+        effects=[Effect(id='cost')],
         objective_effects='cost',
-        ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
+        ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
     )
 
 
 def _solve_with_storage(timesteps: list[datetime]) -> Result:
     """Boiler + storage system."""
-    demand = Flow('heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-    gas_source = Flow('gas', size=500, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
-    fuel = Flow('gas', size=300)
-    heat_out = Flow('heat', size=200)
-    charge = Flow('heat', size=100)
-    discharge = Flow('heat', size=100)
-    storage = Storage('heat_store', charging=charge, discharging=discharge, capacity=200.0)
+    demand = Flow(carrier='heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+    gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
+    fuel = Flow(carrier='gas', size=300)
+    heat_out = Flow(carrier='heat', size=200)
+    charge = Flow(carrier='heat', size=100)
+    discharge = Flow(carrier='heat', size=100)
+    storage = Storage(id='heat_store', charging=charge, discharging=discharge, capacity=200.0)
     return optimize(
         timesteps=timesteps,
-        carriers=[Carrier('gas'), Carrier('heat')],
-        effects=[Effect('cost')],
+        carriers=[Carrier(id='gas'), Carrier(id='heat')],
+        effects=[Effect(id='cost')],
         objective_effects='cost',
-        ports=[Port('grid', imports=[gas_source]), Port('demand', exports=[demand])],
+        ports=[Port(id='grid', imports=[gas_source]), Port(id='demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
     )
@@ -108,9 +108,9 @@ class TestRoundtrip:
         assert loaded.data is not None
 
         # Re-solve from loaded data
-        from fluxopt import FlowSystem
+        from fluxopt import FlowSystemModel
 
-        model = FlowSystem(loaded.data)
+        model = FlowSystemModel(loaded.data)
         result2 = model.optimize(objective_effects='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 
@@ -172,14 +172,14 @@ class TestCarrierMetadataRoundtrip:
     def test_carrier_metadata_preserved(self, tmp_nc: Path) -> None:
         """Carrier unit, color, and description survive a NetCDF roundtrip."""
         ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
-        demand = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
         result = optimize(
             timesteps=ts,
-            carriers=[Carrier('elec', unit='kWh', color='#ff0000', description='Electrical energy')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='elec', unit='kWh', color='#ff0000', description='Electrical energy')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[demand])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
         )
         assert result.data is not None
 
@@ -196,18 +196,18 @@ class TestRoundtripContributionFrom:
     def test_roundtrip_with_contribution_from(self, tmp_nc: Path) -> None:
         """ModelData with contribution_from survives NetCDF roundtrip."""
         ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        source = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
-        sink = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
+        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
         result = optimize(
             timesteps=ts,
-            carriers=[Carrier('elec')],
+            carriers=[Carrier(id='elec')],
             effects=[
-                Effect('cost', contribution_from={'co2': 50}),
-                Effect('co2', unit='kg'),
+                Effect(id='cost', contribution_from={'co2': 50}),
+                Effect(id='co2', unit='kg'),
             ],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source]), Port('demand', exports=[sink])],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
         assert result.data is not None
         assert result.data.effects.cf_temporal is not None
@@ -220,9 +220,9 @@ class TestRoundtripContributionFrom:
         xr.testing.assert_equal(loaded.data.effects.cf_temporal, result.data.effects.cf_temporal)
 
         # Re-solve gives same objective
-        from fluxopt import FlowSystem
+        from fluxopt import FlowSystemModel
 
-        model = FlowSystem(loaded.data)
+        model = FlowSystemModel(loaded.data)
         result2 = model.optimize(objective_effects='cost')
         assert result2.objective == pytest.approx(result.objective, abs=1e-6)
 

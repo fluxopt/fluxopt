@@ -5,7 +5,7 @@ from conftest import ts
 
 from fluxopt import Carrier, Effect, Flow, Port, Storage, optimize
 
-_elec = [Carrier('elec')]
+_elec = [Carrier(id='elec')]
 
 
 class TestStorage:
@@ -13,19 +13,19 @@ class TestStorage:
         """Battery charges in cheap hours, discharges in expensive hours."""
         prices = [0.02, 0.08, 0.02, 0.08]
 
-        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': prices})
-        demand_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+        source_flow = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': prices})
+        demand_flow = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
 
-        charge_flow = Flow('elec', size=50)
-        discharge_flow = Flow('elec', size=50)
-        battery = Storage('battery', charging=charge_flow, discharging=discharge_flow, capacity=100.0)
+        charge_flow = Flow(carrier='elec', size=50)
+        discharge_flow = Flow(carrier='elec', size=50)
+        battery = Storage(id='battery', charging=charge_flow, discharging=discharge_flow, capacity=100.0)
 
         result = optimize(
             timesteps=ts(4),
             carriers=_elec,
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
+            ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[demand_flow])],
             storages=[battery],
         )
 
@@ -46,13 +46,13 @@ class TestStorage:
     def test_level_starts_at_prior(self):
         """Prior level feeds into the balance at t=0."""
 
-        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})
-        demand_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
+        source_flow = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
+        demand_flow = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5, 0.5])
 
-        charge_flow = Flow('elec', size=50)
-        discharge_flow = Flow('elec', size=50)
+        charge_flow = Flow(carrier='elec', size=50)
+        discharge_flow = Flow(carrier='elec', size=50)
         battery = Storage(
-            'battery',
+            id='battery',
             charging=charge_flow,
             discharging=discharge_flow,
             capacity=100.0,
@@ -63,9 +63,9 @@ class TestStorage:
         result = optimize(
             timesteps=ts(4),
             carriers=_elec,
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
+            ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[demand_flow])],
             storages=[battery],
         )
 
@@ -80,13 +80,13 @@ class TestStorage:
     def test_cyclic_storage(self):
         """Cyclic constraint: initial for period 0 equals level at end of last period."""
 
-        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': [0.02, 0.08]})
-        demand_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5])
+        source_flow = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': [0.02, 0.08]})
+        demand_flow = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5])
 
-        charge_flow = Flow('elec', size=100)
-        discharge_flow = Flow('elec', size=100)
+        charge_flow = Flow(carrier='elec', size=100)
+        discharge_flow = Flow(carrier='elec', size=100)
         battery = Storage(
-            'battery',
+            id='battery',
             charging=charge_flow,
             discharging=discharge_flow,
             capacity=100.0,
@@ -95,9 +95,9 @@ class TestStorage:
         result = optimize(
             timesteps=ts(2),
             carriers=_elec,
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
+            ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[demand_flow])],
             storages=[battery],
         )
 
@@ -117,13 +117,13 @@ class TestStorage:
         """With eta_charge < 1, more energy is drawn from bus than stored."""
         eta_c = 0.8
 
-        source_flow = Flow('elec', size=200, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
-        demand_flow = Flow('elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
+        source_flow = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
+        demand_flow = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
 
-        charge_flow = Flow('elec', size=100)
-        discharge_flow = Flow('elec', size=100)
+        charge_flow = Flow(carrier='elec', size=100)
+        discharge_flow = Flow(carrier='elec', size=100)
         battery = Storage(
-            'battery',
+            id='battery',
             charging=charge_flow,
             discharging=discharge_flow,
             capacity=200.0,
@@ -133,9 +133,9 @@ class TestStorage:
         result = optimize(
             timesteps=ts(3),
             carriers=_elec,
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
-            ports=[Port('grid', imports=[source_flow]), Port('demand', exports=[demand_flow])],
+            ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[demand_flow])],
             storages=[battery],
         )
 
@@ -157,9 +157,9 @@ class TestStorageValidation:
         """prevent_simultaneous without sized flows fails loudly (big-M needs a bound)."""
         with pytest.raises(ValueError, match='prevent_simultaneous'):
             Storage(
-                'bat',
-                charging=Flow('Elec'),
-                discharging=Flow('Elec'),
+                id='bat',
+                charging=Flow(carrier='Elec'),
+                discharging=Flow(carrier='Elec'),
                 capacity=10,
                 prevent_simultaneous=True,
             )

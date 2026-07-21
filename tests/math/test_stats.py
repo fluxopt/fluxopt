@@ -5,7 +5,7 @@ from conftest import ts
 
 from fluxopt import Carrier, Effect, Flow, Port, optimize
 
-_elec = [Carrier('elec')]
+_elec = [Carrier(id='elec')]
 
 
 class TestFlowHours:
@@ -14,11 +14,11 @@ class TestFlowHours:
         result = optimize(
             timesteps=ts(3),
             carriers=_elec,
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
-                Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
+                Port(id='grid', imports=[Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
+                Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
         )
         assert (result.stats.flow_hours >= 0).all()
@@ -29,11 +29,11 @@ class TestFlowHours:
         result = optimize(
             timesteps=ts(3),
             carriers=_elec,
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('grid', imports=[Flow('elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
-                Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
+                Port(id='grid', imports=[Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})]),
+                Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
         )
         grid_total = float(result.stats.total_flow_hours.sel(flow='grid(elec)').values)
@@ -46,11 +46,11 @@ class TestCaching:
         result = optimize(
             timesteps=ts(3),
             carriers=_elec,
-            effects=[Effect('cost')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('grid', imports=[Flow('elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
-                Port('demand', exports=[Flow('elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
+                Port(id='grid', imports=[Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
+                Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
         )
         assert result.stats is result.stats

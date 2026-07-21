@@ -22,20 +22,20 @@ class TestFlowConstraints:
 
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Gas'), Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
                     ],
                 ),
                 Port(
-                    'GasSrc',
+                    id='GasSrc',
                     imports=[
-                        Flow('Gas', effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Gas', effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 waste('Heat'),
@@ -44,8 +44,8 @@ class TestFlowConstraints:
                 Converter.boiler(
                     'Boiler',
                     thermal_efficiency=1.0,
-                    fuel_flow=Flow('Gas', short_id='fuel'),
-                    thermal_flow=Flow('Heat', size=100, relative_rate_min=0.4),
+                    fuel_flow=Flow(carrier='Gas', short_id='fuel'),
+                    thermal_flow=Flow(carrier='Heat', size=100, relative_rate_min=0.4),
                 ),
             ],
         )
@@ -68,26 +68,26 @@ class TestFlowConstraints:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
                 Port(
-                    'Demand',
+                    id='Demand',
                     exports=[
-                        Flow('Heat', size=1, fixed_relative_profile=np.array([60, 60])),
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([60, 60])),
                     ],
                 ),
                 Port(
-                    'CheapSrc',
+                    id='CheapSrc',
                     imports=[
-                        Flow('Heat', size=100, relative_rate_max=0.5, effects_per_flow_hour={'cost': 1}),
+                        Flow(carrier='Heat', size=100, relative_rate_max=0.5, effects_per_flow_hour={'cost': 1}),
                     ],
                 ),
                 Port(
-                    'ExpensiveSrc',
+                    id='ExpensiveSrc',
                     imports=[
-                        Flow('Heat', effects_per_flow_hour={'cost': 5}),
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 5}),
                     ],
                 ),
             ],
@@ -111,13 +111,17 @@ class TestFlowConstraints:
         """
         result = optimize(
             timesteps=ts(3),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([20, 20, 20]))]),
-                Port('CheapSrc', imports=[Flow('Heat', flow_hours_max=30, effects_per_flow_hour={'cost': 1})]),
-                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+                Port(
+                    id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([20, 20, 20]))]
+                ),
+                Port(
+                    id='CheapSrc', imports=[Flow(carrier='Heat', flow_hours_max=30, effects_per_flow_hour={'cost': 1})]
+                ),
+                Port(id='ExpensiveSrc', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
             ],
         )
         # CheapSrc: 30 * 1 = 30. ExpensiveSrc: 30 * 5 = 150. Total = 180.
@@ -136,13 +140,16 @@ class TestFlowConstraints:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
-                Port('CheapSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
-                Port('ExpensiveSrc', imports=[Flow('Heat', flow_hours_min=40, effects_per_flow_hour={'cost': 5})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
+                Port(id='CheapSrc', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})]),
+                Port(
+                    id='ExpensiveSrc',
+                    imports=[Flow(carrier='Heat', flow_hours_min=40, effects_per_flow_hour={'cost': 5})],
+                ),
             ],
         )
         # ExpensiveSrc: 40 * 5 = 200. CheapSrc: 20 * 1 = 20. Total = 220.
@@ -161,16 +168,16 @@ class TestFlowConstraints:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([40, 40]))]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([40, 40]))]),
                 Port(
-                    'CheapSrc',
-                    imports=[Flow('Heat', size=50, load_factor_max=0.5, effects_per_flow_hour={'cost': 1})],
+                    id='CheapSrc',
+                    imports=[Flow(carrier='Heat', size=50, load_factor_max=0.5, effects_per_flow_hour={'cost': 1})],
                 ),
-                Port('ExpensiveSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 5})]),
+                Port(id='ExpensiveSrc', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
             ],
         )
         # CheapSrc: 50 * 1 = 50. ExpensiveSrc: 30 * 5 = 150. Total = 200.
@@ -189,15 +196,15 @@ class TestFlowConstraints:
         """
         result = optimize(
             timesteps=ts(2),
-            carriers=[Carrier('Heat')],
-            effects=[Effect('cost')],
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
             objective_effects='cost',
             ports=[
-                Port('Demand', exports=[Flow('Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
-                Port('CheapSrc', imports=[Flow('Heat', effects_per_flow_hour={'cost': 1})]),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
+                Port(id='CheapSrc', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})]),
                 Port(
-                    'ExpensiveSrc',
-                    imports=[Flow('Heat', size=100, load_factor_min=0.3, effects_per_flow_hour={'cost': 5})],
+                    id='ExpensiveSrc',
+                    imports=[Flow(carrier='Heat', size=100, load_factor_min=0.3, effects_per_flow_hour={'cost': 5})],
                 ),
             ],
         )

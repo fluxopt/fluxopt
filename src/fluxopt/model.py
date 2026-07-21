@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from fluxopt.model_data import ModelData
 
 
-class FlowSystem:
+class FlowSystemModel:
     # Sizing variables — None when no sizing is configured
     flow_size: Variable | None = None
     flow_size_indicator: Variable | None = None
@@ -119,7 +119,7 @@ class FlowSystem:
     def optimize(
         self,
         objective_effects: str | dict[str, float],
-        customize: Callable[[FlowSystem], None] | None = None,
+        customize: Callable[[FlowSystemModel], None] | None = None,
         *,
         solver: str = 'highs',
         **kwargs: Any,

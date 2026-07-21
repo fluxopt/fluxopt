@@ -1,10 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import Any, Literal, override
 
-if TYPE_CHECKING:
-    from fluxopt.types import PiecewiseMethod, Variate
+from pydantic import BaseModel, ConfigDict, Field
+
+from fluxopt.types import PiecewiseMethod, Variate
+
+# Element models hold arbitrary xarray/numpy/pandas values (Variate) and
+# IdList containers; pydantic validates ids/scalars/structure while passing
+# those through by isinstance.
+_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
+
+
+class Element(BaseModel):
+    """Base for user-facing element models (shared pydantic config)."""
+
+    model_config = _PYDANTIC_CFG
+
 
 PENALTY_EFFECT_ID = 'penalty'
 
@@ -22,27 +34,22 @@ def node_id(carrier: str, node: str) -> str:
     return f'{carrier}{NODE_SEP}{node}'
 
 
-@dataclass
-class Carrier:
-    """Physical energy medium (electricity, heat, gas, …).
-
-    Args:
-        id: Unique identifier used as xarray coordinate.
-        nodes: Sub-nodes for multi-node balancing. Empty means single-node.
-        unit: Energy unit label.
-        color: Optional color for plotting.
-        description: Human-readable description.
-    """
+class Carrier(Element):
+    """Physical energy medium (electricity, heat, gas, …)."""
 
     id: str
-    nodes: list[str] = field(default_factory=list)
+    """Unique identifier used as xarray coordinate."""
+    nodes: list[str] = Field(default_factory=list)
+    """Sub-nodes for multi-node balancing. Empty means single-node."""
     unit: str = 'MWh'
+    """Energy unit label."""
     color: str | None = None
+    """Optional color for plotting."""
     description: str = ''
+    """Human-readable description."""
 
 
-@dataclass
-class Sizing:
+class Sizing(Element):
     """Capacity optimization parameters.
 
     The solver decides the optimal size within [size_min, size_max].
@@ -53,90 +60,81 @@ class Sizing:
       at exact size (yes/no).
 
     See: docs/math/sizing.md
-
-    Args:
-        size_min: Minimum capacity if invested.
-        size_max: Maximum capacity.
-        mandatory: If True, must be built (no binary indicator).
-        effects_per_size: Effect cost per unit size (e.g. €/MW).
-        effects_fixed: Fixed effect cost if built (optional only).
     """
 
     size_min: float
+    """Minimum capacity if invested."""
     size_max: float
+    """Maximum capacity."""
     mandatory: bool = True
-    effects_per_size: dict[str, Variate] = field(default_factory=dict)
-    effects_fixed: dict[str, Variate] = field(default_factory=dict)
+    """If True, must be built (no binary indicator)."""
+    effects_per_size: dict[str, Variate] = Field(default_factory=dict)
+    """Effect cost per unit size (e.g. €/MW)."""
+    effects_fixed: dict[str, Variate] = Field(default_factory=dict)
+    """Fixed effect cost if built (optional only)."""
 
 
-@dataclass
-class Investment:
+class Investment(Element):
     """Singular discrete build-timing optimization.
 
     The solver decides WHEN to build (which period) and at what size.
     Once built, capacity is available for ``lifetime`` periods.
     Size is decided once — no growth or partial retirement.
-
-    Args:
-        size_min: Minimum capacity if built.
-        size_max: Maximum capacity.
-        mandatory: If True, must build exactly once; if False, may build at most once.
-        lifetime: Periods active after build; None = forever.
-        prior_size: Pre-existing capacity available from period 0.
-        effects_per_size_at_build: One-time per-MW costs charged in the build period.
-        effects_fixed_at_build: One-time fixed costs charged in the build period.
-        effects_per_size_recurring: Recurring per-MW costs charged every active period.
-        effects_fixed_recurring: Recurring fixed costs charged every active period.
     """
 
     size_min: float
+    """Minimum capacity if built."""
     size_max: float
+    """Maximum capacity."""
     mandatory: bool = True
+    """If True, must build exactly once; if False, may build at most once."""
     lifetime: int | None = None
+    """Periods active after build; None = forever."""
     prior_size: float = 0.0
-    effects_per_size_at_build: dict[str, Variate] = field(default_factory=dict)
-    effects_fixed_at_build: dict[str, Variate] = field(default_factory=dict)
-    effects_per_size_recurring: dict[str, Variate] = field(default_factory=dict)
-    effects_fixed_recurring: dict[str, Variate] = field(default_factory=dict)
+    """Pre-existing capacity available from period 0."""
+    effects_per_size_at_build: dict[str, Variate] = Field(default_factory=dict)
+    """One-time per-MW costs charged in the build period."""
+    effects_fixed_at_build: dict[str, Variate] = Field(default_factory=dict)
+    """One-time fixed costs charged in the build period."""
+    effects_per_size_recurring: dict[str, Variate] = Field(default_factory=dict)
+    """Recurring per-MW costs charged every active period."""
+    effects_fixed_recurring: dict[str, Variate] = Field(default_factory=dict)
+    """Recurring fixed costs charged every active period."""
 
 
-@dataclass
-class Status:
+class Status(Element):
     """Binary on/off behavior parameters.
 
     Together with relative bounds, gives semi-continuous behavior:
     ``{0} U [min, max] * size``.
 
     See: docs/math/status.md
-
-    Args:
-        uptime_min: Minimum consecutive on-hours.
-        uptime_max: Maximum consecutive on-hours.
-        downtime_min: Minimum consecutive off-hours.
-        downtime_max: Maximum consecutive off-hours.
-        effects_per_running_hour: Effect cost per running hour.
-        effects_per_startup: Effect cost per startup event.
     """
 
     uptime_min: float | None = None  # [h]
+    """Minimum consecutive on-hours."""
     uptime_max: float | None = None  # [h]
+    """Maximum consecutive on-hours."""
     downtime_min: float | None = None  # [h]
+    """Minimum consecutive off-hours."""
     downtime_max: float | None = None  # [h]
-    effects_per_running_hour: dict[str, Variate] = field(default_factory=dict)
-    effects_per_startup: dict[str, Variate] = field(default_factory=dict)
+    """Maximum consecutive off-hours."""
+    effects_per_running_hour: dict[str, Variate] = Field(default_factory=dict)
+    """Effect cost per running hour."""
+    effects_per_startup: dict[str, Variate] = Field(default_factory=dict)
+    """Effect cost per startup event."""
 
 
-@dataclass(eq=False)
-class Flow:
+class Flow(Element):
     """A single energy flow on a carrier.
 
     ``short_id`` defaults to ``carrier`` (or ``carrier:node`` when ``node``
     is set).  Set explicitly to disambiguate multiple flows on the same
     carrier::
 
-        Flow('elec')  # short_id='elec'
-        Flow('heat', node='A')  # short_id='heat:A'
-        Flow('elec', short_id='base')  # short_id='base'
+        Flow(carrier='elec')  # short_id='elec'
+        Flow(carrier='heat', node='A')  # short_id='heat:A'
+        Flow(carrier='elec', short_id='base')  # short_id='base'
 
     ``short_id`` must be unique within a component.  Storage renames
     colliding short_ids to ``charge`` / ``discharge`` before qualification.
@@ -144,57 +142,75 @@ class Flow:
     ``component(short_id)``.
 
     See: docs/math/flows.md
-
-    Args:
-        carrier: Carrier this flow connects to.
-        short_id: Component-local identifier; defaults to ``carrier``
-            (or ``carrier:node``). The qualified form ``component(short_id)``
-            is stored in ``id``.
-        node: Sub-node for multi-node carrier balancing.
-        size: Nominal capacity [MW], ``Sizing`` for investment optimization,
-            or None (unsized / unbounded).
-        relative_rate_min: Lower bound as fraction of size.
-        relative_rate_max: Upper bound as fraction of size.
-        fixed_relative_profile: Fixed profile as fraction of size; sets both
-            lower and upper bounds equal to the profile value.
-        effects_per_flow_hour: Effect coefficients per flow-hour
-            (e.g. €/MWh).
-        flow_hours_min: Lower bound on total flow-hours ``Σ P·Δt`` [MWh],
-            applied to each period independently.
-        flow_hours_max: Upper bound on total flow-hours ``Σ P·Δt`` [MWh],
-            applied to each period independently.
-        load_factor_min: Lower bound on utilization ``Σ P·Δt / (size·T)``,
-            applied to each period independently. Requires ``size``.
-        load_factor_max: Upper bound on utilization ``Σ P·Δt / (size·T)``,
-            applied to each period independently. Requires ``size``.
-        ramp_up_per_hour: Maximum rate increase between consecutive
-            timesteps, as fraction of size per hour. Requires ``size``.
-        ramp_down_per_hour: Maximum rate decrease between consecutive
-            timesteps, as fraction of size per hour. Requires ``size``.
-        status: On/off behavior (semi-continuous, startup costs, durations).
-        prior_rates: Flow rates [MW] before the horizon, used for
-            status initial conditions.
     """
 
     carrier: str
+    """Carrier this flow connects to."""
     short_id: str = ''
-    id: str = field(init=False, default='')
+    """Component-local identifier; defaults to ``carrier``
+    (or ``carrier:node``). The qualified form ``component(short_id)``
+    is stored in ``id``.
+    """
+    id: str = Field(default='', init=False)
+    """Qualified id ``component(short_id)``, set by the parent component."""
     node: str | None = None
+    """Sub-node for multi-node carrier balancing."""
     size: float | Sizing | Investment | None = None  # P̄_f  [MW]
+    """Nominal capacity [MW], ``Sizing`` for investment optimization,
+    or None (unsized / unbounded).
+    """
     relative_rate_min: Variate = 0.0  # p̲_f  [-]
+    """Lower bound as fraction of size."""
     relative_rate_max: Variate = 1.0  # p̄_f  [-]
+    """Upper bound as fraction of size."""
     fixed_relative_profile: Variate | None = None  # π_f  [-]
-    effects_per_flow_hour: dict[str, Variate] = field(default_factory=dict)  # c_{f,k}  [varies]
+    """Fixed profile as fraction of size; sets both
+    lower and upper bounds equal to the profile value.
+    """
+    effects_per_flow_hour: dict[str, Variate] = Field(default_factory=dict)  # c_{f,k}  [varies]
+    """Effect coefficients per flow-hour
+    (e.g. €/MWh).
+    """
     flow_hours_min: float | None = None  # H̲_f  [MWh] — per period
+    """Lower bound on total flow-hours ``Σ P·Δt`` [MWh],
+    applied to each period independently.
+    """
     flow_hours_max: float | None = None  # H̄_f  [MWh] — per period
+    """Upper bound on total flow-hours ``Σ P·Δt`` [MWh],
+    applied to each period independently.
+    """
     load_factor_min: float | None = None  # λ̲_f  [-] — per period
+    """Lower bound on utilization ``Σ P·Δt / (size·T)``,
+    applied to each period independently. Requires ``size``.
+    """
     load_factor_max: float | None = None  # λ̄_f  [-] — per period
+    """Upper bound on utilization ``Σ P·Δt / (size·T)``,
+    applied to each period independently. Requires ``size``.
+    """
     ramp_up_per_hour: Variate | None = None  # r⁺_f  [1/h] — fraction of size per hour
+    """Maximum rate increase between consecutive
+    timesteps, as fraction of size per hour. Requires ``size``.
+    """
     ramp_down_per_hour: Variate | None = None  # r⁻_f  [1/h] — fraction of size per hour
+    """Maximum rate decrease between consecutive
+    timesteps, as fraction of size per hour. Requires ``size``.
+    """
     status: Status | None = None
+    """On/off behavior (semi-continuous, startup costs, durations)."""
     prior_rates: list[float] | None = None  # flow rates before horizon [MW]
+    """Flow rates [MW] before the horizon, used for
+    status initial conditions.
+    """
 
-    def __post_init__(self) -> None:
+    # Identity semantics (mutable, id set by parent component) — was dataclass eq=False.
+    def __eq__(self, other: object) -> bool:
+        return self is other
+
+    def __hash__(self) -> int:
+        return id(self)
+
+    @override
+    def model_post_init(self, __context: Any) -> None:
         """Default short_id from carrier/node, set id = short_id."""
         if not self.short_id:
             self.short_id = node_id(self.carrier, self.node) if self.node else self.carrier
@@ -219,8 +235,7 @@ class Flow:
             raise ValueError(msg)
 
 
-@dataclass
-class Effect:
+class Effect(Element):
     """A tracked quantity across the optimization horizon (cost, CO₂, …).
 
     One effect is designated as the objective to minimize via the
@@ -236,91 +251,98 @@ class Effect:
     ``contribution_from``.
 
     See: docs/math/effects.md
-
-    Args:
-        id: Unique identifier.
-        unit: Unit label (e.g. ``'€'``, ``'kg'``).
-        total_max: Upper bound on weighted total across all periods.
-        total_min: Lower bound on weighted total across all periods.
-        periodic_max: Upper bound applied to each period independently.
-            Scalar or per-period values (multi-period only).
-        periodic_min: Lower bound applied to each period independently.
-            Scalar or per-period values (multi-period only).
-        contribution_from: Cross-effect factors ``{source_effect: factor}``.
-            Scalar factors apply identically to both domains; time-varying
-            factors are averaged for the lump domain.
-        period_weights: Per-period weights ω for total aggregation;
-            overrides global ``period_weights``.
     """
 
     id: str
+    """Unique identifier."""
     unit: str = ''
+    """Unit label (e.g. ``'€'``, ``'kg'``)."""
     total_max: float | None = None  # Φ̄_k  [unit] — weighted total across all periods
+    """Upper bound on weighted total across all periods."""
     total_min: float | None = None  # Φ̲_k  [unit] — weighted total across all periods
+    """Lower bound on weighted total across all periods."""
     periodic_max: Variate | None = None  # Φ̄_{k,p}  [unit] — each period independently
+    """Upper bound applied to each period independently.
+    Scalar or per-period values (multi-period only).
+    """
     periodic_min: Variate | None = None  # Φ̲_{k,p}  [unit] — each period independently
-    contribution_from: dict[str, Variate] = field(default_factory=dict)
+    """Lower bound applied to each period independently.
+    Scalar or per-period values (multi-period only).
+    """
+    contribution_from: dict[str, Variate] = Field(default_factory=dict)
+    """Cross-effect factors ``{source_effect: factor}``.
+    Scalar factors apply identically to both domains; time-varying
+    factors are averaged for the lump domain.
+    """
     period_weights: list[float] | None = None  # ω[p] — scales total across periods
+    """Per-period weights ω for total aggregation;
+    overrides global ``period_weights``.
+    """
 
 
-@dataclass
-class Storage:
+class Storage(Element):
     """Energy storage with level dynamics.
 
     Flow ids are qualified as ``storage(flow)``. When both flows connect
     to the same carrier, they are renamed to ``charge`` / ``discharge``::
 
-        Storage('bat', Flow('elec'), Flow('elec'))  # bat(charge), bat(discharge)
-        Storage('bat', Flow('elec'), Flow('heat'))  # bat(elec), bat(heat)
+        Storage(
+            id='bat', charging=Flow(carrier='elec'), discharging=Flow(carrier='elec')
+        )  # bat(charge), bat(discharge)
+        Storage(id='bat', charging=Flow(carrier='elec'), discharging=Flow(carrier='heat'))  # bat(elec), bat(heat)
 
     Level balance::
 
         E_{s,t+1} = E_{s,t} (1 - δ)^Δt + P^c η^c Δt - P^d / η^d Δt
 
     See: docs/math/storage.md
-
-    Args:
-        id: Storage identifier.
-        charging: Charging flow.
-        discharging: Discharging flow.
-        capacity: Maximum stored energy [MWh], ``Sizing`` for investment
-            optimization, or None.
-        eta_charge: Charging efficiency.
-        eta_discharge: Discharging efficiency.
-        relative_loss_per_hour: Self-discharge rate [1/h].
-        prior_level: Initial energy level [MWh]; None = unconstrained.
-        cyclic: If True, end level must equal start level.
-        relative_level_min: Min SOC as fraction of capacity.
-        relative_level_max: Max SOC as fraction of capacity.
-        final_level_min: Lower bound on the level at the last timestep
-            [MWh], per period; None = unconstrained.
-        final_level_max: Upper bound on the level at the last timestep
-            [MWh], per period; None = unconstrained.
-        prevent_simultaneous: If True, a binary per timestep excludes
-            charging and discharging at once. Requires sized flows
-            (fixed or Sizing/Investment) for the big-M bound.
-        status: Component-level on/off behavior gating both charging and
-            discharging. Forbids flow-level ``status`` on the child flows
-            (the two switches would have no defined precedence).
     """
 
     id: str
+    """Storage identifier."""
     charging: Flow
+    """Charging flow."""
     discharging: Flow
+    """Discharging flow."""
     capacity: float | Sizing | Investment | None = None  # Ē_s  [MWh]
+    """Maximum stored energy [MWh], ``Sizing`` for investment
+    optimization, or None.
+    """
     eta_charge: Variate = 1.0  # η^c_s  [-]
+    """Charging efficiency."""
     eta_discharge: Variate = 1.0  # η^d_s  [-]
+    """Discharging efficiency."""
     relative_loss_per_hour: Variate = 0.0  # δ_s  [1/h]
+    """Self-discharge rate [1/h]."""
     prior_level: float | None = None  # E_{s,0}  [MWh]
+    """Initial energy level [MWh]; None = unconstrained."""
     cyclic: bool = True  # E_{s,first} == E_{s,last}
+    """If True, end level must equal start level."""
     relative_level_min: Variate = 0.0  # e̲_s  [-]
+    """Min SOC as fraction of capacity."""
     relative_level_max: Variate = 1.0  # ē_s  [-]
+    """Max SOC as fraction of capacity."""
     final_level_min: float | None = None  # E̲^end_s  [MWh]
+    """Lower bound on the level at the last timestep
+    [MWh], per period; None = unconstrained.
+    """
     final_level_max: float | None = None  # Ē^end_s  [MWh]
+    """Upper bound on the level at the last timestep
+    [MWh], per period; None = unconstrained.
+    """
     prevent_simultaneous: bool = False
+    """If True, a binary per timestep excludes
+    charging and discharging at once. Requires sized flows
+    (fixed or Sizing/Investment) for the big-M bound.
+    """
     status: Status | None = None
+    """Component-level on/off behavior gating both charging and
+    discharging. Forbids flow-level ``status`` on the child flows
+    (the two switches would have no defined precedence).
+    """
 
-    def __post_init__(self) -> None:
+    @override
+    def model_post_init(self, __context: Any) -> None:
         """Validate carrier match, rename colliding flow ids, and qualify."""
         if self.charging.carrier != self.discharging.carrier:
             msg = (
@@ -362,8 +384,7 @@ class Storage:
 _CurveTuple = tuple[str, 'list[Variate]'] | tuple[str, 'list[Variate]', Literal['==', '<=', '>=']]
 
 
-@dataclass
-class PiecewiseConversion:
+class PiecewiseConversion(Element):
     """Piecewise-linear conversion linking N flows.
 
     Wraps :func:`linopy.piecewise.add_piecewise_formulation`. All flows
@@ -374,38 +395,39 @@ class PiecewiseConversion:
 
     - **Dict** — equality-only, terse for the common case::
 
-          PiecewiseConversion({'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
+          PiecewiseConversion(points={'fuel': [0, 50, 100], 'Heat': [0, 45, 70]})
 
     - **List of tuples** — supports per-flow inequality bounds::
 
           PiecewiseConversion(
-              [
+              points=[
                   ('fuel', [0, 50, 100]),
                   ('Heat', [0, 45, 70], '>='),
               ]
           )
 
     See: docs/math/converters.md
-
-    Args:
-        points: Per-flow breakpoints. Either ``{flow: [bp...]}`` (equality
-            only) or a list of ``(flow, [bp...])`` / ``(flow, [bp...], '<='|'>=')``
-            tuples. Need >=2 flows; all breakpoint lists must share the same
-            length (>=2). At most one tuple may carry a non-equality bound,
-            and only when exactly two flows are present.
-        method: Formulation. ``"auto"`` picks LP (2 flows + bounded +
-            matching convexity), else incremental (monotonic) or sos2.
-            Override with ``"sos2"`` / ``"incremental"`` / ``"lp"``.
-        status: Component-level on/off behavior gating the curve.
-        availability: Time-varying scaling of the upper breakpoint.
     """
 
     points: dict[str, list[Variate]] | list[_CurveTuple]
+    """Per-flow breakpoints. Either ``{flow: [bp...]}`` (equality
+    only) or a list of ``(flow, [bp...])`` / ``(flow, [bp...], '<='|'>=')``
+    tuples. Need >=2 flows; all breakpoint lists must share the same
+    length (>=2). At most one tuple may carry a non-equality bound,
+    and only when exactly two flows are present.
+    """
     method: PiecewiseMethod = 'auto'
+    """Formulation. ``"auto"`` picks LP (2 flows + bounded +
+    matching convexity), else incremental (monotonic) or sos2.
+    Override with ``"sos2"`` / ``"incremental"`` / ``"lp"``.
+    """
     status: Status | None = None
+    """Component-level on/off behavior gating the curve."""
     availability: Variate = 1.0
+    """Time-varying scaling of the upper breakpoint."""
 
-    def __post_init__(self) -> None:
+    @override
+    def model_post_init(self, __context: Any) -> None:
         """Validate normalized breakpoints and bound combinations."""
         flows_pts_bounds = list(self._iter_normalized())
 

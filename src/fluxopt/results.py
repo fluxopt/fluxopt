@@ -14,7 +14,7 @@ except ImportError:
     PlotAccessor = None
 
 if TYPE_CHECKING:
-    from fluxopt.model import FlowSystem
+    from fluxopt.model import FlowSystemModel
     from fluxopt.model_data import ModelData
     from fluxopt.stats import StatsAccessor
 
@@ -233,11 +233,11 @@ class Result:
         return PlotAccessor(self)
 
     @classmethod
-    def from_model(cls, model: FlowSystem) -> Result:
+    def from_model(cls, model: FlowSystemModel) -> Result:
         """Extract solution from a solved linopy model.
 
         Args:
-            model: Solved FlowSystem instance.
+            model: Solved FlowSystemModel instance.
         """
         sol_vars: dict[str, xr.DataArray] = {
             'flow--rate': model.flow_rate.solution,

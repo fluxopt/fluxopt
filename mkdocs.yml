@@ -145,6 +145,9 @@ plugins:
             - https://pandas.pydata.org/docs/objects.inv
             - https://linopy.readthedocs.io/en/latest/objects.inv
           options:
+            extensions:
+              - griffe_pydantic:
+                  schema: true
             docstring_style: google
             docstring_section_style: table
             members_order: source

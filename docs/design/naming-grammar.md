@@ -39,12 +39,12 @@ notation where +/− superscripts qualify the symbol (P⁺, P⁻).
 | Storage | `relative_level_min` / `relative_level_max` |
 | Status | `uptime_min` / `uptime_max`, `downtime_min` / `downtime_max` |
 | Sizing / Investment | `size_min` / `size_max` |
-| Effect | `total_min` / `total_max`, `periodic_min` / `periodic_max`, `rate_min` / `rate_max` |
+| Effect | `total_min` / `total_max`, `periodic_min` / `periodic_max` |
 
 For Effect, the quantity (the effect value itself) is implicit, so the
 scope takes its place: `total_max` is the weighted total across periods,
-`periodic_max` binds each period independently, `rate_max` binds each
-timestep.
+`periodic_max` binds each period independently. (Per-timestep `rate_min` /
+`rate_max` were dropped — see `model-data-tree.md`.)
 
 ## Scope rules
 
