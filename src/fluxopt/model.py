@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import xarray as xr
-from linopy import Model, Variable
+from linopy import Model, Variable, merge
 
 from fluxopt.constraints.sparse import sparse_weighted_sum
 from fluxopt.constraints.status import add_duration_tracking, add_switch_transitions
@@ -1157,15 +1157,16 @@ class FlowSystemModel:
                     name=f'pw_avail_{conv_id}',
                 )
 
-    def _channel_sum(
+    def _channel_partials(
         self,
         coeffs: dict[str, xr.DataArray],
         var: Any,
         entity_dim: str,
         effect_ids: xr.DataArray,
         scale: xr.DataArray | None = None,
-    ) -> Any:
-        """Aggregate one effect channel: Σ_rows coeff · var[entity(row)] (· scale).
+        fold_time: xr.DataArray | None = None,
+    ) -> list[Any]:
+        """Per-signature partials of one effect channel: coeff · var[entity(row)] (· scale).
 
         *coeffs* maps dims signature -> stacked ``(contribution, *sig_dims)``
         rows. Per signature: each row's variable slice is selected via its
@@ -1173,8 +1174,13 @@ class FlowSystemModel:
         broadcasting supplies any dims the signature lacks), and group-summed
         onto the ``effect`` dim. Reindexing every partial to the full effect
         set zero-fills effects without contributions AND establishes the
-        exact index alignment that linopy addition requires (it neither
+        exact index alignment that linopy merging requires (it neither
         reorders nor verifies labels).
+
+        Partials are returned unsummed — collect all channels' partials and
+        combine with a single :func:`linopy.merge`: chained ``+`` copies the
+        accumulated expression at every step, and those transient copies (not
+        the term count) set the build's peak memory.
 
         Args:
             coeffs: Signature-grouped channel coefficients.
@@ -1182,22 +1188,22 @@ class FlowSystemModel:
             entity_dim: Entity dim of *var* and label coord on the rows.
             effect_ids: Full effect coordinate for the result.
             scale: Optional per-timestep multiplier (dt) applied to every row.
+            fold_time: Optional per-timestep weights; when given, each partial
+                is weighted and summed over ``time`` immediately, so partials
+                arrive in the ``(effect[, period])`` shape of the totals.
         """
-        expr: Any = 0
+        parts: list[Any] = []
         for coeff in coeffs.values():
             pair_entity = xr.DataArray(coeff.coords[entity_dim].values, dims=['contribution'])
             pair_effect = xr.DataArray(coeff.coords['effect'].values, dims=['contribution'], name='effect')
             values = coeff.drop_vars([entity_dim, 'effect'])
             if scale is not None:
                 values = values * scale
-            expr = expr + (
-                (var.sel({entity_dim: pair_entity}) * values)
-                .groupby(pair_effect)
-                .sum()
-                .reindex(effect=effect_ids.to_index())
-                .drop_vars(entity_dim, errors='ignore')
-            )
-        return expr
+            partial = (var.sel({entity_dim: pair_entity}) * values).groupby(pair_effect).sum()
+            if fold_time is not None:
+                partial = (partial * fold_time).sum('time')
+            parts.append(partial.reindex(effect=effect_ids.to_index()).drop_vars(entity_dim, errors='ignore'))
+        return parts
 
     def _create_effects(self) -> None:
         """Effect tracking: temporal expressions folded into totals, plus lump domain.
@@ -1226,18 +1232,26 @@ class FlowSystemModel:
             (d.flows.cstatus_effects_running, self.component_on, 'component', d.dims.dt),
             (d.flows.cstatus_effects_startup, self.component_startup, 'component', None),
         ]
-        temporal_direct: Any = 0
+        # Without temporal cross-effects, each channel partial folds over time
+        # immediately (weights included), so partials arrive in the totals
+        # shape and go into ONE merge with the totals constraint below. With
+        # cf_temporal, the Leontief substitution needs the per-time shape.
+        fold_time = d.dims.weights if ds.cf_temporal is None else None
+        temporal_parts: list[Any] = []
         for coeffs, var, entity_dim, scale in temporal_channels:
             if coeffs:
                 assert var is not None
-                temporal_direct = temporal_direct + self._channel_sum(coeffs, var, entity_dim, effect_ids, scale)
+                temporal_parts.extend(
+                    self._channel_partials(coeffs, var, entity_dim, effect_ids, scale, fold_time=fold_time)
+                )
 
         # Cross-effect temporal chains: E = D + C·E has the closed form
         # E = (I - C)^{-1}·D, so apply the numeric Leontief inverse inline
         # instead of coupling per-timestep variables.
-        if ds.cf_temporal is not None and not isinstance(temporal_direct, int):
+        temporal_direct: Any = 0
+        if ds.cf_temporal is not None and temporal_parts:
             leontief = _leontief(ds.cf_temporal)  # (effect, source_effect, time[, period])
-            source_t = temporal_direct.rename({'effect': 'source_effect'})
+            source_t = merge(temporal_parts).rename({'effect': 'source_effect'})
             temporal_direct = (source_t * leontief).sum('source_effect')
 
         # --- Lump domain: effect_lump[effect(, period)] ---
@@ -1257,11 +1271,12 @@ class FlowSystemModel:
         ]
         if sds is not None:
             lump_channels.append((sds.sizing_effects_per_size, self.storage_capacity, 'storage'))
-        lump_direct: Any = 0
+        lump_parts: list[Any] = []
+        lump_const: Any = 0
         for coeffs, var, entity_dim in lump_channels:
             if coeffs:
                 assert var is not None
-                lump_direct = lump_direct + self._channel_sum(coeffs, var, entity_dim, effect_ids)
+                lump_parts.extend(self._channel_partials(coeffs, var, entity_dim, effect_ids))
 
         # Fixed sizing costs split per row: optional entities pay via their
         # binary indicator, mandatory entities contribute constants.
@@ -1280,7 +1295,7 @@ class FlowSystemModel:
             optional_rows, mandatory_rows = _split_rows(coeffs, entity_dim, mand_lookup)
             if optional_rows:
                 assert indicator is not None
-                lump_direct = lump_direct + self._channel_sum(optional_rows, indicator, entity_dim, effect_ids)
+                lump_parts.extend(self._channel_partials(optional_rows, indicator, entity_dim, effect_ids))
             for coeff in mandatory_rows.values():
                 pair_effect = xr.DataArray(coeff.coords['effect'].values, dims=['contribution'], name='effect')
                 const = (
@@ -1289,18 +1304,17 @@ class FlowSystemModel:
                     .sum()
                     .reindex(effect=effect_ids.to_index(), fill_value=0.0)
                 )
-                lump_direct = lump_direct + const
+                lump_const = lump_const + const
 
         # Cross-effect lump: mean(cf_temporal, 'time')[k,j] * effect_lump[j]
         # Time-varying contribution_from values are averaged over time for the
         # lump domain. Warn per-(k,j) where the factor varies and the mean
         # is non-zero (i.e. the cross-effect actually contributes).
-        lump_rhs: Any = lump_direct
         if ds.cf_temporal is not None:
             cf_lump = ds.cf_temporal.mean('time')
             varying = (ds.cf_temporal != cf_lump).any('time')  # (effect, source_effect)
             non_trivial = varying & (cf_lump != 0)
-            if bool(non_trivial.any().item()) and not isinstance(lump_direct, int):
+            if bool(non_trivial.any().item()) and (lump_parts or not isinstance(lump_const, int)):
                 import warnings
 
                 pairs = [
@@ -1314,17 +1328,27 @@ class FlowSystemModel:
                     stacklevel=2,
                 )
             source_p = self.effect_lump.rename({'effect': 'source_effect'})
-            cross = (cf_lump * source_p).sum('source_effect')
-            lump_rhs = cross + lump_direct  # linopy expr must be left operand
+            lump_parts.append((cf_lump * source_p).sum('source_effect'))
 
-        self.m.add_constraints(self.effect_lump == lump_rhs, name='effect_lump_eq')
+        # lump == Σ parts + const  ⇔  merge(parts, -lump) == -const; one merge,
+        # no chained-add copies.
+        if lump_parts:
+            self.m.add_constraints(
+                merge([*lump_parts, -1 * self.effect_lump]) == -1 * lump_const, name='effect_lump_eq'
+            )
+        else:
+            self.m.add_constraints(self.effect_lump == lump_const, name='effect_lump_eq')
 
         # --- Total: effect_total[effect(, period)] ---
+        # total == Σ temporal + lump  ⇔  merge(temporal parts, lump, -total) == 0.
+        # Folded partials go into the merge as-is; the Leontief expression is
+        # folded here (it needed the per-time shape above).
         self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--total')
-        rhs: Any = self.effect_lump
-        if not isinstance(temporal_direct, int):
-            rhs = (temporal_direct * d.dims.weights).sum('time') + self.effect_lump
-        self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
+        total_parts: list[Any] = list(temporal_parts) if fold_time is not None else []
+        if fold_time is None and not isinstance(temporal_direct, int):
+            total_parts.append((temporal_direct * d.dims.weights).sum('time'))
+        total_parts += [1 * self.effect_lump, -1 * self.effect_total]
+        self.m.add_constraints(merge(total_parts) == 0, name='effect_total_eq')
 
         # Per-period bounds on effect_total
         min_pp = ds.periodic_min  # (effect[, period]) — NaN = unbounded
