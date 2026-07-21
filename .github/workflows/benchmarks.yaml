@@ -46,13 +46,11 @@ jobs:
 
   walltime:
     name: Walltime (macro runner)
-    # Disabled on main pushes for now (slow / needs a codspeed-macro runner):
-    # runs only on manual dispatch or a `trigger:benchmark`-labelled PR. Re-enable
-    # on main by adding `github.event_name == 'push'` to the condition.
+    # main push / dispatch always; PRs only when explicitly labelled — macro
+    # minutes are metered and bare-metal shouldn't run arbitrary PR code.
     if: >-
-      ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'pull_request' &&
-           contains(github.event.pull_request.labels.*.name, 'trigger:benchmark')) }}
+      ${{ github.event_name != 'pull_request' ||
+          contains(github.event.pull_request.labels.*.name, 'trigger:benchmark') }}
     runs-on: codspeed-macro
     continue-on-error: true
     permissions:
