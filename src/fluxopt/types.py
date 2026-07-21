@@ -31,19 +31,19 @@ class ProfileRef(BaseModel):
     dim: str = 'time'
     """Dimension the series spans."""
 
-    def resolve(self, sources: Mapping[str, xr.Dataset | Mapping[str, xr.DataArray]]) -> xr.DataArray:
-        """Look up the referenced series in *sources*.
+    def resolve(self, profiles: Mapping[str, xr.Dataset | Mapping[str, xr.DataArray]]) -> xr.DataArray:
+        """Look up the referenced series in *profiles*.
 
         Args:
-            sources: Mapping from ``source`` id to a dataset (or mapping) that
+            profiles: Mapping from ``source`` id to a dataset (or mapping) that
                 contains ``variable``.
 
         Raises:
-            KeyError: If *source* or *variable* is absent from *sources*.
+            KeyError: If *source* or *variable* is absent from *profiles*.
         """
-        if self.source not in sources:
-            raise KeyError(f'ProfileRef source {self.source!r} not in sources {sorted(sources)}')
-        ds = sources[self.source]
+        if self.source not in profiles:
+            raise KeyError(f'ProfileRef source {self.source!r} not in profiles {sorted(profiles)}')
+        ds = profiles[self.source]
         try:
             return xr.DataArray(ds[self.variable])
         except KeyError as exc:
@@ -211,7 +211,7 @@ def as_dataarray(
     """
     if isinstance(value, ProfileRef):
         raise ValueError(
-            f'Unresolved ProfileRef {value!r}: resolve it to an array via ProfileRef.resolve(sources) '
+            f'Unresolved ProfileRef {value!r}: resolve it to an array via ProfileRef.resolve(profiles) '
             f'before building the model.'
         )
 

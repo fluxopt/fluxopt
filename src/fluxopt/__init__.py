@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from fluxopt.components import Converter, Port
@@ -39,6 +39,7 @@ def optimize(
     dt: float | list[float] | None = None,
     periods: list[int] | None = None,
     period_weights: list[float] | None = None,
+    profiles: Mapping[str, Any] | None = None,
     solver: str = 'highs',
     customize: Callable[[FlowSystemModel], None] | None = None,
     **kwargs: Any,
@@ -61,6 +62,9 @@ def optimize(
         dt: Timestep duration in hours. Auto-derived if None.
         periods: Integer period labels for multi-period optimization.
         period_weights: Explicit weights per period. Inferred from gaps if None.
+        profiles: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
+            holding referenced time series. Required if any element uses a
+            ``ProfileRef``.
         solver: Solver backend name.
         customize: Optional callback to modify the linopy model between build and solve.
             Receives the built FlowSystemModel; use ``model.m`` to add variables/constraints.
@@ -78,7 +82,7 @@ def optimize(
         periods=periods,
         period_weights=period_weights,
     )
-    return system.optimize(customize=customize, solver=solver, **kwargs)
+    return system.optimize(profiles, customize=customize, solver=solver, **kwargs)
 
 
 __all__ = [

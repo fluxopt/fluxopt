@@ -4,7 +4,7 @@ A ``FlowSystem`` is an inert, validated description of a flow system: the
 same lists you would pass to :func:`fluxopt.optimize`, gathered into one object
 that round-trips to dict/YAML. It carries *structure* (components, effects,
 config) and ``ProfileRef`` references to time-series; the actual series are
-supplied at solve time via ``sources`` (``system.optimize(sources=...)``) and
+supplied at solve time via ``profiles`` (``system.optimize(profiles=...)``) and
 resolved into arrays just before the model is built.
 
 The FlowSystem has no modeling behavior of its own — ``.optimize()`` runs the existing
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 _PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
 
 
-def _resolve_refs(obj: Any, sources: Mapping[str, Any]) -> Any:
+def _resolve_refs(obj: Any, profiles: Mapping[str, Any]) -> Any:
     """Recursively replace every ``ProfileRef`` in *obj* with a resolved array.
 
     Walks element dataclasses, dicts, lists, and ``IdList`` containers,
@@ -44,25 +44,25 @@ def _resolve_refs(obj: Any, sources: Mapping[str, Any]) -> Any:
 
     Args:
         obj: The value or element to walk.
-        sources: Mapping passed to :meth:`ProfileRef.resolve`.
+        profiles: Mapping passed to :meth:`ProfileRef.resolve`.
     """
     if isinstance(obj, ProfileRef):
-        return obj.resolve(sources)
+        return obj.resolve(profiles)
     if isinstance(obj, dict):
         for key, value in obj.items():
-            obj[key] = _resolve_refs(value, sources)
+            obj[key] = _resolve_refs(value, profiles)
         return obj
     if isinstance(obj, list):
         for i, value in enumerate(obj):
-            obj[i] = _resolve_refs(value, sources)
+            obj[i] = _resolve_refs(value, profiles)
         return obj
     if isinstance(obj, IdList):
         for item in obj:
-            _resolve_refs(item, sources)
+            _resolve_refs(item, profiles)
         return obj
     if isinstance(obj, BaseModel):
         for name in type(obj).model_fields:
-            setattr(obj, name, _resolve_refs(getattr(obj, name), sources))
+            setattr(obj, name, _resolve_refs(getattr(obj, name), profiles))
         return obj
     return obj
 
@@ -193,30 +193,30 @@ class FlowSystem(BaseModel):
         with open(path, 'w') as fh:
             yaml.safe_dump(self.to_dict(), fh, sort_keys=False)
 
-    def build_model(self, sources: Mapping[str, Any] | None = None) -> FlowSystemModel:
+    def build_model(self, profiles: Mapping[str, Any] | None = None) -> FlowSystemModel:
         """Materialize an unbuilt solver model from this declaration.
 
         Resolves ``ProfileRef`` references (on a copy — the system stays
-        reusable across different ``sources``), builds the ``ModelData``, and
+        reusable across different ``profiles``), builds the ``ModelData``, and
         returns a :class:`FlowSystemModel` carrying this system's
         :attr:`objective`. Call ``build()`` on the result to inspect the linopy
         model before solving, or ``optimize()`` to build and solve in one step.
 
         Args:
-            sources: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
+            profiles: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
                 holding the referenced variables. Required if the system uses
                 any ``ProfileRef``.
         """
         carriers, effects, ports, converters, storages = (
-            # No sources → nothing to substitute, so no copy needed: with an
+            # No profiles → nothing to substitute, so no copy needed: with an
             # empty mapping the walk raises on the first ProfileRef it meets
             # (before any mutation) and is a no-op otherwise.
             (self.carriers, self.effects, self.ports, self.converters, self.storages)
-            if sources is None
+            if profiles is None
             else copy.deepcopy((self.carriers, self.effects, self.ports, self.converters, self.storages))
         )
         for group in (carriers, effects, ports, converters, storages):
-            _resolve_refs(group, sources or {})
+            _resolve_refs(group, profiles or {})
 
         data = ModelData.build(
             self.timesteps,
@@ -233,7 +233,7 @@ class FlowSystem(BaseModel):
 
     def optimize(
         self,
-        sources: Mapping[str, Any] | None = None,
+        profiles: Mapping[str, Any] | None = None,
         *,
         solver: str = 'highs',
         customize: Callable[[FlowSystemModel], None] | None = None,
@@ -241,10 +241,10 @@ class FlowSystem(BaseModel):
     ) -> Result:
         """Resolve profile references, build the model, and solve.
 
-        Shorthand for ``build_model(sources).optimize(...)``.
+        Shorthand for ``build_model(profiles).optimize(...)``.
 
         Args:
-            sources: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
+            profiles: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
                 holding the referenced variables. Required if the system uses
                 any ``ProfileRef``.
             solver: Solver backend name.
@@ -252,4 +252,4 @@ class FlowSystem(BaseModel):
                 solve; receives the built ``FlowSystemModel`` (use ``model.m``).
             **kwargs: Passed through to ``linopy.Model.solve()``.
         """
-        return self.build_model(sources).optimize(customize=customize, solver=solver, **kwargs)
+        return self.build_model(profiles).optimize(customize=customize, solver=solver, **kwargs)

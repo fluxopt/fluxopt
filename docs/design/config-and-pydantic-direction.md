@@ -181,7 +181,7 @@ rival. That demo is a strong card in the #1788 ↔ #1796 discussion.
 **Phase 2 landed (stacked PR)** — `ProfileRef` + full structural round-trip:
 
 - **`ProfileRef`** (`float | list | ProfileRef` at last, in `types.py`): a
-  serializable reference to a time-series in a data file, with `.resolve(sources)`
+  serializable reference to a time-series in a data file, with `.resolve(profiles)`
   → `DataArray`. Added to the `Variate` union so config round-trips without
   inlining profiles; `as_dataarray` rejects an unresolved ref loudly.
 - **`to_dict` / `from_dict`** (`fluxopt.to_dict`, `fluxopt.from_dict`): JSON-safe
@@ -205,11 +205,11 @@ by a builder — not a mutable domain object. This mirrors the codebase's existi
 | 3 | **`FlowSystemModel`** | the linopy solver; owns `.m` (escape hatch) | → `Result` |
 
 - **`FlowSystem`** (`flow_system.py`): a pydantic aggregate mirroring `optimize()`;
-  `from_dict`/`from_yaml`/`to_dict`/`to_yaml`; `.optimize(sources=...)` delegates to
+  `from_dict`/`from_yaml`/`to_dict`/`to_yaml`; `.optimize(profiles=...)` delegates to
   the existing pipeline (`ModelData.build → FlowSystemModel`). Python construction
   stays first-class — the same object is built in code or loaded from YAML.
-- **`ProfileRef` auto-resolution**: `.optimize(sources=...)` runs a recursive
-  pre-pass (`_resolve_refs`) that swaps every `ProfileRef` for `resolve(sources)`
+- **`ProfileRef` auto-resolution**: `.optimize(profiles=...)` runs a recursive
+  pre-pass (`_resolve_refs`) that swaps every `ProfileRef` for `resolve(profiles)`
   on a **deep copy**, so the `FlowSystem` stays reusable across different data.
   Sources are passed **in code** (`{id: Dataset}`), not via file paths in YAML —
   structure is declarative, data supply is explicit.
