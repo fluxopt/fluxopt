@@ -10,6 +10,7 @@ from fluxopt.constraints.sparse import sparse_weighted_sum
 from fluxopt.constraints.status import add_duration_tracking, add_switch_transitions
 from fluxopt.constraints.storage import add_accumulation_constraints
 from fluxopt.contributions import _leontief
+from fluxopt.model_data import _split_rows
 from fluxopt.results import Result
 from fluxopt.types import as_dataarray
 
@@ -1156,33 +1157,45 @@ class FlowSystemModel:
                     name=f'pw_avail_{conv_id}',
                 )
 
-    def _flow_effect_temporal(self, coeffs: dict[str, xr.DataArray], effect_ids: xr.DataArray) -> Any:
-        """Flow contributions to effects: Σ_f coeff_{f,k,t} · P_{f,t} · dt_t.
+    def _channel_sum(
+        self,
+        coeffs: dict[str, xr.DataArray],
+        var: Any,
+        entity_dim: str,
+        effect_ids: xr.DataArray,
+        scale: xr.DataArray | None = None,
+    ) -> Any:
+        """Aggregate one effect channel: Σ_rows coeff · var[entity(row)] (· scale).
 
         *coeffs* maps dims signature -> stacked ``(contribution, *sig_dims)``
-        rows. Per signature: each row's flow rate is selected via its
-        ``flow`` label, weighted by coefficient * dt (broadcasting supplies
-        any dims the signature lacks), and group-summed onto the ``effect``
-        dim. Reindexing every partial to the full effect set zero-fills
-        effects without contributions AND establishes the exact index
-        alignment that linopy addition requires (it neither reorders nor
-        verifies labels).
+        rows. Per signature: each row's variable slice is selected via its
+        *entity_dim* label, weighted by coefficient (x *scale*, e.g. dt;
+        broadcasting supplies any dims the signature lacks), and group-summed
+        onto the ``effect`` dim. Reindexing every partial to the full effect
+        set zero-fills effects without contributions AND establishes the
+        exact index alignment that linopy addition requires (it neither
+        reorders nor verifies labels).
 
         Args:
-            coeffs: Signature-grouped coefficients from ``FlowsData.effect_coeff``.
+            coeffs: Signature-grouped channel coefficients.
+            var: linopy variable the channel multiplies (dim *entity_dim*).
+            entity_dim: Entity dim of *var* and label coord on the rows.
             effect_ids: Full effect coordinate for the result.
+            scale: Optional per-timestep multiplier (dt) applied to every row.
         """
         expr: Any = 0
         for coeff in coeffs.values():
-            pair_flow = xr.DataArray(coeff.coords['flow'].values, dims=['contribution'])
+            pair_entity = xr.DataArray(coeff.coords[entity_dim].values, dims=['contribution'])
             pair_effect = xr.DataArray(coeff.coords['effect'].values, dims=['contribution'], name='effect')
-            coeff_dt = (coeff * self.data.dims.dt).drop_vars(['flow', 'effect'])
+            values = coeff.drop_vars([entity_dim, 'effect'])
+            if scale is not None:
+                values = values * scale
             expr = expr + (
-                (self.flow_rate.sel(flow=pair_flow) * coeff_dt)
+                (var.sel({entity_dim: pair_entity}) * values)
                 .groupby(pair_effect)
                 .sum()
                 .reindex(effect=effect_ids.to_index())
-                .drop_vars('flow', errors='ignore')
+                .drop_vars(entity_dim, errors='ignore')
             )
         return expr
 
@@ -1205,37 +1218,19 @@ class FlowSystemModel:
             return
 
         # --- Temporal domain: expressions, no variables ---
+        # One channel per (coefficient family, variable, scale) triple.
+        temporal_channels: list[tuple[dict[str, xr.DataArray], Any, str, xr.DataArray | None]] = [
+            (d.flows.effect_coeff, self.flow_rate, 'flow', d.dims.dt),
+            (d.flows.status_effects_running, self.flow_on, 'flow', d.dims.dt),
+            (d.flows.status_effects_startup, self.flow_startup, 'flow', None),
+            (d.flows.cstatus_effects_running, self.component_on, 'component', d.dims.dt),
+            (d.flows.cstatus_effects_startup, self.component_startup, 'component', None),
+        ]
         temporal_direct: Any = 0
-        if d.flows.effect_coeff:
-            temporal_direct = self._flow_effect_temporal(d.flows.effect_coeff, effect_ids)
-
-        # Status running costs: sum_f(running_coeff[f,k,t] * on[f,t] * dt[t])
-        if d.flows.status_effects_running is not None:
-            assert self.flow_on is not None
-            er = d.flows.status_effects_running.rename({'status_flow': 'flow'})
-            if (er != 0).any():
-                temporal_direct = temporal_direct + (er * self.flow_on * d.dims.dt).sum('flow')
-
-        # Status startup costs: sum_f(startup_coeff[f,k,t] * startup[f,t]) — per event, no dt
-        if d.flows.status_effects_startup is not None:
-            assert self.flow_startup is not None
-            es = d.flows.status_effects_startup.rename({'status_flow': 'flow'})
-            if (es != 0).any():
-                temporal_direct = temporal_direct + (es * self.flow_startup).sum('flow')
-
-        # Component-level status running costs
-        if d.flows.cstatus_effects_running is not None:
-            assert self.component_on is not None
-            cer = d.flows.cstatus_effects_running.rename({'cstatus_component': 'component'})
-            if (cer != 0).any():
-                temporal_direct = temporal_direct + (cer * self.component_on * d.dims.dt).sum('component')
-
-        # Component-level status startup costs
-        if d.flows.cstatus_effects_startup is not None:
-            assert self.component_startup is not None
-            ces = d.flows.cstatus_effects_startup.rename({'cstatus_component': 'component'})
-            if (ces != 0).any():
-                temporal_direct = temporal_direct + (ces * self.component_startup).sum('component')
+        for coeffs, var, entity_dim, scale in temporal_channels:
+            if coeffs:
+                assert var is not None
+                temporal_direct = temporal_direct + self._channel_sum(coeffs, var, entity_dim, effect_ids, scale)
 
         # Cross-effect temporal chains: E = D + C·E has the closed form
         # E = (I - C)^{-1}·D, so apply the numeric Leontief inverse inline
@@ -1250,94 +1245,51 @@ class FlowSystemModel:
         pc = self.data.dims.coords(period=True)
         self.effect_lump = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--lump')
 
-        # Accumulate direct lump contributions per effect
+        # Accumulate direct lump contributions per effect.
+        # Per-size / per-binary channels: coeff x variable, like the temporal loop.
+        sds = d.storages
+        lump_channels: list[tuple[dict[str, xr.DataArray], Any, str]] = [
+            (d.flows.sizing_effects_per_size, self.flow_size, 'flow'),
+            (d.flows.invest_effects_per_size_recurring, self.flow_size, 'flow'),
+            (d.flows.invest_effects_fixed_recurring, self.invest_active, 'flow'),
+            (d.flows.invest_effects_per_size_at_build, self.invest_size_at_build, 'flow'),
+            (d.flows.invest_effects_fixed_at_build, self.invest_build, 'flow'),
+        ]
+        if sds is not None:
+            lump_channels.append((sds.sizing_effects_per_size, self.storage_capacity, 'storage'))
         lump_direct: Any = 0
+        for coeffs, var, entity_dim in lump_channels:
+            if coeffs:
+                assert var is not None
+                lump_direct = lump_direct + self._channel_sum(coeffs, var, entity_dim, effect_ids)
 
-        # Flow sizing: per-size costs (Sizing only, not Investment)
-        if d.flows.sizing_effects_per_size is not None:
-            sizing_ids = list(d.flows.sizing_effects_per_size.coords['sizing_flow'].values)
-            eps = d.flows.sizing_effects_per_size.rename({'sizing_flow': 'flow'})
-            if (eps != 0).any():
-                assert self.flow_size is not None
-                lump_direct = lump_direct + (eps * self.flow_size.sel(flow=sizing_ids)).sum('flow')
-
-        # Flow sizing: fixed costs — optional (binary * cost), mandatory (constant)
-        if self.flow_size_indicator is not None:
-            assert d.flows.sizing_effects_fixed is not None
-            opt_ids = list(self.flow_size_indicator.coords['flow'].values)
-            ef = d.flows.sizing_effects_fixed.rename({'sizing_flow': 'flow'}).sel(flow=opt_ids)
-            if (ef != 0).any():
-                lump_direct = lump_direct + (ef * self.flow_size_indicator).sum('flow')
-        if (
-            self.flow_size is not None
-            and d.flows.sizing_effects_fixed is not None
-            and d.flows.sizing_mandatory is not None
-        ):
-            mand_mask = d.flows.sizing_mandatory.values
-            if mand_mask.any():
-                mand_ids = list(d.flows.sizing_mandatory.coords['sizing_flow'].values[mand_mask])
-                ef_mand = d.flows.sizing_effects_fixed.sel(sizing_flow=mand_ids)
-                if (ef_mand != 0).any():
-                    lump_direct = lump_direct + ef_mand.sum('sizing_flow')
-
-        # Storage sizing: per-size costs
-        if (
-            self.storage_capacity is not None
-            and d.storages is not None
-            and d.storages.sizing_effects_per_size is not None
-        ):
-            eps = d.storages.sizing_effects_per_size.rename({'sizing_storage': 'storage'})
-            if (eps != 0).any():
-                lump_direct = lump_direct + (eps * self.storage_capacity).sum('storage')
-
-        # Storage sizing: fixed costs — optional (binary * cost), mandatory (constant)
-        if (
-            self.storage_capacity_indicator is not None
-            and d.storages is not None
-            and d.storages.sizing_effects_fixed is not None
-        ):
-            opt_ids = list(self.storage_capacity_indicator.coords['storage'].values)
-            ef = d.storages.sizing_effects_fixed.rename({'sizing_storage': 'storage'}).sel(storage=opt_ids)
-            if (ef != 0).any():
-                lump_direct = lump_direct + (ef * self.storage_capacity_indicator).sum('storage')
-        if (
-            self.storage_capacity is not None
-            and d.storages is not None
-            and d.storages.sizing_effects_fixed is not None
-            and d.storages.sizing_mandatory is not None
-        ):
-            mand_mask = d.storages.sizing_mandatory.values
-            if mand_mask.any():
-                mand_ids = list(d.storages.sizing_mandatory.coords['sizing_storage'].values[mand_mask])
-                ef_mand = d.storages.sizing_effects_fixed.sel(sizing_storage=mand_ids)
-                if (ef_mand != 0).any():
-                    lump_direct = lump_direct + ef_mand.sum('sizing_storage')
-
-        # Investment: recurring per-size costs
-        if self.invest_active is not None and d.flows.invest_effects_per_size_recurring is not None:
-            eps_p = d.flows.invest_effects_per_size_recurring.rename({'invest_flow': 'flow'})
-            if (eps_p != 0).any():
-                assert self.flow_size is not None
-                invest_ids = list(d.flows.invest_effects_per_size_recurring.coords['invest_flow'].values)
-                lump_direct = lump_direct + (eps_p * self.flow_size.sel(flow=invest_ids)).sum('flow')
-
-        # Investment: recurring fixed costs
-        if self.invest_active is not None and d.flows.invest_effects_fixed_recurring is not None:
-            ef_p = d.flows.invest_effects_fixed_recurring.rename({'invest_flow': 'flow'})
-            if (ef_p != 0).any():
-                lump_direct = lump_direct + (ef_p * self.invest_active).sum('flow')
-
-        # Investment: at-build per-size costs (charged in build period)
-        if self.invest_size_at_build is not None and d.flows.invest_effects_per_size_at_build is not None:
-            eps_once = d.flows.invest_effects_per_size_at_build.rename({'invest_flow': 'flow'})
-            if (eps_once != 0).any():
-                lump_direct = lump_direct + (eps_once * self.invest_size_at_build).sum('flow')
-
-        # Investment: at-build fixed costs (charged in build period)
-        if self.invest_build is not None and d.flows.invest_effects_fixed_at_build is not None:
-            ef_once = d.flows.invest_effects_fixed_at_build.rename({'invest_flow': 'flow'})
-            if (ef_once != 0).any():
-                lump_direct = lump_direct + (ef_once * self.invest_build).sum('flow')
+        # Fixed sizing costs split per row: optional entities pay via their
+        # binary indicator, mandatory entities contribute constants.
+        fixed_families: list[tuple[dict[str, xr.DataArray], Any, xr.DataArray | None, str]] = [
+            (d.flows.sizing_effects_fixed, self.flow_size_indicator, d.flows.sizing_mandatory, 'flow'),
+        ]
+        if sds is not None:
+            fixed_families.append(
+                (sds.sizing_effects_fixed, self.storage_capacity_indicator, sds.sizing_mandatory, 'storage')
+            )
+        for coeffs, indicator, mandatory, entity_dim in fixed_families:
+            if not coeffs:
+                continue
+            assert mandatory is not None
+            mand_lookup = dict(zip(mandatory.coords[mandatory.dims[0]].values, mandatory.values, strict=True))
+            optional_rows, mandatory_rows = _split_rows(coeffs, entity_dim, mand_lookup)
+            if optional_rows:
+                assert indicator is not None
+                lump_direct = lump_direct + self._channel_sum(optional_rows, indicator, entity_dim, effect_ids)
+            for coeff in mandatory_rows.values():
+                pair_effect = xr.DataArray(coeff.coords['effect'].values, dims=['contribution'], name='effect')
+                const = (
+                    coeff.drop_vars([entity_dim, 'effect'])
+                    .groupby(pair_effect)
+                    .sum()
+                    .reindex(effect=effect_ids.to_index(), fill_value=0.0)
+                )
+                lump_direct = lump_direct + const
 
         # Cross-effect lump: mean(cf_temporal, 'time')[k,j] * effect_lump[j]
         # Time-varying contribution_from values are averaged over time for the
