@@ -62,7 +62,7 @@ def optimize(
         dt: Timestep duration in hours. Auto-derived if None.
         periods: Integer period labels for multi-period optimization.
         period_weights: Explicit weights per period. Inferred from gaps if None.
-        profiles: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
+        profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
             holding referenced time series. Required if any element uses a
             ``ProfileRef``.
         solver: Solver backend name.

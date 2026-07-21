@@ -24,30 +24,28 @@ class ProfileRef(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    source: str
-    """Identifier of the dataset holding the profile (e.g. a file key)."""
+    dataset: str
+    """Id of the dataset holding the profile (a key into ``profiles``)."""
     variable: str
-    """Variable / column name within *source*."""
-    dim: str = 'time'
-    """Dimension the series spans."""
+    """Variable / column name within *dataset*."""
 
     def resolve(self, profiles: Mapping[str, xr.Dataset | Mapping[str, xr.DataArray]]) -> xr.DataArray:
         """Look up the referenced series in *profiles*.
 
         Args:
-            profiles: Mapping from ``source`` id to a dataset (or mapping) that
+            profiles: Mapping from dataset id to a dataset (or mapping) that
                 contains ``variable``.
 
         Raises:
-            KeyError: If *source* or *variable* is absent from *profiles*.
+            KeyError: If *dataset* or *variable* is absent from *profiles*.
         """
-        if self.source not in profiles:
-            raise KeyError(f'ProfileRef source {self.source!r} not in profiles {sorted(profiles)}')
-        ds = profiles[self.source]
+        if self.dataset not in profiles:
+            raise KeyError(f'ProfileRef dataset {self.dataset!r} not in profiles {sorted(profiles)}')
+        ds = profiles[self.dataset]
         try:
             return xr.DataArray(ds[self.variable])
         except KeyError as exc:
-            raise KeyError(f'ProfileRef variable {self.variable!r} not in source {self.source!r}') from exc
+            raise KeyError(f'ProfileRef variable {self.variable!r} not in dataset {self.dataset!r}') from exc
 
 
 # -- User input types --------------------------------------------------

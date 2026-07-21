@@ -203,7 +203,7 @@ class FlowSystem(BaseModel):
         model before solving, or ``optimize()`` to build and solve in one step.
 
         Args:
-            profiles: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
+            profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
                 holding the referenced variables. Required if the system uses
                 any ``ProfileRef``.
         """
@@ -244,7 +244,7 @@ class FlowSystem(BaseModel):
         Shorthand for ``build_model(profiles).optimize(...)``.
 
         Args:
-            profiles: Mapping from ``ProfileRef.source`` to a dataset (or mapping)
+            profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
                 holding the referenced variables. Required if the system uses
                 any ``ProfileRef``.
             solver: Solver backend name.

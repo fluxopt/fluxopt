@@ -89,7 +89,7 @@ static frames from `_t` time-varying data. Model it as:
 
 ```
 Variate := float | list[float] | ProfileRef
-ProfileRef := reference into a CSV/netCDF column (name + source)
+ProfileRef := reference into a dataset variable (dataset + variable)
 ```
 
 Structural YAML carries the graph + scalars + refs; profiles live in data files.
