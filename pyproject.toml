@@ -31,6 +31,7 @@ dependencies = [
     "netcdf4>=1.6.0",
     "numpy>=1.26",
     "pandas>=2.1",
+    "pydantic>=2.7",
     "xarray>=2024.1.0",
 ]
 
@@ -125,6 +126,11 @@ docstring-code-format = true
 
 [tool.ruff.lint.pyupgrade]
 keep-runtime-typing = false
+
+[tool.ruff.lint.flake8-type-checking]
+# pydantic dataclasses evaluate annotations at runtime to build validators, so
+# imports used only in annotations must stay at runtime (not moved to TYPE_CHECKING).
+runtime-evaluated-decorators = ["pydantic.dataclasses.dataclass"]
 
 [tool.pyrefly]
 python-version = "3.12"

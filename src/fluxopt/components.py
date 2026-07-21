@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from dataclasses import field
 
-from fluxopt.elements import qualified_id
-from fluxopt.types import IdList
+from pydantic import ConfigDict
+from pydantic.dataclasses import dataclass
 
-if TYPE_CHECKING:
-    from fluxopt.elements import Flow, PiecewiseConversion
-    from fluxopt.types import Variate
+from fluxopt.elements import Flow, PiecewiseConversion, qualified_id
+from fluxopt.types import IdList, Variate
+
+_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
 
 
 def _qualify_flows(component_id: str, flows: list[Flow]) -> IdList[Flow]:
@@ -23,7 +23,7 @@ def _qualify_flows(component_id: str, flows: list[Flow]) -> IdList[Flow]:
     return IdList(flows)
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class Port:
     """System boundary that imports from or exports to buses."""
 
@@ -37,7 +37,7 @@ class Port:
         self.exports = _qualify_flows(self.id, list(self.exports))
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class Converter:
     """Conversion between input and output flows.
 

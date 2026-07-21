@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from dataclasses import field
+from typing import Literal
 
-if TYPE_CHECKING:
-    from fluxopt.types import PiecewiseMethod, Variate
+from pydantic import ConfigDict
+from pydantic.dataclasses import dataclass
+
+from fluxopt.types import PiecewiseMethod, Variate
+
+# Element dataclasses hold arbitrary xarray/numpy/pandas values (Variate) and
+# IdList containers; pydantic validates ids/scalars/structure while passing
+# those through by isinstance.
+_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
 
 PENALTY_EFFECT_ID = 'penalty'
 
@@ -22,7 +29,7 @@ def node_id(carrier: str, node: str) -> str:
     return f'{carrier}{NODE_SEP}{node}'
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class Carrier:
     """Physical energy medium (electricity, heat, gas, …).
 
@@ -41,7 +48,7 @@ class Carrier:
     description: str = ''
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class Sizing:
     """Capacity optimization parameters.
 
@@ -69,7 +76,7 @@ class Sizing:
     effects_fixed: dict[str, Variate] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class Investment:
     """Singular discrete build-timing optimization.
 
@@ -100,7 +107,7 @@ class Investment:
     effects_fixed_recurring: dict[str, Variate] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class Status:
     """Binary on/off behavior parameters.
 
@@ -126,7 +133,7 @@ class Status:
     effects_per_startup: dict[str, Variate] = field(default_factory=dict)
 
 
-@dataclass(eq=False)
+@dataclass(config=_PYDANTIC_CFG, eq=False)
 class Flow:
     """A single energy flow on a carrier.
 
@@ -219,7 +226,7 @@ class Flow:
             raise ValueError(msg)
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class Effect:
     """A tracked quantity across the optimization horizon (cost, CO₂, …).
 
@@ -267,7 +274,7 @@ class Effect:
     period_weights: list[float] | None = None  # ω[p] — scales total across periods
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class Storage:
     """Energy storage with level dynamics.
 
@@ -366,7 +373,7 @@ class Storage:
 _CurveTuple = tuple[str, 'list[Variate]'] | tuple[str, 'list[Variate]', Literal['==', '<=', '>=']]
 
 
-@dataclass
+@dataclass(config=_PYDANTIC_CFG)
 class PiecewiseConversion:
     """Piecewise-linear conversion linking N flows.
 
