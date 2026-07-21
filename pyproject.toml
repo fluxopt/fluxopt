@@ -158,6 +158,9 @@ variance-mismatch = true
 
 [tool.pytest.ini_options]
 addopts = "-n auto"
+# Default run covers the correctness suite only. Benchmarks live in benchmark/
+# and are opt-in: `pytest benchmark/ -p no:xdist --benchmark-only`.
+testpaths = ["tests"]
 pythonpath = ["tests"]
 markers = [
     "slow: marks tests as slow",

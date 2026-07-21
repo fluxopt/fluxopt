@@ -1,0 +1,73 @@
+name: CodSpeed
+
+# Both instruments in one workflow (CodSpeed aggregates per-commit results from a
+# single workflow). Memory: heap tracking on a free GitHub runner, every PR +
+# main. Walltime: bare-metal macro runner, main + the maintainer-gated
+# `trigger:benchmark` label only.
+#
+# The benchmark env is pinned (benchmark/uv.lock, `uv sync --frozen`) so the
+# dashboard tracks fluxopt's code, not upstream dependency releases.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  memory:
+    name: Memory (heap)
+    runs-on: ubuntu-latest
+    continue-on-error: true # informational, never blocks a merge
+    permissions:
+      contents: read # actions/checkout
+      id-token: write # OIDC auth with CodSpeed — no token secret
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # hatch-vcs
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Sync pinned benchmark env
+        working-directory: benchmark
+        run: uv sync --frozen
+      - name: Run benchmarks under CodSpeed (memory)
+        uses: CodSpeedHQ/action@v4
+        with:
+          mode: memory
+          run: cd benchmark && uv run --no-sync pytest . --codspeed
+
+  walltime:
+    name: Walltime (macro runner)
+    # main push / dispatch always; PRs only when explicitly labelled — macro
+    # minutes are metered and bare-metal shouldn't run arbitrary PR code.
+    if: >-
+      ${{ github.event_name != 'pull_request' ||
+          contains(github.event.pull_request.labels.*.name, 'trigger:benchmark') }}
+    runs-on: codspeed-macro
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # hatch-vcs
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Sync pinned benchmark env
+        working-directory: benchmark
+        run: uv sync --frozen
+      - name: Run benchmarks under CodSpeed (walltime)
+        uses: CodSpeedHQ/action@v4
+        with:
+          mode: walltime
+          run: cd benchmark && uv run --no-sync pytest . --codspeed
