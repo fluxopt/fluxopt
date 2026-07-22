@@ -1,14 +1,18 @@
 # Benchmarks
 
 Time + memory benchmarks for the build pipeline —
-`Elements → ModelData (xarray) → FlowSystemModel (linopy)`. The HiGHS solve is
-excluded (non-deterministic, not ours to profile).
+`Elements → ModelData (xarray) → FlowSystemModel (linopy)` — and for NetCDF IO
+(`ModelData ⇄ .nc`). The HiGHS solve is excluded (non-deterministic, not ours to
+profile); the solved-`Result` round-trip is excluded for the same reason (it
+needs a solve to produce).
 
 One `benchmark()` suite, served by [CodSpeed] in CI and [pytest-benchmem] locally.
 
 - `systems.py` — feature archetypes (`multi_node`, `status`, `piecewise`,
   `effects`, `sizing`) + `(n, timesteps)` scale tiers. Deterministic.
 - `test_build.py` — the feature matrix at one scale, and a multi_node scaling curve.
+- `test_io.py` — the same matrix + scaling curve for `ModelData.to_netcdf`
+  (write) and `ModelData.from_netcdf` (read). Solve-free, so no solved `Result`.
 
 ## Pinned, standalone env
 
