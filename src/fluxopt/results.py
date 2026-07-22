@@ -63,7 +63,7 @@ class Result:
         """Effect weights the objective was minimized with (provenance).
 
         Includes the built-in penalty effect (auto-added at 1.0 unless
-        named in ``objective_effects``). Empty for results saved before
+        named in ``objective``). Empty for results saved before
         this field existed.
         """
         return json.loads(self.solution.attrs.get('objective_weights', '{}'))

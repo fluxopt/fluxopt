@@ -239,7 +239,7 @@ class Effect(Element):
     """A tracked quantity across the optimization horizon (cost, CO₂, …).
 
     One effect is designated as the objective to minimize via the
-    ``objective_effects`` argument of ``optimize()``. Others can be bounded
+    ``objective`` argument of ``optimize()``. Others can be bounded
     to enforce budgets (e.g. emission caps).
 
     Effects accumulate contributions from two domains:

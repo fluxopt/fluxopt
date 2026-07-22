@@ -19,7 +19,7 @@ class TestConversionEfficiency:
             timesteps=ts(3),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -57,7 +57,7 @@ class TestConversionEfficiency:
             timesteps=ts(2),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -96,7 +96,7 @@ class TestConversionEfficiency:
             timesteps=ts(2),
             carriers=[Carrier(id='Elec'), Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='HeatDemand',

@@ -95,7 +95,7 @@ class TestHeatPump:
             timesteps=ts(2),
             carriers=[Carrier(id='Elec'), Carrier(id='Env'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -128,7 +128,7 @@ class TestHeatPump:
             timesteps=ts(2),
             carriers=[Carrier(id='Elec'), Carrier(id='Env'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',

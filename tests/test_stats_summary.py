@@ -16,7 +16,7 @@ def _solve(source, *, dt=None, storages=()):
         dt=dt,
         carriers=[Carrier(id='elec')],
         effects=[Effect(id='cost')],
-        objective_effects='cost',
+        objective='cost',
         ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
         storages=list(storages),
     )
@@ -126,7 +126,7 @@ def test_stats_summary_with_storage():
         timesteps=ts(3),
         carriers=[Carrier(id='elec')],
         effects=[Effect(id='cost')],
-        objective_effects='cost',
+        objective='cost',
         ports=[Port(id='grid', imports=[source]), Port(id='load', exports=[demand])],
         storages=[storage],
     )

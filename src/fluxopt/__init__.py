@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from fluxopt.components import Converter, Port
@@ -33,12 +33,13 @@ def optimize(
     carriers: list[Carrier],
     effects: list[Effect],
     ports: list[Port],
-    objective_effects: str | dict[str, float],
+    objective: str | dict[str, float],
     converters: list[Converter] | None = None,
     storages: list[Storage] | None = None,
     dt: float | list[float] | None = None,
     periods: list[int] | None = None,
     period_weights: list[float] | None = None,
+    profiles: Mapping[str, Any] | None = None,
     solver: str = 'highs',
     customize: Callable[[FlowSystemModel], None] | None = None,
     **kwargs: Any,
@@ -50,7 +51,7 @@ def optimize(
         carriers: Carrier declarations.
         effects: Effects to track (costs, emissions, etc.).
         ports: System boundary ports with imports/exports.
-        objective_effects: Effect(s) to minimize. A single name, or a dict
+        objective: Effect(s) to minimize. A single name, or a dict
             mapping effect names to objective weights
             (``{'cost': 1, 'co2': 50}``) — tracked effect totals are
             unaffected by the weighting. The built-in ``'penalty'`` effect
@@ -61,29 +62,27 @@ def optimize(
         dt: Timestep duration in hours. Auto-derived if None.
         periods: Integer period labels for multi-period optimization.
         period_weights: Explicit weights per period. Inferred from gaps if None.
+        profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
+            holding referenced time series. Required if any element uses a
+            ``ProfileRef``.
         solver: Solver backend name.
         customize: Optional callback to modify the linopy model between build and solve.
             Receives the built FlowSystemModel; use ``model.m`` to add variables/constraints.
         **kwargs: Passed through to ``linopy.Model.solve()``.
     """
-    data = ModelData.build(
-        timesteps,
-        carriers,
-        effects,
-        ports,
-        converters,
-        storages,
-        dt,
+    system = FlowSystem(
+        timesteps=timesteps,
+        carriers=carriers,
+        effects=effects,
+        ports=ports,
+        objective=objective,
+        converters=converters or [],
+        storages=storages or [],
+        dt=dt,
         periods=periods,
         period_weights=period_weights,
     )
-    model = FlowSystemModel(data)
-    return model.optimize(
-        objective_effects=objective_effects,
-        customize=customize,
-        solver=solver,
-        **kwargs,
-    )
+    return system.optimize(profiles, customize=customize, solver=solver, **kwargs)
 
 
 __all__ = [

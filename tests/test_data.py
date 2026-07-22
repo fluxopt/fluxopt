@@ -240,12 +240,12 @@ class TestConverterValidation:
 class TestCarrierValidation:
     def test_undeclared_carrier_raises(self):
         """Flow referencing an undeclared carrier raises ValueError."""
-        with pytest.raises(ValueError, match='not in the declared carriers'):
+        with pytest.raises(ValueError, match='undeclared carrier'):
             optimize(
                 timesteps=ts(2),
                 carriers=[Carrier(id='gas')],
                 effects=[Effect(id='cost')],
-                objective_effects='cost',
+                objective='cost',
                 ports=[Port(id='grid', imports=[Flow(carrier='elec', size=100)])],
             )
 
@@ -297,7 +297,7 @@ class TestCarrierBalance:
             timesteps=ts(3),
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='src', imports=[Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port(id='sink', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
@@ -319,7 +319,7 @@ class TestMultiNodeCarrier:
             timesteps=ts(3),
             carriers=[Carrier(id='heat', nodes=['A', 'B'])],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='src_a', imports=[Flow(carrier='heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]

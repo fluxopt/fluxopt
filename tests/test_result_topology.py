@@ -21,7 +21,7 @@ def _solve_with_converter() -> Result:
         timesteps=[datetime(2024, 1, 1, h) for h in range(3)],
         carriers=[Carrier(id='gas'), Carrier(id='heat')],
         effects=[Effect(id='cost')],
-        objective_effects='cost',
+        objective='cost',
         ports=[Port(id='grid', imports=[gas_source]), Port(id='demand', exports=[demand])],
         converters=[Converter.boiler('boiler', 0.9, fuel, heat_out)],
         storages=[storage],
@@ -78,7 +78,7 @@ class TestTopology:
             timesteps=[datetime(2024, 1, 1, h) for h in range(3)],
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
         )
         topo = result.topology

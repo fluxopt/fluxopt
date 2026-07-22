@@ -83,7 +83,7 @@ class TestStatusWithEffects:
                 Effect(id='cost'),
                 Effect(id='CO2', total_max=60),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -137,7 +137,7 @@ class TestStatusWithEffects:
                 Effect(id='cost'),
                 Effect(id='CO2'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -185,7 +185,7 @@ class TestInvestWithRelativeMinimum:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -249,7 +249,7 @@ class TestConversionWithTimeVaryingEffects:
             timesteps=ts(2),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -292,7 +292,7 @@ class TestConversionWithTimeVaryingEffects:
                 Effect(id='cost'),
                 Effect(id='CO2'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='HeatDemand',
@@ -358,7 +358,7 @@ class TestStatusWithMultipleConstraints:
         result = optimize(
             timesteps=ts(6),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -431,7 +431,7 @@ class TestEffectsWithConversion:
                 Effect(id='cost'),
                 Effect(id='CO2', total_max=20),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',

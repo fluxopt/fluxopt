@@ -87,7 +87,7 @@ class TestStorageStatusValidation:
                 ),
             ],
         )
-        fs = FlowSystemModel(data)
+        fs = FlowSystemModel(data, objective='cost')
         with pytest.raises(NotImplementedError, match='Sizing/Investment'):
             fs.build()
 
@@ -99,7 +99,7 @@ class TestStorageComponentStatus:
             timesteps=ts(3),
             carriers=[Carrier(id='Elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 10]))]),
                 Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
@@ -127,7 +127,7 @@ class TestStorageComponentStatus:
             timesteps=ts(3),
             carriers=[Carrier(id='Elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
                 Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
@@ -168,7 +168,7 @@ class TestStorageComponentStatus:
             timesteps=ts(5),
             carriers=[Carrier(id='Elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -199,7 +199,7 @@ class TestStorageComponentStatus:
             timesteps=ts(4),
             carriers=[Carrier(id='Elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 0, 10]))]
@@ -236,7 +236,7 @@ class TestStorageComponentStatus:
             timesteps=ts(3),
             carriers=[Carrier(id='Elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 0, 5]))]),
                 Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),

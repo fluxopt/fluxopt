@@ -17,7 +17,7 @@ class TestCustomize:
             'timesteps': ts(3),
             'carriers': [Carrier(id='elec')],
             'effects': [Effect(id='cost')],
-            'objective_effects': 'cost',
+            'objective': 'cost',
             'ports': [
                 Port(id='grid', imports=[Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
                 Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
@@ -82,7 +82,7 @@ class TestCustomize:
             simple_system['ports'],
         )
         model = FlowSystemModel(data)
-        model._objective_effects = {'cost': 1.0}
+        model.objective = {'cost': 1.0}
         model.build()
 
         # Add custom variable and constraint
@@ -95,3 +95,104 @@ class TestCustomize:
         assert 'bonus' in result.solution
         for val in result.solution['bonus'].values:
             assert val == pytest.approx(5.0, abs=1e-6)
+
+
+class TestFlowSystemModelApi:
+    """Tests for the FlowSystemModel construction / inspection surface."""
+
+    @pytest.fixture
+    def simple_data(self):
+        """Single-bus system: grid source (size=100) feeding a fixed 50 MW demand."""
+        return ModelData.build(
+            ts(3),
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[
+                Port(id='grid', imports=[Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 1.0})]),
+                Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
+            ],
+        )
+
+    def test_constructor_objective_builds_inspectable_model(self, simple_data):
+        """FlowSystemModel(data, objective=...) + build yields an inspectable, unsolved model."""
+        fs = FlowSystemModel(simple_data, objective='cost')
+        assert fs.objective == {'cost': 1.0}
+        fs.build()
+        assert 'flow--rate' in fs.m.variables
+        result = fs.solve()
+        assert result.objective == pytest.approx(150.0, abs=1e-6)
+
+    def test_solve_before_build_raises(self, simple_data):
+        """Calling solve() on an unbuilt model is a clear error, not a silent no-op."""
+        fs = FlowSystemModel(simple_data, objective='cost')
+        with pytest.raises(RuntimeError, match='not built'):
+            fs.solve()
+
+    def test_objective_required_by_build(self, simple_data):
+        """Objective may be deferred at construction but is required by build/optimize."""
+        fs = FlowSystemModel(simple_data)  # deferred — no objective yet
+        assert fs.objective == {}
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.build()
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.optimize()  # neither stored nor passed
+
+    def test_constructor_validates_objective_eagerly(self, simple_data):
+        """A bad objective passed at construction fails immediately, not at build."""
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            FlowSystemModel(simple_data, objective='penalty')
+
+    def test_objective_cannot_be_cleared(self, simple_data):
+        """The objective property rejects empty assignment — a model must minimize something."""
+        fs = FlowSystemModel(simple_data, objective='cost')
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.objective = {}
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.objective = None  # type: ignore[assignment]
+
+    def test_penalty_only_objective_rejected(self, simple_data):
+        """Penalty is auto-added steering, not a real objective — it can't stand alone."""
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            FlowSystemModel(simple_data, objective='penalty')
+        fs = FlowSystemModel(simple_data, objective='cost')
+        with pytest.raises(ValueError, match='non-penalty effect'):
+            fs.objective = {'penalty': 1.0}
+
+    def test_penalty_opt_out_allowed(self, simple_data):
+        """A real effect plus penalty:0 opts out of penalty steering and is valid."""
+        fs = FlowSystemModel(simple_data, objective={'cost': 1.0, 'penalty': 0.0})
+        result = fs.optimize()
+        assert fs._objective_weights.get('penalty') == 0.0
+        assert result.objective == pytest.approx(150.0, abs=1e-6)
+
+    def test_objective_property_retarget(self, simple_data):
+        """Deferred construction, then set via the property; optimize() reuses it."""
+        fs = FlowSystemModel(simple_data)  # deferred
+        assert fs.objective == {}
+        fs.objective = 'cost'
+        assert fs.objective == {'cost': 1.0}
+        result = fs.optimize()  # no objective arg — uses the property
+        assert result.objective == pytest.approx(150.0, abs=1e-6)
+
+    def test_optimize_arg_overrides_objective(self, simple_data):
+        """An explicit optimize(objective=...) overrides the stored objective."""
+        fs = FlowSystemModel(simple_data, objective='cost')
+        result = fs.optimize({'cost': 2.0})
+        assert fs.objective == {'cost': 2.0}
+        assert result.objective == pytest.approx(300.0, abs=1e-6)
+
+    def test_retarget_after_build_rebuilds_cleanly(self, simple_data):
+        """Set objective after build(), build again — the advertised rebuild flow."""
+        fs = FlowSystemModel(simple_data, objective='cost')
+        fs.build()
+        fs.objective = {'cost': 2.0}
+        fs.build()  # must start from a fresh linopy model, not double-add
+        result = fs.solve()
+        assert result.objective == pytest.approx(300.0, abs=1e-6)
+
+    def test_build_then_optimize_does_not_double_build(self, simple_data):
+        """build() followed by optimize() must not crash on duplicate variables."""
+        fs = FlowSystemModel(simple_data, objective='cost')
+        fs.build()
+        result = fs.optimize()
+        assert result.objective == pytest.approx(150.0, abs=1e-6)
