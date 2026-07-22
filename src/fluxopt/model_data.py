@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import warnings
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, Self
 
@@ -110,9 +110,11 @@ def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
     attrs: dict[str, object] = {}
     for f in fields(obj):
         val = getattr(obj, f.name)
-        if val is None or isinstance(val, dict):
-            continue  # dict fields serialize as DataTree child groups, not variables
+        if val is None or isinstance(val, dict) or is_dataclass(val):
+            continue  # dict and nested-container fields serialize as DataTree child groups
         if isinstance(val, xr.DataArray):
+            if 'contribution' in val.dims:
+                continue  # stacked contribution rows serialize as their own child group
             data_vars[f.name] = val
         else:
             attrs[f.name] = val
@@ -121,48 +123,93 @@ def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
     return ds
 
 
-def _dict_field_names(cls: type) -> list[str]:
-    """Names of a table dataclass's dict-typed (signature-family) fields."""
-    return [f.name for f in fields(cls) if f.default_factory is dict]
+def _prefix_contribution_coords(arr: xr.DataArray) -> xr.Dataset:
+    """Wrap stacked rows as a ``value`` Dataset with contribution coords prefixed.
 
-
-def _from_dataset_with_children[T: DataclassInstance](
-    cls: type[T],
-    ds: xr.Dataset,
-    children: dict[str, dict[str, xr.DataArray]] | None,
-) -> T:
-    """Rebuild a table dataclass from its Dataset node plus DataTree child groups.
-
-    Plain DataArray fields come from *ds* variables; dict-typed fields
-    (signature families) come from *children*, keyed by field name.
+    DataTree coordinate inheritance leaks ancestor indexes into child
+    groups, so the plain ``flow``/``effect`` labeling coords are persisted
+    as ``contribution_*``.
     """
-    children = children or {}
-    dict_names = set(_dict_field_names(cls))
+    prefix = {str(c): f'contribution_{c}' for c in arr.coords if arr[c].dims == ('contribution',)}
+    return xr.Dataset({'value': arr.rename(prefix)})
+
+
+def _strip_contribution_coords(arr: xr.DataArray) -> xr.DataArray:
+    """Undo :func:`_prefix_contribution_coords` on load."""
+    strip = {str(c): str(c).removeprefix('contribution_') for c in arr.coords if str(c).startswith('contribution_')}
+    return arr.rename(strip)
+
+
+def _emit_nodes(base: str, obj: DataclassInstance, nodes: dict[str, xr.Dataset]) -> None:
+    """Emit a table node plus child groups for structured fields.
+
+    Dict fields (signature families) become one child group per signature
+    and stacked-row DataArray fields one child group each, so every group
+    keeps its own ``contribution`` dim; nested containers (sizing, status,
+    ...) recurse into child groups of their own.
+    """
+    nodes[base] = _to_dataset(obj)
+    for f in fields(obj):
+        val = getattr(obj, f.name)
+        if isinstance(val, dict):
+            for signature, arr in val.items():
+                nodes[f'{base}/{f.name}/sig_{signature}'] = _prefix_contribution_coords(arr)
+        elif isinstance(val, xr.DataArray) and 'contribution' in val.dims:
+            nodes[f'{base}/{f.name}'] = _prefix_contribution_coords(val)
+        elif is_dataclass(val) and not isinstance(val, type):
+            _emit_nodes(f'{base}/{f.name}', val, nodes)
+
+
+def _parse_node[T: DataclassInstance](cls: type[T], node: xr.DataTree) -> T:
+    """Rebuild a table dataclass from its DataTree node (inverse of :func:`_emit_nodes`).
+
+    Plain DataArray fields come from the node's variables; dict fields
+    (signature families), stacked-row fields, and nested containers come
+    from child groups.
+    """
+    ds = node.to_dataset()
     kwargs: dict[str, Any] = {}
     for f in fields(cls):
-        kwargs[f.name] = children.get(f.name, {}) if f.name in dict_names else ds.get(f.name)
+        child = node.children.get(f.name)
+        if f.name in _CONTAINER_TYPES:
+            kwargs[f.name] = _parse_node(_CONTAINER_TYPES[f.name], child) if child is not None else None
+        elif f.default_factory is dict:
+            kwargs[f.name] = (
+                {
+                    sig.removeprefix('sig_'): _strip_contribution_coords(c.dataset['value'])
+                    for sig, c in child.children.items()
+                }
+                if child is not None
+                else {}
+            )
+        elif child is not None:  # stacked-row field serialized as its own group
+            kwargs[f.name] = _strip_contribution_coords(child.dataset['value'])
+        else:
+            kwargs[f.name] = ds.get(f.name)
     return cls(**kwargs)
 
 
 @dataclass
-class _SizingArrays:
-    min: xr.DataArray | None = None
-    max: xr.DataArray | None = None
-    mandatory: xr.DataArray | None = None
-    effects_per_size: dict[str, xr.DataArray] = field(default_factory=dict)  # signature -> stacked rows
-    effects_fixed: dict[str, xr.DataArray] = field(default_factory=dict)  # signature -> stacked rows
+class SizingData:
+    """Sizing (capacity optimization) arrays for one entity family."""
+
+    min: xr.DataArray  # (dim,)
+    max: xr.DataArray  # (dim,)
+    mandatory: xr.DataArray  # (dim,)
+    effects_per_size: xr.DataArray | None = None  # (contribution[, period]) stacked rows
+    effects_fixed: xr.DataArray | None = None  # (contribution[, period]) stacked rows
 
     def __post_init__(self) -> None:
-        """Validate min >= 0 and max >= min."""
-        if self.min is not None:
-            mask = self.min < 0
-            if mask.any():
-                raise ValueError(f'Sizing.size_min < 0 on {list(self.min.coords[self.min.dims[0]][mask].values)}')
-        if self.min is not None and self.max is not None:
-            mask = self.max < self.min
-            if mask.any():
-                dim = self.min.dims[0]
-                raise ValueError(f'Sizing.size_max < size_min on {list(self.min.coords[dim][mask].values)}')
+        """Validate min >= 0, max >= min, and stacked pair uniqueness."""
+        mask = self.min < 0
+        if mask.any():
+            raise ValueError(f'Sizing.size_min < 0 on {list(self.min.coords[self.min.dims[0]][mask].values)}')
+        mask = self.max < self.min
+        if mask.any():
+            dim = self.min.dims[0]
+            raise ValueError(f'Sizing.size_max < size_min on {list(self.min.coords[dim][mask].values)}')
+        for family in ('effects_per_size', 'effects_fixed'):
+            _validate_stacked_pairs(family, getattr(self, family))
 
     @classmethod
     def build(
@@ -172,7 +219,7 @@ class _SizingArrays:
         dim: str,
         entity_label: str = 'flow',
         period: pd.Index | None = None,
-    ) -> Self:
+    ) -> Self | None:
         """Validate Sizing objects and collect into DataArrays.
 
         Args:
@@ -183,7 +230,7 @@ class _SizingArrays:
             period: Period index for period-varying effects.
         """
         if not items:
-            return cls()
+            return None
 
         effect_set = set(effect_ids)
         envelope_coords: dict[str, Any] = {'period': period} if period is not None else {}
@@ -222,16 +269,28 @@ class _SizingArrays:
 
 
 @dataclass
-class _InvestmentArrays:
-    min: xr.DataArray | None = None  # (invest_dim,)
-    max: xr.DataArray | None = None  # (invest_dim,)
-    mandatory: xr.DataArray | None = None  # (invest_dim,)
-    lifetime: xr.DataArray | None = None  # (invest_dim,) — NaN = forever
-    prior_size: xr.DataArray | None = None  # (invest_dim,)
-    effects_per_size_at_build: dict[str, xr.DataArray] = field(default_factory=dict)  # once
-    effects_fixed_at_build: dict[str, xr.DataArray] = field(default_factory=dict)  # once
-    effects_per_size_recurring: dict[str, xr.DataArray] = field(default_factory=dict)
-    effects_fixed_recurring: dict[str, xr.DataArray] = field(default_factory=dict)
+class InvestmentData:
+    """Investment (build-timing optimization) arrays for one entity family."""
+
+    min: xr.DataArray  # (invest_dim,)
+    max: xr.DataArray  # (invest_dim,)
+    mandatory: xr.DataArray  # (invest_dim,)
+    lifetime: xr.DataArray  # (invest_dim,) — NaN = forever
+    prior_size: xr.DataArray  # (invest_dim,)
+    effects_per_size_at_build: xr.DataArray | None = None  # (contribution[, period]) — once
+    effects_fixed_at_build: xr.DataArray | None = None  # (contribution[, period]) — once
+    effects_per_size_recurring: xr.DataArray | None = None  # (contribution[, period])
+    effects_fixed_recurring: xr.DataArray | None = None  # (contribution[, period])
+
+    def __post_init__(self) -> None:
+        """Validate stacked pair uniqueness."""
+        for family in (
+            'effects_per_size_at_build',
+            'effects_fixed_at_build',
+            'effects_per_size_recurring',
+            'effects_fixed_recurring',
+        ):
+            _validate_stacked_pairs(family, getattr(self, family))
 
     @classmethod
     def build(
@@ -241,7 +300,7 @@ class _InvestmentArrays:
         dim: str,
         entity_label: str = 'flow',
         period: pd.Index | None = None,
-    ) -> Self:
+    ) -> Self | None:
         """Validate Investment objects and collect into DataArrays.
 
         Args:
@@ -252,7 +311,7 @@ class _InvestmentArrays:
             period: Period index for period-varying effects.
         """
         if not items:
-            return cls()
+            return None
 
         effect_set = set(effect_ids)
         envelope_coords: dict[str, Any] = {'period': period} if period is not None else {}
@@ -279,7 +338,7 @@ class _InvestmentArrays:
             lifetimes.append(float(inv.lifetime) if inv.lifetime is not None else np.nan)
             prior_sizes.append(inv.prior_size)
 
-        def stack(what: str, dicts: list[tuple[str, dict[str, Variate]]]) -> dict[str, xr.DataArray]:
+        def stack(what: str, dicts: list[tuple[str, dict[str, Variate]]]) -> xr.DataArray | None:
             return _stack_element_effects(dicts, effect_set, envelope_coords, entity_label=entity_label, what=what)
 
         coords = {dim: ids}
@@ -305,43 +364,41 @@ class _InvestmentArrays:
 
 
 @dataclass
-class _StatusArrays:
-    uptime_min: xr.DataArray | None = None  # (dim,)
-    uptime_max: xr.DataArray | None = None  # (dim,)
-    downtime_min: xr.DataArray | None = None  # (dim,)
-    downtime_max: xr.DataArray | None = None  # (dim,)
-    initial: xr.DataArray | None = None  # (dim,) — NaN = free
-    effects_running: dict[str, xr.DataArray] = field(default_factory=dict)  # signature -> stacked rows
-    effects_startup: dict[str, xr.DataArray] = field(default_factory=dict)  # signature -> stacked rows
+class StatusData:
+    """Binary on/off behavior arrays for one entity family (flow or component)."""
+
+    uptime_min: xr.DataArray  # (dim,)
+    uptime_max: xr.DataArray  # (dim,)
+    downtime_min: xr.DataArray  # (dim,)
+    downtime_max: xr.DataArray  # (dim,)
+    initial: xr.DataArray  # (dim,) — NaN = free
+    effects_running: xr.DataArray | None = None  # (contribution, time[, period]) stacked rows
+    effects_startup: xr.DataArray | None = None  # (contribution, time[, period]) stacked rows
     previous_uptime: xr.DataArray | None = None  # (dim,) — hours, NaN = no prior
     previous_downtime: xr.DataArray | None = None  # (dim,) — hours, NaN = no prior
     governed_flows: xr.DataArray | None = None  # (dim, governed_idx) — only for component status
 
     def __post_init__(self) -> None:
-        """Validate durations >= 0 and max >= min where both given."""
+        """Validate durations >= 0, max >= min where both given, and pair uniqueness."""
         for name in ('uptime_min', 'uptime_max', 'downtime_min', 'downtime_max'):
-            arr: xr.DataArray | None = getattr(self, name)
-            if arr is not None:
-                mask = (~np.isnan(arr)) & (arr < 0)
-                if mask.any():
-                    dim = arr.dims[0]
-                    raise ValueError(f'Status.{name} < 0 on {list(arr.coords[dim][mask].values)}')
+            arr: xr.DataArray = getattr(self, name)
+            mask = (~np.isnan(arr)) & (arr < 0)
+            if mask.any():
+                dim = arr.dims[0]
+                raise ValueError(f'Status.{name} < 0 on {list(arr.coords[dim][mask].values)}')
 
-        if self.uptime_min is not None and self.uptime_max is not None:
-            both = ~np.isnan(self.uptime_min) & ~np.isnan(self.uptime_max)
-            bad = both & (self.uptime_max < self.uptime_min)
+        for lo, hi, what in (
+            (self.uptime_min, self.uptime_max, 'uptime'),
+            (self.downtime_min, self.downtime_max, 'downtime'),
+        ):
+            both = ~np.isnan(lo) & ~np.isnan(hi)
+            bad = both & (hi < lo)
             if bad.any():
-                dim = self.uptime_min.dims[0]
-                raise ValueError(f'Status.uptime_max < uptime_min on {list(self.uptime_min.coords[dim][bad].values)}')
+                dim = lo.dims[0]
+                raise ValueError(f'Status.{what}_max < {what}_min on {list(lo.coords[dim][bad].values)}')
 
-        if self.downtime_min is not None and self.downtime_max is not None:
-            both = ~np.isnan(self.downtime_min) & ~np.isnan(self.downtime_max)
-            bad = both & (self.downtime_max < self.downtime_min)
-            if bad.any():
-                dim = self.downtime_min.dims[0]
-                raise ValueError(
-                    f'Status.downtime_max < downtime_min on {list(self.downtime_min.coords[dim][bad].values)}'
-                )
+        for family in ('effects_running', 'effects_startup'):
+            _validate_stacked_pairs(family, getattr(self, family))
 
     @classmethod
     def build(
@@ -355,7 +412,7 @@ class _StatusArrays:
         dt: float = 1.0,
         period: pd.Index | None = None,
         governed_flows_map: dict[str, list[str]] | None = None,
-    ) -> Self:
+    ) -> Self | None:
         """Validate Status objects and collect into DataArrays.
 
         Args:
@@ -375,7 +432,7 @@ class _StatusArrays:
         from fluxopt.constraints.status import compute_previous_duration
 
         if not items:
-            return cls()
+            return None
 
         prior_rates_map = prior_rates_map or {}
         effect_set = set(effect_ids)
@@ -461,6 +518,16 @@ class _StatusArrays:
         )
 
 
+# Nested-container field name -> class, for DataTree parsing (field names are
+# unique across all table dataclasses).
+_CONTAINER_TYPES: dict[str, type] = {
+    'sizing': SizingData,
+    'invest': InvestmentData,
+    'status': StatusData,
+    'cstatus': StatusData,
+}
+
+
 @dataclass
 class FlowsData:
     bound_type: xr.DataArray  # (flow,) — 'unsized' | 'bounded' | 'profile'
@@ -476,39 +543,10 @@ class FlowsData:
     load_factor_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     ramp_up: xr.DataArray | None = None  # (flow, time[, period]) — NaN = no limit [1/h]
     ramp_down: xr.DataArray | None = None  # (flow, time[, period]) — NaN = no limit [1/h]
-    sizing_min: xr.DataArray | None = None  # (sizing_flow,)
-    sizing_max: xr.DataArray | None = None  # (sizing_flow,)
-    sizing_mandatory: xr.DataArray | None = None  # (sizing_flow,)
-    sizing_effects_per_size: dict[str, xr.DataArray] = field(default_factory=dict)  # entity coord 'flow'
-    sizing_effects_fixed: dict[str, xr.DataArray] = field(default_factory=dict)  # entity coord 'flow'
-    status_uptime_min: xr.DataArray | None = None  # (status_flow,)
-    status_uptime_max: xr.DataArray | None = None  # (status_flow,)
-    status_downtime_min: xr.DataArray | None = None  # (status_flow,)
-    status_downtime_max: xr.DataArray | None = None  # (status_flow,)
-    status_initial: xr.DataArray | None = None  # (status_flow,)
-    status_effects_running: dict[str, xr.DataArray] = field(default_factory=dict)  # entity coord 'flow'
-    status_effects_startup: dict[str, xr.DataArray] = field(default_factory=dict)  # entity coord 'flow'
-    status_previous_uptime: xr.DataArray | None = None  # (status_flow,)
-    status_previous_downtime: xr.DataArray | None = None  # (status_flow,)
-    invest_min: xr.DataArray | None = None  # (invest_flow,)
-    invest_max: xr.DataArray | None = None  # (invest_flow,)
-    invest_mandatory: xr.DataArray | None = None  # (invest_flow,)
-    invest_lifetime: xr.DataArray | None = None  # (invest_flow,) — NaN = forever
-    invest_prior_size: xr.DataArray | None = None  # (invest_flow,)
-    invest_effects_per_size_at_build: dict[str, xr.DataArray] = field(default_factory=dict)  # once, coord 'flow'
-    invest_effects_fixed_at_build: dict[str, xr.DataArray] = field(default_factory=dict)  # once, coord 'flow'
-    invest_effects_per_size_recurring: dict[str, xr.DataArray] = field(default_factory=dict)  # coord 'flow'
-    invest_effects_fixed_recurring: dict[str, xr.DataArray] = field(default_factory=dict)  # coord 'flow'
-    cstatus_uptime_min: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_uptime_max: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_downtime_min: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_downtime_max: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_initial: xr.DataArray | None = None  # (cstatus_component,) — NaN = free
-    cstatus_effects_running: dict[str, xr.DataArray] = field(default_factory=dict)  # entity coord 'component'
-    cstatus_effects_startup: dict[str, xr.DataArray] = field(default_factory=dict)  # entity coord 'component'
-    cstatus_previous_uptime: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_previous_downtime: xr.DataArray | None = None  # (cstatus_component,)
-    cstatus_governed_flows: xr.DataArray | None = None  # (cstatus_component, governed_idx) — qualified flow ids
+    sizing: SizingData | None = None  # dim 'sizing_flow', entity coord 'flow'
+    status: StatusData | None = None  # dim 'status_flow', entity coord 'flow'
+    invest: InvestmentData | None = None  # dim 'invest_flow', entity coord 'flow'
+    cstatus: StatusData | None = None  # dim 'cstatus_component', entity coord 'component'
 
     def __post_init__(self) -> None:
         """Validate relative bounds (non-negative, lb <= ub) and contribution pair uniqueness."""
@@ -521,35 +559,7 @@ class FlowsData:
             raise ValueError(
                 f'Lower bound > upper bound on flows: {list(self.rel_lb.coords["flow"][bad_order].values)}'
             )
-        for family, entity_label in (
-            ('effect_coeff', 'flow'),
-            ('sizing_effects_per_size', 'flow'),
-            ('sizing_effects_fixed', 'flow'),
-            ('status_effects_running', 'flow'),
-            ('status_effects_startup', 'flow'),
-            ('invest_effects_per_size_at_build', 'flow'),
-            ('invest_effects_fixed_at_build', 'flow'),
-            ('invest_effects_per_size_recurring', 'flow'),
-            ('invest_effects_fixed_recurring', 'flow'),
-            ('cstatus_effects_running', 'component'),
-            ('cstatus_effects_startup', 'component'),
-        ):
-            _validate_stacked_pairs(family, getattr(self, family), entity_label)
-
-    def to_dataset(self) -> xr.Dataset:
-        """Serialize to xr.Dataset."""
-        return _to_dataset(self)
-
-    @classmethod
-    def from_dataset(cls, ds: xr.Dataset, children: dict[str, dict[str, xr.DataArray]] | None = None) -> Self:
-        """Deserialize from xr.Dataset plus DataTree child groups.
-
-        Args:
-            ds: Dataset with matching variable names.
-            children: Signature-grouped families parsed from the DataTree
-                child groups, keyed by field name (see ``ModelData.from_netcdf``).
-        """
-        return _from_dataset_with_children(cls, ds, children)
+        _validate_stacked_pairs('effect_coeff', self.effect_coeff)
 
     @classmethod
     def build(
@@ -670,21 +680,6 @@ class FlowsData:
 
         flow_idx = pd.Index(flow_ids, name='flow')
         effect_coeff = _stack_contributions(contrib_flows, contrib_effects, contrib_vals, envelope_coords)
-        sz = _SizingArrays.build(sizing_items, effect_ids, dim='sizing_flow', entity_label='flow', period=period)
-        inv = _InvestmentArrays.build(invest_items, effect_ids, dim='invest_flow', entity_label='flow', period=period)
-        st = _StatusArrays.build(
-            status_items, effect_ids, time, dim='status_flow', prior_rates_map=prior_rates_map, dt=dt, period=period
-        )
-
-        cst = _StatusArrays.build(
-            [(cid, s) for cid, s, _ in (component_status_items or [])],
-            effect_ids,
-            time,
-            dim='cstatus_component',
-            entity_label='component',
-            period=period,
-            governed_flows_map={cid: gov for cid, _, gov in (component_status_items or [])} or None,
-        )
 
         return cls(
             bound_type=xr.DataArray(bound_type, dims=['flow'], coords={'flow': flow_ids}),
@@ -699,39 +694,22 @@ class FlowsData:
             load_factor_max=_flow_bound_or_none(lf_max_vals, flow_ids),
             ramp_up=fast_concat(ramp_ups, flow_idx) if has_ramp_up else None,
             ramp_down=fast_concat(ramp_downs, flow_idx) if has_ramp_down else None,
-            sizing_min=sz.min,
-            sizing_max=sz.max,
-            sizing_mandatory=sz.mandatory,
-            sizing_effects_per_size=sz.effects_per_size,
-            sizing_effects_fixed=sz.effects_fixed,
-            status_uptime_min=st.uptime_min,
-            status_uptime_max=st.uptime_max,
-            status_downtime_min=st.downtime_min,
-            status_downtime_max=st.downtime_max,
-            status_initial=st.initial,
-            status_effects_running=st.effects_running,
-            status_effects_startup=st.effects_startup,
-            status_previous_uptime=st.previous_uptime,
-            status_previous_downtime=st.previous_downtime,
-            invest_min=inv.min,
-            invest_max=inv.max,
-            invest_mandatory=inv.mandatory,
-            invest_lifetime=inv.lifetime,
-            invest_prior_size=inv.prior_size,
-            invest_effects_per_size_at_build=inv.effects_per_size_at_build,
-            invest_effects_fixed_at_build=inv.effects_fixed_at_build,
-            invest_effects_per_size_recurring=inv.effects_per_size_recurring,
-            invest_effects_fixed_recurring=inv.effects_fixed_recurring,
-            cstatus_uptime_min=cst.uptime_min,
-            cstatus_uptime_max=cst.uptime_max,
-            cstatus_downtime_min=cst.downtime_min,
-            cstatus_downtime_max=cst.downtime_max,
-            cstatus_initial=cst.initial,
-            cstatus_effects_running=cst.effects_running,
-            cstatus_effects_startup=cst.effects_startup,
-            cstatus_previous_uptime=cst.previous_uptime,
-            cstatus_previous_downtime=cst.previous_downtime,
-            cstatus_governed_flows=cst.governed_flows,
+            sizing=SizingData.build(sizing_items, effect_ids, dim='sizing_flow', entity_label='flow', period=period),
+            status=StatusData.build(
+                status_items, effect_ids, time, dim='status_flow', prior_rates_map=prior_rates_map, dt=dt, period=period
+            ),
+            invest=InvestmentData.build(
+                invest_items, effect_ids, dim='invest_flow', entity_label='flow', period=period
+            ),
+            cstatus=StatusData.build(
+                [(cid, s) for cid, s, _ in (component_status_items or [])],
+                effect_ids,
+                time,
+                dim='cstatus_component',
+                entity_label='component',
+                period=period,
+                governed_flows_map={cid: gov for cid, _, gov in (component_status_items or [])} or None,
+            ),
         )
 
 
@@ -808,17 +786,28 @@ def _stack_element_effects(
     *,
     entity_label: str,
     what: str,
-) -> dict[str, xr.DataArray]:
-    """Collect per-element effect dicts into a signature-grouped family.
+) -> xr.DataArray | None:
+    """Collect per-element effect dicts into one stacked contribution array.
+
+    One row per (entity, effect) pair with a coefficient, broadcast to the
+    family's full envelope: ``(contribution, *envelope_coords)``. Rows are
+    labeled by the non-dim coords *entity_label* / ``effect`` on the bare
+    ``contribution`` dim. Unlike ``effect_coeff`` (see
+    :func:`_stack_contributions`), these families are small — per-element
+    scalars or short envelopes — so one dense-envelope array beats
+    signature bookkeeping.
 
     Args:
         items: Pairs of (element id, ``{effect: factor}``).
         effect_set: Known effect ids for validation.
         envelope_coords: Operational coords the factors may span.
-        entity_label: Coord name for entity labels (see
-            :func:`_stack_contributions`).
+        entity_label: Coord name for the entity labels — matches the dim of
+            the solver variable the family multiplies.
         what: Parameter name for error messages
             (e.g. ``'Status.effects_per_startup'``).
+
+    Returns:
+        Stacked coefficients, or None when no element carries any.
     """
     entities: list[str] = []
     effects: list[str] = []
@@ -829,50 +818,74 @@ def _stack_element_effects(
                 raise ValueError(f'Unknown effect {ek!r} in {what} on {item_id!r}')
             entities.append(item_id)
             effects.append(ek)
-            values.append(as_dataarray(ev, envelope_coords, broadcast=False))
-    return _stack_contributions(entities, effects, values, envelope_coords, entity_label=entity_label)
+            values.append(as_dataarray(ev, envelope_coords))
+    if not entities:
+        return None
+    return xr.DataArray(
+        np.stack([v.values for v in values]),
+        dims=['contribution', *envelope_coords],
+        coords={
+            **envelope_coords,
+            entity_label: ('contribution', entities),
+            'effect': ('contribution', effects),
+        },
+    )
+
+
+type EffectFamily = dict[str, xr.DataArray] | xr.DataArray | None
+"""Stacked effect-coefficient rows for one channel: a signature-grouped dict
+(``effect_coeff``) or a single stacked array (all other families); None or an
+empty dict means the channel has no rows."""
+
+
+def _family_arrays(coeffs: EffectFamily) -> list[xr.DataArray]:
+    """Normalize an effect family to a list of stacked arrays (empty = no rows)."""
+    if coeffs is None:
+        return []
+    if isinstance(coeffs, dict):
+        return list(coeffs.values())
+    return [coeffs]
 
 
 def _split_rows(
-    coeffs: dict[str, xr.DataArray],
+    coeff: xr.DataArray,
     entity_dim: str,
     is_mandatory: dict[str, bool],
-) -> tuple[dict[str, xr.DataArray], dict[str, xr.DataArray]]:
-    """Partition signature-grouped rows by a per-entity boolean.
+) -> tuple[xr.DataArray | None, xr.DataArray | None]:
+    """Partition stacked rows by a per-entity boolean.
 
     Args:
-        coeffs: Signature-grouped stacked coefficients.
+        coeff: Stacked coefficients ``(contribution, ...)``.
         entity_dim: Entity label coord on the contribution dim.
         is_mandatory: Entity id -> True when the entity is mandatory.
 
     Returns:
-        ``(optional_rows, mandatory_rows)`` with empty signatures dropped.
+        ``(optional_rows, mandatory_rows)``; None where a side has no rows.
     """
-    optional: dict[str, xr.DataArray] = {}
-    mandatory: dict[str, xr.DataArray] = {}
-    for sig, arr in coeffs.items():
-        mask = np.array([bool(is_mandatory[str(e)]) for e in arr.coords[entity_dim].values])
-        if (~mask).any():
-            optional[sig] = arr.isel(contribution=np.nonzero(~mask)[0])
-        if mask.any():
-            mandatory[sig] = arr.isel(contribution=np.nonzero(mask)[0])
+    mask = np.array([bool(is_mandatory[str(e)]) for e in coeff.coords[entity_dim].values])
+    optional = coeff.isel(contribution=np.nonzero(~mask)[0]) if (~mask).any() else None
+    mandatory = coeff.isel(contribution=np.nonzero(mask)[0]) if mask.any() else None
     return optional, mandatory
 
 
-def _validate_stacked_pairs(family: str, coeffs: dict[str, xr.DataArray], entity_label: str) -> None:
-    """Raise when an (entity, effect) pair appears twice across a family's signatures.
+def _entity_label(arr: xr.DataArray) -> str:
+    """Name of the entity coord on a stacked array's contribution dim."""
+    return next(str(c) for c in arr.coords if arr[c].dims == ('contribution',) and str(c) != 'effect')
+
+
+def _validate_stacked_pairs(family: str, coeffs: EffectFamily) -> None:
+    """Raise when an (entity, effect) pair appears twice within a family.
 
     Args:
         family: Field name for the error message.
-        coeffs: Signature-grouped stacked coefficients.
-        entity_label: Entity coord name on the contribution dim.
+        coeffs: Stacked coefficients (dict of signatures or single array).
     """
     pairs: list[tuple[str, str]] = []
-    for arr in coeffs.values():
-        pairs += list(zip(arr.coords[entity_label].values, arr.coords['effect'].values, strict=True))
+    for arr in _family_arrays(coeffs):
+        pairs += list(zip(arr.coords[_entity_label(arr)].values, arr.coords['effect'].values, strict=True))
     if len(pairs) != len(set(pairs)):
         dupes = sorted({p for p in pairs if pairs.count(p) > 1})
-        raise ValueError(f'Duplicate ({entity_label}, effect) contribution pairs in {family}: {dupes}')
+        raise ValueError(f'Duplicate (entity, effect) contribution pairs in {family}: {dupes}')
 
 
 def _flow_bound_or_none(vals: np.ndarray, flow_ids: list[str]) -> xr.DataArray | None:
@@ -1385,32 +1398,11 @@ class StoragesData:
     final_level_min: xr.DataArray | None = None  # (storage,) — NaN = unbounded [MWh]
     final_level_max: xr.DataArray | None = None  # (storage,) — NaN = unbounded [MWh]
     prevent_simultaneous: xr.DataArray | None = None  # (storage,) — bool
-    sizing_min: xr.DataArray | None = None  # (sizing_storage,)
-    sizing_max: xr.DataArray | None = None  # (sizing_storage,)
-    sizing_mandatory: xr.DataArray | None = None  # (sizing_storage,)
-    sizing_effects_per_size: dict[str, xr.DataArray] = field(default_factory=dict)  # entity coord 'storage'
-    sizing_effects_fixed: dict[str, xr.DataArray] = field(default_factory=dict)  # entity coord 'storage'
-    invest_min: xr.DataArray | None = None  # (invest_storage,)
-    invest_max: xr.DataArray | None = None  # (invest_storage,)
-    invest_mandatory: xr.DataArray | None = None  # (invest_storage,)
-    invest_lifetime: xr.DataArray | None = None  # (invest_storage,) — NaN = forever
-    invest_prior_size: xr.DataArray | None = None  # (invest_storage,)
-    invest_effects_per_size_at_build: dict[str, xr.DataArray] = field(default_factory=dict)  # once, 'storage'
-    invest_effects_fixed_at_build: dict[str, xr.DataArray] = field(default_factory=dict)  # once, 'storage'
-    invest_effects_per_size_recurring: dict[str, xr.DataArray] = field(default_factory=dict)  # 'storage'
-    invest_effects_fixed_recurring: dict[str, xr.DataArray] = field(default_factory=dict)  # 'storage'
+    sizing: SizingData | None = None  # dim 'sizing_storage', entity coord 'storage'
+    invest: InvestmentData | None = None  # dim 'invest_storage', entity coord 'storage'
 
     def __post_init__(self) -> None:
-        """Validate capacity, efficiencies, loss rates, and stacked pair uniqueness."""
-        for family in (
-            'sizing_effects_per_size',
-            'sizing_effects_fixed',
-            'invest_effects_per_size_at_build',
-            'invest_effects_fixed_at_build',
-            'invest_effects_per_size_recurring',
-            'invest_effects_fixed_recurring',
-        ):
-            _validate_stacked_pairs(family, getattr(self, family), 'storage')
+        """Validate capacity, efficiencies, and loss rates."""
         s = self.capacity.coords['storage']
         cap = self.capacity
         bad_cap = ~np.isnan(cap) & (cap < 0)
@@ -1425,21 +1417,6 @@ class StoragesData:
         bad_loss = ((self.loss < 0) | (self.loss > 1)).any('time')
         if bad_loss.any():
             raise ValueError(f'relative_loss_per_hour must be in [0, 1] on storages: {list(s[bad_loss].values)}')
-
-    def to_dataset(self) -> xr.Dataset:
-        """Serialize to xr.Dataset."""
-        return _to_dataset(self)
-
-    @classmethod
-    def from_dataset(cls, ds: xr.Dataset, children: dict[str, dict[str, xr.DataArray]] | None = None) -> Self:
-        """Deserialize from xr.Dataset plus DataTree child groups.
-
-        Args:
-            ds: Dataset with matching variable names.
-            children: Signature-grouped families parsed from the DataTree
-                child groups, keyed by field name.
-        """
-        return _from_dataset_with_children(cls, ds, children)
 
     @classmethod
     def build(
@@ -1512,10 +1489,6 @@ class StoragesData:
             discharge_flow.append(s.discharging.id)
 
         stor_idx = pd.Index(stor_ids, name='storage')
-        sz = _SizingArrays.build(sizing_items, effect_ids, dim='sizing_storage', entity_label='storage', period=period)
-        inv = _InvestmentArrays.build(
-            invest_items, effect_ids, dim='invest_storage', entity_label='storage', period=period
-        )
 
         return cls(
             capacity=xr.DataArray(capacity_vals, dims=['storage'], coords={'storage': stor_ids}),
@@ -1543,20 +1516,12 @@ class StoragesData:
                 if prevent_vals.any()
                 else None
             ),
-            sizing_min=sz.min,
-            sizing_max=sz.max,
-            sizing_mandatory=sz.mandatory,
-            sizing_effects_per_size=sz.effects_per_size,
-            sizing_effects_fixed=sz.effects_fixed,
-            invest_min=inv.min,
-            invest_max=inv.max,
-            invest_mandatory=inv.mandatory,
-            invest_lifetime=inv.lifetime,
-            invest_prior_size=inv.prior_size,
-            invest_effects_per_size_at_build=inv.effects_per_size_at_build,
-            invest_effects_fixed_at_build=inv.effects_fixed_at_build,
-            invest_effects_per_size_recurring=inv.effects_per_size_recurring,
-            invest_effects_fixed_recurring=inv.effects_fixed_recurring,
+            sizing=SizingData.build(
+                sizing_items, effect_ids, dim='sizing_storage', entity_label='storage', period=period
+            ),
+            invest=InvestmentData.build(
+                invest_items, effect_ids, dim='invest_storage', entity_label='storage', period=period
+            ),
         )
 
 
@@ -1711,9 +1676,10 @@ class ModelData:
     def datatree_nodes(self) -> dict[str, xr.Dataset]:
         """Group-path -> Dataset mapping for the persistence tree.
 
-        One node per table under ``model/``. Dict fields (signature-grouped
-        coefficients) become child groups so each signature keeps its own
-        ``contribution`` dim — node-scoped dims never collide.
+        One node per table under ``model/``; nested containers (sizing,
+        status, ...) and dict fields (signature-grouped coefficients) become
+        child groups so each keeps its own dims — node-scoped dims never
+        collide (see :func:`_emit_nodes`).
         """
         nodes: dict[str, xr.Dataset] = {}
         tables: dict[
@@ -1727,17 +1693,10 @@ class ModelData:
             'storages': self.storages,
             'piecewise': self.piecewise,
         }
-        # Persisted names are prefixed: DataTree coordinate inheritance leaks
-        # ancestor indexes into child groups, so a plain 'flow' coord or a
-        # group named 'time' would collide with the model's own dims.
         for name, obj in tables.items():
             if obj is None:
                 continue
-            nodes[_NC_GROUPS[name]] = obj.to_dataset()
-            for fname in _dict_field_names(type(obj)):
-                for signature, arr in getattr(obj, fname).items():
-                    prefix = {str(c): f'contribution_{c}' for c in arr.coords if arr[c].dims == ('contribution',)}
-                    nodes[f'{_NC_GROUPS[name]}/{fname}/sig_{signature}'] = xr.Dataset({'value': arr.rename(prefix)})
+            _emit_nodes(_NC_GROUPS[name], obj, nodes)
         nodes['model/meta'] = self.dims.to_dataset()
         return nodes
 
@@ -1776,49 +1735,27 @@ class ModelData:
             raise OSError(f'No model data groups found in {p}')
         meta = tree['model/meta'].to_dataset()
 
-        def table(name: str) -> xr.Dataset:
+        def node(name: str) -> xr.DataTree | None:
             group = _NC_GROUPS[name]
-            return tree[group].to_dataset() if f'/{group}' in groups else xr.Dataset()
+            return tree[group] if f'/{group}' in groups else None  # pyrefly: ignore[bad-return]
 
-        def children_of(name: str) -> dict[str, dict[str, xr.DataArray]]:
-            """Parse signature-family child groups back to runtime dicts (strip prefixes)."""
-            group = _NC_GROUPS[name]
-            if f'/{group}' not in groups:
-                return {}
-            out: dict[str, dict[str, xr.DataArray]] = {}
-            for fname, fnode in tree[group].children.items():
-                family: dict[str, xr.DataArray] = {}
-                for sig_name, child in fnode.children.items():
-                    arr = child.dataset['value']
-                    strip = {
-                        str(c): str(c).removeprefix('contribution_')
-                        for c in arr.coords
-                        if str(c).startswith('contribution_')
-                    }
-                    family[sig_name.removeprefix('sig_')] = arr.rename(strip)
-                out[fname] = family
-            return out
-
-        flows = FlowsData.from_dataset(table('flows'), children=children_of('flows'))
-        carriers = CarriersData.from_dataset(table('carriers'))
-        converters_ds = table('converters')
-        converters = ConvertersData.from_dataset(converters_ds) if converters_ds.data_vars else None
-        effects = EffectsData.from_dataset(table('effects'))
-        storages_ds = table('storages')
-        storages = (
-            StoragesData.from_dataset(storages_ds, children=children_of('storages')) if storages_ds.data_vars else None
-        )
-        piecewise_ds = table('piecewise')
-        piecewise = PiecewiseData.from_dataset(piecewise_ds) if piecewise_ds.data_vars else None
+        flows_node = node('flows')
+        carriers_node = node('carriers')
+        if flows_node is None or carriers_node is None:
+            raise OSError(f'No model data groups found in {p}')
+        converters_node = node('converters')
+        effects_node = node('effects')
+        storages_node = node('storages')
+        piecewise_node = node('piecewise')
 
         return cls(
-            flows=flows,
-            carriers=carriers,
-            converters=converters,
-            effects=effects,
-            storages=storages,
+            flows=_parse_node(FlowsData, flows_node),
+            carriers=CarriersData.from_dataset(carriers_node.to_dataset()),
+            converters=ConvertersData.from_dataset(converters_node.to_dataset()) if converters_node else None,
+            effects=EffectsData.from_dataset(effects_node.to_dataset() if effects_node else xr.Dataset()),
+            storages=_parse_node(StoragesData, storages_node) if storages_node else None,
             dims=Dims.from_dataset(meta),
-            piecewise=piecewise,
+            piecewise=PiecewiseData.from_dataset(piecewise_node.to_dataset()) if piecewise_node else None,
         )
 
     @classmethod
