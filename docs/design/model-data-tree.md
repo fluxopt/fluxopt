@@ -243,6 +243,19 @@ and only those.
   accessor, not a stored/serialized artifact. Results files stop carrying
   dense zeros.
 
+### 2.7 Outcome amendment — plain netCDF groups, not DataTree
+
+The tree *layout* (§2.1) shipped as designed, but the IO *mechanism* is
+plain netCDF groups: written per group (`ds.to_netcdf(group=...)`), read
+through one open `netCDF4` handle. `xr.DataTree` was tried first and
+dropped — its coordinate inheritance leaks ancestor indexes into every
+group on read, forcing an empty root and `contribution_*` coord-prefix
+mangling. Single-group reads have no inheritance, so every group is
+self-contained with runtime coord names, readable standalone by any
+netCDF consumer. Measured at 536 MiB (2000 flows x 8760 h, all
+time-varying): read 162 ms vs 243 ms via `open_datatree`, write 317 vs
+215 ms (fixed per-group open cost), peak memory and file size identical.
+
 ## 3. Migration plan
 
 - **Phase 0** — done: #220 (stacked `effect_coeff`, single array).
