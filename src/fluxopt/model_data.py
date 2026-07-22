@@ -100,6 +100,27 @@ def _raise_netcdf_read_error(path: Path, exc: OSError) -> NoReturn:
     raise exc
 
 
+def _list_groups(nc: Any) -> set[str]:
+    """Full paths of all (nested) groups in an open ``netCDF4.Dataset``."""
+    out: set[str] = set()
+
+    def walk(group: Any, prefix: str) -> None:
+        for name, child in group.groups.items():
+            path = f'{prefix}/{name}'
+            out.add(path)
+            walk(child, path)
+
+    walk(nc, '')
+    return out
+
+
+def _load_group(nc: Any, path: str) -> xr.Dataset:
+    """Load one group as a Dataset through an already-open ``netCDF4.Dataset``."""
+    from xarray.backends import NetCDF4DataStore
+
+    return xr.open_dataset(NetCDF4DataStore(nc[path])).load()
+
+
 def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
     """Convert a data dataclass to an xr.Dataset.
 
@@ -111,7 +132,7 @@ def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
     for f in fields(obj):
         val = getattr(obj, f.name)
         if val is None or isinstance(val, dict):
-            continue  # dict fields serialize as DataTree child groups, not variables
+            continue  # dict fields serialize as netCDF child groups, not variables
         if isinstance(val, xr.DataArray):
             data_vars[f.name] = val
         else:
@@ -131,7 +152,7 @@ def _from_dataset_with_children[T: DataclassInstance](
     ds: xr.Dataset,
     children: dict[str, dict[str, xr.DataArray]] | None,
 ) -> T:
-    """Rebuild a table dataclass from its Dataset node plus DataTree child groups.
+    """Rebuild a table dataclass from its Dataset node plus netCDF child groups.
 
     Plain DataArray fields come from *ds* variables; dict-typed fields
     (signature families) come from *children*, keyed by field name.
@@ -542,11 +563,11 @@ class FlowsData:
 
     @classmethod
     def from_dataset(cls, ds: xr.Dataset, children: dict[str, dict[str, xr.DataArray]] | None = None) -> Self:
-        """Deserialize from xr.Dataset plus DataTree child groups.
+        """Deserialize from xr.Dataset plus netCDF child groups.
 
         Args:
             ds: Dataset with matching variable names.
-            children: Signature-grouped families parsed from the DataTree
+            children: Signature-grouped families parsed from the netCDF
                 child groups, keyed by field name (see ``ModelData.from_netcdf``).
         """
         return _from_dataset_with_children(cls, ds, children)
@@ -762,10 +783,9 @@ def _stack_contributions(
     Within each group, ``contribution`` is a bare positional dim (no index
     coord, so it can never participate in alignment); each row's pair is
     labeled by the non-dim coords *entity_label* / ``effect``. Signature
-    arrays never merge into one Dataset, so at runtime the plain coord
-    names cannot collide with the real dims. (On disk they are prefixed
-    ``contribution_*`` — DataTree coordinate inheritance leaks ancestor
-    indexes into child groups; see ``ModelData.datatree_nodes``.)
+    arrays never merge into one Dataset — neither at runtime nor on disk
+    (each is its own self-contained netCDF group) — so the plain coord
+    names cannot collide with the real dims.
 
     Args:
         entities: Entity id per contribution row (flow / component / storage).
@@ -1432,11 +1452,11 @@ class StoragesData:
 
     @classmethod
     def from_dataset(cls, ds: xr.Dataset, children: dict[str, dict[str, xr.DataArray]] | None = None) -> Self:
-        """Deserialize from xr.Dataset plus DataTree child groups.
+        """Deserialize from xr.Dataset plus netCDF child groups.
 
         Args:
             ds: Dataset with matching variable names.
-            children: Signature-grouped families parsed from the DataTree
+            children: Signature-grouped families parsed from the netCDF
                 child groups, keyed by field name.
         """
         return _from_dataset_with_children(cls, ds, children)
@@ -1708,12 +1728,13 @@ class ModelData:
     dims: Dims
     piecewise: PiecewiseData | None = None  # None when no piecewise converters
 
-    def datatree_nodes(self) -> dict[str, xr.Dataset]:
-        """Group-path -> Dataset mapping for the persistence tree.
+    def netcdf_nodes(self) -> dict[str, xr.Dataset]:
+        """Group-path -> Dataset mapping for persistence.
 
         One node per table under ``model/``. Dict fields (signature-grouped
-        coefficients) become child groups so each signature keeps its own
-        ``contribution`` dim — node-scoped dims never collide.
+        coefficients) become one ``sig_*`` child group per signature so each
+        keeps its own ``contribution`` dim — every group is self-contained,
+        with labeling coords under their runtime names (``flow``, ``effect``).
         """
         nodes: dict[str, xr.Dataset] = {}
         tables: dict[
@@ -1727,36 +1748,36 @@ class ModelData:
             'storages': self.storages,
             'piecewise': self.piecewise,
         }
-        # Persisted names are prefixed: DataTree coordinate inheritance leaks
-        # ancestor indexes into child groups, so a plain 'flow' coord or a
-        # group named 'time' would collide with the model's own dims.
         for name, obj in tables.items():
             if obj is None:
                 continue
             nodes[_NC_GROUPS[name]] = obj.to_dataset()
             for fname in _dict_field_names(type(obj)):
                 for signature, arr in getattr(obj, fname).items():
-                    prefix = {str(c): f'contribution_{c}' for c in arr.coords if arr[c].dims == ('contribution',)}
-                    nodes[f'{_NC_GROUPS[name]}/{fname}/sig_{signature}'] = xr.Dataset({'value': arr.rename(prefix)})
+                    nodes[f'{_NC_GROUPS[name]}/{fname}/sig_{signature}'] = xr.Dataset({'value': arr})
         nodes['model/meta'] = self.dims.to_dataset()
         return nodes
-
-    def to_datatree(self) -> xr.DataTree:
-        """Assemble the persistence tree (see :meth:`datatree_nodes`)."""
-        return xr.DataTree.from_dict(self.datatree_nodes())
 
     def to_netcdf(self, path: str | Path, *, mode: Literal['w', 'a'] = 'a') -> None:
         """Write model data as NetCDF groups under ``/model/``.
 
         Args:
             path: Output file path.
-            mode: Write mode ('w' to overwrite, 'a' to append).
+            mode: Mode for the first group ('w' to overwrite the file,
+                'a' to append to an existing one); remaining groups append.
         """
-        self.to_datatree().to_netcdf(Path(path), mode=mode, engine='netcdf4')
+        p = Path(path)
+        for group, ds in self.netcdf_nodes().items():
+            ds.to_netcdf(p, group=group, mode=mode, engine='netcdf4')
+            mode = 'a'
 
     @classmethod
     def from_netcdf(cls, path: str | Path) -> ModelData:
         """Read model data from NetCDF groups.
+
+        Opens the file once and loads each group through that handle —
+        per-group :func:`xr.load_dataset` calls would pay a file open per
+        group.
 
         Args:
             path: Input file path.
@@ -1765,61 +1786,58 @@ class ModelData:
             OSError: If no model data groups found in the file.
             ValueError: On Windows when reading a non-ASCII path (netcdf4 limitation).
         """
+        import netCDF4
+
         p = Path(path)
         try:
-            with xr.open_datatree(p, engine='netcdf4') as t:
-                tree = t.load()
+            nc = netCDF4.Dataset(p, 'r')
         except OSError as e:
             _raise_netcdf_read_error(p, e)
-        groups = set(tree.groups)
-        if '/model/meta' not in groups:
-            raise OSError(f'No model data groups found in {p}')
-        meta = tree['model/meta'].to_dataset()
+        try:
+            groups = _list_groups(nc)
+            if '/model/meta' not in groups:
+                raise OSError(f'No model data groups found in {p}')
 
-        def table(name: str) -> xr.Dataset:
-            group = _NC_GROUPS[name]
-            return tree[group].to_dataset() if f'/{group}' in groups else xr.Dataset()
+            def table(name: str) -> xr.Dataset:
+                group = _NC_GROUPS[name]
+                return _load_group(nc, group) if f'/{group}' in groups else xr.Dataset()
 
-        def children_of(name: str) -> dict[str, dict[str, xr.DataArray]]:
-            """Parse signature-family child groups back to runtime dicts (strip prefixes)."""
-            group = _NC_GROUPS[name]
-            if f'/{group}' not in groups:
-                return {}
-            out: dict[str, dict[str, xr.DataArray]] = {}
-            for fname, fnode in tree[group].children.items():
-                family: dict[str, xr.DataArray] = {}
-                for sig_name, child in fnode.children.items():
-                    arr = child.dataset['value']
-                    strip = {
-                        str(c): str(c).removeprefix('contribution_')
-                        for c in arr.coords
-                        if str(c).startswith('contribution_')
-                    }
-                    family[sig_name.removeprefix('sig_')] = arr.rename(strip)
-                out[fname] = family
-            return out
+            def children_of(name: str) -> dict[str, dict[str, xr.DataArray]]:
+                """Collect ``sig_*`` child groups back into signature dicts."""
+                group = _NC_GROUPS[name]
+                out: dict[str, dict[str, xr.DataArray]] = {}
+                for full in sorted(groups):
+                    head, _, sig = full.rpartition('/')
+                    if sig.startswith('sig_') and head.startswith(f'/{group}/'):
+                        fname = head.removeprefix(f'/{group}/')
+                        out.setdefault(fname, {})[sig.removeprefix('sig_')] = _load_group(nc, full)['value']
+                return out
 
-        flows = FlowsData.from_dataset(table('flows'), children=children_of('flows'))
-        carriers = CarriersData.from_dataset(table('carriers'))
-        converters_ds = table('converters')
-        converters = ConvertersData.from_dataset(converters_ds) if converters_ds.data_vars else None
-        effects = EffectsData.from_dataset(table('effects'))
-        storages_ds = table('storages')
-        storages = (
-            StoragesData.from_dataset(storages_ds, children=children_of('storages')) if storages_ds.data_vars else None
-        )
-        piecewise_ds = table('piecewise')
-        piecewise = PiecewiseData.from_dataset(piecewise_ds) if piecewise_ds.data_vars else None
+            flows = FlowsData.from_dataset(table('flows'), children=children_of('flows'))
+            carriers = CarriersData.from_dataset(table('carriers'))
+            converters_ds = table('converters')
+            converters = ConvertersData.from_dataset(converters_ds) if converters_ds.data_vars else None
+            effects = EffectsData.from_dataset(table('effects'))
+            storages_ds = table('storages')
+            storages = (
+                StoragesData.from_dataset(storages_ds, children=children_of('storages'))
+                if storages_ds.data_vars
+                else None
+            )
+            piecewise_ds = table('piecewise')
+            piecewise = PiecewiseData.from_dataset(piecewise_ds) if piecewise_ds.data_vars else None
 
-        return cls(
-            flows=flows,
-            carriers=carriers,
-            converters=converters,
-            effects=effects,
-            storages=storages,
-            dims=Dims.from_dataset(meta),
-            piecewise=piecewise,
-        )
+            return cls(
+                flows=flows,
+                carriers=carriers,
+                converters=converters,
+                effects=effects,
+                storages=storages,
+                dims=Dims.from_dataset(_load_group(nc, 'model/meta')),
+                piecewise=piecewise,
+            )
+        finally:
+            nc.close()
 
     @classmethod
     def build(

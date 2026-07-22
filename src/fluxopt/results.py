@@ -168,24 +168,20 @@ class Result:
 
         return StatsAccessor(self)
 
-    def to_datatree(self) -> xr.DataTree:
-        """Assemble the full result tree: ``solution/``, ``model/``, ``contributions/``.
-
-        The root stays empty — a root dataset would leak its indexes into
-        every group via DataTree coordinate inheritance on read.
-        """
-        nodes: dict[str, xr.Dataset] = {'solution': self.solution, **self.data.datatree_nodes()}
-        if self.contributions is not None:
-            nodes['contributions'] = self.contributions
-        return xr.DataTree.from_dict(nodes)
-
     def to_netcdf(self, path: str | Path) -> None:
-        """Write solution, model data, and contributions to NetCDF.
+        """Write solution, model data, and contributions as NetCDF groups.
+
+        Everything lives in groups (``solution/``, ``model/*``,
+        ``contributions/``); the root dataset stays empty.
 
         Args:
             path: Output file path.
         """
-        self.to_datatree().to_netcdf(Path(path), mode='w', engine='netcdf4')
+        p = Path(path)
+        self.solution.to_netcdf(p, group='solution', mode='w', engine='netcdf4')
+        self.data.to_netcdf(p, mode='a')
+        if self.contributions is not None:
+            self.contributions.to_netcdf(p, group='contributions', mode='a', engine='netcdf4')
 
     @classmethod
     def from_netcdf(cls, path: str | Path) -> Result:

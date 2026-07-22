@@ -280,9 +280,8 @@ class TestContributionsRoundtrip:
         assert loaded.contributions is not None
 
     def test_netcdf_group_structure(self, tmp_nc: Path) -> None:
-        """The saved file has 'solution' and 'contributions' NetCDF groups with
-        an empty root — a dataset at the root would leak its indexes into
-        every group via DataTree coordinate inheritance on read."""
+        """The saved file has 'solution' and 'contributions' NetCDF groups;
+        everything lives in self-contained groups, the root stays empty."""
         result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
         assert result.contributions is not None
         result.to_netcdf(tmp_nc)
