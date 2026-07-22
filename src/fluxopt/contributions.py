@@ -22,7 +22,7 @@ import numpy as np
 import xarray as xr
 
 if TYPE_CHECKING:
-    from fluxopt.model_data import FlowsData, ModelData
+    from fluxopt.model_data import FlowsData, ModelData, SizingData
 
 
 def _leontief(cf: xr.DataArray) -> xr.DataArray:
@@ -58,9 +58,7 @@ def _apply_leontief(
 
 
 def _compute_sizing_lump(
-    effects_per_size: xr.DataArray | None,
-    effects_fixed: xr.DataArray | None,
-    mandatory: xr.DataArray | None,
+    sizing: SizingData | None,
     solution: xr.Dataset,
     contributor_ids: list[str],
     effect_ids: list[str],
@@ -72,9 +70,7 @@ def _compute_sizing_lump(
     """Compute Sizing lump contributions for flows or storages.
 
     Args:
-        effects_per_size: Per-unit sizing costs ``(sizing_dim, effect)`` or None.
-        effects_fixed: Fixed sizing costs ``(sizing_dim, effect)`` or None.
-        mandatory: Boolean mask for mandatory sizing ``(sizing_dim,)`` or None.
+        sizing: The entity family's ``SizingData`` container, or None.
         solution: Solved variable dataset.
         contributor_ids: Contributor ids for this entity type.
         effect_ids: All effect ids.
@@ -88,30 +84,31 @@ def _compute_sizing_lump(
         dims=['contributor', 'effect'],
         coords={'contributor': contributor_ids, 'effect': effect_ids},
     )
+    if sizing is None:
+        return result
     rename = {sizing_dim: entity_dim}
 
     # Per-size costs
-    if effects_per_size is not None and size_var in solution:
-        eps = effects_per_size.rename(rename)
+    if size_var in solution:
+        eps = sizing.effects_per_size.rename(rename)
         term = (eps * solution[size_var]).reindex({entity_dim: contributor_ids}, fill_value=0.0)
         result = result + term.rename({entity_dim: 'contributor'})
 
     # Fixed costs — optional (binary indicator * cost)
-    if effects_fixed is not None and indicator_var in solution:
+    if indicator_var in solution:
         indicator = solution[indicator_var].dropna(entity_dim)
         opt_ids = list(indicator.coords[entity_dim].values)
-        ef = effects_fixed.rename(rename).reindex({entity_dim: opt_ids}, fill_value=0.0)
+        ef = sizing.effects_fixed.rename(rename).reindex({entity_dim: opt_ids}, fill_value=0.0)
         term = (ef * indicator).reindex({entity_dim: contributor_ids}, fill_value=0.0)
         result = result + term.rename({entity_dim: 'contributor'})
 
     # Fixed costs — mandatory (constant)
-    if effects_fixed is not None and mandatory is not None:
-        mand_mask = mandatory.values
-        if mand_mask.any():
-            mand_ids = list(mandatory.coords[sizing_dim].values[mand_mask])
-            ef_mand = effects_fixed.sel({sizing_dim: mand_ids}).rename(rename)
-            term = ef_mand.reindex({entity_dim: contributor_ids}, fill_value=0.0)
-            result = result + term.rename({entity_dim: 'contributor'})
+    mand_mask = sizing.mandatory.values
+    if mand_mask.any():
+        mand_ids = list(sizing.mandatory.coords[sizing_dim].values[mand_mask])
+        ef_mand = sizing.effects_fixed.sel({sizing_dim: mand_ids}).rename(rename)
+        term = ef_mand.reindex({entity_dim: contributor_ids}, fill_value=0.0)
+        result = result + term.rename({entity_dim: 'contributor'})
 
     return result
 
@@ -132,15 +129,15 @@ def _compute_investment_lump(
         dims=['contributor', 'effect'],
         coords={'contributor': flow_ids, 'effect': effect_ids},
     )
+    if fds.invest is None:
+        return result
     pairs = [
-        (fds.invest_effects_per_size_at_build, 'invest--size_at_build'),
-        (fds.invest_effects_fixed_at_build, 'invest--build'),
-        (fds.invest_effects_per_size_recurring, 'flow--size'),  # selected to invest flows
-        (fds.invest_effects_fixed_recurring, 'invest--active'),
+        (fds.invest.effects_per_size_at_build, 'invest--size_at_build'),
+        (fds.invest.effects_fixed_at_build, 'invest--build'),
+        (fds.invest.effects_per_size_recurring, 'flow--size'),  # selected to invest flows
+        (fds.invest.effects_fixed_recurring, 'invest--active'),
     ]
     for coeff, var_name in pairs:
-        if coeff is None:
-            continue
         c = coeff.rename({'invest_flow': 'flow'})
         var = solution[var_name]
         if var_name == 'flow--size':
@@ -168,34 +165,35 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
     temporal_flow = data.flows.effect_coeff * rate * dt
 
     # Status running costs
-    if data.flows.status_effects_running is not None and 'flow--on' in solution:
-        er = data.flows.status_effects_running.rename({'status_flow': 'flow'})
+    if data.flows.status is not None and 'flow--on' in solution:
+        er = data.flows.status.effects_running.rename({'status_flow': 'flow'})
         temporal_flow = temporal_flow + (er * solution['flow--on'] * dt).reindex(flow=flow_ids, fill_value=0.0)
 
     # Status startup costs
-    if data.flows.status_effects_startup is not None and 'flow--startup' in solution:
-        es = data.flows.status_effects_startup.rename({'status_flow': 'flow'})
+    if data.flows.status is not None and 'flow--startup' in solution:
+        es = data.flows.status.effects_startup.rename({'status_flow': 'flow'})
         temporal_flow = temporal_flow + (es * solution['flow--startup']).reindex(flow=flow_ids, fill_value=0.0)
 
     # Component-level status: attribute running and startup costs to first governed flow
-    if data.flows.cstatus_governed_flows is not None:
-        gf = data.flows.cstatus_governed_flows
+    cst = data.flows.cstatus
+    if cst is not None and cst.governed_flows is not None:
+        gf = cst.governed_flows
         first_flow_per_comp = {
             str(comp_id): str(gf.sel(cstatus_component=comp_id).values[0])
             for comp_id in gf.coords['cstatus_component'].values
             if str(gf.sel(cstatus_component=comp_id).values[0])
         }
 
-        if data.flows.cstatus_effects_running is not None and 'component--on' in solution:
-            cer = data.flows.cstatus_effects_running.rename({'cstatus_component': 'component'})
+        if 'component--on' in solution:
+            cer = cst.effects_running.rename({'cstatus_component': 'component'})
             comp_temporal = cer * solution['component--on'] * dt  # (component, effect, time)
             for comp_id, fid in first_flow_per_comp.items():
                 if fid in flow_ids:
                     add = comp_temporal.sel(component=comp_id).drop_vars('component')
                     temporal_flow.loc[{'flow': fid}] = temporal_flow.sel(flow=fid) + add
 
-        if data.flows.cstatus_effects_startup is not None and 'component--startup' in solution:
-            ces = data.flows.cstatus_effects_startup.rename({'cstatus_component': 'component'})
+        if 'component--startup' in solution:
+            ces = cst.effects_startup.rename({'cstatus_component': 'component'})
             comp_startup = ces * solution['component--startup']  # (component, effect, time)
             for comp_id, fid in first_flow_per_comp.items():
                 if fid in flow_ids:
@@ -206,9 +204,7 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
 
     # --- Lump: flow sizing costs ---
     flow_lump = _compute_sizing_lump(
-        data.flows.sizing_effects_per_size,
-        data.flows.sizing_effects_fixed,
-        data.flows.sizing_mandatory,
+        data.flows.sizing,
         solution,
         flow_ids,
         effect_ids,
@@ -225,9 +221,7 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
     if stor_ids:
         assert data.storages is not None
         stor_lump = _compute_sizing_lump(
-            data.storages.sizing_effects_per_size,
-            data.storages.sizing_effects_fixed,
-            data.storages.sizing_mandatory,
+            data.storages.sizing,
             solution,
             stor_ids,
             effect_ids,
