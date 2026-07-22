@@ -52,9 +52,12 @@ class TestSumToTotal:
         total_from_solver = float(result.effect_totals.sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
 
-    def test_per_timestep_sum_to_effect_temporal(self):
-        """Temporal contributions summed over contributors match effect_temporal."""
+    def test_per_timestep_temporal_matches_hand_computed(self):
+        """Reconstructed per-timestep effect values match rate x coefficient.
 
+        Demand profile [0.5, 0.8, 0.6] x size 100 -> rates [50, 80, 60];
+        cost coefficient 0.04/flow-hour -> per-timestep cost [2.0, 3.2, 2.4].
+        """
         source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
         sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
@@ -66,9 +69,10 @@ class TestSumToTotal:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
+        ept = result.effects_temporal.sel(effect='cost')
+        assert list(ept.values.round(6)) == [2.0, 3.2, 2.4]
         contrib = result.stats.effect_contributions
         temporal_sum = contrib['temporal'].sel(effect='cost').sum('contributor')
-        ept = result.effects_temporal.sel(effect='cost')
         xr.testing.assert_allclose(temporal_sum, ept)
 
 

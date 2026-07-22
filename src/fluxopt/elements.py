@@ -269,10 +269,6 @@ class Effect(Element):
     """Lower bound applied to each period independently.
     Scalar or per-period values (multi-period only).
     """
-    rate_max: Variate | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
-    """Upper bound rate [unit/h], scaled by Δt."""
-    rate_min: Variate | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
-    """Lower bound rate [unit/h], scaled by Δt."""
     contribution_from: dict[str, Variate] = Field(default_factory=dict)
     """Cross-effect factors ``{source_effect: factor}``.
     Scalar factors apply identically to both domains; time-varying

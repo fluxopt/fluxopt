@@ -61,7 +61,7 @@ full formulations of each term.
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\omega_{k,p}\) | Period weight | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect.period_weights) (fallback: [`optimize(period_weights=...)`](../api/fluxopt/index.md#fluxopt.optimize(period_weights))) |
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Temporal (per-timestep) effect variable | `effect--temporal[effect, time(, period)]` |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Temporal (per-timestep) effect expression | folded into totals at build |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
 

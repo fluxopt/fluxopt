@@ -9,6 +9,7 @@ from linopy import Model, Variable
 from fluxopt.constraints.sparse import sparse_weighted_sum
 from fluxopt.constraints.status import add_duration_tracking, add_switch_transitions
 from fluxopt.constraints.storage import add_accumulation_constraints
+from fluxopt.contributions import _leontief
 from fluxopt.results import Result
 from fluxopt.types import as_dataarray
 
@@ -1248,12 +1249,7 @@ class FlowSystemModel:
         if len(effect_ids) == 0:
             return
 
-        # --- Temporal domain: effect_temporal[effect, time(, period)] ---
-        self.effect_temporal = self.m.add_variables(
-            coords={'effect': effect_ids, **self.data.dims.coords(time=True, period=True)},
-            name='effect--temporal',
-        )
-
+        # --- Temporal domain: expressions folded into effect--total (no per-timestep variables) ---
         # Flow contributions: sum_f(coeff_{f,k,t} * P_{f,t} * dt_t)
         effect_coeff = d.flows.effect_coeff  # (flow, effect, time)
         has_any_coeff = (effect_coeff != 0).any()
@@ -1291,26 +1287,13 @@ class FlowSystemModel:
             if (ces != 0).any():
                 temporal_rhs = temporal_rhs + (ces * self.component_startup).sum('component')
 
-        # Cross-effect temporal: cf_temporal[k,j,t] * effect_temporal[j,t]
-        if ds.cf_temporal is not None:
-            source_t = self.effect_temporal.rename({'effect': 'source_effect'})
-            temporal_rhs = temporal_rhs + (ds.cf_temporal * source_t).sum('source_effect')
-
-        self.m.add_constraints(self.effect_temporal == temporal_rhs, name='effect_temporal_eq')
-
-        # Per-hour bounds: effect[t] <= rate_max * dt[t]
-        # effect_temporal is in absolute units (e.g. EUR), so the per-hour rate
-        # must be scaled by the timestep duration to get the per-timestep limit.
-        dt = d.dims.dt
-        min_ph = ds.rate_min * dt  # (effect, time) — NaN = unbounded
-        has_min_ph = min_ph.notnull()
-        if has_min_ph.any():
-            self.m.add_constraints(self.effect_temporal >= min_ph, name='effect_min_ph', mask=has_min_ph)
-
-        max_ph = ds.rate_max * dt
-        has_max_ph = max_ph.notnull()
-        if has_max_ph.any():
-            self.m.add_constraints(self.effect_temporal <= max_ph, name='effect_max_ph', mask=has_max_ph)
+        # Cross-effect temporal chains: E = D + C·E has the closed form
+        # E = (I - C)^{-1}·D, so apply the numeric Leontief inverse inline
+        # instead of coupling per-timestep variables.
+        if ds.cf_temporal is not None and not isinstance(temporal_rhs, int):
+            leontief = _leontief(ds.cf_temporal)  # (effect, source_effect, time[, period])
+            source_t = temporal_rhs.rename({'effect': 'source_effect'})
+            temporal_rhs = (source_t * leontief).sum('source_effect')
 
         # --- Lump domain: effect_lump[effect(, period)] ---
         # Combines all non-temporal contributions (sizing, investment recurring, investment at-build)
@@ -1436,8 +1419,9 @@ class FlowSystemModel:
 
         # --- Total: effect_total[effect(, period)] ---
         self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--total')
-        temporal_sum = (self.effect_temporal * d.dims.weights).sum('time')
-        rhs = temporal_sum + self.effect_lump
+        rhs: Any = self.effect_lump
+        if not isinstance(temporal_rhs, int):
+            rhs = (temporal_rhs * d.dims.weights).sum('time') + self.effect_lump
         self.m.add_constraints(self.effect_total == rhs, name='effect_total_eq')
 
         # Per-period bounds on effect_total

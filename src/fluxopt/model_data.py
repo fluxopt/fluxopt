@@ -1082,8 +1082,6 @@ class EffectsData:
     total_max: xr.DataArray  # (effect,) — weighted total bound
     periodic_min: xr.DataArray  # (effect[, period]) — per-period bound
     periodic_max: xr.DataArray  # (effect[, period]) — per-period bound
-    rate_min: xr.DataArray  # (effect, time)
-    rate_max: xr.DataArray  # (effect, time)
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
     period_weights: xr.DataArray | None = None  # (effect, period)
 
@@ -1124,15 +1122,11 @@ class EffectsData:
         effect_ids = [e.id for e in effects]
         effect_set = set(effect_ids)
         n = len(effects)
-        n_time = len(time)
         total_min = np.full(n, np.nan)
         total_max = np.full(n, np.nan)
         periodic_mins: list[xr.DataArray] = []
         periodic_maxs: list[xr.DataArray] = []
-        rate_mins: list[xr.DataArray] = []
-        rate_maxs: list[xr.DataArray] = []
 
-        nan_time = xr.DataArray(np.full(n_time, np.nan), dims=['time'], coords={'time': time})
         # Periodic bounds are scalar in single-period models, (period,) in multi-period
         period_coords: dict[str, Any] = {'period': period} if period is not None else {}
         nan_periodic = (
@@ -1153,8 +1147,6 @@ class EffectsData:
             periodic_maxs.append(
                 as_dataarray(e.periodic_max, period_coords) if e.periodic_max is not None else nan_periodic
             )
-            rate_mins.append(as_dataarray(e.rate_min, {'time': time}) if e.rate_min is not None else nan_time)
-            rate_maxs.append(as_dataarray(e.rate_max, {'time': time}) if e.rate_max is not None else nan_time)
             if e.contribution_from:
                 has_contributions = True
 
@@ -1213,8 +1205,6 @@ class EffectsData:
             total_max=xr.DataArray(total_max, dims=['effect'], coords={'effect': effect_ids}),
             periodic_min=fast_concat(periodic_mins, effect_idx),
             periodic_max=fast_concat(periodic_maxs, effect_idx),
-            rate_min=fast_concat(rate_mins, effect_idx),
-            rate_max=fast_concat(rate_maxs, effect_idx),
             cf_temporal=cf_temporal,
             period_weights=pw,
         )
