@@ -243,6 +243,19 @@ and only those.
   accessor, not a stored/serialized artifact. Results files stop carrying
   dense zeros.
 
+### 2.7 Outcome amendment — signatures only where rows scale
+
+Implemented with one deviation from §2.2/§2.3: signature children exist
+only for `effect_coeff`, whose row count scales with flows × effects over
+the full horizon. The other families (sizing / invest / status effects)
+are per-element scalars or short envelopes, so each is **one** stacked
+`(contribution[, envelope])` array — or absent — broadcast at ingestion;
+the sig_* child level, per-signature consumer loops, and dict plumbing
+for them were not worth their bookkeeping. Feature arrays are grouped in
+nested containers (`SizingData`, `StatusData`, `InvestmentData`) on the
+tables, serialized as DataTree child groups by the same generic
+emit/parse pair that handles the coefficient nodes.
+
 ## 3. Migration plan
 
 - **Phase 0** — done: #220 (stacked `effect_coeff`, single array).
