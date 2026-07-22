@@ -21,10 +21,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import xarray as xr
 
-from fluxopt.model_data import _split_rows
+from fluxopt.model_data import _family_arrays, _split_rows
 
 if TYPE_CHECKING:
-    from fluxopt.model_data import FlowsData, ModelData, SizingData
+    from fluxopt.model_data import EffectFamily, FlowsData, ModelData, SizingData
 
 
 def _leontief(cf: xr.DataArray) -> xr.DataArray:
@@ -60,7 +60,7 @@ def _apply_leontief(
 
 
 def _dense_channel(
-    coeffs: dict[str, xr.DataArray],
+    coeffs: EffectFamily,
     sol_values: xr.DataArray | None,
     entity_dim: str,
     contributor_ids: list[str],
@@ -68,13 +68,13 @@ def _dense_channel(
 ) -> xr.DataArray | float:
     """Densify one lump channel: rows x solved values, zero-filled.
 
-    Each signature's rows are multiplied by the solved variable slice they
-    select (via their entity label), then unstacked onto
+    Each stacked array's rows are multiplied by the solved variable slice
+    they select (via their entity label), then unstacked onto
     ``(contributor, effect[, ...])`` — pairs are unique per family, so the
     unstack cannot collide.
 
     Args:
-        coeffs: Signature-grouped channel coefficients.
+        coeffs: Channel coefficients (dict of signatures or single array).
         sol_values: Solved variable with dim *entity_dim*, or None.
         entity_dim: Entity dim of *sol_values* and label coord on the rows.
         contributor_ids: Full contributor index for the result.
@@ -84,9 +84,9 @@ def _dense_channel(
         Dense channel total, or ``0.0`` when the channel is empty.
     """
     total: xr.DataArray | float = 0.0
-    if not coeffs or sol_values is None:
+    if sol_values is None:
         return total
-    for coeff in coeffs.values():
+    for coeff in _family_arrays(coeffs):
         labels = [str(v) for v in coeff.coords[entity_dim].values]
         sel = xr.DataArray(labels, dims=['contribution'])
         vals = coeff.drop_vars([entity_dim, 'effect']) * sol_values.sel({entity_dim: sel}).drop_vars(
@@ -106,25 +106,21 @@ def _dense_channel(
 
 
 def _dense_constant(
-    coeffs: dict[str, xr.DataArray],
+    coeff: xr.DataArray,
     entity_dim: str,
     contributor_ids: list[str],
     effect_ids: list[str],
-) -> xr.DataArray | float:
+) -> xr.DataArray:
     """Densify constant rows (mandatory fixed costs): no variable multiplier."""
-    total: xr.DataArray | float = 0.0
-    for coeff in coeffs.values():
-        vals = coeff.drop_vars([entity_dim, 'effect']).assign_coords(
-            contributor=('contribution', [str(v) for v in coeff.coords[entity_dim].values]),
-            effect=('contribution', [str(v) for v in coeff.coords['effect'].values]),
-        )
-        dense = (
-            vals.set_index(contribution=['contributor', 'effect'])
-            .unstack('contribution', fill_value=0.0)
-            .reindex(contributor=contributor_ids, effect=effect_ids, fill_value=0.0)
-        )
-        total = total + dense
-    return total
+    vals = coeff.drop_vars([entity_dim, 'effect']).assign_coords(
+        contributor=('contribution', [str(v) for v in coeff.coords[entity_dim].values]),
+        effect=('contribution', [str(v) for v in coeff.coords['effect'].values]),
+    )
+    return (
+        vals.set_index(contribution=['contributor', 'effect'])
+        .unstack('contribution', fill_value=0.0)
+        .reindex(contributor=contributor_ids, effect=effect_ids, fill_value=0.0)
+    )
 
 
 def _compute_sizing_lump(
@@ -150,14 +146,15 @@ def _compute_sizing_lump(
     if sizing is None:
         return 0.0
     result = _dense_channel(sizing.effects_per_size, solution.get(size_var), entity_dim, contributor_ids, effect_ids)
-    if sizing.effects_fixed:
+    if sizing.effects_fixed is not None:
         mandatory = sizing.mandatory
         lookup = dict(zip(mandatory.coords[mandatory.dims[0]].values, mandatory.values, strict=True))
         optional_rows, mandatory_rows = _split_rows(sizing.effects_fixed, entity_dim, lookup)
         result = result + _dense_channel(
             optional_rows, solution.get(indicator_var), entity_dim, contributor_ids, effect_ids
         )
-        result = result + _dense_constant(mandatory_rows, entity_dim, contributor_ids, effect_ids)
+        if mandatory_rows is not None:
+            result = result + _dense_constant(mandatory_rows, entity_dim, contributor_ids, effect_ids)
     return result
 
 
@@ -188,7 +185,7 @@ def _compute_investment_lump(
 
 def _add_temporal_rows(
     target: xr.DataArray,
-    coeffs: dict[str, xr.DataArray],
+    coeffs: EffectFamily,
     sol_values: xr.DataArray | None,
     entity_dim: str,
     scale: xr.DataArray | None = None,
@@ -211,12 +208,12 @@ def _add_temporal_rows(
         remap: Optional entity id -> contributor flow id (component status
             attributes to the first governed flow); unmapped rows are skipped.
     """
-    if not coeffs or sol_values is None:
+    if sol_values is None:
         return
     extra_dims = [d for d in target.dims if d not in ('flow', 'effect')]
     flow_pos = {str(v): i for i, v in enumerate(target.coords['flow'].values)}
     eff_pos = {str(v): i for i, v in enumerate(target.coords['effect'].values)}
-    for coeff in coeffs.values():
+    for coeff in _family_arrays(coeffs):
         labels = [str(v) for v in coeff.coords[entity_dim].values]
         contributors = [remap.get(lb) if remap is not None else lb for lb in labels]
         keep = [i for i, c in enumerate(contributors) if c is not None and c in flow_pos]

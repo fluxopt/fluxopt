@@ -113,6 +113,8 @@ def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
         if val is None or isinstance(val, dict) or is_dataclass(val):
             continue  # dict and nested-container fields serialize as DataTree child groups
         if isinstance(val, xr.DataArray):
+            if 'contribution' in val.dims:
+                continue  # stacked contribution rows serialize as their own child group
             data_vars[f.name] = val
         else:
             attrs[f.name] = val
@@ -121,51 +123,67 @@ def _to_dataset(obj: DataclassInstance) -> xr.Dataset:
     return ds
 
 
-def _emit_nodes(base: str, obj: DataclassInstance, nodes: dict[str, xr.Dataset]) -> None:
-    """Emit a table node plus child groups for dict and nested-container fields.
+def _prefix_contribution_coords(arr: xr.DataArray) -> xr.Dataset:
+    """Wrap stacked rows as a ``value`` Dataset with contribution coords prefixed.
 
-    Dict fields (signature families) become one child group per signature so
-    each keeps its own ``contribution`` dim; nested containers (sizing,
-    status, ...) recurse into child groups of their own. Coords on the
-    ``contribution`` dim are prefixed ``contribution_*`` — DataTree
-    coordinate inheritance leaks ancestor indexes into child groups.
+    DataTree coordinate inheritance leaks ancestor indexes into child
+    groups, so the plain ``flow``/``effect`` labeling coords are persisted
+    as ``contribution_*``.
+    """
+    prefix = {str(c): f'contribution_{c}' for c in arr.coords if arr[c].dims == ('contribution',)}
+    return xr.Dataset({'value': arr.rename(prefix)})
+
+
+def _strip_contribution_coords(arr: xr.DataArray) -> xr.DataArray:
+    """Undo :func:`_prefix_contribution_coords` on load."""
+    strip = {str(c): str(c).removeprefix('contribution_') for c in arr.coords if str(c).startswith('contribution_')}
+    return arr.rename(strip)
+
+
+def _emit_nodes(base: str, obj: DataclassInstance, nodes: dict[str, xr.Dataset]) -> None:
+    """Emit a table node plus child groups for structured fields.
+
+    Dict fields (signature families) become one child group per signature
+    and stacked-row DataArray fields one child group each, so every group
+    keeps its own ``contribution`` dim; nested containers (sizing, status,
+    ...) recurse into child groups of their own.
     """
     nodes[base] = _to_dataset(obj)
     for f in fields(obj):
         val = getattr(obj, f.name)
         if isinstance(val, dict):
             for signature, arr in val.items():
-                prefix = {str(c): f'contribution_{c}' for c in arr.coords if arr[c].dims == ('contribution',)}
-                nodes[f'{base}/{f.name}/sig_{signature}'] = xr.Dataset({'value': arr.rename(prefix)})
+                nodes[f'{base}/{f.name}/sig_{signature}'] = _prefix_contribution_coords(arr)
+        elif isinstance(val, xr.DataArray) and 'contribution' in val.dims:
+            nodes[f'{base}/{f.name}'] = _prefix_contribution_coords(val)
         elif is_dataclass(val) and not isinstance(val, type):
             _emit_nodes(f'{base}/{f.name}', val, nodes)
-
-
-def _parse_family(node: xr.DataTree) -> dict[str, xr.DataArray]:
-    """Parse a signature-family child group back to its runtime dict (strip prefixes)."""
-    family: dict[str, xr.DataArray] = {}
-    for sig_name, child in node.children.items():
-        arr = child.dataset['value']
-        strip = {str(c): str(c).removeprefix('contribution_') for c in arr.coords if str(c).startswith('contribution_')}
-        family[sig_name.removeprefix('sig_')] = arr.rename(strip)
-    return family
 
 
 def _parse_node[T: DataclassInstance](cls: type[T], node: xr.DataTree) -> T:
     """Rebuild a table dataclass from its DataTree node (inverse of :func:`_emit_nodes`).
 
     Plain DataArray fields come from the node's variables; dict fields
-    (signature families) and nested containers come from child groups.
+    (signature families), stacked-row fields, and nested containers come
+    from child groups.
     """
     ds = node.to_dataset()
     kwargs: dict[str, Any] = {}
     for f in fields(cls):
+        child = node.children.get(f.name)
         if f.name in _CONTAINER_TYPES:
-            child = node.children.get(f.name)
             kwargs[f.name] = _parse_node(_CONTAINER_TYPES[f.name], child) if child is not None else None
         elif f.default_factory is dict:
-            child = node.children.get(f.name)
-            kwargs[f.name] = _parse_family(child) if child is not None else {}
+            kwargs[f.name] = (
+                {
+                    sig.removeprefix('sig_'): _strip_contribution_coords(c.dataset['value'])
+                    for sig, c in child.children.items()
+                }
+                if child is not None
+                else {}
+            )
+        elif child is not None:  # stacked-row field serialized as its own group
+            kwargs[f.name] = _strip_contribution_coords(child.dataset['value'])
         else:
             kwargs[f.name] = ds.get(f.name)
     return cls(**kwargs)
@@ -178,8 +196,8 @@ class SizingData:
     min: xr.DataArray  # (dim,)
     max: xr.DataArray  # (dim,)
     mandatory: xr.DataArray  # (dim,)
-    effects_per_size: dict[str, xr.DataArray] = field(default_factory=dict)  # signature -> stacked rows
-    effects_fixed: dict[str, xr.DataArray] = field(default_factory=dict)  # signature -> stacked rows
+    effects_per_size: xr.DataArray | None = None  # (contribution[, period]) stacked rows
+    effects_fixed: xr.DataArray | None = None  # (contribution[, period]) stacked rows
 
     def __post_init__(self) -> None:
         """Validate min >= 0, max >= min, and stacked pair uniqueness."""
@@ -259,10 +277,10 @@ class InvestmentData:
     mandatory: xr.DataArray  # (invest_dim,)
     lifetime: xr.DataArray  # (invest_dim,) — NaN = forever
     prior_size: xr.DataArray  # (invest_dim,)
-    effects_per_size_at_build: dict[str, xr.DataArray] = field(default_factory=dict)  # once
-    effects_fixed_at_build: dict[str, xr.DataArray] = field(default_factory=dict)  # once
-    effects_per_size_recurring: dict[str, xr.DataArray] = field(default_factory=dict)
-    effects_fixed_recurring: dict[str, xr.DataArray] = field(default_factory=dict)
+    effects_per_size_at_build: xr.DataArray | None = None  # (contribution[, period]) — once
+    effects_fixed_at_build: xr.DataArray | None = None  # (contribution[, period]) — once
+    effects_per_size_recurring: xr.DataArray | None = None  # (contribution[, period])
+    effects_fixed_recurring: xr.DataArray | None = None  # (contribution[, period])
 
     def __post_init__(self) -> None:
         """Validate stacked pair uniqueness."""
@@ -320,7 +338,7 @@ class InvestmentData:
             lifetimes.append(float(inv.lifetime) if inv.lifetime is not None else np.nan)
             prior_sizes.append(inv.prior_size)
 
-        def stack(what: str, dicts: list[tuple[str, dict[str, Variate]]]) -> dict[str, xr.DataArray]:
+        def stack(what: str, dicts: list[tuple[str, dict[str, Variate]]]) -> xr.DataArray | None:
             return _stack_element_effects(dicts, effect_set, envelope_coords, entity_label=entity_label, what=what)
 
         coords = {dim: ids}
@@ -354,8 +372,8 @@ class StatusData:
     downtime_min: xr.DataArray  # (dim,)
     downtime_max: xr.DataArray  # (dim,)
     initial: xr.DataArray  # (dim,) — NaN = free
-    effects_running: dict[str, xr.DataArray] = field(default_factory=dict)  # signature -> stacked rows
-    effects_startup: dict[str, xr.DataArray] = field(default_factory=dict)  # signature -> stacked rows
+    effects_running: xr.DataArray | None = None  # (contribution, time[, period]) stacked rows
+    effects_startup: xr.DataArray | None = None  # (contribution, time[, period]) stacked rows
     previous_uptime: xr.DataArray | None = None  # (dim,) — hours, NaN = no prior
     previous_downtime: xr.DataArray | None = None  # (dim,) — hours, NaN = no prior
     governed_flows: xr.DataArray | None = None  # (dim, governed_idx) — only for component status
@@ -768,17 +786,28 @@ def _stack_element_effects(
     *,
     entity_label: str,
     what: str,
-) -> dict[str, xr.DataArray]:
-    """Collect per-element effect dicts into a signature-grouped family.
+) -> xr.DataArray | None:
+    """Collect per-element effect dicts into one stacked contribution array.
+
+    One row per (entity, effect) pair with a coefficient, broadcast to the
+    family's full envelope: ``(contribution, *envelope_coords)``. Rows are
+    labeled by the non-dim coords *entity_label* / ``effect`` on the bare
+    ``contribution`` dim. Unlike ``effect_coeff`` (see
+    :func:`_stack_contributions`), these families are small — per-element
+    scalars or short envelopes — so one dense-envelope array beats
+    signature bookkeeping.
 
     Args:
         items: Pairs of (element id, ``{effect: factor}``).
         effect_set: Known effect ids for validation.
         envelope_coords: Operational coords the factors may span.
-        entity_label: Coord name for entity labels (see
-            :func:`_stack_contributions`).
+        entity_label: Coord name for the entity labels — matches the dim of
+            the solver variable the family multiplies.
         what: Parameter name for error messages
             (e.g. ``'Status.effects_per_startup'``).
+
+    Returns:
+        Stacked coefficients, or None when no element carries any.
     """
     entities: list[str] = []
     effects: list[str] = []
@@ -789,33 +818,53 @@ def _stack_element_effects(
                 raise ValueError(f'Unknown effect {ek!r} in {what} on {item_id!r}')
             entities.append(item_id)
             effects.append(ek)
-            values.append(as_dataarray(ev, envelope_coords, broadcast=False))
-    return _stack_contributions(entities, effects, values, envelope_coords, entity_label=entity_label)
+            values.append(as_dataarray(ev, envelope_coords))
+    if not entities:
+        return None
+    return xr.DataArray(
+        np.stack([v.values for v in values]),
+        dims=['contribution', *envelope_coords],
+        coords={
+            **envelope_coords,
+            entity_label: ('contribution', entities),
+            'effect': ('contribution', effects),
+        },
+    )
+
+
+type EffectFamily = dict[str, xr.DataArray] | xr.DataArray | None
+"""Stacked effect-coefficient rows for one channel: a signature-grouped dict
+(``effect_coeff``) or a single stacked array (all other families); None or an
+empty dict means the channel has no rows."""
+
+
+def _family_arrays(coeffs: EffectFamily) -> list[xr.DataArray]:
+    """Normalize an effect family to a list of stacked arrays (empty = no rows)."""
+    if coeffs is None:
+        return []
+    if isinstance(coeffs, dict):
+        return list(coeffs.values())
+    return [coeffs]
 
 
 def _split_rows(
-    coeffs: dict[str, xr.DataArray],
+    coeff: xr.DataArray,
     entity_dim: str,
     is_mandatory: dict[str, bool],
-) -> tuple[dict[str, xr.DataArray], dict[str, xr.DataArray]]:
-    """Partition signature-grouped rows by a per-entity boolean.
+) -> tuple[xr.DataArray | None, xr.DataArray | None]:
+    """Partition stacked rows by a per-entity boolean.
 
     Args:
-        coeffs: Signature-grouped stacked coefficients.
+        coeff: Stacked coefficients ``(contribution, ...)``.
         entity_dim: Entity label coord on the contribution dim.
         is_mandatory: Entity id -> True when the entity is mandatory.
 
     Returns:
-        ``(optional_rows, mandatory_rows)`` with empty signatures dropped.
+        ``(optional_rows, mandatory_rows)``; None where a side has no rows.
     """
-    optional: dict[str, xr.DataArray] = {}
-    mandatory: dict[str, xr.DataArray] = {}
-    for sig, arr in coeffs.items():
-        mask = np.array([bool(is_mandatory[str(e)]) for e in arr.coords[entity_dim].values])
-        if (~mask).any():
-            optional[sig] = arr.isel(contribution=np.nonzero(~mask)[0])
-        if mask.any():
-            mandatory[sig] = arr.isel(contribution=np.nonzero(mask)[0])
+    mask = np.array([bool(is_mandatory[str(e)]) for e in coeff.coords[entity_dim].values])
+    optional = coeff.isel(contribution=np.nonzero(~mask)[0]) if (~mask).any() else None
+    mandatory = coeff.isel(contribution=np.nonzero(mask)[0]) if mask.any() else None
     return optional, mandatory
 
 
@@ -824,15 +873,15 @@ def _entity_label(arr: xr.DataArray) -> str:
     return next(str(c) for c in arr.coords if arr[c].dims == ('contribution',) and str(c) != 'effect')
 
 
-def _validate_stacked_pairs(family: str, coeffs: dict[str, xr.DataArray]) -> None:
-    """Raise when an (entity, effect) pair appears twice across a family's signatures.
+def _validate_stacked_pairs(family: str, coeffs: EffectFamily) -> None:
+    """Raise when an (entity, effect) pair appears twice within a family.
 
     Args:
         family: Field name for the error message.
-        coeffs: Signature-grouped stacked coefficients.
+        coeffs: Stacked coefficients (dict of signatures or single array).
     """
     pairs: list[tuple[str, str]] = []
-    for arr in coeffs.values():
+    for arr in _family_arrays(coeffs):
         pairs += list(zip(arr.coords[_entity_label(arr)].values, arr.coords['effect'].values, strict=True))
     if len(pairs) != len(set(pairs)):
         dupes = sorted({p for p in pairs if pairs.count(p) > 1})

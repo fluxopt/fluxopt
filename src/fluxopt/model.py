@@ -10,14 +10,14 @@ from fluxopt.constraints.sparse import sparse_weighted_sum
 from fluxopt.constraints.status import add_duration_tracking, add_switch_transitions
 from fluxopt.constraints.storage import add_accumulation_constraints
 from fluxopt.contributions import _leontief
-from fluxopt.model_data import _split_rows
+from fluxopt.model_data import _family_arrays, _split_rows
 from fluxopt.results import Result
 from fluxopt.types import as_dataarray
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from fluxopt.model_data import ModelData, StatusData
+    from fluxopt.model_data import EffectFamily, ModelData, StatusData
 
 
 class FlowSystemModel:
@@ -1077,7 +1077,7 @@ class FlowSystemModel:
 
     def _channel_sum(
         self,
-        coeffs: dict[str, xr.DataArray],
+        coeffs: EffectFamily,
         var: Any,
         entity_dim: str,
         effect_ids: xr.DataArray,
@@ -1085,24 +1085,25 @@ class FlowSystemModel:
     ) -> Any:
         """Aggregate one effect channel: Σ_rows coeff · var[entity(row)] (· scale).
 
-        *coeffs* maps dims signature -> stacked ``(contribution, *sig_dims)``
-        rows. Per signature: each row's variable slice is selected via its
+        *coeffs* holds stacked ``(contribution, ...)`` rows — one array per
+        dims signature for ``effect_coeff``, a single array for the other
+        families. Per array: each row's variable slice is selected via its
         *entity_dim* label, weighted by coefficient (x *scale*, e.g. dt;
-        broadcasting supplies any dims the signature lacks), and group-summed
+        broadcasting supplies any dims the rows lack), and group-summed
         onto the ``effect`` dim. Reindexing every partial to the full effect
         set zero-fills effects without contributions AND establishes the
         exact index alignment that linopy addition requires (it neither
         reorders nor verifies labels).
 
         Args:
-            coeffs: Signature-grouped channel coefficients.
+            coeffs: Channel coefficients (see :data:`fluxopt.model_data.EffectFamily`).
             var: linopy variable the channel multiplies (dim *entity_dim*).
             entity_dim: Entity dim of *var* and label coord on the rows.
             effect_ids: Full effect coordinate for the result.
             scale: Optional per-timestep multiplier (dt) applied to every row.
         """
         expr: Any = 0
-        for coeff in coeffs.values():
+        for coeff in _family_arrays(coeffs):
             pair_entity = xr.DataArray(coeff.coords[entity_dim].values, dims=['contribution'])
             pair_effect = xr.DataArray(coeff.coords['effect'].values, dims=['contribution'], name='effect')
             values = coeff.drop_vars([entity_dim, 'effect'])
@@ -1137,7 +1138,7 @@ class FlowSystemModel:
 
         # --- Temporal domain: expressions, no variables ---
         # One channel per (coefficient family, variable, scale) triple.
-        temporal_channels: list[tuple[dict[str, xr.DataArray], Any, str, xr.DataArray | None]] = [
+        temporal_channels: list[tuple[EffectFamily, Any, str, xr.DataArray | None]] = [
             (d.flows.effect_coeff, self.flow_rate, 'flow', d.dims.dt),
         ]
         if d.flows.status is not None:
@@ -1152,7 +1153,7 @@ class FlowSystemModel:
             ]
         temporal_direct: Any = 0
         for coeffs, var, entity_dim, scale in temporal_channels:
-            if coeffs:
+            if _family_arrays(coeffs):
                 assert var is not None
                 temporal_direct = temporal_direct + self._channel_sum(coeffs, var, entity_dim, effect_ids, scale)
 
@@ -1172,7 +1173,7 @@ class FlowSystemModel:
         # Accumulate direct lump contributions per effect.
         # Per-size / per-binary channels: coeff x variable, like the temporal loop.
         sds = d.storages
-        lump_channels: list[tuple[dict[str, xr.DataArray], Any, str]] = []
+        lump_channels: list[tuple[EffectFamily, Any, str]] = []
         if d.flows.sizing is not None:
             lump_channels.append((d.flows.sizing.effects_per_size, self.flow_size, 'flow'))
         if d.flows.invest is not None:
@@ -1186,13 +1187,13 @@ class FlowSystemModel:
             lump_channels.append((sds.sizing.effects_per_size, self.storage_capacity, 'storage'))
         lump_direct: Any = 0
         for coeffs, var, entity_dim in lump_channels:
-            if coeffs:
+            if _family_arrays(coeffs):
                 assert var is not None
                 lump_direct = lump_direct + self._channel_sum(coeffs, var, entity_dim, effect_ids)
 
         # Fixed sizing costs split per row: optional entities pay via their
         # binary indicator, mandatory entities contribute constants.
-        fixed_families: list[tuple[dict[str, xr.DataArray], Any, xr.DataArray, str]] = []
+        fixed_families: list[tuple[xr.DataArray | None, Any, xr.DataArray, str]] = []
         if d.flows.sizing is not None:
             fixed_families.append(
                 (d.flows.sizing.effects_fixed, self.flow_size_indicator, d.flows.sizing.mandatory, 'flow')
@@ -1202,17 +1203,17 @@ class FlowSystemModel:
                 (sds.sizing.effects_fixed, self.storage_capacity_indicator, sds.sizing.mandatory, 'storage')
             )
         for coeffs, indicator, mandatory, entity_dim in fixed_families:
-            if not coeffs:
+            if coeffs is None:
                 continue
             mand_lookup = dict(zip(mandatory.coords[mandatory.dims[0]].values, mandatory.values, strict=True))
             optional_rows, mandatory_rows = _split_rows(coeffs, entity_dim, mand_lookup)
-            if optional_rows:
+            if optional_rows is not None:
                 assert indicator is not None
                 lump_direct = lump_direct + self._channel_sum(optional_rows, indicator, entity_dim, effect_ids)
-            for coeff in mandatory_rows.values():
-                pair_effect = xr.DataArray(coeff.coords['effect'].values, dims=['contribution'], name='effect')
+            if mandatory_rows is not None:
+                pair_effect = xr.DataArray(mandatory_rows.coords['effect'].values, dims=['contribution'], name='effect')
                 const = (
-                    coeff.drop_vars([entity_dim, 'effect'])
+                    mandatory_rows.drop_vars([entity_dim, 'effect'])
                     .groupby(pair_effect)
                     .sum()
                     .reindex(effect=effect_ids.to_index(), fill_value=0.0)
