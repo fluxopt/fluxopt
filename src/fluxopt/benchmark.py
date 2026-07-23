@@ -27,7 +27,9 @@ reflect real workloads and the builders double as examples:
   ~2 million variables at the default horizon.
 
 All data is deterministic (no randomness), and each system is built in a
-fresh subprocess so peak memory is attributed per model.
+fresh subprocess so peak memory is attributed per model. Memory is
+whole-process peak RSS — the number that has to fit in your RAM; for
+allocator-level profiles use pytest-benchmem on ``benchmark/test_reference.py``.
 """
 
 from __future__ import annotations
@@ -557,7 +559,13 @@ def measure(model: str, timesteps: int = HOURS_PER_YEAR, solve: bool = False) ->
 
 
 def _peak_rss_mib() -> float | None:
-    """Peak resident memory of this process in MiB (None where unsupported, e.g. Windows)."""
+    """Peak resident memory of this process in MiB (None where unsupported, e.g. Windows).
+
+    Whole-process, OS-level high-water: catches every allocation (numpy, solver
+    C libraries, ...) but includes the interpreter + import footprint and
+    allocator slack — the number that has to fit in RAM, not the build's own
+    appetite.
+    """
     try:
         import resource
     except ImportError:
@@ -622,7 +630,7 @@ def _print_report(rows: list[dict[str, Any]], timesteps: int, solve: bool) -> No
         'data',
         'build',
         *(['solve'] if solve else []),
-        'peak mem',
+        'peak rss',
     ]
     table_rows = [
         [

@@ -1,9 +1,10 @@
 name: Benchmark hint
 
-# A small, human-readable performance hint on every PR: run the user-facing
-# benchmark (`python -m fluxopt.benchmark`) on the PR head and on the base
-# branch, and keep one sticky comment with the delta table. Informational only
-# — regression tracking with pinned envs is the CodSpeed workflow's job.
+# A small, human-readable performance hint on every PR: run the realistic
+# reference-system suite (benchmark/test_reference.py) under pytest-benchmem on
+# the PR head and on the base revision, and keep one sticky comment with the
+# delta table (memray allocator peaks — same instrument family as CodSpeed).
+# Informational only — dashboard-grade regression tracking is CodSpeed's job.
 
 on:
   pull_request:
@@ -30,24 +31,54 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - name: Keep the comment renderer across checkouts
-        run: cp scripts/benchmark_comment.py "$RUNNER_TEMP/"
-      - name: Benchmark PR head
-        run: uv run python -m fluxopt.benchmark --json > "$RUNNER_TEMP/head.json"
+      - name: Benchmark PR head (pytest-benchmem)
+        working-directory: benchmark
+        run: |
+          uv sync --frozen
+          uv run --no-sync pytest test_reference.py --benchmark-only --benchmark-memory \
+            --benchmark-json "$RUNNER_TEMP/head.json"
       - name: Benchmark base (${{ github.event.pull_request.base.ref }})
         run: |
           git checkout --detach ${{ github.event.pull_request.base.sha }}
-          if [ -f src/fluxopt/benchmark.py ]; then
-            uv run python -m fluxopt.benchmark --json > "$RUNNER_TEMP/base.json"
+          if [ -f benchmark/test_reference.py ]; then
+            cd benchmark
+            uv sync --frozen
+            uv run --no-sync pytest test_reference.py --benchmark-only --benchmark-memory \
+              --benchmark-json "$RUNNER_TEMP/base.json"
           fi
-      - name: Render comment
-        run: >
-          python3 "$RUNNER_TEMP/benchmark_comment.py"
-          "$RUNNER_TEMP/head.json" "$RUNNER_TEMP/base.json"
-          --repo "${{ github.repository }}"
-          --base "${{ github.event.pull_request.base.ref }}"
-          --head "${{ github.event.pull_request.head.ref }}"
-          > "$RUNNER_TEMP/comment.md"
+      - name: Render comment (benchmem compare)
+        working-directory: benchmark
+        run: |
+          {
+            echo '<!-- benchmark-hint -->'
+            echo '### Benchmark hint — build pipeline'
+            echo ''
+            echo '`benchmark/test_reference.py` under [pytest-benchmem](https://github.com/fluxopt/pytest-benchmem) — quarter-year horizon; peak = memray allocator high-water, the same instrument family as CodSpeed. Shared-runner walltime is noisy: a hint, not a gate.'
+            echo ''
+            if [ -f "$RUNNER_TEMP/base.json" ]; then
+              uv run --no-sync benchmem compare "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" \
+                --diff --format md --columns time,peak --group-by func
+            else
+              uv run --no-sync benchmem compare "$RUNNER_TEMP/head.json" \
+                --format md --columns time,peak --stat mean --group-by func
+              echo ''
+              echo '_No baseline: the reference suite does not exist on the base branch._'
+            fi
+            echo ''
+            echo '<details>'
+            echo '<summary>Replicate locally (CI walltime is noisy)</summary>'
+            echo ''
+            echo '```bash'
+            echo "uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \\"
+            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.base.ref }} \'
+            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.head.ref }} \'
+            echo '    --suite benchmark/ --memory'
+            echo "uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json"
+            echo '```'
+            echo ''
+            echo 'One fresh venv per ref; covers the archetype, IO and reference-system benchmarks.'
+            echo '</details>'
+          } > "$RUNNER_TEMP/comment.md"
       - name: Post or update the sticky comment
         env:
           GH_TOKEN: ${{ github.token }}

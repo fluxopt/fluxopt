@@ -11,13 +11,22 @@ fluxopt 0.9.0 — build-pipeline benchmark
 Python 3.13.2 · Darwin arm64 · 8 CPUs
 8760 hourly timesteps (1.0 years)
 
-model              variables  constraints  elements    data   build  peak mem
+model              variables  constraints  elements    data   build  peak rss
 -----------------------------------------------------------------------------
 district_heating        140k         298k     10 ms  136 ms  437 ms   211 MiB
 industry_park           237k         456k     10 ms  135 ms  880 ms   254 MiB
 green_city              245k         491k     12 ms  142 ms  385 ms   260 MiB
 energy_transition      1.96M        3.92M     96 ms   85 ms   1.1 s   1.2 GiB
 ```
+
+**peak rss** is the whole build subprocess's OS-level high-water mark — it
+catches every allocation (numpy buffers, solver C libraries) but includes the
+~140 MiB interpreter-and-imports footprint and allocator slack: the number
+that has to fit in your RAM. For allocator-level numbers (net of the
+interpreter, attributable to code), run the same systems under
+[pytest-benchmem](https://github.com/fluxopt/pytest-benchmem) via the
+repository's `benchmark/test_reference.py` — that is what the CodSpeed
+dashboard and the PR benchmark hint report.
 
 Each system is built in a fresh subprocess, so peak memory is attributed per
 model, and all input data is deterministic — two runs of the same version on
