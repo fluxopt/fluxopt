@@ -534,12 +534,22 @@ class FlowSystemModel:
 
         Where M⁺ = size_max * rel_ub, M⁻ = size_max * rel_lb.
 
+        A ``fixed_relative_profile`` on such a flow has no formulation here
+        and is rejected (the profile path exists only for fixed sizes).
+
         Args:
             flow_ids: Flows that have both Status and Sizing.
         """
         ds = self.data.flows
         assert self.flow_on is not None
         assert self.flow_size is not None
+
+        profile_ids = [fid for fid in flow_ids if str(ds.bound_type.sel(flow=fid).values) == BoundType.PROFILE]
+        if profile_ids:
+            raise ValueError(
+                f'fixed_relative_profile is not supported on flows with both Status and '
+                f'Sizing/Investment: {profile_ids} — fix the size or drop the profile'
+            )
 
         fr = self.flow_rate.sel(flow=flow_ids)
         on = self.flow_on.sel(flow=flow_ids)
@@ -569,9 +579,55 @@ class FlowSystemModel:
         self.m.add_constraints(fr <= fs * ru, name='flow_ub_status_sizing_size')
         self.m.add_constraints(fr >= (on - 1) * big_m_lb + fs * rl, name='flow_lb_status_sizing')
 
-        # on <= S: prevents on=1 when size=0, which would incorrectly
-        # charge running/startup costs for a non-existent unit.
-        self.m.add_constraints(on <= fs, name='flow_on_requires_size')
+        self._gate_status_to_build(flow_ids, sizing_ids, invest_ids)
+
+    def _gate_status_to_build(self, flow_ids: list[str], sizing_ids: set[str], invest_ids: set[str]) -> None:
+        """Prevent on=1 for units that were not built.
+
+        Replaces a former ``on <= S`` constraint, which was vacuous for
+        sizes >= 1 and wrongly forced on=0 for legitimately built sizes < 1.
+
+        - Investment flows: ``on <= invest_active`` (off in inactive periods).
+        - Sizing with ``size_min > 0``: ``S >= size_min * on``.
+        - Optional sizing with ``size_min == 0``: ``on <= size_indicator``.
+        - Mandatory sizing with ``size_min == 0`` stays ungated: a zero-size
+          "unit" already has its rate forced to 0, so an on=1 there is
+          cosmetic unless running costs are negative.
+
+        Args:
+            flow_ids: Flows with both Status and Sizing/Investment.
+            sizing_ids: Flow ids sized via ``Sizing``.
+            invest_ids: Flow ids sized via ``Investment``.
+        """
+        ds = self.data.flows
+        assert self.flow_on is not None
+
+        if gated := sorted(set(flow_ids) & invest_ids):
+            assert self.invest_active is not None
+            self.m.add_constraints(
+                self.flow_on.sel(flow=gated) <= self.invest_active.sel(flow=gated), name='flow_on_requires_active'
+            )
+
+        status_sizing = sorted(set(flow_ids) & sizing_ids)
+        if not status_sizing:
+            return
+        assert ds.sizing is not None and self.flow_size is not None
+        size_min = ds.sizing.min.rename({Dim.SIZING_FLOW: 'flow'}).sel(flow=status_sizing)
+
+        if min_pos := [fid for fid in status_sizing if float(size_min.sel(flow=fid)) > 0]:
+            self.m.add_constraints(
+                self.flow_size.sel(flow=min_pos) >= size_min.sel(flow=min_pos) * self.flow_on.sel(flow=min_pos),
+                name='flow_on_requires_size',
+            )
+        if self.flow_size_indicator is not None:
+            indicator_ids = set(map(str, self.flow_size_indicator.coords['flow'].values))
+            if min_zero := [
+                fid for fid in status_sizing if float(size_min.sel(flow=fid)) == 0 and fid in indicator_ids
+            ]:
+                self.m.add_constraints(
+                    self.flow_on.sel(flow=min_zero) <= self.flow_size_indicator.sel(flow=min_zero),
+                    name='flow_on_requires_indicator',
+                )
 
     def _constrain_flow_rates_component_status(self) -> None:
         """Apply gating constraints for flows governed by component-level Status.
