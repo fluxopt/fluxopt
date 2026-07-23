@@ -510,7 +510,7 @@ class FlowsData:
     cstatus: StatusData | None = None  # dim Dim.CSTATUS_COMPONENT, entity coord 'component'
 
     def __post_init__(self) -> None:
-        """Validate relative bounds: non-negative and lb <= ub."""
+        """Validate relative bounds, status non-degeneracy, and sized-feature requirements."""
         reduce_dims = [d for d in self.rel_lb.dims if d != 'flow']
         bad_neg = (self.rel_lb < -1e-12).any(reduce_dims)
         if bad_neg.any():
@@ -520,6 +520,57 @@ class FlowsData:
             raise ValueError(
                 f'Lower bound > upper bound on flows: {list(self.rel_lb.coords["flow"][bad_order].values)}'
             )
+        self._check_status_not_degenerate()
+        self._check_sized_features()
+
+    def _check_status_not_degenerate(self) -> None:
+        """Status flows need rel_lb > 0 everywhere, else on/off is indistinguishable.
+
+        Enforced here (not only on the ``Flow`` element) because ModelData can
+        be edited directly or reloaded from file — a zero lower bound would
+        make the model solve with silently meaningless status results.
+        """
+        if self.status is None:
+            return
+        status_ids = list(self.status.uptime_min.coords[self.status.uptime_min.dims[0]].values)
+        lb = self.rel_lb.sel(flow=status_ids)
+        degenerate = (lb <= 0).any([d for d in lb.dims if d != 'flow'])
+        if degenerate.any():
+            raise ValueError(
+                f'Status flows must have rel_lb > 0 (else on/off is indistinguishable); '
+                f'violated on {list(lb.coords["flow"][degenerate].values)}'
+            )
+
+    def _check_sized_features(self) -> None:
+        """Ramp limits and load-factor bounds need a sized flow (fixed, Sizing, or Investment).
+
+        Without a size these features would feed NaN into constraint
+        coefficients; the element layer already rejects this at authoring
+        time, this is the guard for direct data edits and reloads.
+        """
+        flow_ids = self.size.coords['flow'].values
+        extra: set[str] = set()
+        if self.sizing is not None:
+            extra |= set(map(str, self.sizing.min.coords[self.sizing.min.dims[0]].values))
+        if self.invest is not None:
+            extra |= set(map(str, self.invest.min.coords[self.invest.min.dims[0]].values))
+        sized = self.size.notnull().values | np.isin(flow_ids, list(extra))
+
+        for da, label in (
+            (self.ramp_up, 'ramp_up'),
+            (self.ramp_down, 'ramp_down'),
+            (self.load_factor_min, 'load_factor_min'),
+            (self.load_factor_max, 'load_factor_max'),
+        ):
+            if da is None:
+                continue
+            has = da.notnull()
+            if extra_dims := [d for d in has.dims if d != 'flow']:
+                has = has.any(extra_dims)
+            if (bad := has.values & ~sized).any():
+                raise ValueError(
+                    f'{label} requires a sized flow (fixed, Sizing, or Investment) on {list(flow_ids[bad])}'
+                )
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -1582,6 +1633,56 @@ class ModelData:
     storages: StoragesData | None  # None when no storages
     dims: Dims
     piecewise: PiecewiseData | None = None  # None when no piecewise converters
+
+    def __post_init__(self) -> None:
+        """Validate cross-table id consistency (also on netCDF reload).
+
+        Each table validates itself in its own ``__post_init__``; this checks
+        that ids referenced *between* tables resolve, so a tampered or
+        hand-edited file fails here instead of as a ``KeyError`` deep in
+        model building.
+        """
+        flow_ids = set(map(str, self.flows.size.coords['flow'].values))
+
+        def check_flows(ids: list[str], what: str) -> None:
+            if unknown := sorted(set(ids) - flow_ids):
+                raise ValueError(f'{what} references unknown flow id(s) {unknown}')
+
+        def coord_ids(da: xr.DataArray) -> list[str]:
+            return [str(v) for v in da.coords[da.dims[0]].values]
+
+        check_flows([str(v) for v in self.carriers.flow_coeff.coords['flow'].values], 'carriers.flow_coeff')
+        if self.flows.sizing is not None:
+            check_flows(coord_ids(self.flows.sizing.min), 'flows.sizing')
+        if self.flows.invest is not None:
+            check_flows(coord_ids(self.flows.invest.min), 'flows.invest')
+        if self.flows.status is not None:
+            check_flows(coord_ids(self.flows.status.uptime_min), 'flows.status')
+        if self.flows.cstatus is not None and self.flows.cstatus.governed_flows is not None:
+            governed = [str(v) for v in self.flows.cstatus.governed_flows.values.ravel() if str(v)]
+            check_flows(governed, 'flows.cstatus.governed_flows')
+        if self.converters is not None:
+            check_flows([str(v) for v in self.converters.pair_flow.values], 'converters.pair_flow')
+        if self.piecewise is not None:
+            check_flows([str(v) for v in self.piecewise.pair_flow.values], 'piecewise.pair_flow')
+        if self.storages is not None:
+            check_flows([str(v) for v in self.storages.charge_flow.values], 'storages.charge_flow')
+            check_flows([str(v) for v in self.storages.discharge_flow.values], 'storages.discharge_flow')
+            storage_ids = set(map(str, self.storages.capacity.coords['storage'].values))
+            for container, what in (
+                (self.storages.sizing, 'storages.sizing'),
+                (self.storages.invest, 'storages.invest'),
+            ):
+                if container is not None and (unknown := sorted(set(coord_ids(container.min)) - storage_ids)):
+                    raise ValueError(f'{what} references unknown storage id(s) {unknown}')
+
+        effect_ids = set(map(str, self.effects.total_min.coords['effect'].values))
+        coeff_effects = set(map(str, self.flows.effect_coeff.coords['effect'].values))
+        if coeff_effects != effect_ids:
+            raise ValueError(
+                f'flows.effect_coeff effect coordinate {sorted(coeff_effects)} does not match '
+                f'the effects table {sorted(effect_ids)}'
+            )
 
     def to_netcdf(self, path: str | Path, *, mode: Literal['w', 'a'] = 'a') -> None:
         """Write model data as NetCDF groups under ``/model/``.
