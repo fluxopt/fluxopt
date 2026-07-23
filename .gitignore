@@ -23,3 +23,6 @@ htmlcov/
 # The benchmark env is the one pinned thing in this repo (benchmark/pyproject.toml).
 uv.lock
 !benchmark/uv.lock
+
+# pytest-benchmark / benchmem sweep output
+.benchmarks/

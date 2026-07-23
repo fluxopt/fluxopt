@@ -53,11 +53,12 @@ jobs:
             echo "uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \\"
             echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.base.ref }} \'
             echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.head.ref }} \'
-            echo '    --suite benchmark/ --memory'
+            echo '    --suite benchmark --copy-dir benchmark --memory --pin pytest-benchmem \'
+            echo '    --out "$PWD/.benchmarks/sweep"'
             echo "uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json"
             echo '```'
             echo ''
-            echo 'One fresh venv per ref; covers the archetype, IO and reference-system benchmarks.'
+            echo 'One fresh venv per ref; covers the archetype, IO and reference-system benchmarks. The pin/copy-dir/out flags work around pytest-benchmem#169-171.'
             echo '</details>'
           } > "$RUNNER_TEMP/comment.md"
           cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"
