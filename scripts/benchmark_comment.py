@@ -11,8 +11,8 @@ runs regardless of which revision is checked out.
 
 from __future__ import annotations
 
+import argparse
 import json
-import sys
 from pathlib import Path
 
 MARKER = '<!-- benchmark-hint -->'
@@ -47,9 +47,20 @@ def build_seconds(row: dict) -> float:
     return row['elements_s'] + row['data_s'] + row['build_s']
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('head_json', type=Path)
+    parser.add_argument('base_json', type=Path, nargs='?')
+    parser.add_argument('--repo', default='fluxopt/fluxopt', help='owner/name, for the replication one-liner')
+    parser.add_argument('--base', default='main', help='base ref, for the replication one-liner')
+    parser.add_argument('--head', default='<your-branch>', help='head ref, for the replication one-liner')
+    return parser.parse_args()
+
+
 def main() -> None:
-    head = json.loads(Path(sys.argv[1]).read_text())
-    base_path = Path(sys.argv[2]) if len(sys.argv) > 2 else None
+    args = parse_args()
+    head = json.loads(args.head_json.read_text())
+    base_path = args.base_json
     base = json.loads(base_path.read_text()) if base_path and base_path.exists() else []
     baseline = {row['model']: row for row in base if 'error' not in row}
 
@@ -82,11 +93,16 @@ def main() -> None:
     if not baseline:
         print()
         print('_No baseline: `fluxopt.benchmark` does not exist on the base branch._')
+    sweep = (
+        f'uv run --project benchmark benchmem sweep fluxopt'
+        f' git+https://github.com/{args.repo}@{args.base}'
+        f' git+https://github.com/{args.repo}@{args.head}'
+        f' --suite benchmark/ --memory'
+    )
     print()
     print(
-        '<sub>CI walltime is what it is — replicate locally with '
-        '`uv run python -m fluxopt.benchmark` on this branch '
-        '(and on `main` for a trustworthy delta).</sub>'
+        f'<sub>CI walltime is what it is — replicate the comparison locally with `{sweep}`, '
+        'then `uv run --project benchmark benchmem compare .benchmarks/sweep/*.json`.</sub>'
     )
 
 

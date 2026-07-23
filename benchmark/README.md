@@ -13,6 +13,9 @@ One `benchmark()` suite, served by [CodSpeed] in CI and [pytest-benchmem] locall
 - `test_build.py` — the feature matrix at one scale, and a multi_node scaling curve.
 - `test_io.py` — the same matrix + scaling curve for `ModelData.to_netcdf`
   (write) and `ModelData.from_netcdf` (read). Solve-free, so no solved `Result`.
+- `test_reference.py` — the realistic reference systems bundled in the package
+  (`fluxopt.benchmark`, also behind `python -m fluxopt.benchmark`) at a quarter
+  year. Skips on fluxopt versions that predate the module.
 
 ## Pinned, standalone env
 
@@ -40,6 +43,23 @@ token), tracking history and annotating PRs on the dashboard:
 
 Both are `continue-on-error` (informational, never block a merge). The walltime
 job needs a CodSpeed `codspeed-macro` runner provisioned for the org.
+
+## Compare two refs — benchmem sweep
+
+To compare performance between any two fluxopt versions or git refs (e.g. a PR
+branch against `main`) with one fresh venv per ref, from the repo root:
+
+```bash
+uv run --project benchmark benchmem sweep fluxopt \
+    git+https://github.com/fluxopt/fluxopt@main \
+    git+https://github.com/fluxopt/fluxopt@my-branch \
+    --suite benchmark/ --memory
+uv run --project benchmark benchmem compare .benchmarks/sweep/*.json
+```
+
+This runs the whole suite — archetypes, IO, and the realistic reference
+systems — against each ref. The `benchmark-hint` PR comment links the exact
+command for its head/base pair.
 
 ## Local memory profiling — pytest-benchmem
 
