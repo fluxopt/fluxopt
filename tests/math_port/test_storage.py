@@ -217,20 +217,98 @@ class TestStorage:
         assert_allclose(result.storage_capacities.sel(storage='Battery').item(), 50.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='prior_level is absolute in fluxopt, not relative')
     def test_storage_relative_level_min(self, optimize):
         """Proves: relative_level_min enforces a minimum SOC at all times.
+
+        Capacity=100, prior_level=50, relative_level_min=0.3 → level >= 30.
+        Grid prices=[1,100,1]. Demand=[0,80,0].
+        @t0: charge 50 → level=100. @t1: discharge 70 → level=30 (exactly min).
+        Grid covers remaining 10 @t1 at price 100.
 
         Sensitivity: Without min SOC, discharge all 100 → no grid → cost=50.
         With min SOC=0.3, max discharge=70 → grid covers 10 @100€ → cost=1050.
         """
-        raise NotImplementedError  # TODO: rewrite for fluxopt API (prior_level is absolute)
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 80, 0])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([1, 100, 1])}),
+                    ],
+                ),
+            ],
+            storages=[
+                Storage(
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
+                    capacity=100,
+                    prior_level=50,
+                    cyclic=False,
+                    relative_level_min=0.3,
+                    eta_charge=1,
+                    eta_discharge=1,
+                    relative_loss_per_hour=0,
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 1050.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='flixopt-specific legacy test')
     def test_storage_cyclic_level(self, optimize):
-        """Proves: cyclic=True forces the storage to end at the
-        same level it started, preventing free energy extraction."""
-        raise NotImplementedError  # TODO: rewrite for fluxopt API (cyclic is a bool)
+        """Proves: cyclic=True forces the storage to end at the same level it
+        started, preventing free energy extraction.
+
+        Price=[1,100]. Demand=[0,50]. The prior level is a free variable tied
+        to the final level. Without the cyclic constraint the storage could
+        start full and discharge for free. With cyclic, whatever is discharged
+        must be recharged → buy 50 at t=0 @1€.
+
+        Sensitivity: Without cyclic, a free prior level gives 50 free energy → cost=0.
+        With cyclic, must buy 50 to replenish → cost=50.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 50])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([1, 100])}),
+                    ],
+                ),
+            ],
+            storages=[
+                Storage(
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
+                    capacity=100,
+                    cyclic=True,
+                    eta_charge=1,
+                    eta_discharge=1,
+                    relative_loss_per_hour=0,
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 50.0, rtol=1e-5)
 
     def test_storage_minimal_final_level(self, optimize):
         """Proves: final_level_min forces the storage to retain at least the
@@ -337,31 +415,198 @@ class TestStorage:
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='relative final level not supported in fluxopt')
     def test_storage_relative_rate_min_final_level(self, optimize):
-        """Proves: relative_rate_min_final_level forces a minimum final SOC
-        as a fraction of capacity."""
-        raise NotImplementedError  # TODO: implement relative final level constraint
+        """Proves: final_level_min forces a minimum final level alongside a
+        time-varying relative_level_min array.
 
-    @pytest.mark.skip(reason='relative final level + imbalance penalty not supported in fluxopt')
+        flixopt used relative_minimum_final_charge_state=0.5 of capacity=100;
+        fluxopt final levels are absolute → final_level_min=50 [MWh].
+
+        Capacity=100, prior_level=50. Demand=[0,80]. Grid @[1,100].
+        Without final constraint: charge 30 @t0 (cost=30), level=80, discharge 80 @t1.
+        With final_level_min=50: @t0 charge 50 → level=100.
+        @t1 discharge 50, grid covers 30 @100€.
+
+        Sensitivity: Without constraint, cost=30. With final_level_min=50, cost=3050.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 80])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([1, 100])}),
+                    ],
+                ),
+            ],
+            storages=[
+                Storage(
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
+                    capacity=100,
+                    prior_level=50,
+                    cyclic=False,
+                    relative_level_min=np.array([0, 0]),
+                    final_level_min=50,
+                    eta_charge=1,
+                    eta_discharge=1,
+                    relative_loss_per_hour=0,
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 3050.0, rtol=1e-5)
+
     def test_storage_relative_rate_max_final_level(self, optimize):
-        """Proves: relative_rate_max_final_level caps the storage at end
-        as a fraction of capacity."""
-        raise NotImplementedError  # TODO: implement relative final level constraint
+        """Proves: final_level_max caps the final level alongside a
+        time-varying relative_level_max array.
 
-    @pytest.mark.skip(reason='relative final level not supported in fluxopt')
+        flixopt used relative_maximum_final_charge_state=0.2 of capacity=100
+        plus an imbalance penalty of 5; fluxopt final levels are absolute →
+        final_level_max=20 [MWh], and the penalty becomes a Dump port priced
+        at 5€/kWh.
+
+        Capacity=100, prior_level=80. Demand=[50,0]. Grid @[100,1].
+        Without max final: discharge 50 @t0, final=30 → objective=0.
+        With final_level_max=20: discharge 60, excess 10 dumped @5€ → objective=50.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([50, 0])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([100, 1])}),
+                    ],
+                ),
+                Port(id='Dump', exports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 5})]),
+            ],
+            storages=[
+                Storage(
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
+                    capacity=100,
+                    prior_level=80,
+                    cyclic=False,
+                    relative_level_max=np.array([1.0, 1.0]),
+                    final_level_max=20,
+                    eta_charge=1,
+                    eta_discharge=1,
+                    relative_loss_per_hour=0,
+                ),
+            ],
+        )
+        assert_allclose(result.objective, 50.0, rtol=1e-5)
+
     def test_storage_relative_rate_min_final_level_scalar(self, optimize):
-        """Proves: relative_rate_min_final_level works when relative_level_min
-        is a scalar (default=0, no time dimension)."""
-        raise NotImplementedError  # TODO: implement relative final level constraint
+        """Proves: final_level_min works when relative_level_min is a scalar
+        (default=0, no time dimension).
 
-    @pytest.mark.skip(reason='relative final level + imbalance penalty not supported in fluxopt')
+        Same scenario as test_storage_relative_rate_min_final_level but with
+        scalar level bounds — in flixopt the scalar branch once ignored the
+        final override entirely.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([0, 80])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([1, 100])}),
+                    ],
+                ),
+            ],
+            storages=[
+                Storage(
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
+                    capacity=100,
+                    prior_level=50,
+                    cyclic=False,
+                    final_level_min=50,
+                    eta_charge=1,
+                    eta_discharge=1,
+                    relative_loss_per_hour=0,
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 3050.0, rtol=1e-5)
+
     def test_storage_relative_rate_max_final_level_scalar(self, optimize):
-        """Proves: relative_rate_max_final_level works when relative_level_max
-        is a scalar (default=1, no time dimension)."""
-        raise NotImplementedError  # TODO: implement relative final level constraint
+        """Proves: final_level_max works when relative_level_max is a scalar
+        (default=1, no time dimension).
 
-    @pytest.mark.skip(reason='balanced invest not supported in fluxopt')
+        Same scenario as test_storage_relative_rate_max_final_level but with
+        scalar level bounds — in flixopt the scalar branch once ignored the
+        final override entirely.
+        """
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier(id='Elec')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([50, 0])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(carrier='Elec', effects_per_flow_hour={'cost': np.array([100, 1])}),
+                    ],
+                ),
+                Port(id='Dump', exports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 5})]),
+            ],
+            storages=[
+                Storage(
+                    id='Battery',
+                    charging=Flow(carrier='Elec', size=200),
+                    discharging=Flow(carrier='Elec', size=200),
+                    capacity=100,
+                    prior_level=80,
+                    cyclic=False,
+                    final_level_max=20,
+                    eta_charge=1,
+                    eta_discharge=1,
+                    relative_loss_per_hour=0,
+                ),
+            ],
+        )
+        assert_allclose(result.objective, 50.0, rtol=1e-5)
+
+    @pytest.mark.skip(reason='balanced charge/discharge investment not supported — issue #15')
     def test_storage_balanced_invest(self, optimize):
         """Proves: balanced=True forces charge and discharge invest sizes to be equal."""
         raise NotImplementedError  # TODO: implement balanced invest on Storage

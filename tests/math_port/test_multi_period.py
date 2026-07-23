@@ -2,9 +2,8 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 import xarray as xr
-from conftest import ts
+from conftest import ts, waste
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Investment, Port, Sizing, Status, Storage
@@ -42,21 +41,179 @@ class TestMultiPeriod:
         )
         assert_allclose(result.objective, 300.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='multi-period over-period constraints not yet implemented')
     def test_flow_hours_max_over_periods(self, optimize):
-        """Proves: flow_hours_max_over_periods caps the weighted total flow-hours."""
+        """Proves: a weighted cross-period budget caps a flow's total flow-hours.
 
-    @pytest.mark.skip(reason='multi-period over-period constraints not yet implemented')
+        fluxopt's Flow.flow_hours_max is per period; the cross-period budget
+        (flixopt flow_hours_max_over_periods) is expressed via an auxiliary
+        effect counting the flow's flow-hours, bounded with Effect.total_max
+        (the weighted total across periods) — mathematically equivalent.
+
+        3 timesteps, periods=[2020, 2025], weights=[5, 5].
+        Dirty @1 cost/MWh with flow-hours budget total_max=50, Clean @10.
+        Demand=[10, 10, 10] per period (30 flow-hours each).
+        Budget: 5*fh_2020 + 5*fh_2025 <= 50 → unweighted dirty total <= 10.
+        Cost = 5*(dirty*1 + clean*10) = 5*(10 + 50*10) = 2550.
+
+        Sensitivity: without the budget, all dirty → objective = 300.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost'), Effect(id='dirty_fh', total_max=50)],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    id='Dirty',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'dirty_fh': 1}),
+                    ],
+                ),
+                Port(
+                    id='Clean',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 10}),
+                    ],
+                ),
+            ],
+            periods=[2020, 2025],
+            period_weights=[5, 5],
+        )
+        assert_allclose(result.objective, 2550.0, rtol=1e-5)
+
     def test_flow_hours_min_over_periods(self, optimize):
-        """Proves: flow_hours_min_over_periods forces a minimum weighted total."""
+        """Proves: a weighted cross-period budget forces minimum total flow-hours.
 
-    @pytest.mark.skip(reason='multi-period over-period constraints not yet implemented')
+        fluxopt's Flow.flow_hours_min is per period; the cross-period minimum
+        (flixopt flow_hours_min_over_periods) is expressed via an auxiliary
+        effect counting the flow's flow-hours, bounded with Effect.total_min.
+
+        3 timesteps, periods=[2020, 2025], weights=[5, 5].
+        Expensive @10 cost/MWh with flow-hours minimum total_min=100, Cheap @1.
+        Demand=[10, 10, 10] per period (30 flow-hours each).
+        Minimum: 5*fh_2020 + 5*fh_2025 >= 100 → unweighted expensive total >= 20.
+        Cost = 5*(20*10 + 40*1) = 1200.
+
+        Sensitivity: without the minimum, all cheap → objective = 300.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost'), Effect(id='exp_fh', total_min=100)],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    id='Cheap',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1}),
+                    ],
+                ),
+                Port(
+                    id='Expensive',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 10, 'exp_fh': 1}),
+                    ],
+                ),
+            ],
+            periods=[2020, 2025],
+            period_weights=[5, 5],
+        )
+        assert_allclose(result.objective, 1200.0, rtol=1e-5)
+
     def test_effect_maximum_over_periods(self, optimize):
-        """Proves: Effect.maximum_over_periods caps weighted total of an effect."""
+        """Proves: Effect.total_max caps the weighted total of an effect across periods.
 
-    @pytest.mark.skip(reason='multi-period over-period constraints not yet implemented')
+        3 timesteps, periods=[2020, 2025], weights=[5, 5].
+        Dirty @1 cost/MWh emits 1 CO2/MWh, CO2 total_max=50. Clean @10.
+        Demand=[10, 10, 10] per period (30 flow-hours each).
+        Cap: 5*co2_2020 + 5*co2_2025 <= 50 → unweighted dirty total <= 10.
+        Cost = 5*(dirty*1 + clean*10) = 5*(10 + 50*10) = 2550.
+
+        Sensitivity: without the CO2 cap, all dirty → objective = 300.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost'), Effect(id='co2', total_max=50)],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    id='Dirty',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'co2': 1}),
+                    ],
+                ),
+                Port(
+                    id='Clean',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 10}),
+                    ],
+                ),
+            ],
+            periods=[2020, 2025],
+            period_weights=[5, 5],
+        )
+        assert_allclose(result.objective, 2550.0, rtol=1e-5)
+
     def test_effect_minimum_over_periods(self, optimize):
-        """Proves: Effect.minimum_over_periods forces minimum weighted total."""
+        """Proves: Effect.total_min forces a minimum weighted total across periods.
+
+        3 timesteps, periods=[2020, 2025], weights=[5, 5].
+        Dirty @1 cost/MWh emits 1 CO2/MWh, CO2 total_min=100. Cheap @1, no CO2.
+        Demand=[2, 2, 2] per period (6 flow-hours each); waste absorbs excess.
+        Minimum: 5*co2_2020 + 5*co2_2025 >= 100 → unweighted dirty total >= 20.
+        Cheapest: produce 20 dirty (14 dumped), no cheap. Cost = 5*20 = 100.
+
+        Sensitivity: without the CO2 minimum, objective = 5*(6+6) = 60.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost'), Effect(id='co2', total_min=100)],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([2, 2, 2])),
+                    ],
+                ),
+                Port(
+                    id='Dirty',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'co2': 1}),
+                    ],
+                ),
+                Port(
+                    id='Cheap',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1}),
+                    ],
+                ),
+                waste('Heat'),
+            ],
+            periods=[2020, 2025],
+            period_weights=[5, 5],
+        )
+        assert_allclose(result.objective, 100.0, rtol=1e-5)
 
     def test_period_varying_demand_via_dataframe(self, optimize):
         """Proves: fixed_relative_profile accepts (time, period) DataFrame.
@@ -127,9 +284,53 @@ class TestMultiPeriod:
         )
         assert_allclose(result.objective, 120.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='multi-period linked periods not yet implemented')
     def test_invest_linked_periods(self, optimize):
-        """Proves: InvestParameters.linked_periods forces equal sizes across periods."""
+        """Proves: Investment yields equal sizes across active periods.
+
+        flixopt's linked_periods forces equal invest sizes across periods.
+        fluxopt's Investment decides one size and one build period; with no
+        lifetime limit the capacity persists, so sizes are linked across all
+        active periods by construction — the native equivalent.
+
+        3 timesteps, periods=[2020, 2025], weights=[5, 5].
+        Grid with Investment(0, 100, CAPEX=1/MW), operational @1 cost/MWh.
+        Demand=[10, 10, 10] per period forces a build in 2020 at size 10.
+        CAPEX weighted: 5*10 = 50. Operational: 5*30 + 5*30 = 300. Total 350.
+
+        Structural check: sizes are equal across the two periods.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10, 10])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(
+                            carrier='Heat',
+                            size=Investment(
+                                size_min=0, size_max=100, mandatory=False, effects_per_size_at_build={'cost': 1}
+                            ),
+                            effects_per_flow_hour={'cost': 1},
+                        ),
+                    ],
+                ),
+            ],
+            periods=[2020, 2025],
+            period_weights=[5, 5],
+        )
+        sizes = result.sizes.sel(flow='Grid(Heat)')
+        assert_allclose(sizes.sel(period=2020).item(), sizes.sel(period=2025).item(), rtol=1e-5)
+        assert_allclose(sizes.values, [10.0, 10.0], rtol=1e-5)
+        assert_allclose(result.objective, 350.0, rtol=1e-5)
 
     def test_effect_period_weights(self, optimize):
         """Proves: Effect.period_weights overrides global period weights.
@@ -164,13 +365,107 @@ class TestMultiPeriod:
         )
         assert_allclose(result.objective, 90.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='multi-period storage constraints not yet implemented')
     def test_storage_relative_rate_min_final_level_scalar(self, optimize):
-        """Proves: scalar relative_rate_min_final_level works in multi-period."""
+        """Proves: a scalar final-level lower bound works per period in multi-period.
 
-    @pytest.mark.skip(reason='multi-period storage constraints not yet implemented')
+        flixopt: relative_minimum_final_charge_state=0.5 on capacity 100.
+        fluxopt final levels are absolute: final_level_min = 0.5*100 = 50 MWh.
+
+        3 timesteps, periods=[2020, 2025], weights=[5, 5].
+        Storage: capacity=100, prior_level=50 (per period), final >= 50.
+        Grid @[1, 1, 100], Demand=[0, 0, 80].
+        Per-period: charge 50 @t0+t1 (cost=50), discharge 50 @t2 (level 100→50),
+        grid 30 @100 = 3000. Per-period cost=3050. Objective = 5*3050*2 = 30500.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([0, 0, 80])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': np.array([1, 1, 100])}),
+                    ],
+                ),
+            ],
+            storages=[
+                Storage(
+                    id='Battery',
+                    charging=Flow(carrier='Heat', size=200),
+                    discharging=Flow(carrier='Heat', size=200),
+                    capacity=100,
+                    prior_level=50,
+                    cyclic=False,
+                    final_level_min=50,
+                ),
+            ],
+            periods=[2020, 2025],
+            period_weights=[5, 5],
+        )
+        assert_allclose(result.objective, 30500.0, rtol=1e-5)
+
     def test_storage_relative_rate_max_final_level_scalar(self, optimize):
-        """Proves: scalar relative_rate_max_final_level works in multi-period."""
+        """Proves: a scalar final-level upper bound works per period in multi-period.
+
+        flixopt: relative_maximum_final_charge_state=0.2 on capacity 100, with
+        imbalance_penalty_per_flow_hour=5. fluxopt final levels are absolute:
+        final_level_max = 0.2*100 = 20 MWh; the imbalance penalty becomes a
+        Dump port charging 5 cost/MWh — same objective math.
+
+        3 timesteps, periods=[2020, 2025], weights=[5, 5].
+        Storage: capacity=100, prior_level=80, final <= 20.
+        Demand=[50, 0, 0], Grid @[100, 1, 1].
+        Per-period: discharge 50 for demand @t0 (level 30), dump 10 more
+        (cost 5*10=50, level 20). Per-period cost=50. Objective = 5*50*2 = 500.
+        """
+        result = optimize(
+            timesteps=ts(3),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(
+                    id='Demand',
+                    exports=[
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([50, 0, 0])),
+                    ],
+                ),
+                Port(
+                    id='Grid',
+                    imports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': np.array([100, 1, 1])}),
+                    ],
+                ),
+                Port(
+                    id='Dump',
+                    exports=[
+                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 5}),
+                    ],
+                ),
+            ],
+            storages=[
+                Storage(
+                    id='Battery',
+                    charging=Flow(carrier='Heat', size=200),
+                    discharging=Flow(carrier='Heat', size=200),
+                    capacity=100,
+                    prior_level=80,
+                    cyclic=False,
+                    final_level_max=20,
+                ),
+            ],
+            periods=[2020, 2025],
+            period_weights=[5, 5],
+        )
+        assert_allclose(result.objective, 500.0, rtol=1e-5)
 
 
 class TestInvestment:

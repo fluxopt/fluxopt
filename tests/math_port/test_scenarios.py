@@ -6,7 +6,7 @@ All tests skipped — scenario optimization is not supported in fluxopt.
 import pytest
 
 
-@pytest.mark.skip(reason='scenario optimization not supported in fluxopt')
+@pytest.mark.skip(reason='scenario optimization not supported — issue #28')
 class TestScenarios:
     def test_scenario_weights_affect_objective(self, optimize):
         """Proves: scenario weights correctly weight per-scenario costs."""
