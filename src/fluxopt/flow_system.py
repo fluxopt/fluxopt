@@ -87,7 +87,7 @@ def _collect_profile_refs(obj: Any, path: str, out: list[tuple[str, ProfileRef]]
         for i, value in enumerate(obj):
             _collect_profile_refs(value, f'{path}[{i}]', out)
     elif isinstance(obj, BaseModel):
-        element_id = getattr(obj, 'id', '')
+        element_id = getattr(obj, 'id', '') or getattr(obj, 'short_id', '')
         base = f'{type(obj).__name__}({element_id!r})' if element_id else path
         for name in type(obj).model_fields:
             _collect_profile_refs(getattr(obj, name), f'{base}.{name}', out)
