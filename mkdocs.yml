@@ -38,6 +38,7 @@ nav:
     - Sizing: math/sizing.md
     - Status: math/status.md
   - API Reference: api/
+  - Benchmark: benchmark.md
   - Contributing: contributing.md
   - Changelog: changelog.md
 
