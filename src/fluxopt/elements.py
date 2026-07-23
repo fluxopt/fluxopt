@@ -299,8 +299,9 @@ class Effect(Element):
     """
     contribution_from: dict[str, Variate] = Field(default_factory=dict)
     """Cross-effect factors ``{source_effect: factor}``.
-    Scalar factors apply identically to both domains; time-varying
-    factors are averaged for the lump domain.
+    Scalar factors apply identically to both domains. Time-varying factors
+    apply per-timestep in the temporal domain and are rejected at build time
+    when the source effect carries lump (sizing/fixed) contributions.
     """
     period_weights: list[float] | None = None  # ω[p] — scales total across periods
     """Per-period weights ω for total aggregation;

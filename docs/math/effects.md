@@ -77,10 +77,11 @@ The factor \(\alpha_{k,j}\) from `contribution_from` accepts either a scalar
 or a `Variate`:
 
 - **Scalar**: applied identically to both temporal and lump domains.
-- **Variate** (time-varying): applied per-timestep in the temporal domain;
-  for the lump domain the arithmetic mean over time is used
-  (`cf_temporal.mean('time')` in `model.py`). A `UserWarning` is emitted when
-  a time-varying factor is averaged for a non-trivial lump contribution.
+- **Variate** (time-varying): applied per-timestep in the temporal domain.
+  Rejected at build time when the source effect carries lump (sizing/fixed)
+  contributions — a per-timestep factor has no meaning for one-time
+  quantities. Use a scalar factor, or move the lump share into a separate
+  effect with a scalar factor.
 
 If you need different cross-effect factors for the two domains, split into
 separate effects.
@@ -94,6 +95,23 @@ Contributions chain transitively. A PE → CO₂ → cost chain is modeled as:
 - **No self-references**: an effect cannot reference itself (\(\alpha_{k,k}\)).
 - **No cycles**: \(k \to j \to \cdots \to k\) is rejected at build time to
   prevent singular systems.
+
+### Pricing: `contribution_from` vs. objective weights
+
+Two mechanisms can price one effect into another, and they mean different
+things:
+
+- **`contribution_from`** changes what the target effect *is*. Reported
+  totals include the priced share, and `total_max` / `periodic_max` on the
+  target bind against it. Use it when the price belongs in the accounting —
+  e.g. an internal carbon price that should appear in reported cost.
+- **Objective weights** (`optimize(..., objective={'cost': 1, 'co2': 250})`)
+  change only the objective. Each effect's reported totals stay pure; the
+  solver merely trades them off at the given rate. Use them for
+  multi-criteria studies where the accounting must stay untouched.
+
+Rule of thumb: if the number would appear in a financial report, use
+`contribution_from`; if it is a study assumption, weight the objective.
 
 ## Total Aggregation
 

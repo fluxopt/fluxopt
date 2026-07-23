@@ -348,38 +348,55 @@ class TestEffects:
         assert co2 <= 20 + 1e-5
         assert_allclose(result.objective, 70.0, rtol=1e-5)
 
-    def test_effect_time_varying_contribution_warns(self):
-        """Time-varying contribution_from with non-trivial lump warns about mean('time')."""
-        import warnings
+    @pytest.mark.parametrize(
+        ('chain_effects', 'lump_effect'),
+        [
+            pytest.param([Effect(id='co2')], 'co2', id='direct'),
+            pytest.param([Effect(id='co2', contribution_from={'pe': 0.2}), Effect(id='pe')], 'pe', id='transitive'),
+        ],
+    )
+    def test_effect_time_varying_contribution_into_lump_bearing_raises(self, chain_effects, lump_effect):
+        """Time-varying contribution_from is rejected when the source effect has lump contributions.
 
-        # Sizing on the source creates a non-trivial lump contribution to co2.
-        # Time-varying contribution_from on cost causes the warning.
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter('always')
+        Sizing on the source creates the lump contribution — directly on co2, or
+        on pe with a scalar chain co2 <- pe (the check follows chains).
+        """
+        source = Flow(
+            carrier='Heat',
+            effects_per_flow_hour={lump_effect: 1},
+            size=Sizing(size_min=10, size_max=10, mandatory=True, effects_per_size={lump_effect: 1.0}),
+        )
+        with pytest.raises(ValueError, match='ill-defined'):
             optimize(
                 ts(2),
                 carriers=[Carrier(id='Heat')],
-                effects=[
-                    Effect(id='cost', contribution_from={'co2': [1.0, 2.0]}),
-                    Effect(id='co2'),
-                ],
+                effects=[Effect(id='cost', contribution_from={'co2': [1.0, 2.0]}), *chain_effects],
                 objective='cost',
                 ports=[
                     Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5])]),
-                    Port(
-                        id='Source',
-                        imports=[
-                            Flow(
-                                carrier='Heat',
-                                effects_per_flow_hour={'co2': 1},
-                                size=Sizing(size_min=10, size_max=10, mandatory=True, effects_per_size={'co2': 1.0}),
-                            ),
-                        ],
-                    ),
+                    Port(id='Source', imports=[source]),
                 ],
             )
-        msgs = [str(w.message) for w in caught]
-        assert any('averaged over time' in m for m in msgs), f'Expected warning, got: {msgs}'
+
+    def test_effect_time_varying_contribution_without_lump(self):
+        """Time-varying contribution_from is fine when the source effect is purely temporal.
+
+        co2 = [5, 5] per timestep, factor = [1, 2] -> cost = 5*1 + 5*2 = 15.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier(id='Heat')],
+            effects=[
+                Effect(id='cost', contribution_from={'co2': [1.0, 2.0]}),
+                Effect(id='co2'),
+            ],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5])]),
+                Port(id='Source', imports=[Flow(carrier='Heat', effects_per_flow_hour={'co2': 1})]),
+            ],
+        )
+        assert_allclose(result.objective, 15.0, rtol=1e-5)
 
 
 # ---------------------------------------------------------------------------

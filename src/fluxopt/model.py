@@ -55,6 +55,30 @@ def _validate_objective(effects: dict[str, float]) -> None:
         raise ValueError(msg)
 
 
+def _lump_bearing_effects(terms: list[EffectTerm], cf_lump: xr.DataArray) -> xr.DataArray:
+    """Boolean mask over ``effect``: which effects receive lump contributions.
+
+    An effect is lump-bearing when a lump-domain term contributes to it
+    directly, or when it receives from a lump-bearing effect through the
+    (acyclic) cross-effect matrix ``(effect, source_effect[, ...])``.
+    """
+    effect_ids = cf_lump.indexes['effect']
+    bearing = xr.DataArray(np.zeros(len(effect_ids), dtype=bool), coords={'effect': effect_ids}, dims='effect')
+    for term in (t for t in terms if t.domain == 'lump'):
+        nonzero = (term.coeff.notnull() & (term.coeff != 0)).any([d for d in term.coeff.dims if d != 'effect'])
+        bearing = bearing | nonzero.reindex_like(bearing, fill_value=False)
+
+    adjacency = (cf_lump.notnull() & (cf_lump != 0)).any(
+        [d for d in cf_lump.dims if d not in ('effect', 'source_effect')]
+    )
+    for _ in range(bearing.sizes['effect']):
+        grown = bearing | (adjacency & bearing.rename({'effect': 'source_effect'})).any('source_effect')
+        if grown.equals(bearing):
+            break
+        bearing = grown
+    return bearing
+
+
 class FlowSystemModel:
     # Sizing variables — None when no sizing is configured
     flow_size: Variable | None = None
@@ -1356,28 +1380,29 @@ class FlowSystemModel:
         if not isinstance(lump_const, int):
             lump_direct = lump_direct + lump_const if not isinstance(lump_direct, int) else lump_const
 
-        # Cross-effect lump: mean(cf_temporal, 'time')[k,j] * effect_lump[j]
-        # Time-varying contribution_from values are averaged over time for the
-        # lump domain. Warn per-(k,j) where the factor varies and the mean
-        # is non-zero (i.e. the cross-effect actually contributes).
+        # Cross-effect lump: mean(cf_temporal, 'time')[k,j] * effect_lump[j].
+        # A time-varying factor has no meaning for one-time (lump) quantities,
+        # so it is rejected when the source effect carries lump contributions;
+        # the mean is only ever applied where the source's lump is structurally zero.
         lump_rhs: Any = lump_direct
         if ds.cf_temporal is not None:
             cf_lump = ds.cf_temporal.mean('time')
             varying = (ds.cf_temporal != cf_lump).any('time')  # (effect, source_effect)
-            non_trivial = varying & (cf_lump != 0)
-            if bool(non_trivial.any().item()) and not isinstance(lump_direct, int):
-                import warnings
-
-                pairs = [
-                    (str(non_trivial.coords['effect'].values[i]), str(non_trivial.coords['source_effect'].values[j]))
-                    for i, j in zip(*non_trivial.values.nonzero(), strict=True)
-                ]
-                pair_str = ', '.join(f'{k}<-{j}' for k, j in pairs)
-                warnings.warn(
-                    f'Time-varying contribution_from for {pair_str} is averaged over time for the lump domain. '
-                    "If this isn't what you want, split into separate effects.",
-                    stacklevel=2,
-                )
+            if bool(varying.any().item()):
+                bearing = _lump_bearing_effects(terms, cf_lump)
+                mask = varying & bearing.rename({'effect': 'source_effect'})
+                mask = mask.any([d for d in mask.dims if d not in ('effect', 'source_effect')])
+                if bool(mask.any().item()):
+                    pairs = ', '.join(
+                        f'{mask.effect.values[i]}<-{mask.source_effect.values[j]}'
+                        for i, j in zip(*mask.values.nonzero(), strict=True)
+                    )
+                    raise ValueError(
+                        f'Time-varying contribution_from for {pairs} is ill-defined: the source effect '
+                        'carries lump (sizing/fixed) contributions, and a per-timestep factor has no meaning '
+                        'for one-time quantities. Use a scalar factor, or move the lump share into a '
+                        'separate effect with a scalar factor.'
+                    )
             source_p = self.effect_lump.rename({'effect': 'source_effect'})
             cross = (cf_lump * source_p).sum('source_effect')
             lump_rhs = cross + lump_direct  # linopy expr must be left operand
