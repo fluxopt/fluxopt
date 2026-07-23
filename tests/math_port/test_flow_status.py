@@ -57,7 +57,7 @@ class TestFlowStatus:
         # fuel = (10+10)/0.5 = 40, startups = 2, cost = 40 + 200 = 240
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 240.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='active_hours not supported in fluxopt')
+    @pytest.mark.skip(reason='active_hours_min/max not supported — issue #16')
     def test_active_hours_max(self, optimize):
         """Proves: active_hours_max limits the total number of on-hours for a unit.
 
@@ -225,7 +225,7 @@ class TestFlowStatus:
         # fuel=20, active_hour_cost=2*50=100, total=120
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='active_hours not supported in fluxopt')
+    @pytest.mark.skip(reason='active_hours_min/max not supported — issue #16')
     def test_active_hours_min(self, optimize):
         """Proves: active_hours_min forces a unit to run for at least N hours total.
 
@@ -291,7 +291,7 @@ class TestFlowStatus:
         # ExpBoiler on 2h @20/0.5=40 fuel/h, CheapBoiler off hours @20/1.0=20 fuel/h. Total=60.
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='startup_limit not supported in fluxopt')
+    @pytest.mark.skip(reason='startup_limit not supported — issue #17')
     def test_startup_limit(self, optimize):
         """Proves: startup_limit caps the number of startup events per period.
 

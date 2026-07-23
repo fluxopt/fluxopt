@@ -6,7 +6,7 @@ All tests skipped — clustering is not supported in fluxopt.
 import pytest
 
 
-@pytest.mark.skip(reason='clustering not supported in fluxopt')
+@pytest.mark.skip(reason='representative-period clustering not supported — issue #170')
 class TestClustering:
     def test_clustering_preserves_total_cost(self, optimize):
         """Proves: clustering with period weights approximates full-resolution cost."""
