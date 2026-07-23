@@ -50,15 +50,14 @@ jobs:
             echo '<summary>Replicate locally / compare against ${{ github.event.pull_request.base.ref }}</summary>'
             echo ''
             echo '```bash'
-            echo 'cd benchmark'
-            echo 'uv run pytest test_reference.py --benchmark-only --benchmark-memory --benchmark-json head.json'
-            echo 'git switch ${{ github.event.pull_request.base.ref }}'
-            echo 'uv run pytest test_reference.py --benchmark-only --benchmark-memory --benchmark-json base.json'
-            echo 'git switch -'
-            echo 'uv run benchmem compare base.json head.json'
+            echo "uvx --from 'git+https://github.com/fluxopt/pytest-benchmem' benchmem sweep fluxopt \\"
+            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.base.ref }} \'
+            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.head.ref }} \'
+            echo '    --suite benchmark/ --memory'
+            echo "uvx --from 'git+https://github.com/fluxopt/pytest-benchmem' benchmem compare .benchmarks/sweep/*.json"
             echo '```'
             echo ''
-            echo 'Same pinned env (benchmark/uv.lock); `uv run` re-syncs the editable fluxopt after each switch.'
+            echo 'One fresh venv per ref, checkout untouched; covers the archetype, IO and reference-system benchmarks. Alternative flows: benchmark/README.md.'
             echo '</details>'
           } > "$RUNNER_TEMP/comment.md"
           cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"

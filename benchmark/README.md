@@ -44,10 +44,35 @@ token), tracking history and annotating PRs on the dashboard:
 Both are `continue-on-error` (informational, never block a merge). The walltime
 job needs a CodSpeed `codspeed-macro` runner provisioned for the org.
 
-## Compare two branches
+## Compare two refs — benchmem sweep
 
-Simplest: run the suite on each branch in the pinned env — `uv run` re-syncs
-the editable fluxopt after every switch:
+Compare any two fluxopt refs or released versions with one fresh venv per
+ref — without touching your checkout (a dirty tree is fine). From the repo
+root:
+
+```bash
+uvx --from 'git+https://github.com/fluxopt/pytest-benchmem' benchmem sweep fluxopt \
+    git+https://github.com/fluxopt/fluxopt@main \
+    git+https://github.com/fluxopt/fluxopt@my-branch \
+    --suite benchmark/ --memory
+uvx --from 'git+https://github.com/fluxopt/pytest-benchmem' benchmem compare .benchmarks/sweep/*.json
+```
+
+Once the next pytest-benchmem release ships, install plain
+`'pytest-benchmem[plot]'` from PyPI instead — the released 0.4.10 needs the
+`git+` source (and workaround flags) because of
+[pytest-benchmem#168–171](https://github.com/fluxopt/pytest-benchmem/issues/168),
+all fixed on its `main`.
+
+Sweep resolves one fresh venv per ref (no lockfile — it can't, the dependency
+set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
+`--pin <spec>` to hold individual dependencies still.
+
+## Or: switch branches
+
+Zero extra installs — run the suite on each branch in the pinned env
+(`uv run` re-syncs the editable fluxopt after every switch; needs a clean
+tree):
 
 ```bash
 cd benchmark
@@ -57,33 +82,6 @@ uv run pytest . --benchmark-only --benchmark-memory --benchmark-json base.json
 git switch -
 uv run benchmem compare base.json head.json
 ```
-
-## Compare released versions — benchmem sweep
-
-To compare fluxopt *versions* (or refs without touching your checkout) with
-one fresh venv per ref, from the repo root:
-
-```bash
-uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \
-    git+https://github.com/fluxopt/fluxopt@main \
-    git+https://github.com/fluxopt/fluxopt@my-branch \
-    --suite benchmark --copy-dir benchmark --memory --pin pytest-benchmem \
-    --out "$PWD/.benchmarks/sweep"
-uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json
-```
-
-The `--pin pytest-benchmem` installs the memory harness into each ref's venv
-(the suite's `--memory` pass needs it there, not just in the CLI venv).
-`--copy-dir` stages the suite into sweep's isolated working directory, and
-`--out` must be absolute because relative paths resolve inside that
-directory. All three flags are workarounds for
-[pytest-benchmem#169–171](https://github.com/fluxopt/pytest-benchmem/issues/169)
-and can be dropped once fixed upstream. Heads-up: `--copy-dir benchmark` also
-copies `benchmark/.venv` if you have synced it locally.
-
-Sweep resolves one fresh venv per ref (no lockfile — it can't, the dependency
-set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
-`--pin <spec>` to hold individual dependencies still.
 
 Both flows run the whole suite — archetypes, IO, and the realistic reference
 systems. On PRs, the `benchmark-hint` workflow runs `test_reference.py` the
