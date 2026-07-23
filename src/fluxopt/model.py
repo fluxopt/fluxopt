@@ -11,12 +11,14 @@ from fluxopt.constraints.status import add_duration_tracking, add_switch_transit
 from fluxopt.constraints.storage import add_accumulation_constraints
 from fluxopt.contract import BoundType, Dim, Var
 from fluxopt.contributions import _leontief
+from fluxopt.effect_terms import effect_terms
 from fluxopt.results import Result
 from fluxopt.types import as_dataarray
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from fluxopt.effect_terms import EffectTerm
     from fluxopt.model_data import ModelData
 
 
@@ -1220,8 +1222,36 @@ class FlowSystemModel:
                     name=f'pw_avail_{conv_id}',
                 )
 
+    def _term_variable(self, term: EffectTerm) -> Variable:
+        """Resolve a term's solver variable, selected to the entity ids its coeff covers."""
+        by_name: dict[str, Variable | None] = {
+            Var.FLOW_RATE: self.flow_rate,
+            Var.FLOW_ON: self.flow_on,
+            Var.FLOW_STARTUP: self.flow_startup,
+            Var.COMPONENT_ON: self.component_on,
+            Var.COMPONENT_STARTUP: self.component_startup,
+            Var.FLOW_SIZE: self.flow_size,
+            Var.FLOW_SIZE_INDICATOR: self.flow_size_indicator,
+            Var.STORAGE_CAPACITY: self.storage_capacity,
+            Var.STORAGE_SIZE_INDICATOR: self.storage_capacity_indicator,
+            Var.INVEST_SIZE_AT_BUILD: self.invest_size_at_build,
+            Var.INVEST_BUILD: self.invest_build,
+            Var.INVEST_ACTIVE: self.invest_active,
+        }
+        assert term.var is not None
+        var = by_name[term.var]
+        assert var is not None, f'effect term {term.key!r} references variable {term.var!r} before it was created'
+        if term.select is not None:
+            var = var.sel({term.entity_dim: list(term.select)})
+        return var
+
     def _create_effects(self) -> None:
-        """Effect tracking: temporal and lump domains."""
+        """Effect tracking: temporal and lump domains.
+
+        Both the expressions built here and the post-solve decomposition in
+        ``contributions.py`` derive from the same term declarations
+        (:func:`fluxopt.effect_terms.effect_terms`).
+        """
         d = self.data
         ds = d.effects
 
@@ -1231,42 +1261,18 @@ class FlowSystemModel:
             return
 
         # --- Temporal domain: expressions folded into effect--total (no per-timestep variables) ---
-        # Flow contributions: sum_f(coeff_{f,k,t} * P_{f,t} * dt_t)
-        effect_coeff = d.flows.effect_coeff  # (flow, effect, time)
-        has_any_coeff = (effect_coeff != 0).any()
+        # One expression per declared term: sum_entity(coeff * var [* dt]).
+        terms = effect_terms(d)
 
         temporal_rhs: Any = 0
-        if has_any_coeff:
-            coeff_dt = effect_coeff * d.dims.dt
-            temporal_rhs = sparse_weighted_sum(self.flow_rate, coeff_dt, sum_dim='flow', group_dim='effect')
-
-        # Status running costs: sum_f(running_coeff[f,k,t] * on[f,t] * dt[t])
-        if d.flows.status is not None:
-            assert self.flow_on is not None
-            er = d.flows.status.effects_running.rename({Dim.STATUS_FLOW: 'flow'})
-            if (er != 0).any():
-                temporal_rhs = temporal_rhs + (er * self.flow_on * d.dims.dt).sum('flow')
-
-        # Status startup costs: sum_f(startup_coeff[f,k,t] * startup[f,t]) — per event, no dt
-        if d.flows.status is not None:
-            assert self.flow_startup is not None
-            es = d.flows.status.effects_startup.rename({Dim.STATUS_FLOW: 'flow'})
-            if (es != 0).any():
-                temporal_rhs = temporal_rhs + (es * self.flow_startup).sum('flow')
-
-        # Component-level status running costs
-        if d.flows.cstatus is not None:
-            assert self.component_on is not None
-            cer = d.flows.cstatus.effects_running.rename({Dim.CSTATUS_COMPONENT: 'component'})
-            if (cer != 0).any():
-                temporal_rhs = temporal_rhs + (cer * self.component_on * d.dims.dt).sum('component')
-
-        # Component-level status startup costs
-        if d.flows.cstatus is not None:
-            assert self.component_startup is not None
-            ces = d.flows.cstatus.effects_startup.rename({Dim.CSTATUS_COMPONENT: 'component'})
-            if (ces != 0).any():
-                temporal_rhs = temporal_rhs + (ces * self.component_startup).sum('component')
+        for term in (t for t in terms if t.domain == 'temporal'):
+            var = self._term_variable(term)
+            coeff = term.coeff * d.dims.dt if term.scale_dt else term.coeff
+            if term.sparse:
+                expr = sparse_weighted_sum(var, coeff, sum_dim=term.entity_dim, group_dim='effect')
+            else:
+                expr = (coeff * var).sum(term.entity_dim)
+            temporal_rhs = temporal_rhs + expr
 
         # Cross-effect temporal chains: E = D + C·E has the closed form
         # E = (I - C)^{-1}·D, so apply the numeric Leontief inverse inline
@@ -1281,77 +1287,18 @@ class FlowSystemModel:
         pc = self.data.dims.coords(period=True)
         self.effect_lump = self.m.add_variables(coords={'effect': effect_ids, **pc}, name=Var.EFFECT_LUMP)
 
-        # Accumulate direct lump contributions per effect
+        # Accumulate direct lump contributions per effect. Variable terms are
+        # summed first so the linopy expression stays the left operand;
+        # constant terms (mandatory fixed costs) are folded in afterwards.
         lump_direct: Any = 0
-
-        # Flow sizing: per-size costs (Sizing only, not Investment)
-        if d.flows.sizing is not None:
-            sizing_ids = list(d.flows.sizing.effects_per_size.coords[Dim.SIZING_FLOW].values)
-            eps = d.flows.sizing.effects_per_size.rename({Dim.SIZING_FLOW: 'flow'})
-            if (eps != 0).any():
-                assert self.flow_size is not None
-                lump_direct = lump_direct + (eps * self.flow_size.sel(flow=sizing_ids)).sum('flow')
-
-        # Flow sizing: fixed costs — optional (binary * cost), mandatory (constant)
-        if self.flow_size_indicator is not None:
-            assert d.flows.sizing is not None
-            opt_ids = list(self.flow_size_indicator.coords['flow'].values)
-            ef = d.flows.sizing.effects_fixed.rename({Dim.SIZING_FLOW: 'flow'}).sel(flow=opt_ids)
-            if (ef != 0).any():
-                lump_direct = lump_direct + (ef * self.flow_size_indicator).sum('flow')
-        if self.flow_size is not None and d.flows.sizing is not None:
-            mand_mask = d.flows.sizing.mandatory.values
-            if mand_mask.any():
-                mand_ids = list(d.flows.sizing.mandatory.coords[Dim.SIZING_FLOW].values[mand_mask])
-                ef_mand = d.flows.sizing.effects_fixed.sel(sizing_flow=mand_ids)
-                if (ef_mand != 0).any():
-                    lump_direct = lump_direct + ef_mand.sum(Dim.SIZING_FLOW)
-
-        # Storage sizing: per-size costs
-        if self.storage_capacity is not None and d.storages is not None and d.storages.sizing is not None:
-            eps = d.storages.sizing.effects_per_size.rename({Dim.SIZING_STORAGE: 'storage'})
-            if (eps != 0).any():
-                lump_direct = lump_direct + (eps * self.storage_capacity).sum('storage')
-
-        # Storage sizing: fixed costs — optional (binary * cost), mandatory (constant)
-        if self.storage_capacity_indicator is not None and d.storages is not None and d.storages.sizing is not None:
-            opt_ids = list(self.storage_capacity_indicator.coords['storage'].values)
-            ef = d.storages.sizing.effects_fixed.rename({Dim.SIZING_STORAGE: 'storage'}).sel(storage=opt_ids)
-            if (ef != 0).any():
-                lump_direct = lump_direct + (ef * self.storage_capacity_indicator).sum('storage')
-        if self.storage_capacity is not None and d.storages is not None and d.storages.sizing is not None:
-            mand_mask = d.storages.sizing.mandatory.values
-            if mand_mask.any():
-                mand_ids = list(d.storages.sizing.mandatory.coords[Dim.SIZING_STORAGE].values[mand_mask])
-                ef_mand = d.storages.sizing.effects_fixed.sel(sizing_storage=mand_ids)
-                if (ef_mand != 0).any():
-                    lump_direct = lump_direct + ef_mand.sum(Dim.SIZING_STORAGE)
-
-        # Investment: recurring per-size costs
-        if self.invest_active is not None and d.flows.invest is not None:
-            eps_p = d.flows.invest.effects_per_size_recurring.rename({Dim.INVEST_FLOW: 'flow'})
-            if (eps_p != 0).any():
-                assert self.flow_size is not None
-                invest_ids = list(d.flows.invest.effects_per_size_recurring.coords[Dim.INVEST_FLOW].values)
-                lump_direct = lump_direct + (eps_p * self.flow_size.sel(flow=invest_ids)).sum('flow')
-
-        # Investment: recurring fixed costs
-        if self.invest_active is not None and d.flows.invest is not None:
-            ef_p = d.flows.invest.effects_fixed_recurring.rename({Dim.INVEST_FLOW: 'flow'})
-            if (ef_p != 0).any():
-                lump_direct = lump_direct + (ef_p * self.invest_active).sum('flow')
-
-        # Investment: at-build per-size costs (charged in build period)
-        if self.invest_size_at_build is not None and d.flows.invest is not None:
-            eps_once = d.flows.invest.effects_per_size_at_build.rename({Dim.INVEST_FLOW: 'flow'})
-            if (eps_once != 0).any():
-                lump_direct = lump_direct + (eps_once * self.invest_size_at_build).sum('flow')
-
-        # Investment: at-build fixed costs (charged in build period)
-        if self.invest_build is not None and d.flows.invest is not None:
-            ef_once = d.flows.invest.effects_fixed_at_build.rename({Dim.INVEST_FLOW: 'flow'})
-            if (ef_once != 0).any():
-                lump_direct = lump_direct + (ef_once * self.invest_build).sum('flow')
+        lump_const: Any = 0
+        for term in (t for t in terms if t.domain == 'lump'):
+            if term.var is None:
+                lump_const = lump_const + term.coeff.sum(term.entity_dim)
+            else:
+                lump_direct = lump_direct + (term.coeff * self._term_variable(term)).sum(term.entity_dim)
+        if not isinstance(lump_const, int):
+            lump_direct = lump_direct + lump_const if not isinstance(lump_direct, int) else lump_const
 
         # Cross-effect lump: mean(cf_temporal, 'time')[k,j] * effect_lump[j]
         # Time-varying contribution_from values are averaged over time for the

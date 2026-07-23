@@ -390,3 +390,56 @@ class TestDimsValidation:
         bad_weights = xr.DataArray(np.ones(3), dims=['time'], coords={'time': [0, 1, 2]})
         with pytest.raises(ValueError, match='does not match'):
             Dims(time=time, dt=dt, weights=bad_weights)
+
+
+class TestEffectTerms:
+    def test_terms_enumerate_declared_contributions(self):
+        """The term table names every contribution of a full-featured system."""
+        from fluxopt import Sizing, Status
+        from fluxopt.contract import Contribution
+        from fluxopt.effect_terms import effect_terms
+
+        source = Flow(
+            carrier='elec',
+            size=Sizing(size_min=0, size_max=100, effects_per_size={'cost': 5.0}, mandatory=False),
+            relative_rate_min=0.1,
+            status=Status(effects_per_running_hour={'cost': 1.0}, effects_per_startup={'cost': 2.0}),
+            effects_per_flow_hour={'cost': 0.04},
+        )
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        bat = Storage(
+            id='bat',
+            charging=Flow(carrier='elec', size=10),
+            discharging=Flow(carrier='elec', size=10),
+            capacity=Sizing(size_min=0, size_max=50, effects_per_size={'cost': 3.0}, effects_fixed={'cost': 7.0}),
+        )
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
+            storages=[bat],
+        )
+        keys = {t.key for t in effect_terms(data)}
+        assert keys == {
+            Contribution.FLOW_HOUR,
+            Contribution.STATUS_RUNNING,
+            Contribution.STATUS_STARTUP,
+            Contribution.FLOW_SIZING_PER_SIZE,
+            Contribution.STORAGE_SIZING_PER_SIZE,
+            Contribution.STORAGE_SIZING_FIXED_MANDATORY,
+        }
+
+    def test_zero_coefficient_terms_are_omitted(self):
+        """Terms whose coefficients are all zero do not appear."""
+        from fluxopt.effect_terms import effect_terms
+
+        flow = Flow(carrier='elec', size=100)
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[flow]), Port(id='demand', exports=[demand])],
+        )
+        assert effect_terms(data) == []
