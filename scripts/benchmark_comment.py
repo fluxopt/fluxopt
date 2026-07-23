@@ -93,17 +93,20 @@ def main() -> None:
     if not baseline:
         print()
         print('_No baseline: `fluxopt.benchmark` does not exist on the base branch._')
-    sweep = (
-        f'uv run --project benchmark benchmem sweep fluxopt'
-        f' git+https://github.com/{args.repo}@{args.base}'
-        f' git+https://github.com/{args.repo}@{args.head}'
-        f' --suite benchmark/ --memory'
-    )
     print()
-    print(
-        f'<sub>CI walltime is what it is — replicate the comparison locally with `{sweep}`, '
-        'then `uv run --project benchmark benchmem compare .benchmarks/sweep/*.json`.</sub>'
-    )
+    print('<details>')
+    print('<summary>Replicate locally (CI walltime is noisy)</summary>')
+    print()
+    print('```bash')
+    print('uv run --project benchmark benchmem sweep fluxopt \\')
+    print(f'    git+https://github.com/{args.repo}@{args.base} \\')
+    print(f'    git+https://github.com/{args.repo}@{args.head} \\')
+    print('    --suite benchmark/ --memory')
+    print('uv run --project benchmark benchmem compare .benchmarks/sweep/*.json')
+    print('```')
+    print()
+    print('One fresh venv per ref; covers the archetype, IO and reference-system benchmarks.')
+    print('</details>')
 
 
 if __name__ == '__main__':
