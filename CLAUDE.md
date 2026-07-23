@@ -1,5 +1,11 @@
 # CLAUDE.md — Project Guide for fluxopt
 
+Contribution rules, development workflow and project conventions live in
+[`AGENTS.md`](AGENTS.md), imported below so it loads automatically. Read it
+before making changes, opening pull requests or issues, or writing comments.
+
+@AGENTS.md
+
 ## What is fluxopt?
 
 Energy system optimization library. Models energy flows between components
