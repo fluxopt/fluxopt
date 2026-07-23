@@ -15,20 +15,20 @@ and use (building/solving) stay separate.
 from __future__ import annotations
 
 import copy
-from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fluxopt.components import Converter, Port
-from fluxopt.elements import PENALTY_EFFECT_ID, Carrier, Effect, Storage
+from fluxopt.elements import Carrier, Effect, Storage
 from fluxopt.model import FlowSystemModel
 from fluxopt.model_data import ModelData
 from fluxopt.schema import from_dict, to_dict
 from fluxopt.types import IdList, ProfileRef, Timesteps
+from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Mapping
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
     from fluxopt.results import Result
@@ -116,45 +116,6 @@ def _check_profiles_cover(refs: list[tuple[str, ProfileRef]], profiles: Mapping[
         raise KeyError('unresolvable ProfileRef(s):\n  ' + '\n  '.join(missing))
 
 
-def _check_unique(ids: list[str], kind: str) -> None:
-    """Raise if *ids* contains duplicates.
-
-    Args:
-        ids: Identifiers to check.
-        kind: Human label used in the error (e.g. ``'effect'``).
-    """
-    dupes = sorted(i for i, n in Counter(ids).items() if n > 1)
-    if dupes:
-        raise ValueError(f'Duplicate {kind} id(s): {dupes}')
-
-
-def _iter_flows(system: FlowSystem) -> Iterator[Any]:
-    """Yield every flow across ports, converters, and storages."""
-    for p in system.ports:
-        yield from p.imports
-        yield from p.exports
-    for c in system.converters:
-        yield from c.inputs
-        yield from c.outputs
-    for s in system.storages:
-        yield s.charging
-        yield s.discharging
-
-
-def _collect_effect_refs(obj: Any, out: set[str]) -> None:
-    """Collect effect ids referenced by ``effects_*`` / ``contribution_from`` dicts."""
-    if isinstance(obj, BaseModel):
-        for name in type(obj).model_fields:
-            val = getattr(obj, name)
-            if isinstance(val, dict) and (name.startswith('effects_') or name == 'contribution_from'):
-                out.update(val)
-            else:
-                _collect_effect_refs(val, out)
-    elif isinstance(obj, (list, IdList)):
-        for item in obj:
-            _collect_effect_refs(item, out)
-
-
 class FlowSystem(BaseModel):
     """A declarative flow-system description (see module docstring)."""
 
@@ -185,29 +146,14 @@ class FlowSystem(BaseModel):
     @model_validator(mode='after')
     def _validate_references(self) -> FlowSystem:
         """Fail fast on undeclared references and duplicate ids (at construction/load)."""
-        _check_unique([e.id for e in self.effects], 'effect')
-        _check_unique([c.id for c in self.carriers], 'carrier')
-        _check_unique([comp.id for comp in (*self.ports, *self.converters, *self.storages)], 'component')
-
-        effect_ids = {e.id for e in self.effects} | {PENALTY_EFFECT_ID}
-        obj_keys = [self.objective] if isinstance(self.objective, str) else list(self.objective)
-        if unknown := sorted(set(obj_keys) - effect_ids):
-            raise ValueError(f'objective references undeclared effect(s) {unknown}; declared {sorted(effect_ids)}')
-        if not any(k != PENALTY_EFFECT_ID for k in obj_keys):
-            raise ValueError(
-                'objective must name at least one non-penalty effect to minimize — '
-                'the built-in penalty effect is added automatically and cannot be the sole objective'
-            )
-
-        refs: set[str] = set()
-        for group in (self.effects, self.ports, self.converters, self.storages):
-            _collect_effect_refs(group, refs)
-        if unknown := sorted(refs - effect_ids):
-            raise ValueError(f'Elements reference undeclared effect(s) {unknown}; declared {sorted(effect_ids)}')
-
-        carrier_ids = {c.id for c in self.carriers}
-        if unknown := sorted({f.carrier for f in _iter_flows(self)} - carrier_ids):
-            raise ValueError(f'Flows reference undeclared carrier(s) {unknown}; declared {sorted(carrier_ids)}')
+        validate_system(
+            carriers=self.carriers,
+            effects=self.effects,
+            ports=self.ports,
+            converters=self.converters,
+            storages=self.storages,
+            objective=self.objective,
+        )
         return self
 
     @classmethod

@@ -321,3 +321,134 @@ class TestContributionsRoundtrip:
         contrib = result.stats.effect_contributions
         assert contrib is not None
         assert set(contrib.data_vars) == {'temporal', 'lump', 'total'}
+
+
+class TestLoadValidation:
+    def test_tampered_investment_bounds_rejected_on_load(self, tmp_nc: Path) -> None:
+        """A netCDF whose invest table was hand-edited into an invalid state fails to load."""
+        import netCDF4
+
+        from fluxopt import Investment, ModelData
+
+        source = Flow(
+            carrier='elec',
+            size=Investment(size_min=10.0, size_max=100.0, lifetime=2),
+            relative_rate_max=1.0,
+        )
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        data = ModelData.build(
+            [datetime(2024, 1, 1, h) for h in range(3)],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
+        )
+        data.to_netcdf(tmp_nc, mode='w')
+
+        with netCDF4.Dataset(tmp_nc, 'a') as nc:
+            invest = nc['model/flows/invest']
+            invest['max'][:] = 5.0  # now max < min
+
+        with pytest.raises(ValueError, match=r'Investment\.size_max < size_min'):
+            ModelData.from_netcdf(tmp_nc)
+
+    def test_missing_model_group_raises_clearly(self, tmp_path: Path) -> None:
+        """A netCDF file without fluxopt groups raises a clear OSError."""
+        from fluxopt import ModelData
+
+        p = tmp_path / 'other.nc'
+        xr.Dataset({'x': ('t', [1.0, 2.0])}).to_netcdf(p, engine='netcdf4')
+        with pytest.raises(OSError, match='No fluxopt model data'):
+            ModelData.from_netcdf(p)
+
+
+class TestBuildValidation:
+    def test_undeclared_effect_rejected_without_flow_system(self) -> None:
+        """The raw ModelData.build path rejects undeclared effect references."""
+        from fluxopt import ModelData
+
+        with pytest.raises(ValueError, match=r"undeclared effect\(s\) \['co2'\]"):
+            ModelData.build(
+                [datetime(2024, 1, 1, h) for h in range(3)],
+                carriers=[Carrier(id='elec')],
+                effects=[Effect(id='cost')],
+                ports=[Port(id='grid', imports=[Flow(carrier='elec', size=10, effects_per_flow_hour={'co2': 1.0})])],
+            )
+
+
+class TestWaistGuards:
+    """Model-semantic invariants enforced at the data level, not only on elements."""
+
+    def _status_system_path(self, tmp_nc: Path) -> Path:
+        from fluxopt import ModelData, Status
+
+        boiler_fuel = Flow(carrier='elec', size=100, relative_rate_min=0.3, status=Status())
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        data = ModelData.build(
+            [datetime(2024, 1, 1, h) for h in range(3)],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[boiler_fuel]), Port(id='demand', exports=[demand])],
+        )
+        data.to_netcdf(tmp_nc, mode='w')
+        return tmp_nc
+
+    def test_zeroed_status_lower_bound_rejected_on_load(self, tmp_nc: Path) -> None:
+        """rel_lb = 0 on a status flow would make on/off degenerate; load fails loudly."""
+        import netCDF4
+
+        from fluxopt import ModelData
+
+        p = self._status_system_path(tmp_nc)
+        with netCDF4.Dataset(p, 'a') as nc:
+            nc['model/flows']['rel_lb'][:] = 0.0
+
+        with pytest.raises(ValueError, match='on/off is indistinguishable'):
+            ModelData.from_netcdf(p)
+
+    def test_nan_size_on_ramp_flow_rejected_on_load(self, tmp_nc: Path) -> None:
+        """Removing the size under a ramp-limited flow fails at load, not as NaN math."""
+        import netCDF4
+        import numpy as np
+
+        from fluxopt import ModelData
+
+        source = Flow(carrier='elec', size=100, ramp_up_per_hour=0.5)
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        data = ModelData.build(
+            [datetime(2024, 1, 1, h) for h in range(3)],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
+        )
+        data.to_netcdf(tmp_nc, mode='w')
+        with netCDF4.Dataset(tmp_nc, 'a') as nc:
+            nc['model/flows']['size'][:] = np.nan
+
+        with pytest.raises(ValueError, match='ramp_up requires a sized flow'):
+            ModelData.from_netcdf(tmp_nc)
+
+    def test_dangling_storage_flow_reference_rejected_on_load(self, tmp_nc: Path) -> None:
+        """A charge_flow naming a nonexistent flow fails at load, not as a KeyError at build."""
+        import netCDF4
+
+        from fluxopt import ModelData, Storage
+
+        charge = Flow(carrier='elec', size=50)
+        discharge = Flow(carrier='elec', size=50)
+        source = Flow(carrier='elec', size=100)
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        data = ModelData.build(
+            [datetime(2024, 1, 1, h) for h in range(3)],
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
+            storages=[Storage(id='bat', charging=charge, discharging=discharge, capacity=100.0)],
+        )
+        data.to_netcdf(tmp_nc, mode='w')
+        with netCDF4.Dataset(tmp_nc, 'a') as nc:
+            nc['model/stor']['charge_flow'][0] = 'bat(gone)'
+
+        with pytest.raises(
+            ValueError, match=r"storages\.charge_flow references unknown flow id\(s\) \['bat\(gone\)'\]"
+        ):
+            ModelData.from_netcdf(tmp_nc)
