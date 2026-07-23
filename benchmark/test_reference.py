@@ -1,14 +1,10 @@
 """Benchmarks over the bundled realistic reference systems (``fluxopt.benchmark``).
 
 Unlike the archetypes in ``systems.py`` (which live in this directory and work
-against any fluxopt version), these come from the installed package — which
-makes them sweepable across versions or git refs::
-
-    uv run --project benchmark benchmem sweep fluxopt \
-        git+https://github.com/fluxopt/fluxopt@main \
-        git+https://github.com/fluxopt/fluxopt@my-branch \
-        --suite benchmark --copy-dir benchmark --memory --pin pytest-benchmem \
-        --out "$PWD/.benchmarks/sweep"
+against any fluxopt version), these come from the installed package — so
+comparing two branches is just running the suite on each (``uv run`` re-syncs
+the editable install after a ``git switch``; see README.md, which also covers
+``benchmem sweep`` for released versions).
 
 Versions that predate ``fluxopt.benchmark`` skip this file (importorskip).
 A quarter year keeps a multi-round pytest-benchmark run reasonable; the

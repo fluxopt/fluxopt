@@ -47,18 +47,18 @@ jobs:
               --format md --columns time,peak --stat mean --group-by func
             echo ''
             echo '<details>'
-            echo '<summary>Replicate locally / compare against main</summary>'
+            echo '<summary>Replicate locally / compare against ${{ github.event.pull_request.base.ref }}</summary>'
             echo ''
             echo '```bash'
-            echo "uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \\"
-            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.base.ref }} \'
-            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.head.ref }} \'
-            echo '    --suite benchmark --copy-dir benchmark --memory --pin pytest-benchmem \'
-            echo '    --out "$PWD/.benchmarks/sweep"'
-            echo "uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json"
+            echo 'cd benchmark'
+            echo 'uv run pytest test_reference.py --benchmark-only --benchmark-memory --benchmark-json head.json'
+            echo 'git switch ${{ github.event.pull_request.base.ref }}'
+            echo 'uv run pytest test_reference.py --benchmark-only --benchmark-memory --benchmark-json base.json'
+            echo 'git switch -'
+            echo 'uv run benchmem compare base.json head.json'
             echo '```'
             echo ''
-            echo 'One fresh venv per ref; covers the archetype, IO and reference-system benchmarks. The pin/copy-dir/out flags work around pytest-benchmem#169-171.'
+            echo 'Same pinned env (benchmark/uv.lock); `uv run` re-syncs the editable fluxopt after each switch.'
             echo '</details>'
           } > "$RUNNER_TEMP/comment.md"
           cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"

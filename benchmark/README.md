@@ -44,10 +44,24 @@ token), tracking history and annotating PRs on the dashboard:
 Both are `continue-on-error` (informational, never block a merge). The walltime
 job needs a CodSpeed `codspeed-macro` runner provisioned for the org.
 
-## Compare two refs — benchmem sweep
+## Compare two branches
 
-To compare performance between any two fluxopt versions or git refs (e.g. a PR
-branch against `main`) with one fresh venv per ref, from the repo root:
+Simplest: run the suite on each branch in the pinned env — `uv run` re-syncs
+the editable fluxopt after every switch:
+
+```bash
+cd benchmark
+uv run pytest . --benchmark-only --benchmark-memory --benchmark-json head.json
+git switch main
+uv run pytest . --benchmark-only --benchmark-memory --benchmark-json base.json
+git switch -
+uv run benchmem compare base.json head.json
+```
+
+## Compare released versions — benchmem sweep
+
+To compare fluxopt *versions* (or refs without touching your checkout) with
+one fresh venv per ref, from the repo root:
 
 ```bash
 uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \
@@ -71,9 +85,9 @@ Sweep resolves one fresh venv per ref (no lockfile — it can't, the dependency
 set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
 `--pin <spec>` to hold individual dependencies still.
 
-This runs the whole suite — archetypes, IO, and the realistic reference
-systems — against each ref. On PRs, the `benchmark-hint` workflow runs
-`test_reference.py` the same way and posts the numbers to its job summary.
+Both flows run the whole suite — archetypes, IO, and the realistic reference
+systems. On PRs, the `benchmark-hint` workflow runs `test_reference.py` the
+same way and posts the numbers as a sticky comment.
 
 ## Local memory profiling — pytest-benchmem
 
