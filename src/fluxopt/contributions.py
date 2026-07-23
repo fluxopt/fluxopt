@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import xarray as xr
 
+from fluxopt.contract import Dim, Var
+
 if TYPE_CHECKING:
     from fluxopt.model_data import FlowsData, ModelData, SizingData
 
@@ -132,16 +134,16 @@ def _compute_investment_lump(
     if fds.invest is None:
         return result
     pairs = [
-        (fds.invest.effects_per_size_at_build, 'invest--size_at_build'),
-        (fds.invest.effects_fixed_at_build, 'invest--build'),
-        (fds.invest.effects_per_size_recurring, 'flow--size'),  # selected to invest flows
-        (fds.invest.effects_fixed_recurring, 'invest--active'),
+        (fds.invest.effects_per_size_at_build, Var.INVEST_SIZE_AT_BUILD),
+        (fds.invest.effects_fixed_at_build, Var.INVEST_BUILD),
+        (fds.invest.effects_per_size_recurring, Var.FLOW_SIZE),  # selected to invest flows
+        (fds.invest.effects_fixed_recurring, Var.INVEST_ACTIVE),
     ]
     for coeff, var_name in pairs:
-        c = coeff.rename({'invest_flow': 'flow'})
+        c = coeff.rename({Dim.INVEST_FLOW: 'flow'})
         var = solution[var_name]
-        if var_name == 'flow--size':
-            var = var.sel(flow=list(coeff.coords['invest_flow'].values))
+        if var_name == Var.FLOW_SIZE:
+            var = var.sel(flow=list(coeff.coords[Dim.INVEST_FLOW].values))
         term = (c * var).reindex(flow=flow_ids, fill_value=0.0)
         result = result + term.rename({'flow': 'contributor'})
     return result
@@ -158,21 +160,21 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
     stor_ids: list[str] = list(data.storages.capacity.coords['storage'].values) if data.storages is not None else []
     all_ids = flow_ids + stor_ids
 
-    rate = solution['flow--rate']  # (flow, time)
+    rate = solution[Var.FLOW_RATE]  # (flow, time)
     dt = data.dims.dt  # (time,)
 
     # --- Temporal: per-flow contributions (flow, effect, time) ---
     temporal_flow = data.flows.effect_coeff * rate * dt
 
     # Status running costs
-    if data.flows.status is not None and 'flow--on' in solution:
-        er = data.flows.status.effects_running.rename({'status_flow': 'flow'})
-        temporal_flow = temporal_flow + (er * solution['flow--on'] * dt).reindex(flow=flow_ids, fill_value=0.0)
+    if data.flows.status is not None and Var.FLOW_ON in solution:
+        er = data.flows.status.effects_running.rename({Dim.STATUS_FLOW: 'flow'})
+        temporal_flow = temporal_flow + (er * solution[Var.FLOW_ON] * dt).reindex(flow=flow_ids, fill_value=0.0)
 
     # Status startup costs
-    if data.flows.status is not None and 'flow--startup' in solution:
-        es = data.flows.status.effects_startup.rename({'status_flow': 'flow'})
-        temporal_flow = temporal_flow + (es * solution['flow--startup']).reindex(flow=flow_ids, fill_value=0.0)
+    if data.flows.status is not None and Var.FLOW_STARTUP in solution:
+        es = data.flows.status.effects_startup.rename({Dim.STATUS_FLOW: 'flow'})
+        temporal_flow = temporal_flow + (es * solution[Var.FLOW_STARTUP]).reindex(flow=flow_ids, fill_value=0.0)
 
     # Component-level status: attribute running and startup costs to first governed flow
     cst = data.flows.cstatus
@@ -180,21 +182,21 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
         gf = cst.governed_flows
         first_flow_per_comp = {
             str(comp_id): str(gf.sel(cstatus_component=comp_id).values[0])
-            for comp_id in gf.coords['cstatus_component'].values
+            for comp_id in gf.coords[Dim.CSTATUS_COMPONENT].values
             if str(gf.sel(cstatus_component=comp_id).values[0])
         }
 
-        if 'component--on' in solution:
-            cer = cst.effects_running.rename({'cstatus_component': 'component'})
-            comp_temporal = cer * solution['component--on'] * dt  # (component, effect, time)
+        if Var.COMPONENT_ON in solution:
+            cer = cst.effects_running.rename({Dim.CSTATUS_COMPONENT: 'component'})
+            comp_temporal = cer * solution[Var.COMPONENT_ON] * dt  # (component, effect, time)
             for comp_id, fid in first_flow_per_comp.items():
                 if fid in flow_ids:
                     add = comp_temporal.sel(component=comp_id).drop_vars('component')
                     temporal_flow.loc[{'flow': fid}] = temporal_flow.sel(flow=fid) + add
 
-        if 'component--startup' in solution:
-            ces = cst.effects_startup.rename({'cstatus_component': 'component'})
-            comp_startup = ces * solution['component--startup']  # (component, effect, time)
+        if Var.COMPONENT_STARTUP in solution:
+            ces = cst.effects_startup.rename({Dim.CSTATUS_COMPONENT: 'component'})
+            comp_startup = ces * solution[Var.COMPONENT_STARTUP]  # (component, effect, time)
             for comp_id, fid in first_flow_per_comp.items():
                 if fid in flow_ids:
                     add = comp_startup.sel(component=comp_id).drop_vars('component')
@@ -208,10 +210,10 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
         solution,
         flow_ids,
         effect_ids,
-        'sizing_flow',
+        Dim.SIZING_FLOW,
         'flow',
-        'flow--size',
-        'flow--size_indicator',
+        Var.FLOW_SIZE,
+        Var.FLOW_SIZE_INDICATOR,
     )
 
     # --- Lump: flow investment costs (at_build + recurring) ---
@@ -225,10 +227,10 @@ def _compute_direct(solution: xr.Dataset, data: ModelData) -> tuple[xr.DataArray
             solution,
             stor_ids,
             effect_ids,
-            'sizing_storage',
+            Dim.SIZING_STORAGE,
             'storage',
-            'storage--capacity',
-            'storage--size_indicator',
+            Var.STORAGE_CAPACITY,
+            Var.STORAGE_SIZE_INDICATOR,
         )
         lump = xr.concat([flow_lump, stor_lump], dim='contributor')
     else:
@@ -259,7 +261,7 @@ def _validate_against_solver(total: xr.DataArray, solution: xr.Dataset) -> None:
     Comparison is positional — coordinate misordering or mismatch is a real
     pipeline bug that should fail loudly here rather than be silently aligned.
     """
-    solver = solution['effect--total']
+    solver = solution[Var.EFFECT_TOTAL]
     computed = total.sum('contributor')
     if not np.allclose(computed.values, solver.values, atol=1e-6):
         diff = abs(computed - solver)
