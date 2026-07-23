@@ -250,7 +250,7 @@ class TestCarrierValidation:
 
     def test_undeclared_carrier_in_model_data_build(self):
         """ModelData.build rejects flows with undeclared carriers."""
-        with pytest.raises(ValueError, match="carrier 'elec'"):
+        with pytest.raises(ValueError, match=r"undeclared carrier\(s\) \['elec'\]"):
             ModelData.build(
                 ts(2),
                 carriers=[Carrier(id='gas')],

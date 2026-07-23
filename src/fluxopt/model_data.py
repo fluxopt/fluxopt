@@ -4,14 +4,15 @@ import os
 import warnings
 from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, NoReturn, Self
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, Self, get_args
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
 from fluxopt.contract import BoundType, Dim
-from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
+from fluxopt.types import PiecewiseMethod, as_dataarray, fast_concat, normalize_timesteps
+from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
@@ -238,6 +239,19 @@ class InvestmentData:
     effects_per_size_recurring: xr.DataArray  # (invest_dim, effect, period?)
     effects_fixed_recurring: xr.DataArray  # (invest_dim, effect, period?)
 
+    def __post_init__(self) -> None:
+        """Validate size bounds, prior size, and lifetime (also on netCDF reload)."""
+        dim = self.min.dims[0]
+        ids = self.min.coords[dim]
+        if (mask := self.min < 0).any():
+            raise ValueError(f'Investment.size_min < 0 on {list(ids[mask].values)}')
+        if (mask := self.max < self.min).any():
+            raise ValueError(f'Investment.size_max < size_min on {list(ids[mask].values)}')
+        if (mask := self.prior_size < 0).any():
+            raise ValueError(f'Investment.prior_size < 0 on {list(ids[mask].values)}')
+        if (mask := self.lifetime <= 0).any():
+            raise ValueError(f'Investment.lifetime must be positive on {list(ids[mask].values)}')
+
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
         return _to_dataset(self)
@@ -283,13 +297,6 @@ class InvestmentData:
         }
 
         for item_id, inv in items:
-            if inv.size_max < inv.size_min:
-                raise ValueError(f'Investment on {item_id!r}: size_max ({inv.size_max}) < size_min ({inv.size_min})')
-            if inv.prior_size < 0:
-                raise ValueError(f'Investment on {item_id!r}: prior_size must be >= 0, got {inv.prior_size}')
-            if inv.lifetime is not None and inv.lifetime <= 0:
-                raise ValueError(f'Investment on {item_id!r}: lifetime must be positive, got {inv.lifetime}')
-
             ids.append(item_id)
             mins.append(inv.size_min)
             maxs.append(inv.size_max)
@@ -736,6 +743,14 @@ class CarriersData:
     color: xr.DataArray  # (carrier,) — plot color ('' if unset)
     description: xr.DataArray  # (carrier,) — human-readable description
 
+    def __post_init__(self) -> None:
+        """Validate balance coefficients are +1 / -1 / NaN (also on netCDF reload)."""
+        coeff = self.flow_coeff.values
+        ok = np.isnan(coeff) | (coeff == 1.0) | (coeff == -1.0)
+        if not ok.all():
+            bad = sorted({float(v) for v in coeff[~ok].ravel()})
+            raise ValueError(f'CarriersData.flow_coeff must be +1, -1, or NaN; got {bad}')
+
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
         return _to_dataset(self)
@@ -803,6 +818,14 @@ class ConvertersData:
     pair_converter: xr.DataArray  # (pair,) — converter id per pair
     pair_flow: xr.DataArray  # (pair,) — flow id per pair
     eq_mask: xr.DataArray  # (converter, eq_idx)
+
+    def __post_init__(self) -> None:
+        """Validate pair/mask consistency (also on netCDF reload)."""
+        if self.eq_mask.dtype != bool:
+            raise ValueError(f'ConvertersData.eq_mask must be boolean, got dtype {self.eq_mask.dtype}')
+        known = set(self.eq_mask.coords['converter'].values)
+        if unknown := sorted(set(self.pair_converter.values) - known):
+            raise ValueError(f'ConvertersData.pair_converter references unknown converter(s) {unknown}')
 
     @property
     def flow_coeff(self) -> xr.DataArray:
@@ -913,6 +936,14 @@ class PiecewiseData:
     method: xr.DataArray  # (pw_converter,) — 'auto' / 'sos2' / 'incremental' / 'lp'
     availability: xr.DataArray  # (pw_converter, time)
     has_status: xr.DataArray  # (pw_converter,) — bool
+
+    def __post_init__(self) -> None:
+        """Validate method and bound values (also on netCDF reload)."""
+        valid_methods = set(get_args(PiecewiseMethod.__value__))
+        if bad := sorted(set(map(str, self.method.values)) - valid_methods):
+            raise ValueError(f'PiecewiseData.method must be one of {sorted(valid_methods)}; got {bad}')
+        if bad := sorted(set(map(str, self.pair_bound.values)) - {'==', '<=', '>='}):
+            raise ValueError(f"PiecewiseData.pair_bound must be '==', '<=', or '>='; got {bad}")
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -1070,6 +1101,28 @@ class EffectsData:
     cf_temporal: xr.DataArray | None = None  # (effect, source_effect, time, period?)
     period_weights: xr.DataArray | None = None  # (effect, period)
 
+    def __post_init__(self) -> None:
+        """Reject self-references and cycles in the cross-effect matrix (also on netCDF reload)."""
+        if self.cf_temporal is None:
+            return
+        contributes = self.cf_temporal != 0
+        extra_dims = [d for d in contributes.dims if d not in ('effect', 'source_effect')]
+        contributes = contributes.any(extra_dims)  # (effect, source_effect)
+        for eid in contributes.coords['effect'].values:
+            if bool(contributes.sel(effect=eid, source_effect=eid)):
+                raise ValueError(f'Effect {eid!r} cannot reference itself in contribution_from')
+        adjacency = {
+            str(eid): [
+                str(s)
+                for s in contributes.coords['source_effect'].values
+                if bool(contributes.sel(effect=eid, source_effect=s))
+            ]
+            for eid in contributes.coords['effect'].values
+        }
+        cycle = _detect_contribution_cycle(adjacency)
+        if cycle is not None:
+            raise ValueError(f'Circular contribution_from dependency: {" -> ".join(cycle)}')
+
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
         return _to_dataset(self)
@@ -1079,16 +1132,9 @@ class EffectsData:
         """Deserialize from xr.Dataset.
 
         Args:
-            ds: Dataset with effect variables and attrs.
+            ds: Dataset with effect variables.
         """
-        kwargs: dict[str, object] = {}
-        for f in fields(cls):
-            if f.name in ds.data_vars:
-                kwargs[f.name] = ds[f.name]
-            elif f.name in ds.attrs:
-                kwargs[f.name] = ds.attrs[f.name]
-            # else: rely on dataclass default (e.g. None for optional fields)
-        return cls(**kwargs)  # pyrefly: ignore[bad-argument-type]
+        return cls(**{f.name: ds[f.name] for f in fields(cls) if f.name in ds.data_vars})
 
     @classmethod
     def build(
@@ -1135,26 +1181,10 @@ class EffectsData:
             if e.contribution_from:
                 has_contributions = True
 
-        # Build cross-effect contribution arrays
+        # Build cross-effect contribution arrays; self-references and cycles
+        # are rejected by __post_init__ on the dense matrix.
         cf_temporal: xr.DataArray | None = None
         if has_contributions:
-            # Self-reference check
-            for e in effects:
-                for src_id in e.contribution_from:
-                    if src_id == e.id:
-                        raise ValueError(f'Effect {e.id!r} cannot reference itself in contribution_from')
-
-            # Cycle check
-            adjacency: dict[str, list[str]] = {eid: [] for eid in effect_ids}
-            for e in effects:
-                for src_id in e.contribution_from:
-                    if src_id not in effect_set:
-                        raise ValueError(f'Unknown effect {src_id!r} in contribution_from on {e.id!r}')
-                    adjacency[e.id].append(src_id)
-            cycle = _detect_contribution_cycle(adjacency)
-            if cycle is not None:
-                raise ValueError(f'Circular contribution_from dependency: {" -> ".join(cycle)}')
-
             tmpl_t = _effect_template({'effect': effect_ids, 'source_effect': effect_ids, 'time': time}, period)
             temporal_mat = tmpl_t.zeros()
             for e in effects:
@@ -1506,15 +1536,39 @@ def _table_containers(obj: DataclassInstance) -> dict[str, Any]:
     }
 
 
-def _load_containers(p: Path, group: str, cls: type[DataclassInstance]) -> dict[str, Any]:
-    """Load a table's nested container sub-groups from netCDF, keyed by field name."""
+def _nc_group_paths(p: Path) -> set[str]:
+    """All group paths present in a netCDF file (e.g. ``{'model', 'model/flows', ...}``).
+
+    Group *absence* is decided from this listing, so real I/O errors while
+    reading a present group propagate instead of being mistaken for absence.
+    """
+    import netCDF4
+
+    def walk(grp: Any, prefix: str) -> set[str]:
+        out: set[str] = set()
+        for name, sub in grp.groups.items():
+            path = f'{prefix}{name}'
+            out.add(path)
+            out |= walk(sub, path + '/')
+        return out
+
+    with netCDF4.Dataset(p) as nc:
+        return walk(nc, '')
+
+
+def _load_containers(p: Path, group: str, cls: type[DataclassInstance], present: set[str]) -> dict[str, Any]:
+    """Load a table's nested container sub-groups from netCDF, keyed by field name.
+
+    Args:
+        p: File path.
+        group: The table's group path (e.g. ``'model/flows'``).
+        cls: Table dataclass whose container fields to look for.
+        present: Group paths that exist in the file (see :func:`_nc_group_paths`).
+    """
     out: dict[str, Any] = {}
     for f in fields(cls):
-        if f.name in _CONTAINER_FIELD_NAMES:
-            try:
-                ds = xr.load_dataset(p, group=f'{group}/{f.name}', engine='netcdf4')
-            except OSError:
-                continue
+        if f.name in _CONTAINER_FIELD_NAMES and f'{group}/{f.name}' in present:
+            ds = xr.load_dataset(p, group=f'{group}/{f.name}', engine='netcdf4')
             out[f.name] = _CONTAINER_TYPES[f.name].from_dataset(ds)
     return out
 
@@ -1570,23 +1624,26 @@ class ModelData:
         """
         p = Path(path)
         try:
-            meta = xr.load_dataset(p, group='model/meta', engine='netcdf4')
+            present = _nc_group_paths(p)
         except OSError as e:
             _raise_netcdf_read_error(p, e)
+        if 'model/meta' not in present:
+            raise OSError(f'No fluxopt model data found in {p} (missing model/meta group)')
+        meta = xr.load_dataset(p, group='model/meta', engine='netcdf4')
 
-        datasets: dict[str, xr.Dataset] = {}
-        for name, group in _NC_GROUPS.items():
-            try:
-                datasets[name] = xr.load_dataset(p, group=group, engine='netcdf4')
-            except OSError:
-                datasets[name] = xr.Dataset()
+        datasets: dict[str, xr.Dataset] = {
+            name: xr.load_dataset(p, group=group, engine='netcdf4') if group in present else xr.Dataset()
+            for name, group in _NC_GROUPS.items()
+        }
 
-        flows = FlowsData.from_dataset(datasets['flows'], _load_containers(p, _NC_GROUPS['flows'], FlowsData))
+        flows = FlowsData.from_dataset(datasets['flows'], _load_containers(p, _NC_GROUPS['flows'], FlowsData, present))
         carriers = CarriersData.from_dataset(datasets['carriers'])
         converters = ConvertersData.from_dataset(datasets['converters']) if datasets['converters'].data_vars else None
         effects = EffectsData.from_dataset(datasets['effects'])
         storages = (
-            StoragesData.from_dataset(datasets['storages'], _load_containers(p, _NC_GROUPS['storages'], StoragesData))
+            StoragesData.from_dataset(
+                datasets['storages'], _load_containers(p, _NC_GROUPS['storages'], StoragesData, present)
+            )
             if datasets['storages'].data_vars
             else None
         )
@@ -1640,7 +1697,7 @@ class ModelData:
             effects = [*effects, Effect(id=PENALTY_EFFECT_ID)]
 
         flows, carrier_coeff = _collect_flows(ports, converters, stor_list)
-        _validate_system(effects, ports, converters, stor_list, flows, carriers)
+        validate_system(carriers=carriers, effects=effects, ports=ports, converters=converters, storages=stor_list)
 
         dims = Dims.build(time, dt_da, periods=periods, period_weights=period_weights)
 
@@ -1702,64 +1759,3 @@ def _collect_flows(
     for comp in (*ports, *converters, *(storages or [])):
         flows.extend(comp._qualified_flows())
     return flows, {bf.id: float(bf.sign) for bf in flows}
-
-
-def _validate_system(
-    effects: list[Effect],
-    ports: list[Port],
-    converters: list[Converter],
-    storages: list[Storage],
-    flows: list[_BoundFlow],
-    carriers: list[Carrier],
-) -> None:
-    """Validate unique ids and carrier consistency across all elements.
-
-    Args:
-        effects: Effect definitions.
-        ports: Port components.
-        converters: Converter components.
-        storages: Storage components.
-        flows: All collected flows.
-        carriers: Declared carriers.
-    """
-    # Unique component IDs
-    all_ids: list[str] = [e.id for e in effects]
-    all_ids.extend(p.id for p in ports)
-    all_ids.extend(c.id for c in converters)
-    all_ids.extend(s.id for s in storages)
-    seen: set[str] = set()
-    for id_ in all_ids:
-        if id_ in seen:
-            raise ValueError(f'Duplicate id: {id_!r}')
-        seen.add(id_)
-
-    # Unique qualified flow IDs
-    flow_seen: set[str] = set()
-    for bf in flows:
-        if bf.id in flow_seen:
-            raise ValueError(f'Duplicate flow id: {bf.id!r}')
-        flow_seen.add(bf.id)
-
-    # Unique carrier IDs
-    carrier_id_list = [c.id for c in carriers]
-    carrier_ids = set[str]()
-    for cid in carrier_id_list:
-        if cid in carrier_ids:
-            raise ValueError(f'Duplicate carrier id: {cid!r}')
-        carrier_ids.add(cid)
-
-    # Every flow carrier must match a declared carrier
-    carrier_by_id = {c.id: c for c in carriers}
-    for fid, flow, _sign in flows:
-        if flow.carrier not in carrier_by_id:
-            raise ValueError(
-                f'Flow {fid!r} references carrier {flow.carrier!r} '
-                f'which is not in the declared carriers: {sorted(carrier_by_id)}'
-            )
-        carrier = carrier_by_id[flow.carrier]
-        if flow.node and not carrier.nodes:
-            raise ValueError(f'Flow {fid!r} specifies node={flow.node!r} but carrier {carrier.id!r} has no nodes')
-        if flow.node and flow.node not in carrier.nodes:
-            raise ValueError(
-                f'Flow {fid!r} specifies node={flow.node!r} but carrier {carrier.id!r} only has nodes {carrier.nodes}'
-            )
