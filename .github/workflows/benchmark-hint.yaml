@@ -45,6 +45,20 @@ jobs:
             echo ''
             uv run --no-sync benchmem compare "$RUNNER_TEMP/run.json" \
               --format md --columns time,peak --stat mean --group-by func
+            echo ''
+            echo '<details>'
+            echo '<summary>Replicate locally / compare against main</summary>'
+            echo ''
+            echo '```bash'
+            echo "uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \\"
+            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.base.ref }} \'
+            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.head.ref }} \'
+            echo '    --suite benchmark/ --memory'
+            echo "uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json"
+            echo '```'
+            echo ''
+            echo 'One fresh venv per ref; covers the archetype, IO and reference-system benchmarks.'
+            echo '</details>'
           } > "$RUNNER_TEMP/comment.md"
           cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Post as sticky PR comment
