@@ -213,30 +213,19 @@ class TestEffects:
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 170.0, rtol=1e-5)
 
     def test_effect_maximum_periodic(self, optimize):
-        """Proves: periodic_max limits the period's total effect. CO2 only has
-        investment contributions here, so this equals flixopt's maximum_periodic
-        (per-domain bounds were collapsed in PR #242).
+        """Proves: periodic_max limits the period's total effect.
 
-        Two boilers: CheapBoiler (invest=10€, CO2=100kg) and
-        ExpensiveBoiler (invest=50€, CO2=10kg).
-        CO2 has periodic_max=50. CheapBoiler's 100kg exceeds this.
-
-        Sensitivity: Without limit, CheapBoiler chosen → cost=30.
-        With limit=50, ExpensiveBoiler needed → cost=70.
+        CheapBoiler (invest=10€, CO2=100kg) vs ExpensiveBoiler (invest=50€, CO2=10kg);
+        CO2 periodic_max=50 rules out CheapBoiler → cost = 50 + 20 = 70 (30 without the limit).
+        flixopt's maximum_periodic; equivalent here since CO2 is invest-only (PR #242).
         """
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
-            effects=[
-                Effect(id='cost'),
-                Effect(id='CO2', periodic_max=50),
-            ],
+            effects=[Effect(id='cost'), Effect(id='CO2', periodic_max=50)],
             objective='cost',
             ports=[
-                Port(
-                    id='Demand',
-                    exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
-                ),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10]))]),
                 Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
@@ -260,36 +249,23 @@ class TestEffects:
                 ),
             ],
         )
-        # CheapBoiler: invest=10, CO2=100 (exceeds limit 50)
-        # ExpensiveBoiler: invest=50, CO2=10 (under limit)
-        # Optimizer must choose ExpensiveBoiler: cost = 50 + 20 = 70
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 70.0, rtol=1e-5)
         assert result.effect_totals.sel(effect='CO2').item() <= 50.0 + 1e-5
 
     def test_effect_minimum_periodic(self, optimize):
-        """Proves: periodic_min forces a minimum on the period's total effect. CO2
-        only has investment contributions here, so this equals flixopt's
-        minimum_periodic (per-domain bounds were collapsed in PR #242).
+        """Proves: periodic_min forces a minimum on the period's total effect.
 
-        Boiler with optional investment (invest=100€, CO2=50kg).
-        CO2 has periodic_min=40. Without the boiler, CO2=0.
-
-        Sensitivity: Without periodic_min, no investment → cost=40 (backup only).
-        With periodic_min=40, must invest → cost=120.
+        Optional boiler invest (100€, CO2=50kg); CO2 periodic_min=40 forces the invest
+        → cost = 100 + 20 = 120 (40 backup-only without the floor).
+        flixopt's minimum_periodic; equivalent here since CO2 is invest-only (PR #242).
         """
         result = optimize(
             timesteps=ts(2),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
-            effects=[
-                Effect(id='cost'),
-                Effect(id='CO2', periodic_min=40),
-            ],
+            effects=[Effect(id='cost'), Effect(id='CO2', periodic_min=40)],
             objective='cost',
             ports=[
-                Port(
-                    id='Demand',
-                    exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10]))],
-                ),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10]))]),
                 Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
@@ -310,8 +286,5 @@ class TestEffects:
                 ),
             ],
         )
-        # InvestBoiler: invest=100, CO2=50 (meets minimum 40)
-        # Without investment, CO2=0 (fails minimum)
-        # Optimizer must invest: cost = 100 + 20 = 120
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
         assert result.effect_totals.sel(effect='CO2').item() >= 40.0 - 1e-5

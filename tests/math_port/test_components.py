@@ -115,10 +115,8 @@ class TestCoolingTower:
     def test_cooling_tower_specific_electricity(self, optimize):
         """Proves: CoolingTower correctly applies specific_electricity_demand.
 
-        specific_electricity_demand=0.1 (kWel/kWth): for 200 kWth rejected,
-        needs 20 kWel → cost=20. Expressible today as an input-only Converter
-        (inputs=[thermal, elec], outputs=[],
-        conversion_factors=[{'Elec': 1, 'Heat': -0.1}]); only the factory is missing.
+        specific_electricity_demand=0.1 kWel/kWth: 200 kWth rejected needs 20 kWel → cost=20.
+        Expressible today as an input-only Converter; only the factory is missing.
         """
 
 
@@ -128,10 +126,8 @@ class TestPower2Heat:
     def test_power2heat_efficiency(self, optimize):
         """Proves: Power2Heat applies efficiency to electrical input.
 
-        efficiency=0.9. Demand=40 heat over 2 timesteps.
-        Elec needed = 40 / 0.9 ≈ 44.44 → cost≈44.44.
-
-        Sensitivity: If efficiency ignored (=1), elec=40 → cost=40.
+        efficiency=0.9, demand=40 heat over 2 timesteps → elec = 40/0.9 ≈ 44.44 = cost.
+        Sensitivity: if efficiency were ignored (=1), cost=40.
         """
         result = optimize(
             timesteps=ts(2),
@@ -139,21 +135,13 @@ class TestPower2Heat:
             effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port(
-                    id='Demand',
-                    exports=[
-                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([20, 20])),
-                    ],
-                ),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([20, 20]))]),
                 Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
             ],
             converters=[
                 Converter.power2heat(
-                    'P2H',
-                    efficiency=0.9,
-                    electrical_flow=Flow(carrier='Elec'),
-                    thermal_flow=Flow(carrier='Heat'),
-                ),
+                    'P2H', efficiency=0.9, electrical_flow=Flow(carrier='Elec'), thermal_flow=Flow(carrier='Heat')
+                )
             ],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0 / 0.9, rtol=1e-5)
@@ -166,10 +154,9 @@ class TestHeatPumpWithSource:
         """Proves: heat_pump applies COP to compute electrical consumption,
         drawing the remainder from a heat source.
 
-        cop=3. Demand=60 heat over 2 timesteps.
-        Elec = 60/3 = 20 → cost=20. Heat source provides 60 - 20 = 40.
-
-        Sensitivity: If cop=1, elec=60 → cost=60. With cop=3, cost=20.
+        cop=3, demand=60 heat over 2 timesteps → elec = 60/3 = 20 = cost;
+        heat source provides 60 - 20 = 40.
+        Sensitivity: if cop=1, cost=60.
         """
         result = optimize(
             timesteps=ts(2),
@@ -177,12 +164,7 @@ class TestHeatPumpWithSource:
             effects=[Effect(id='cost')],
             objective='cost',
             ports=[
-                Port(
-                    id='Demand',
-                    exports=[
-                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([30, 30])),
-                    ],
-                ),
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([30, 30]))]),
                 Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': 1})]),
                 Port(id='FreeHeat', imports=[Flow(carrier='SourceHeat')]),
             ],
@@ -193,7 +175,7 @@ class TestHeatPumpWithSource:
                     electrical_flow=Flow(carrier='Elec'),
                     source_flow=Flow(carrier='SourceHeat', short_id='source'),
                     thermal_flow=Flow(carrier='Heat'),
-                ),
+                )
             ],
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
@@ -206,36 +188,20 @@ class TestSourceAndSink:
     def test_source_and_sink_prevent_simultaneous(self, optimize):
         """Proves: buying and selling are mutually exclusive per timestep.
 
-        flixopt modeled this as SourceAndSink(prevent_simultaneous_flow_rates=True).
-        fluxopt has no Port-level exclusion, so the grid connection is modeled as a
-        Storage with an unconstrained level (large capacity, cyclic=False) whose
-        prevent_simultaneous binary provides the same exclusion:
-        discharging = buy, charging = sell.
-
-        Solar=[30, 30, 0]. Demand=[10, 10, 10]. Buy @5€, sell @-1€.
-        t0,t1: excess 20 → sell 20 (revenue 20 each = -40). t2: deficit 10 → buy 10 (50).
-
-        Sensitivity: Cost = 50 - 40 = 10.
+        flixopt SourceAndSink(prevent_simultaneous_flow_rates=True), modeled as a
+        Storage with unconstrained level whose prevent_simultaneous binary excludes
+        buy (discharge) vs sell (charge).
+        Solar=[30, 30, 0], Demand=[10, 10, 10], buy @5, sell @-1:
+        t0,t1 sell 20 each (-40); t2 buy 10 (+50). Cost = 50 - 40 = 10.
         """
+        demand = Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([10, 10, 10]))
+        solar = Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([30, 30, 0]))
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Elec')],
             effects=[Effect(id='cost')],
             objective='cost',
-            ports=[
-                Port(
-                    id='Demand',
-                    exports=[
-                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([10, 10, 10])),
-                    ],
-                ),
-                Port(
-                    id='Solar',
-                    imports=[
-                        Flow(carrier='Elec', size=1, fixed_relative_profile=np.array([30, 30, 0])),
-                    ],
-                ),
-            ],
+            ports=[Port(id='Demand', exports=[demand]), Port(id='Solar', imports=[solar])],
             storages=[
                 Storage(
                     id='GridConnection',
