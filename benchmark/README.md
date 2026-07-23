@@ -50,12 +50,16 @@ To compare performance between any two fluxopt versions or git refs (e.g. a PR
 branch against `main`) with one fresh venv per ref, from the repo root:
 
 ```bash
-uv run --project benchmark benchmem sweep fluxopt \
+uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \
     git+https://github.com/fluxopt/fluxopt@main \
     git+https://github.com/fluxopt/fluxopt@my-branch \
     --suite benchmark/ --memory
-uv run --project benchmark benchmem compare .benchmarks/sweep/*.json
+uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json
 ```
+
+Sweep resolves one fresh venv per ref (no lockfile — it can't, the dependency
+set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
+`--pin <spec>` to hold individual dependencies still.
 
 This runs the whole suite — archetypes, IO, and the realistic reference
 systems — against each ref. The `benchmark-hint` PR comment links the exact
