@@ -82,6 +82,12 @@ def main() -> None:
     if not baseline:
         print()
         print('_No baseline: `fluxopt.benchmark` does not exist on the base branch._')
+    print()
+    print(
+        '<sub>CI walltime is what it is — replicate locally with '
+        '`uv run python -m fluxopt.benchmark` on this branch '
+        '(and on `main` for a trustworthy delta).</sub>'
+    )
 
 
 if __name__ == '__main__':
