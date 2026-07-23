@@ -1,10 +1,10 @@
 name: Benchmark hint
 
-# A small, human-readable performance hint on every PR: run the realistic
-# reference-system suite (benchmark/test_reference.py) under pytest-benchmem on
-# the PR head and on the base revision, and keep one sticky comment with the
-# delta table (memray allocator peaks — same instrument family as CodSpeed).
-# Informational only — dashboard-grade regression tracking is CodSpeed's job.
+# A small performance hint on every PR: run the realistic reference-system
+# suite (benchmark/test_reference.py) under pytest-benchmem and put its
+# numbers in the job summary. Informational only — deltas and dashboards are
+# CodSpeed's job; local ref-vs-ref comparison is `benchmem sweep`
+# (see benchmark/README.md).
 
 on:
   pull_request:
@@ -17,79 +17,25 @@ concurrency:
 jobs:
   hint:
     name: Benchmark hint
-    # Commenting needs a writable token; fork PRs only get a read-only one.
-    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     continue-on-error: true # informational, never blocks a merge
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # hatch-vcs + checkout of the base revision
+          fetch-depth: 0 # hatch-vcs
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - name: Benchmark PR head (pytest-benchmem)
+      - name: Run reference benchmarks (pytest-benchmem)
         working-directory: benchmark
         run: |
           uv sync --frozen
           uv run --no-sync pytest test_reference.py --benchmark-only --benchmark-memory \
-            --benchmark-json "$RUNNER_TEMP/head.json"
-      - name: Benchmark base (${{ github.event.pull_request.base.ref }})
-        run: |
-          git checkout --detach ${{ github.event.pull_request.base.sha }}
-          if [ -f benchmark/test_reference.py ]; then
-            cd benchmark
-            uv sync --frozen
-            uv run --no-sync pytest test_reference.py --benchmark-only --benchmark-memory \
-              --benchmark-json "$RUNNER_TEMP/base.json"
-          fi
-      - name: Render comment (benchmem compare)
+            --benchmark-json "$RUNNER_TEMP/run.json"
+      - name: Report the numbers
         working-directory: benchmark
         run: |
-          {
-            echo '<!-- benchmark-hint -->'
-            echo '### Benchmark hint — build pipeline'
-            echo ''
-            echo '`benchmark/test_reference.py` under [pytest-benchmem](https://github.com/fluxopt/pytest-benchmem) — quarter-year horizon; peak = memray allocator high-water, the same instrument family as CodSpeed. Shared-runner walltime is noisy: a hint, not a gate.'
-            echo ''
-            if [ -f "$RUNNER_TEMP/base.json" ]; then
-              uv run --no-sync benchmem compare "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" \
-                --diff --format md --columns time,peak --group-by func
-            else
-              uv run --no-sync benchmem compare "$RUNNER_TEMP/head.json" \
-                --format md --columns time,peak --stat mean --group-by func
-              echo ''
-              echo '_No baseline: the reference suite does not exist on the base branch._'
-            fi
-            echo ''
-            echo '<details>'
-            echo '<summary>Replicate locally (CI walltime is noisy)</summary>'
-            echo ''
-            echo '```bash'
-            echo "uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \\"
-            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.base.ref }} \'
-            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.head.ref }} \'
-            echo '    --suite benchmark/ --memory'
-            echo "uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json"
-            echo '```'
-            echo ''
-            echo 'One fresh venv per ref; covers the archetype, IO and reference-system benchmarks.'
-            echo '</details>'
-          } > "$RUNNER_TEMP/comment.md"
-      - name: Post or update the sticky comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          marker='<!-- benchmark-hint -->'
-          existing=$(gh api --paginate "repos/${{ github.repository }}/issues/$PR/comments" \
-            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)
-          if [ -n "$existing" ]; then
-            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$existing" \
-              -F body=@"$RUNNER_TEMP/comment.md" > /dev/null
-          else
-            gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md"
-          fi
+          uv run --no-sync benchmem compare "$RUNNER_TEMP/run.json" \
+            --format md --columns time,peak --stat mean --group-by func >> "$GITHUB_STEP_SUMMARY"

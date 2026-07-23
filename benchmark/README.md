@@ -62,8 +62,8 @@ set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
 `--pin <spec>` to hold individual dependencies still.
 
 This runs the whole suite — archetypes, IO, and the realistic reference
-systems — against each ref. The `benchmark-hint` PR comment links the exact
-command for its head/base pair.
+systems — against each ref. On PRs, the `benchmark-hint` workflow runs
+`test_reference.py` the same way and posts the numbers to its job summary.
 
 ## Local memory profiling — pytest-benchmem
 
