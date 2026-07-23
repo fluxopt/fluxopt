@@ -13,10 +13,10 @@ Python 3.13.2 · Darwin arm64 · 8 CPUs
 
 model              variables  constraints  elements    data   build  peak rss
 -----------------------------------------------------------------------------
-district_heating        140k         298k     10 ms  136 ms  437 ms   211 MiB
-industry_park           237k         456k     10 ms  135 ms  880 ms   254 MiB
-green_city              245k         491k     12 ms  142 ms  385 ms   260 MiB
-energy_transition      1.96M        3.92M     96 ms   85 ms   1.1 s   1.2 GiB
+district_heating        140k         298k      6 ms   59 ms  182 ms   208 MiB
+industry_park           289k         534k      5 ms   71 ms  481 ms   255 MiB
+green_city              245k         499k      7 ms  212 ms  511 ms   264 MiB
+energy_transition      1.96M        3.85M     53 ms   51 ms  603 ms   1.2 GiB
 ```
 
 **peak rss** is the whole build subprocess's OS-level high-water mark — it
@@ -39,22 +39,25 @@ several effects, and cross-effect couplings (CO₂ priced into cost at
 45 €/t via `Effect.contribution_from`). Their builders in
 `fluxopt/benchmark.py` double as worked examples:
 
-- **`district_heating`** — a municipal utility: gas boiler, CHP and an
-  air-source heat pump with a weather-driven COP feed a 20 MW-peak heat
-  network backed by a hot-water tank. Day-ahead electricity prices, hourly
-  grid CO₂ intensity.
+- **`district_heating`** — a municipal utility: gas boiler, ramp-limited CHP
+  and an air-source heat pump with a weather-driven COP feed a 20 MW-peak
+  heat network backed by a hot-water tank. Seasonal gas tariff, day-ahead
+  electricity prices, hourly grid CO₂ intensity.
 - **`industry_park`** — a factory site: two steam boilers with minimum load,
-  minimum up/down times and startup costs (unit commitment), a gas CHP, and
-  investment decisions for an electrode boiler and a steam accumulator with
-  annualized capital cost and embodied CO₂.
-- **`green_city`** — a sector-coupled city: wind PPA, rooftop PV and a grid
-  connection supply the city load, a battery sized by the optimizer, and two
+  minimum up/down times and startup costs (unit commitment), a gas-engine CHP
+  with a piecewise-linear part-load curve, and investment decisions for an
+  electrode boiler and a steam accumulator with annualized capital cost and
+  embodied CO₂. Site emissions carry an annual CO₂ cap.
+- **`green_city`** — a sector-coupled city: a wind PPA with a contracted
+  annual energy cap, rooftop PV and a grid connection supply the city load, a
+  battery sized by the optimizer (with a 10 % reserve level), and two
   district-heating networks. Tracks cost, CO₂ and primary energy.
 - **`energy_transition`** — `green_city` planned over eight five-year
   investment periods (2025–2060), each represented by a full hourly year:
   demand grows with electrification, grid CO₂ intensity falls, the carbon
-  price rises from 45 to 130 €/t, and battery capex falls along a learning
-  curve. About 2 million variables at the default horizon.
+  price rises from 45 to 130 €/t, and the battery becomes a multi-period
+  `Investment` — 15-year lifetime, overnight capex falling along a learning
+  curve, recurring O&M. About 2 million variables at the default horizon.
 
 ## Options
 

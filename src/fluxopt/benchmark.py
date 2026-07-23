@@ -13,18 +13,23 @@ The reference systems are realistic, readable models — constant and
 time-varying data, several effects and cross-effect couplings — so the numbers
 reflect real workloads and the builders double as examples:
 
-- ``district_heating`` — municipal utility: gas boiler, CHP and a heat pump
-  with a weather-driven COP feed a heat network backed by a hot-water tank;
-  day-ahead electricity prices, CO2 priced into cost.
+- ``district_heating`` — municipal utility: gas boiler, ramp-limited CHP and
+  a heat pump with a weather-driven COP feed a heat network backed by a
+  hot-water tank; seasonal gas tariff, day-ahead electricity prices, CO2
+  priced into cost.
 - ``industry_park`` — factory site: a steam boiler fleet with on/off unit
-  commitment, a gas CHP, and investment decisions for an electrode boiler and
-  a steam accumulator; three-shift steam demand.
-- ``green_city`` — sector-coupled city: wind, rooftop PV and a grid
-  connection supply a battery (sized by the optimizer) and two
-  district-heating networks; cost, CO2 and primary-energy accounting.
+  commitment, a gas-engine CHP with a piecewise part-load curve, investment
+  decisions for an electrode boiler and a steam accumulator, and an annual
+  CO2 cap; three-shift steam demand.
+- ``green_city`` — sector-coupled city: wind (PPA with a contracted energy
+  cap), rooftop PV and a grid connection supply a battery (sized by the
+  optimizer) and two district-heating networks; cost, CO2 and primary-energy
+  accounting.
 - ``energy_transition`` — ``green_city`` planned over eight five-year
-  investment periods with growing demand and a decarbonizing grid;
-  ~2 million variables at the default horizon.
+  investment periods: growing demand, a decarbonizing grid, a rising carbon
+  price, and the battery as a multi-period ``Investment`` (15-year lifetime,
+  capex learning curve, recurring O&M); ~2 million variables at the default
+  horizon.
 
 All data is deterministic (no randomness), and each system is built in a
 fresh subprocess so peak memory is attributed per model. Memory is
@@ -49,7 +54,19 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from fluxopt import Carrier, Converter, Effect, Flow, ModelData, Port, Sizing, Status, Storage
+from fluxopt import (
+    Carrier,
+    Converter,
+    Effect,
+    Flow,
+    Investment,
+    ModelData,
+    PiecewiseConversion,
+    Port,
+    Sizing,
+    Status,
+    Storage,
+)
 from fluxopt.model import FlowSystemModel
 
 if TYPE_CHECKING:
@@ -86,6 +103,12 @@ def _clock(n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 def _winter(day: np.ndarray) -> np.ndarray:
     """Seasonal factor: 1 at mid-winter, 0 at mid-summer."""
     return 0.5 + 0.5 * np.cos(2 * np.pi * day / 365.0)
+
+
+def _gas_price(n: int) -> np.ndarray:
+    """Indexed gas tariff [EUR/MWh]: winter premium on a 30 EUR base."""
+    _, day, _ = _clock(n)
+    return 30.0 + 11.0 * _winter(day)
 
 
 def _heat_demand(n: int) -> np.ndarray:
@@ -150,9 +173,10 @@ def district_heating(timesteps: int = HOURS_PER_YEAR) -> Elements:
 
     A 15 MW gas boiler, a gas CHP and an 8 MW air-source heat pump with a
     weather-driven COP feed a 20 MW-peak heat network backed by an 80 MWh
-    hot-water tank. Gas is bought at a flat tariff; electricity is bought and
-    sold at a day-ahead price profile; every kg of CO2 — burned on site or
-    embodied in grid power — is priced into cost at 45 EUR/t.
+    hot-water tank. Gas is bought at an indexed tariff with a winter premium;
+    electricity is bought and sold at a day-ahead price profile; every kg of
+    CO2 — burned on site or embodied in grid power — is priced into cost at
+    45 EUR/t.
     """
     n = timesteps
     price = _elec_price(n)
@@ -166,7 +190,11 @@ def district_heating(timesteps: int = HOURS_PER_YEAR) -> Elements:
         'ports': [
             Port(
                 id='gas_grid',
-                imports=[Flow(carrier='gas', size=60.0, effects_per_flow_hour={'cost': GAS_PRICE, 'co2': GAS_CO2})],
+                imports=[
+                    Flow(
+                        carrier='gas', size=60.0, effects_per_flow_hour={'cost': _gas_price(n).tolist(), 'co2': GAS_CO2}
+                    )
+                ],
             ),
             Port(
                 id='power_exchange',
@@ -227,10 +255,11 @@ def industry_park(timesteps: int = HOURS_PER_YEAR) -> Elements:
     """Industrial steam-and-power site with unit commitment and investment.
 
     Two 20 MW steam boilers with minimum load, minimum up/down times and
-    startup costs cover a three-shift steam demand alongside a gas CHP. The
-    optimizer may additionally invest in an electrode boiler (0-20 MW) and a
-    steam accumulator (0-60 MWh), both carrying annualized capital cost and
-    embodied CO2.
+    startup costs cover a three-shift steam demand alongside a gas-engine CHP
+    whose part-load efficiency follows a piecewise-linear curve. The optimizer
+    may additionally invest in an electrode boiler (0-20 MW) and a steam
+    accumulator (0-60 MWh), both carrying annualized capital cost and embodied
+    CO2, and site emissions are capped at 80 kt CO2 per year.
     """
     n = timesteps
     price = _elec_price(n)
@@ -262,20 +291,24 @@ def industry_park(timesteps: int = HOURS_PER_YEAR) -> Elements:
             size=Sizing(size_min=0.0, size_max=20.0, effects_per_size={'cost': 9000.0, 'co2': 1800.0}),
         ),
     )
-    site_chp = Converter.chp(
-        'site_chp',
-        0.40,
-        0.42,
-        Flow(carrier='gas', size=30.0, ramp_up_per_hour=0.3, ramp_down_per_hour=0.3),
-        Flow(carrier='elec'),
-        Flow(carrier='steam'),
+    site_chp = Converter(
+        id='site_chp',
+        inputs=[Flow(carrier='gas', size=30.0, ramp_up_per_hour=0.3, ramp_down_per_hour=0.3)],
+        outputs=[Flow(carrier='elec'), Flow(carrier='steam')],
+        conversion=PiecewiseConversion(
+            points={
+                'gas': [0.0, 12.0, 20.0, 30.0],
+                'elec': [0.0, 3.6, 7.4, 12.0],
+                'steam': [0.0, 6.0, 9.2, 12.6],
+            }
+        ),
     )
     return {
         'timesteps': _hourly_index(n),
         'carriers': [Carrier(id='gas'), Carrier(id='elec'), Carrier(id='steam')],
         'effects': [
             Effect(id='cost', unit='EUR', contribution_from={'co2': CARBON_PRICE}),
-            Effect(id='co2', unit='kg'),
+            Effect(id='co2', unit='kg', total_max=8.0e7),
         ],
         'ports': [
             Port(
@@ -393,6 +426,7 @@ def green_city(timesteps: int = HOURS_PER_YEAR) -> Elements:
                         carrier='elec',
                         size=60.0,
                         relative_rate_max=_wind(n).tolist(),
+                        flow_hours_max=150_000.0,
                         effects_per_flow_hour={'cost': 58.0, 'primary_energy': 0.03},
                     )
                 ],
@@ -457,6 +491,7 @@ def green_city(timesteps: int = HOURS_PER_YEAR) -> Elements:
                 capacity=Sizing(size_min=0.0, size_max=200.0, effects_per_size={'cost': 14000.0, 'co2': 65000.0}),
                 eta_charge=0.97,
                 eta_discharge=0.97,
+                relative_level_min=0.1,
             ),
             *tanks,
         ],
@@ -469,10 +504,11 @@ def energy_transition(timesteps: int = HOURS_PER_YEAR) -> Elements:
     Each period 2025-2060 is represented by a full hourly year (the ``period``
     dimension multiplies every temporal variable): electricity and heat demand
     grow with electrification, grid CO2 intensity falls as the surrounding
-    power system decarbonizes, the carbon price rises from 45 to 130 EUR/t,
-    battery capex falls along a learning curve, and the storage sizings are
-    decided per period. At the default horizon this is a ~2 million variable
-    model.
+    power system decarbonizes, and the carbon price rises from 45 to 130 EUR/t.
+    The battery becomes a proper multi-period ``Investment``: 15-year lifetime
+    (three periods), overnight capex falling along a learning curve, fixed O&M
+    recurring over each build's life. At the default horizon this is a
+    ~2 million variable model.
     """
     n = timesteps
     periods = list(range(2025, 2065, 5))
@@ -508,10 +544,12 @@ def energy_transition(timesteps: int = HOURS_PER_YEAR) -> Elements:
         Effect(id='primary_energy', unit='MWh'),
     ]
     storages = {storage.id: storage for storage in elements['storages']}
-    learning_curve = Sizing(
+    learning_curve = Investment(
         size_min=0.0,
         size_max=200.0,
-        effects_per_size={'cost': by_period(np.linspace(14000.0, 6000.0, len(periods))), 'co2': 65000.0},
+        lifetime=3,
+        effects_per_size_at_build={'cost': by_period(np.linspace(220_000.0, 80_000.0, len(periods))), 'co2': 65_000.0},
+        effects_per_size_recurring={'cost': 3_000.0},
     )
     storages['battery'] = storages['battery'].model_copy(update={'capacity': learning_curve})
     elements['storages'] = list(storages.values())
