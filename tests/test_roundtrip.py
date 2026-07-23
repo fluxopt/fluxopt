@@ -37,7 +37,9 @@ def _elements() -> list[object]:
             discharging=Flow(carrier='elec'),
             capacity=Sizing(size_min=0.0, size_max=100.0),
         ),
-        Port(id='grid', imports=[Flow(carrier='elec')], exports=[Flow(carrier='elec')]),
+        Port(
+            id='grid', imports=[Flow(carrier='elec', short_id='buy')], exports=[Flow(carrier='elec', short_id='sell')]
+        ),
         Converter.boiler('boiler', 0.9, Flow(carrier='gas'), Flow(carrier='heat')),
         Converter.chp('chp', 0.4, 0.45, Flow(carrier='gas'), Flow(carrier='elec'), Flow(carrier='heat')),
     ]
@@ -54,15 +56,15 @@ class TestRoundTrip:
         rebuilt = from_dict(type(element), to_dict(element))
         assert type(rebuilt) is type(element)
 
-    def test_component_idlist_serializes_to_list(self) -> None:
+    def test_component_flows_serialize_to_list(self) -> None:
         d = to_dict(Converter.boiler('b', 0.9, Flow(carrier='gas'), Flow(carrier='heat')))
         assert isinstance(d['inputs'], list)
         assert isinstance(d['outputs'], list)
 
-    def test_component_requalifies_flows_on_rebuild(self) -> None:
+    def test_qualified_flow_ids_derived_on_rebuild(self) -> None:
         conv = from_dict(Converter, to_dict(Converter.boiler('b', 0.9, Flow(carrier='gas'), Flow(carrier='heat'))))
-        assert [f.id for f in conv.inputs] == ['b(gas)']
-        assert [f.id for f in conv.outputs] == ['b(heat)']
+        assert [bf.id for bf in conv._qualified_flows()] == ['b(gas)', 'b(heat)']
+        assert [bf.sign for bf in conv._qualified_flows()] == [-1, 1]
 
     def test_sizing_investment_union_disambiguates(self) -> None:
         f = from_dict(Flow, to_dict(Flow(carrier='g', size=Investment(size_min=0.0, size_max=100.0, lifetime=20))))

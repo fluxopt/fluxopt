@@ -1,27 +1,31 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any, override
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field
 
-from fluxopt.elements import Element, Flow, PiecewiseConversion, qualified_id
-from fluxopt.types import IdList, Variate
+from fluxopt.elements import Element, Flow, PiecewiseConversion, _BoundFlow, qualified_id
+from fluxopt.types import Variate
 
 
-def _qualify_flows(component_id: str, flows: list[Flow]) -> IdList[Flow]:
-    """Set qualified id on each flow and return as IdList.
+def _check_unique_short_ids(owner: str, flows: list[Flow]) -> None:
+    """Raise when two flows of one component share a short_id.
 
     Args:
-        component_id: Parent component id used as prefix.
-        flows: Flows to qualify.
+        owner: Component label for the error message (e.g. ``"Port 'grid'"``).
+        flows: All flows of the component, across both directions.
     """
-    for f in flows:
-        f.id = qualified_id(component_id, f.id)
-    return IdList(flows)
+    if dupes := sorted(s for s, n in Counter(f.short_id for f in flows).items() if n > 1):
+        msg = (
+            f'{owner}: duplicate flow short_id(s) {dupes} — '
+            f'set short_id explicitly to disambiguate flows on the same carrier'
+        )
+        raise ValueError(msg)
 
 
 class Port(Element):
-    """System boundary exchanging a carrier with a bus.
+    """System boundary importing and exporting carriers.
 
     ``imports`` bring flow into the system (sources); ``exports`` send it out
     of the system (sinks).
@@ -29,16 +33,22 @@ class Port(Element):
 
     id: str
     """Port id (prefixes qualified flow ids)."""
-    imports: list[Flow] | IdList[Flow] = Field(default_factory=list)
+    imports: list[Flow] = Field(default_factory=list)
     """Flows bringing the carrier into the system (sources, e.g. grid supply)."""
-    exports: list[Flow] | IdList[Flow] = Field(default_factory=list)
+    exports: list[Flow] = Field(default_factory=list)
     """Flows sending the carrier out of the system (sinks, e.g. demand)."""
 
     @override
     def model_post_init(self, __context: Any) -> None:
-        """Qualify flow ids with the port id."""
-        self.imports = _qualify_flows(self.id, list(self.imports))
-        self.exports = _qualify_flows(self.id, list(self.exports))
+        """Reject duplicate short_ids across imports and exports."""
+        _check_unique_short_ids(f'Port {self.id!r}', [*self.imports, *self.exports])
+
+    def _qualified_flows(self) -> list[_BoundFlow]:
+        """All flows with build-time qualified ids; imports produce, exports consume."""
+        return [
+            *(_BoundFlow(qualified_id(self.id, f.short_id), f, 1) for f in self.imports),
+            *(_BoundFlow(qualified_id(self.id, f.short_id), f, -1) for f in self.exports),
+        ]
 
 
 class Converter(Element):
@@ -55,9 +65,9 @@ class Converter(Element):
 
     id: str
     """Converter id."""
-    inputs: list[Flow] | IdList[Flow]
+    inputs: list[Flow]
     """Input flows."""
-    outputs: list[Flow] | IdList[Flow]
+    outputs: list[Flow]
     """Output flows."""
     conversion_factors: list[dict[str, Variate]] = Field(default_factory=list)  # a_f
     """Linear-mode equations. Empty when
@@ -65,14 +75,20 @@ class Converter(Element):
     """
     conversion: PiecewiseConversion | None = None
     """Piecewise-mode curve. ``None`` for linear mode."""
-    _short_to_id: dict[str, str] = PrivateAttr(default_factory=dict)
+
+    def _qualified_flows(self) -> list[_BoundFlow]:
+        """All flows with build-time qualified ids; inputs consume, outputs produce."""
+        return [
+            *(_BoundFlow(qualified_id(self.id, f.short_id), f, -1) for f in self.inputs),
+            *(_BoundFlow(qualified_id(self.id, f.short_id), f, 1) for f in self.outputs),
+        ]
 
     @override
     def model_post_init(self, __context: Any) -> None:
-        """Qualify flow ids and validate mode exclusivity."""
-        self.inputs = _qualify_flows(self.id, list(self.inputs))
-        self.outputs = _qualify_flows(self.id, list(self.outputs))
-        self._short_to_id = {f.short_id: f.id for f in (*self.inputs, *self.outputs)}
+        """Validate short_id uniqueness, mode exclusivity, and factor references."""
+        flows = [*self.inputs, *self.outputs]
+        _check_unique_short_ids(f'Converter {self.id!r}', flows)
+        known = {f.short_id for f in flows}
 
         if self.conversion is not None:
             if self.conversion_factors:
@@ -82,15 +98,15 @@ class Converter(Element):
                 )
                 raise ValueError(msg)
             curve_flows = {flow for flow, _, _ in self.conversion._iter_normalized()}
-            unknown = curve_flows - set(self._short_to_id)
+            unknown = curve_flows - known
             if unknown:
                 msg = (
                     f'Converter {self.id!r}: PiecewiseConversion references unknown flow short_ids '
-                    f'{sorted(unknown)}; known: {sorted(self._short_to_id)}'
+                    f'{sorted(unknown)}; known: {sorted(known)}'
                 )
                 raise ValueError(msg)
             if self.conversion.status is not None:
-                for f in (*self.inputs, *self.outputs):
+                for f in flows:
                     if f.status is not None:
                         msg = (
                             f'Converter {self.id!r}: flow {f.short_id!r} cannot have flow-level '
@@ -99,11 +115,11 @@ class Converter(Element):
                         raise ValueError(msg)
         else:
             for eq_i, equation in enumerate(self.conversion_factors):
-                unknown = set(equation) - set(self._short_to_id)
+                unknown = set(equation) - known
                 if unknown:
                     msg = (
                         f'Converter {self.id!r}: conversion_factors[{eq_i}] references unknown '
-                        f'flow short_ids {sorted(unknown)}; known: {sorted(self._short_to_id)}'
+                        f'flow short_ids {sorted(unknown)}; known: {sorted(known)}'
                     )
                     raise ValueError(msg)
 

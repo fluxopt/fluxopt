@@ -236,12 +236,21 @@ not a priority. The genuinely wanted future feature is **arithmetic / expression
 in the YAML** (e.g. `2 * base_cost`, shared parameters) — the Calliope/linopy
 YAML-math direction (§5), deferred.
 
-**Still deferred (Phase 5+):**
+**Phase 5 (partially landed)** — id qualification moved from element
+construction to the build step: `Flow` lost its mutable `id` field, parents no
+longer rewrite child flows, and qualified ids are derived on demand by internal
+`_qualified_flows()` methods (records carrying the qualified id and the
+carrier-balance sign of the placement). Nothing new is exported — the public
+mental model is just *short_id + the `component(short_id)` pattern in data and
+results*. Declaration-vs-use tightening as planned; flows are now reusable
+across components, and duplicate short_ids within a component fail at
+construction.
+
+**Still deferred:**
 
 - **Arithmetic / expressions in YAML** (the real future want above).
-- **Porting `__post_init__` guards to pydantic validators**, and moving id
-  qualification from element construction to the build step (declaration-vs-use
-  tightening). Incremental cleanup, not required for the win.
+- **Porting the remaining `__post_init__` guards to pydantic validators.**
+  Incremental cleanup, not required for the win.
 
 ## 7. Non-goals
 

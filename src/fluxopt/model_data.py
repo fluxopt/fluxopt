@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
     from fluxopt.components import Converter, Port
-    from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
+    from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage, _BoundFlow
     from fluxopt.types import TimeIndex, Timesteps
 
 
@@ -535,7 +535,7 @@ class FlowsData:
     @classmethod
     def build(
         cls,
-        flows: list[Flow],
+        flows: list[_BoundFlow],
         time: TimeIndex,
         effects: list[Effect],
         dt: float = 1.0,
@@ -561,7 +561,7 @@ class FlowsData:
         """
         from fluxopt.elements import Investment, Sizing
 
-        flow_ids = [f.id for f in flows]
+        flow_ids = [bf.id for bf in flows]
         effect_ids = [e.id for e in effects]
         effect_set = set(effect_ids)
         n_time = len(time)
@@ -595,14 +595,14 @@ class FlowsData:
             coords=envelope_coords,
         )
 
-        for i, f in enumerate(flows):
+        for i, (fid, f, _sign) in enumerate(flows):
             rel_lbs.append(as_dataarray(f.relative_rate_min, envelope_coords))
             rel_ubs.append(as_dataarray(f.relative_rate_max, envelope_coords))
 
             if isinstance(f.size, Sizing):
-                sizing_items.append((f.id, f.size))
+                sizing_items.append((fid, f.size))
             elif isinstance(f.size, Investment):
-                invest_items.append((f.id, f.size))
+                invest_items.append((fid, f.size))
             elif f.size is not None:
                 size_vals[i] = f.size
 
@@ -654,15 +654,15 @@ class FlowsData:
                 as_da_coords['period'] = period
             for effect_label, factor in f.effects_per_flow_hour.items():
                 if effect_label not in effect_set:
-                    raise ValueError(f'Unknown effect {effect_label!r} in Flow.effects_per_flow_hour on {f.id!r}')
+                    raise ValueError(f'Unknown effect {effect_label!r} in Flow.effects_per_flow_hour on {fid!r}')
                 ec.loc[effect_label] = as_dataarray(factor, as_da_coords)
             effect_coeffs.append(ec)
 
             if f.status is not None:
-                status_items.append((f.id, f.status))
+                status_items.append((fid, f.status))
 
             if f.prior_rates is not None:
-                prior_rates_map[f.id] = f.prior_rates
+                prior_rates_map[fid] = f.prior_rates
 
         flow_idx = pd.Index(flow_ids, name='flow')
         return cls(
@@ -748,17 +748,17 @@ class CarriersData:
         )
 
     @classmethod
-    def build(cls, carriers: list[Carrier], flows: list[Flow], carrier_coeff: dict[str, float]) -> Self:
+    def build(cls, carriers: list[Carrier], flows: list[_BoundFlow], carrier_coeff: dict[str, float]) -> Self:
         """Build CarriersData from explicit carrier declarations.
 
         Args:
             carriers: Declared carriers.
             flows: All collected flows.
-            carrier_coeff: Mapping of flow id to +1 (produces) or -1 (consumes).
+            carrier_coeff: Mapping of qualified flow id to +1 (produces) or -1 (consumes).
         """
         from fluxopt.elements import node_id
 
-        flow_ids = [f.id for f in flows]
+        flow_ids = [bf.id for bf in flows]
         # Build carrier dim ids from explicit declarations
         carrier_ids: list[str] = []
         for c in carriers:
@@ -768,10 +768,9 @@ class CarriersData:
                 carrier_ids.append(c.id)
 
         coeff = np.full((len(carrier_ids), len(flow_ids)), np.nan)
-        for f in flows:
+        for fi, (fid, f, _sign) in enumerate(flows):
             ci = carrier_ids.index(_carrier_dim_id(f))
-            fi = flow_ids.index(f.id)
-            coeff[ci, fi] = carrier_coeff[f.id]
+            coeff[ci, fi] = carrier_coeff[fid]
 
         # Expand carrier metadata to match carrier dim (one entry per node)
         units: list[str] = []
@@ -866,15 +865,14 @@ class ConvertersData:
                 mask_row[eq_i] = True
             eq_mask_rows.append(mask_row)
 
-            qid_to_short = {v: k for k, v in conv._short_to_id.items()}
-            for flow in (*conv.inputs, *conv.outputs):
-                short = qid_to_short[flow.id]
+            for fid, flow, _sign in conv._qualified_flows():
+                short = flow.short_id
                 eq_coeffs = np.zeros((max_eq, n_time))
                 for eq_i, equation in enumerate(conv.conversion_factors):
                     if short in equation:
                         eq_coeffs[eq_i] = as_dataarray(equation[short], {'time': time}).values
                 pairs_conv.append(conv.id)
-                pairs_flow.append(flow.id)
+                pairs_flow.append(fid)
                 coeff_arrays.append(eq_coeffs)
 
         return cls(
@@ -965,8 +963,9 @@ class PiecewiseData:
             avail_slices.append(as_dataarray(curve.availability, {'time': time}))
             has_statuses.append(curve.status is not None)
 
+            short_to_qid = {bf.flow.short_id: bf.id for bf in conv._qualified_flows()}
             for short, pts, bound in curve._iter_normalized():
-                qid = conv._short_to_id[short]
+                qid = short_to_qid[short]
                 bp_arrays = [as_dataarray(bp, {'time': time}) for bp in pts]
                 bp_idx = pd.Index(range(len(bp_arrays)), name='breakpoint')
                 bp_da = fast_concat(bp_arrays, bp_idx)
@@ -1310,8 +1309,8 @@ class StoragesData:
                 final_max_vals[i] = s.final_level_max
             prevent_vals[i] = s.prevent_simultaneous
 
-            charge_flow.append(s.charging.id)
-            discharge_flow.append(s.discharging.id)
+            charge_flow.append(s._charging_id)
+            discharge_flow.append(s._discharging_id)
 
         stor_idx = pd.Index(stor_ids, name='storage')
         return cls(
@@ -1643,10 +1642,10 @@ class ModelData:
         period_idx = pd.Index(dims.period.values) if dims.period is not None else None
 
         comp_status_items: list[tuple[str, Status, list[str]]] = [
-            (s.id, s.status, [s.charging.id, s.discharging.id]) for s in stor_list if s.status is not None
+            (s.id, s.status, [s._charging_id, s._discharging_id]) for s in stor_list if s.status is not None
         ]
         comp_status_items.extend(
-            (c.id, c.conversion.status, [f.id for f in (*c.inputs, *c.outputs)])
+            (c.id, c.conversion.status, [bf.id for bf in c._qualified_flows()])
             for c in converters
             if c.conversion is not None and c.conversion.status is not None
         )
@@ -1680,8 +1679,8 @@ def _collect_flows(
     ports: list[Port],
     converters: list[Converter],
     storages: list[Storage] | None,
-) -> tuple[list[Flow], dict[str, float]]:
-    """Gather all flows and assign carrier-balance coefficients by direction.
+) -> tuple[list[_BoundFlow], dict[str, float]]:
+    """Gather qualified flows from every component with carrier-balance signs.
 
     Args:
         ports: System boundary ports.
@@ -1689,31 +1688,13 @@ def _collect_flows(
         storages: Storage components.
 
     Returns:
-        Tuple of (flows, carrier_coeff) where carrier_coeff maps flow id to
-        +1 (produces into carrier) or -1 (consumes from carrier).
+        Tuple of (flows, carrier_coeff) where carrier_coeff maps qualified
+        flow id to +1 (produces into carrier) or -1 (consumes from carrier).
     """
-    flows: list[Flow] = []
-    carrier_coeff: dict[str, float] = {}
-    for port in ports:
-        for f in port.imports:
-            flows.append(f)
-            carrier_coeff[f.id] = 1.0  # imports add energy to carrier
-        for f in port.exports:
-            flows.append(f)
-            carrier_coeff[f.id] = -1.0  # exports take energy from carrier
-    for conv in converters:
-        for f in conv.inputs:
-            flows.append(f)
-            carrier_coeff[f.id] = -1.0  # converter consumes from carrier
-        for f in conv.outputs:
-            flows.append(f)
-            carrier_coeff[f.id] = 1.0  # converter produces to carrier
-    for s in storages or []:
-        flows.append(s.charging)
-        carrier_coeff[s.charging.id] = -1.0  # charging takes from carrier
-        flows.append(s.discharging)
-        carrier_coeff[s.discharging.id] = 1.0  # discharging adds to carrier
-    return flows, carrier_coeff
+    flows: list[_BoundFlow] = []
+    for comp in (*ports, *converters, *(storages or [])):
+        flows.extend(comp._qualified_flows())
+    return flows, {bf.id: float(bf.sign) for bf in flows}
 
 
 def _validate_system(
@@ -1721,7 +1702,7 @@ def _validate_system(
     ports: list[Port],
     converters: list[Converter],
     storages: list[Storage],
-    flows: list[Flow],
+    flows: list[_BoundFlow],
     carriers: list[Carrier],
 ) -> None:
     """Validate unique ids and carrier consistency across all elements.
@@ -1745,12 +1726,12 @@ def _validate_system(
             raise ValueError(f'Duplicate id: {id_!r}')
         seen.add(id_)
 
-    # Unique flow IDs
+    # Unique qualified flow IDs
     flow_seen: set[str] = set()
-    for flow in flows:
-        if flow.id in flow_seen:
-            raise ValueError(f'Duplicate flow id: {flow.id!r}')
-        flow_seen.add(flow.id)
+    for bf in flows:
+        if bf.id in flow_seen:
+            raise ValueError(f'Duplicate flow id: {bf.id!r}')
+        flow_seen.add(bf.id)
 
     # Unique carrier IDs
     carrier_id_list = [c.id for c in carriers]
@@ -1762,17 +1743,16 @@ def _validate_system(
 
     # Every flow carrier must match a declared carrier
     carrier_by_id = {c.id: c for c in carriers}
-    for flow in flows:
+    for fid, flow, _sign in flows:
         if flow.carrier not in carrier_by_id:
             raise ValueError(
-                f'Flow {flow.id!r} references carrier {flow.carrier!r} '
+                f'Flow {fid!r} references carrier {flow.carrier!r} '
                 f'which is not in the declared carriers: {sorted(carrier_by_id)}'
             )
         carrier = carrier_by_id[flow.carrier]
         if flow.node and not carrier.nodes:
-            raise ValueError(f'Flow {flow.id!r} specifies node={flow.node!r} but carrier {carrier.id!r} has no nodes')
+            raise ValueError(f'Flow {fid!r} specifies node={flow.node!r} but carrier {carrier.id!r} has no nodes')
         if flow.node and flow.node not in carrier.nodes:
             raise ValueError(
-                f'Flow {flow.id!r} specifies node={flow.node!r} but carrier '
-                f'{carrier.id!r} only has nodes {carrier.nodes}'
+                f'Flow {fid!r} specifies node={flow.node!r} but carrier {carrier.id!r} only has nodes {carrier.nodes}'
             )

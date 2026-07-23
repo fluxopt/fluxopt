@@ -129,15 +129,15 @@ class TestEffectsTable:
 
 
 class TestFlowNodeId:
-    def test_node_included_in_default_id(self):
-        """Flow with node set auto-generates carrier:node id."""
+    def test_node_included_in_default_short_id(self):
+        """Flow with node set auto-generates carrier:node short_id."""
         f = Flow(carrier='heat', node='A')
-        assert f.id == 'heat:A'
+        assert f.short_id == 'heat:A'
 
     def test_node_without_node_uses_carrier(self):
-        """Flow without node uses carrier as id."""
+        """Flow without node uses carrier as short_id."""
         f = Flow(carrier='heat')
-        assert f.id == 'heat'
+        assert f.short_id == 'heat'
 
 
 class TestStorageValidation:
@@ -146,21 +146,62 @@ class TestStorageValidation:
         with pytest.raises(ValueError, match='charging carrier'):
             Storage(id='bat', charging=Flow(carrier='elec'), discharging=Flow(carrier='heat'))
 
-    def test_same_short_id_renamed_to_charge_discharge(self):
-        """Storage with same short_id renames both short_id and id."""
+    def test_same_short_id_resolves_to_charge_discharge(self):
+        """Colliding short_ids resolve to charge/discharge in the qualified ids only."""
         s = Storage(id='bat', charging=Flow(carrier='elec'), discharging=Flow(carrier='elec'))
-        assert s.charging.short_id == 'charge'
-        assert s.discharging.short_id == 'discharge'
-        assert s.charging.id == 'bat(charge)'
-        assert s.discharging.id == 'bat(discharge)'
+        assert s.charging.short_id == 'elec'  # declaration untouched
+        assert s.discharging.short_id == 'elec'
+        assert s._charging_id == 'bat(charge)'
+        assert s._discharging_id == 'bat(discharge)'
 
     def test_distinct_short_ids_preserved(self):
         """Storage with explicit different short_ids keeps them in qualified id."""
         s = Storage(
             id='bat', charging=Flow(carrier='elec', short_id='in'), discharging=Flow(carrier='elec', short_id='out')
         )
-        assert s.charging.id == 'bat(in)'
-        assert s.discharging.id == 'bat(out)'
+        assert s._charging_id == 'bat(in)'
+        assert s._discharging_id == 'bat(out)'
+
+
+class TestFlowQualification:
+    def test_declarations_are_never_mutated(self):
+        """Placing a flow in a component leaves the flow object untouched."""
+        f = Flow(carrier='elec')
+        Port(id='grid', imports=[f])
+        assert f.short_id == 'elec'
+        assert not hasattr(f, 'id')
+
+    def test_port_qualified_flows_carry_signs(self):
+        buy, sell = Flow(carrier='elec', short_id='buy'), Flow(carrier='elec', short_id='sell')
+        port = Port(id='grid', imports=[buy], exports=[sell])
+        assert [(bf.id, bf.sign) for bf in port._qualified_flows()] == [
+            ('grid(buy)', 1),
+            ('grid(sell)', -1),
+        ]
+
+    def test_flow_reused_across_components_gets_two_entries(self):
+        """One flow declaration placed in two components yields two dataset columns."""
+        f = Flow(carrier='b', size=100)
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier(id='b')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='src', imports=[f]), Port(id='sink', exports=[f])],
+        )
+        assert list(data.flows.size.coords['flow'].values) == ['src(b)', 'sink(b)']
+
+    def test_port_duplicate_short_ids_raise_at_construction(self):
+        with pytest.raises(ValueError, match=r"Port 'grid': duplicate flow short_id\(s\) \['elec'\]"):
+            Port(id='grid', imports=[Flow(carrier='elec')], exports=[Flow(carrier='elec')])
+
+    def test_converter_duplicate_short_ids_raise_at_construction(self):
+        with pytest.raises(ValueError, match=r"Converter 'c': duplicate flow short_id\(s\) \['gas'\]"):
+            Converter(
+                id='c',
+                inputs=[Flow(carrier='gas'), Flow(carrier='gas')],
+                outputs=[Flow(carrier='heat')],
+                conversion_factors=[{'gas': 0.9, 'heat': -1}],
+            )
 
 
 class TestConverterValidation:
