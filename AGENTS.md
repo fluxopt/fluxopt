@@ -49,9 +49,8 @@ must stay human and honest. Three rules:
 
 - Manage the environment with [`uv`](https://docs.astral.sh/uv/) and work inside
   the project virtualenv (`uv sync --group dev`).
-- Run the test suite with `pytest` (`uv run pytest -v`), lint and format with
-  `ruff` (`uv run ruff check .`, `uv run ruff format .`), and type-check with
-  `pyrefly` (`uv run pyrefly check src/`).
+- Run the tests with `pytest`, lint and format with `ruff`, and type-check with
+  `pyrefly`. Run the tests after making changes and make sure they pass.
 
 ## Project conventions
 
@@ -59,10 +58,4 @@ must stay human and honest. Three rules:
   (`gh`).
 - Use [Conventional Commits](https://www.conventionalcommits.org/) for all
   commit messages and PR titles (`<type>: <short summary>`).
-- Write tests for new features and bug fixes under `tests/` as `test_*.py`. Run
-  the tests after making changes and make sure they pass.
-
-## Architecture
-
-See [`CLAUDE.md`](CLAUDE.md) for the architecture overview, naming grammar, code
-style and math-documentation conventions.
+- Write tests for new features and bug fixes under `tests/` as `test_*.py`.
