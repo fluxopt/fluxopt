@@ -9,6 +9,7 @@ from linopy import Model, Variable
 from fluxopt.constraints.sparse import sparse_weighted_sum
 from fluxopt.constraints.status import add_duration_tracking, add_switch_transitions
 from fluxopt.constraints.storage import add_accumulation_constraints
+from fluxopt.contract import BoundType, Dim, Var
 from fluxopt.contributions import _leontief
 from fluxopt.results import Result
 from fluxopt.types import as_dataarray
@@ -247,7 +248,7 @@ class FlowSystemModel:
         self.flow_rate = self.m.add_variables(
             lower=0,
             coords={'flow': ds.rel_lb.coords['flow'], **self.data.dims.coords(time=True, period=True)},
-            name='flow--rate',
+            name=Var.FLOW_RATE,
         )
 
     def _create_sizing_variables(self) -> None:
@@ -266,9 +267,9 @@ class FlowSystemModel:
 
         # --- Sizing flows ---
         if fds.sizing is not None:
-            sizing_ids = list(fds.sizing.min.coords['sizing_flow'].values)
+            sizing_ids = list(fds.sizing.min.coords[Dim.SIZING_FLOW].values)
             all_ids.extend(sizing_ids)
-            upper_parts.append(fds.sizing.max.rename({'sizing_flow': 'flow'}))
+            upper_parts.append(fds.sizing.max.rename({Dim.SIZING_FLOW: 'flow'}))
 
             mandatory = fds.sizing.mandatory
             optional_ids = np.array(sizing_ids)[~mandatory.values]
@@ -276,32 +277,32 @@ class FlowSystemModel:
                 self.flow_size_indicator = self._add_variables(
                     binary=True,
                     coords={'flow': xr.DataArray(optional_ids, dims=['flow']), **pc},
-                    name='flow--size_indicator',
+                    name=Var.FLOW_SIZE_INDICATOR,
                 )
 
         # --- Investment flows ---
         if fds.invest is not None:
-            invest_ids = list(fds.invest.min.coords['invest_flow'].values)
+            invest_ids = list(fds.invest.min.coords[Dim.INVEST_FLOW].values)
             all_ids.extend(invest_ids)
-            upper_parts.append(fds.invest.max.rename({'invest_flow': 'flow'}))
+            upper_parts.append(fds.invest.max.rename({Dim.INVEST_FLOW: 'flow'}))
 
         # Create unified flow_size variable
         if all_ids:
             upper = xr.concat(upper_parts, dim='flow') if len(upper_parts) > 1 else upper_parts[0]
             flow_coord = xr.DataArray(all_ids, dims=['flow'])
             self.flow_size = self._add_variables(
-                lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name='flow--size'
+                lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name=Var.FLOW_SIZE
             )
 
         # --- Storage capacity sizing ---
         sds = self.data.storages
         if sds is not None and sds.sizing is not None:
-            sizing_ids = sds.sizing.min.coords['sizing_storage'].values
+            sizing_ids = sds.sizing.min.coords[Dim.SIZING_STORAGE].values
             stor_coord = xr.DataArray(sizing_ids, dims=['storage'])
-            upper = sds.sizing.max.rename({'sizing_storage': 'storage'})
+            upper = sds.sizing.max.rename({Dim.SIZING_STORAGE: 'storage'})
             pc = self.data.dims.coords(period=True)
             self.storage_capacity = self._add_variables(
-                lower=0, upper=upper, coords={'storage': stor_coord, **pc}, name='storage--capacity'
+                lower=0, upper=upper, coords={'storage': stor_coord, **pc}, name=Var.STORAGE_CAPACITY
             )
             mandatory = sds.sizing.mandatory
             optional_ids = sizing_ids[~mandatory.values]
@@ -309,7 +310,7 @@ class FlowSystemModel:
                 self.storage_capacity_indicator = self._add_variables(
                     binary=True,
                     coords={'storage': xr.DataArray(optional_ids, dims=['storage']), **pc},
-                    name='storage--size_indicator',
+                    name=Var.STORAGE_SIZE_INDICATOR,
                 )
 
     def _create_investment_variables(self) -> None:
@@ -326,7 +327,7 @@ class FlowSystemModel:
         if fds.invest is None:
             return
 
-        invest_ids = list(fds.invest.min.coords['invest_flow'].values)
+        invest_ids = list(fds.invest.min.coords[Dim.INVEST_FLOW].values)
         pc = self.data.dims.coords(period=True)
 
         if not pc:
@@ -334,20 +335,20 @@ class FlowSystemModel:
             raise ValueError(msg)
 
         flow_coord = xr.DataArray(invest_ids, dims=['flow'])
-        upper = fds.invest.max.rename({'invest_flow': 'flow'})
+        upper = fds.invest.max.rename({Dim.INVEST_FLOW: 'flow'})
 
         # invest_size[flow]: single capacity decision (no period dim)
-        self.invest_size = self._add_variables(lower=0, upper=upper, coords={'flow': flow_coord}, name='invest--size')
+        self.invest_size = self._add_variables(lower=0, upper=upper, coords={'flow': flow_coord}, name=Var.INVEST_SIZE)
 
         # invest_build[flow, period]: binary build indicator
-        self.invest_build = self._add_variables(binary=True, coords={'flow': flow_coord, **pc}, name='invest--build')
+        self.invest_build = self._add_variables(binary=True, coords={'flow': flow_coord, **pc}, name=Var.INVEST_BUILD)
 
         # invest_active[flow, period]: binary active indicator
-        self.invest_active = self._add_variables(binary=True, coords={'flow': flow_coord, **pc}, name='invest--active')
+        self.invest_active = self._add_variables(binary=True, coords={'flow': flow_coord, **pc}, name=Var.INVEST_ACTIVE)
 
         # invest_size_at_build[flow, period]: invest_size * build (big-M)
         self.invest_size_at_build = self._add_variables(
-            lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name='invest--size_at_build'
+            lower=0, upper=upper, coords={'flow': flow_coord, **pc}, name=Var.INVEST_SIZE_AT_BUILD
         )
 
     def _create_status_variables(self) -> None:
@@ -356,20 +357,20 @@ class FlowSystemModel:
         if ds.status is None:
             return
 
-        status_ids = ds.status.uptime_min.coords['status_flow'].values
+        status_ids = ds.status.uptime_min.coords[Dim.STATUS_FLOW].values
         flow_coord = xr.DataArray(status_ids, dims=['flow'])
         tp = {'flow': flow_coord, **self.data.dims.coords(time=True, period=True)}
 
-        self.flow_on = self._add_variables(binary=True, coords=tp, name='flow--on')
-        self.flow_startup = self._add_variables(binary=True, coords=tp, name='flow--startup')
-        self.flow_shutdown = self._add_variables(binary=True, coords=tp, name='flow--shutdown')
+        self.flow_on = self._add_variables(binary=True, coords=tp, name=Var.FLOW_ON)
+        self.flow_startup = self._add_variables(binary=True, coords=tp, name=Var.FLOW_STARTUP)
+        self.flow_shutdown = self._add_variables(binary=True, coords=tp, name=Var.FLOW_SHUTDOWN)
 
     def _status_flow_ids(self) -> set[str]:
         """Return ids of flows with Status, or empty set."""
         ds = self.data.flows
         if ds.status is None:
             return set()
-        return set(ds.status.uptime_min.coords['status_flow'].values)
+        return set(ds.status.uptime_min.coords[Dim.STATUS_FLOW].values)
 
     def _create_component_status_variables(self) -> None:
         """Create binary on/off variables for components with Status."""
@@ -377,13 +378,13 @@ class FlowSystemModel:
         if ds.cstatus is None:
             return
 
-        comp_ids = ds.cstatus.uptime_min.coords['cstatus_component'].values
+        comp_ids = ds.cstatus.uptime_min.coords[Dim.CSTATUS_COMPONENT].values
         comp_coord = xr.DataArray(comp_ids, dims=['component'])
         tp = {'component': comp_coord, **self.data.dims.coords(time=True, period=True)}
 
-        self.component_on = self._add_variables(binary=True, coords=tp, name='component--on')
-        self.component_startup = self._add_variables(binary=True, coords=tp, name='component--startup')
-        self.component_shutdown = self._add_variables(binary=True, coords=tp, name='component--shutdown')
+        self.component_on = self._add_variables(binary=True, coords=tp, name=Var.COMPONENT_ON)
+        self.component_startup = self._add_variables(binary=True, coords=tp, name=Var.COMPONENT_STARTUP)
+        self.component_shutdown = self._add_variables(binary=True, coords=tp, name=Var.COMPONENT_SHUTDOWN)
 
     def _governed_flows_map(self) -> dict[str, list[str]]:
         """Return ``{component_id: [flow_ids governed]}`` from data, or empty."""
@@ -392,7 +393,7 @@ class FlowSystemModel:
         if gf is None:
             return {}
         result: dict[str, list[str]] = {}
-        for comp_id in gf.coords['cstatus_component'].values:
+        for comp_id in gf.coords[Dim.CSTATUS_COMPONENT].values:
             row = gf.sel(cstatus_component=comp_id).values
             result[str(comp_id)] = [str(f) for f in row if str(f)]
         return result
@@ -422,8 +423,8 @@ class FlowSystemModel:
         rel_lb = ds.rel_lb
         rel_ub = ds.rel_ub
         fixed = ds.fixed_profile
-        is_bounded = ds.bound_type == 'bounded'
-        is_profile = ds.bound_type == 'profile'
+        is_bounded = ds.bound_type == BoundType.BOUNDED
+        is_profile = ds.bound_type == BoundType.PROFILE
 
         # Mask: has fixed size AND not sizing AND not status
         is_plain = size.notnull()
@@ -466,8 +467,8 @@ class FlowSystemModel:
         rl = ds.rel_lb.sel(flow=invest_ids)
         ru = ds.rel_ub.sel(flow=invest_ids)
         fp = ds.fixed_profile.sel(flow=invest_ids)
-        inv_bounded = (ds.bound_type == 'bounded').sel(flow=invest_ids)
-        inv_profile = (ds.bound_type == 'profile').sel(flow=invest_ids)
+        inv_bounded = (ds.bound_type == BoundType.BOUNDED).sel(flow=invest_ids)
+        inv_profile = (ds.bound_type == BoundType.PROFILE).sel(flow=invest_ids)
         fs = self.flow_size.sel(flow=invest_ids)
 
         var_mask = inv_bounded.broadcast_like(rl)
@@ -507,8 +508,8 @@ class FlowSystemModel:
         rl = ds.rel_lb.sel(flow=status_ids)
         ru = ds.rel_ub.sel(flow=status_ids)
         fp = ds.fixed_profile.sel(flow=status_ids)
-        is_bounded = (ds.bound_type == 'bounded').sel(flow=status_ids)
-        is_profile = (ds.bound_type == 'profile').sel(flow=status_ids)
+        is_bounded = (ds.bound_type == BoundType.BOUNDED).sel(flow=status_ids)
+        is_profile = (ds.bound_type == BoundType.PROFILE).sel(flow=status_ids)
 
         stat_bounded = is_bounded & size.notnull()
         if stat_bounded.any():
@@ -545,8 +546,8 @@ class FlowSystemModel:
         ru = ds.rel_ub.sel(flow=flow_ids)
 
         # size_max: combine from sizing and invest sources
-        sizing_ids = set(ds.sizing.max.coords['sizing_flow'].values) if ds.sizing is not None else set()
-        invest_ids = set(ds.invest.max.coords['invest_flow'].values) if ds.invest is not None else set()
+        sizing_ids = set(ds.sizing.max.coords[Dim.SIZING_FLOW].values) if ds.sizing is not None else set()
+        invest_ids = set(ds.invest.max.coords[Dim.INVEST_FLOW].values) if ds.invest is not None else set()
         parts: list[xr.DataArray] = []
         for fid in flow_ids:
             if fid in sizing_ids:
@@ -614,16 +615,15 @@ class FlowSystemModel:
                 size = float(size_val)
                 rl = ds.rel_lb.sel(flow=fid)
                 ru = ds.rel_ub.sel(flow=fid)
-                if bt == 'bounded':
+                if bt == BoundType.BOUNDED:
                     self.m.add_constraints(fr >= size * rl * on, name=f'flow_lb_cstatus_{fid}')
                     self.m.add_constraints(fr <= size * ru * on, name=f'flow_ub_cstatus_{fid}')
-                elif bt == 'profile':
+                elif bt == BoundType.PROFILE:
                     fp = ds.fixed_profile.sel(flow=fid)
                     self.m.add_constraints(fr == size * fp * on, name=f'flow_fix_cstatus_{fid}')
                 else:  # pragma: no cover
-                    # Defensive — only 'bounded' / 'profile' / 'unsized' exist today,
-                    # and 'unsized' is caught above. Reaching this branch means a new
-                    # bound_type was introduced without updating this dispatch.
+                    # Defensive — UNSIZED is caught by the NaN-size check above. Reaching
+                    # this branch means a new BoundType was added without updating this dispatch.
                     msg = f'Component {comp_id!r}: governed flow {fid!r} has unsupported bound_type {bt!r}'
                     raise ValueError(msg)
 
@@ -794,9 +794,9 @@ class FlowSystemModel:
             v = fds.size.sel(flow=fid).values
             if not np.isnan(v):
                 vals.append(float(v))
-            elif fds.sizing is not None and fid in fds.sizing.max.coords['sizing_flow'].values:
+            elif fds.sizing is not None and fid in fds.sizing.max.coords[Dim.SIZING_FLOW].values:
                 vals.append(float(fds.sizing.max.sel(sizing_flow=fid).values))
-            elif fds.invest is not None and fid in fds.invest.max.coords['invest_flow'].values:
+            elif fds.invest is not None and fid in fds.invest.max.coords[Dim.INVEST_FLOW].values:
                 vals.append(float(fds.invest.max.sel(invest_flow=fid).values))
             else:  # pragma: no cover — element validation guards sized flows
                 raise ValueError(f'Flow {fid!r} has no static size bound for big-M')
@@ -808,8 +808,8 @@ class FlowSystemModel:
         fds = self.data.flows
         if fds.sizing is not None:
             assert self.flow_size is not None
-            sizing_ids = fds.sizing.min.coords['sizing_flow'].values
-            smin = fds.sizing.min.rename({'sizing_flow': 'flow'})
+            sizing_ids = fds.sizing.min.coords[Dim.SIZING_FLOW].values
+            smin = fds.sizing.min.rename({Dim.SIZING_FLOW: 'flow'})
             mandatory = fds.sizing.mandatory
 
             mand_ids = sizing_ids[mandatory.values]
@@ -822,7 +822,7 @@ class FlowSystemModel:
             opt_ids = sizing_ids[~mandatory.values]
             if len(opt_ids):
                 assert self.flow_size_indicator is not None
-                smax = fds.sizing.max.rename({'sizing_flow': 'flow'})
+                smax = fds.sizing.max.rename({Dim.SIZING_FLOW: 'flow'})
                 fs = self.flow_size.sel(flow=opt_ids)
                 self.m.add_constraints(fs >= smin.sel(flow=opt_ids) * self.flow_size_indicator, name='invest_lb')
                 self.m.add_constraints(fs <= smax.sel(flow=opt_ids) * self.flow_size_indicator, name='invest_ub')
@@ -832,8 +832,8 @@ class FlowSystemModel:
             sds = self.data.storages
             assert sds is not None
             assert sds.sizing is not None
-            smin = sds.sizing.min.rename({'sizing_storage': 'storage'})
-            mandatory = sds.sizing.mandatory.rename({'sizing_storage': 'storage'})
+            smin = sds.sizing.min.rename({Dim.SIZING_STORAGE: 'storage'})
+            mandatory = sds.sizing.mandatory.rename({Dim.SIZING_STORAGE: 'storage'})
 
             mand_ids = self.storage_capacity.coords['storage'].values[mandatory.values]
             if len(mand_ids):
@@ -845,7 +845,7 @@ class FlowSystemModel:
             opt_ids = self.storage_capacity.coords['storage'].values[~mandatory.values]
             if len(opt_ids):
                 assert self.storage_capacity_indicator is not None
-                smax = sds.sizing.max.rename({'sizing_storage': 'storage'})
+                smax = sds.sizing.max.rename({Dim.SIZING_STORAGE: 'storage'})
                 sc = self.storage_capacity.sel(storage=opt_ids)
                 self.m.add_constraints(
                     sc >= smin.sel(storage=opt_ids) * self.storage_capacity_indicator, name='stor_invest_lb'
@@ -865,12 +865,12 @@ class FlowSystemModel:
         assert self.invest_active is not None
         assert self.invest_size_at_build is not None
 
-        invest_ids = list(fds.invest.min.coords['invest_flow'].values)
-        smin = fds.invest.min.rename({'invest_flow': 'flow'})
-        smax = fds.invest.max.rename({'invest_flow': 'flow'})
-        mandatory = fds.invest.mandatory.rename({'invest_flow': 'flow'})
-        lifetime = fds.invest.lifetime.rename({'invest_flow': 'flow'})
-        prior_size = fds.invest.prior_size.rename({'invest_flow': 'flow'})
+        invest_ids = list(fds.invest.min.coords[Dim.INVEST_FLOW].values)
+        smin = fds.invest.min.rename({Dim.INVEST_FLOW: 'flow'})
+        smax = fds.invest.max.rename({Dim.INVEST_FLOW: 'flow'})
+        mandatory = fds.invest.mandatory.rename({Dim.INVEST_FLOW: 'flow'})
+        lifetime = fds.invest.lifetime.rename({Dim.INVEST_FLOW: 'flow'})
+        prior_size = fds.invest.prior_size.rename({Dim.INVEST_FLOW: 'flow'})
 
         build = self.invest_build
         active = self.invest_active
@@ -980,17 +980,19 @@ class FlowSystemModel:
         assert ds.status is not None
 
         # Rename status_flow -> flow to align with variable dims
-        min_up = ds.status.uptime_min.rename({'status_flow': 'flow'})
-        max_up = ds.status.uptime_max.rename({'status_flow': 'flow'})
-        min_down = ds.status.downtime_min.rename({'status_flow': 'flow'})
-        max_down = ds.status.downtime_max.rename({'status_flow': 'flow'})
-        initial = ds.status.initial.rename({'status_flow': 'flow'})
+        min_up = ds.status.uptime_min.rename({Dim.STATUS_FLOW: 'flow'})
+        max_up = ds.status.uptime_max.rename({Dim.STATUS_FLOW: 'flow'})
+        min_down = ds.status.downtime_min.rename({Dim.STATUS_FLOW: 'flow'})
+        max_down = ds.status.downtime_max.rename({Dim.STATUS_FLOW: 'flow'})
+        initial = ds.status.initial.rename({Dim.STATUS_FLOW: 'flow'})
 
         prev_up = (
-            ds.status.previous_uptime.rename({'status_flow': 'flow'}) if ds.status.previous_uptime is not None else None
+            ds.status.previous_uptime.rename({Dim.STATUS_FLOW: 'flow'})
+            if ds.status.previous_uptime is not None
+            else None
         )
         prev_down = (
-            ds.status.previous_downtime.rename({'status_flow': 'flow'})
+            ds.status.previous_downtime.rename({Dim.STATUS_FLOW: 'flow'})
             if ds.status.previous_downtime is not None
             else None
         )
@@ -1046,19 +1048,19 @@ class FlowSystemModel:
         ds = self.data.flows
         assert ds.cstatus is not None
 
-        min_up = ds.cstatus.uptime_min.rename({'cstatus_component': 'component'})
-        max_up = ds.cstatus.uptime_max.rename({'cstatus_component': 'component'})
-        min_down = ds.cstatus.downtime_min.rename({'cstatus_component': 'component'})
-        max_down = ds.cstatus.downtime_max.rename({'cstatus_component': 'component'})
-        initial = ds.cstatus.initial.rename({'cstatus_component': 'component'})
+        min_up = ds.cstatus.uptime_min.rename({Dim.CSTATUS_COMPONENT: 'component'})
+        max_up = ds.cstatus.uptime_max.rename({Dim.CSTATUS_COMPONENT: 'component'})
+        min_down = ds.cstatus.downtime_min.rename({Dim.CSTATUS_COMPONENT: 'component'})
+        max_down = ds.cstatus.downtime_max.rename({Dim.CSTATUS_COMPONENT: 'component'})
+        initial = ds.cstatus.initial.rename({Dim.CSTATUS_COMPONENT: 'component'})
 
         prev_up = (
-            ds.cstatus.previous_uptime.rename({'cstatus_component': 'component'})
+            ds.cstatus.previous_uptime.rename({Dim.CSTATUS_COMPONENT: 'component'})
             if ds.cstatus.previous_uptime is not None
             else None
         )
         prev_down = (
-            ds.cstatus.previous_downtime.rename({'cstatus_component': 'component'})
+            ds.cstatus.previous_downtime.rename({Dim.CSTATUS_COMPONENT: 'component'})
             if ds.cstatus.previous_downtime is not None
             else None
         )
@@ -1184,7 +1186,7 @@ class FlowSystemModel:
                 expr = (1.0 * self.flow_rate.sel(flow=fid)).drop_vars('flow', errors='ignore')
                 bps = (
                     pw.breakpoints.isel(pw_pair=idx)
-                    .drop_vars('pw_pair', errors='ignore')
+                    .drop_vars(Dim.PW_PAIR, errors='ignore')
                     .rename({'breakpoint': '_breakpoint'})
                 )
                 pairs.append((expr, bps) if bound == '==' else (expr, bps, bound))
@@ -1241,28 +1243,28 @@ class FlowSystemModel:
         # Status running costs: sum_f(running_coeff[f,k,t] * on[f,t] * dt[t])
         if d.flows.status is not None:
             assert self.flow_on is not None
-            er = d.flows.status.effects_running.rename({'status_flow': 'flow'})
+            er = d.flows.status.effects_running.rename({Dim.STATUS_FLOW: 'flow'})
             if (er != 0).any():
                 temporal_rhs = temporal_rhs + (er * self.flow_on * d.dims.dt).sum('flow')
 
         # Status startup costs: sum_f(startup_coeff[f,k,t] * startup[f,t]) — per event, no dt
         if d.flows.status is not None:
             assert self.flow_startup is not None
-            es = d.flows.status.effects_startup.rename({'status_flow': 'flow'})
+            es = d.flows.status.effects_startup.rename({Dim.STATUS_FLOW: 'flow'})
             if (es != 0).any():
                 temporal_rhs = temporal_rhs + (es * self.flow_startup).sum('flow')
 
         # Component-level status running costs
         if d.flows.cstatus is not None:
             assert self.component_on is not None
-            cer = d.flows.cstatus.effects_running.rename({'cstatus_component': 'component'})
+            cer = d.flows.cstatus.effects_running.rename({Dim.CSTATUS_COMPONENT: 'component'})
             if (cer != 0).any():
                 temporal_rhs = temporal_rhs + (cer * self.component_on * d.dims.dt).sum('component')
 
         # Component-level status startup costs
         if d.flows.cstatus is not None:
             assert self.component_startup is not None
-            ces = d.flows.cstatus.effects_startup.rename({'cstatus_component': 'component'})
+            ces = d.flows.cstatus.effects_startup.rename({Dim.CSTATUS_COMPONENT: 'component'})
             if (ces != 0).any():
                 temporal_rhs = temporal_rhs + (ces * self.component_startup).sum('component')
 
@@ -1277,15 +1279,15 @@ class FlowSystemModel:
         # --- Lump domain: effect_lump[effect(, period)] ---
         # Combines all non-temporal contributions (sizing, investment recurring, investment at-build)
         pc = self.data.dims.coords(period=True)
-        self.effect_lump = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--lump')
+        self.effect_lump = self.m.add_variables(coords={'effect': effect_ids, **pc}, name=Var.EFFECT_LUMP)
 
         # Accumulate direct lump contributions per effect
         lump_direct: Any = 0
 
         # Flow sizing: per-size costs (Sizing only, not Investment)
         if d.flows.sizing is not None:
-            sizing_ids = list(d.flows.sizing.effects_per_size.coords['sizing_flow'].values)
-            eps = d.flows.sizing.effects_per_size.rename({'sizing_flow': 'flow'})
+            sizing_ids = list(d.flows.sizing.effects_per_size.coords[Dim.SIZING_FLOW].values)
+            eps = d.flows.sizing.effects_per_size.rename({Dim.SIZING_FLOW: 'flow'})
             if (eps != 0).any():
                 assert self.flow_size is not None
                 lump_direct = lump_direct + (eps * self.flow_size.sel(flow=sizing_ids)).sum('flow')
@@ -1294,60 +1296,60 @@ class FlowSystemModel:
         if self.flow_size_indicator is not None:
             assert d.flows.sizing is not None
             opt_ids = list(self.flow_size_indicator.coords['flow'].values)
-            ef = d.flows.sizing.effects_fixed.rename({'sizing_flow': 'flow'}).sel(flow=opt_ids)
+            ef = d.flows.sizing.effects_fixed.rename({Dim.SIZING_FLOW: 'flow'}).sel(flow=opt_ids)
             if (ef != 0).any():
                 lump_direct = lump_direct + (ef * self.flow_size_indicator).sum('flow')
         if self.flow_size is not None and d.flows.sizing is not None:
             mand_mask = d.flows.sizing.mandatory.values
             if mand_mask.any():
-                mand_ids = list(d.flows.sizing.mandatory.coords['sizing_flow'].values[mand_mask])
+                mand_ids = list(d.flows.sizing.mandatory.coords[Dim.SIZING_FLOW].values[mand_mask])
                 ef_mand = d.flows.sizing.effects_fixed.sel(sizing_flow=mand_ids)
                 if (ef_mand != 0).any():
-                    lump_direct = lump_direct + ef_mand.sum('sizing_flow')
+                    lump_direct = lump_direct + ef_mand.sum(Dim.SIZING_FLOW)
 
         # Storage sizing: per-size costs
         if self.storage_capacity is not None and d.storages is not None and d.storages.sizing is not None:
-            eps = d.storages.sizing.effects_per_size.rename({'sizing_storage': 'storage'})
+            eps = d.storages.sizing.effects_per_size.rename({Dim.SIZING_STORAGE: 'storage'})
             if (eps != 0).any():
                 lump_direct = lump_direct + (eps * self.storage_capacity).sum('storage')
 
         # Storage sizing: fixed costs — optional (binary * cost), mandatory (constant)
         if self.storage_capacity_indicator is not None and d.storages is not None and d.storages.sizing is not None:
             opt_ids = list(self.storage_capacity_indicator.coords['storage'].values)
-            ef = d.storages.sizing.effects_fixed.rename({'sizing_storage': 'storage'}).sel(storage=opt_ids)
+            ef = d.storages.sizing.effects_fixed.rename({Dim.SIZING_STORAGE: 'storage'}).sel(storage=opt_ids)
             if (ef != 0).any():
                 lump_direct = lump_direct + (ef * self.storage_capacity_indicator).sum('storage')
         if self.storage_capacity is not None and d.storages is not None and d.storages.sizing is not None:
             mand_mask = d.storages.sizing.mandatory.values
             if mand_mask.any():
-                mand_ids = list(d.storages.sizing.mandatory.coords['sizing_storage'].values[mand_mask])
+                mand_ids = list(d.storages.sizing.mandatory.coords[Dim.SIZING_STORAGE].values[mand_mask])
                 ef_mand = d.storages.sizing.effects_fixed.sel(sizing_storage=mand_ids)
                 if (ef_mand != 0).any():
-                    lump_direct = lump_direct + ef_mand.sum('sizing_storage')
+                    lump_direct = lump_direct + ef_mand.sum(Dim.SIZING_STORAGE)
 
         # Investment: recurring per-size costs
         if self.invest_active is not None and d.flows.invest is not None:
-            eps_p = d.flows.invest.effects_per_size_recurring.rename({'invest_flow': 'flow'})
+            eps_p = d.flows.invest.effects_per_size_recurring.rename({Dim.INVEST_FLOW: 'flow'})
             if (eps_p != 0).any():
                 assert self.flow_size is not None
-                invest_ids = list(d.flows.invest.effects_per_size_recurring.coords['invest_flow'].values)
+                invest_ids = list(d.flows.invest.effects_per_size_recurring.coords[Dim.INVEST_FLOW].values)
                 lump_direct = lump_direct + (eps_p * self.flow_size.sel(flow=invest_ids)).sum('flow')
 
         # Investment: recurring fixed costs
         if self.invest_active is not None and d.flows.invest is not None:
-            ef_p = d.flows.invest.effects_fixed_recurring.rename({'invest_flow': 'flow'})
+            ef_p = d.flows.invest.effects_fixed_recurring.rename({Dim.INVEST_FLOW: 'flow'})
             if (ef_p != 0).any():
                 lump_direct = lump_direct + (ef_p * self.invest_active).sum('flow')
 
         # Investment: at-build per-size costs (charged in build period)
         if self.invest_size_at_build is not None and d.flows.invest is not None:
-            eps_once = d.flows.invest.effects_per_size_at_build.rename({'invest_flow': 'flow'})
+            eps_once = d.flows.invest.effects_per_size_at_build.rename({Dim.INVEST_FLOW: 'flow'})
             if (eps_once != 0).any():
                 lump_direct = lump_direct + (eps_once * self.invest_size_at_build).sum('flow')
 
         # Investment: at-build fixed costs (charged in build period)
         if self.invest_build is not None and d.flows.invest is not None:
-            ef_once = d.flows.invest.effects_fixed_at_build.rename({'invest_flow': 'flow'})
+            ef_once = d.flows.invest.effects_fixed_at_build.rename({Dim.INVEST_FLOW: 'flow'})
             if (ef_once != 0).any():
                 lump_direct = lump_direct + (ef_once * self.invest_build).sum('flow')
 
@@ -1380,7 +1382,7 @@ class FlowSystemModel:
         self.m.add_constraints(self.effect_lump == lump_rhs, name='effect_lump_eq')
 
         # --- Total: effect_total[effect(, period)] ---
-        self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name='effect--total')
+        self.effect_total = self.m.add_variables(coords={'effect': effect_ids, **pc}, name=Var.EFFECT_TOTAL)
         rhs: Any = self.effect_lump
         if not isinstance(temporal_rhs, int):
             rhs = (temporal_rhs * d.dims.weights).sum('time') + self.effect_lump
@@ -1434,7 +1436,7 @@ class FlowSystemModel:
         self.storage_level = self.m.add_variables(
             lower=0,
             coords={'storage': stor_ids, **self.data.dims.coords(time=True, period=True)},
-            name='storage--level',
+            name=Var.STORAGE_LEVEL,
         )
 
         # --- Capacity bounds on storage_level ---
@@ -1520,7 +1522,7 @@ class FlowSystemModel:
         # prior[storage] is a free variable representing the state before period 0.
         # Cyclic and fixed-prior constraints pin it; otherwise it's free.
         self.prior_storage_level = self.m.add_variables(
-            lower=0, coords={'storage': stor_ids, **self.data.dims.coords(period=True)}, name='storage--prior'
+            lower=0, coords={'storage': stor_ids, **self.data.dims.coords(period=True)}, name=Var.STORAGE_PRIOR
         )
 
         add_accumulation_constraints(
@@ -1572,7 +1574,7 @@ class FlowSystemModel:
             charging_on = self.m.add_variables(
                 binary=True,
                 coords={'storage': stor_coord, **self.data.dims.coords(time=True, period=True)},
-                name='storage--charging',
+                name=Var.STORAGE_CHARGING,
             )
             m_c = xr.DataArray(
                 [self._flow_size_upper(str(ds.charge_flow.sel(storage=s).values)) for s in prev_ids],
@@ -1603,9 +1605,9 @@ class FlowSystemModel:
         v = fds.size.sel(flow=fid).values
         if not np.isnan(v):
             return float(v)
-        if fds.sizing is not None and fid in fds.sizing.max.coords['sizing_flow'].values:
+        if fds.sizing is not None and fid in fds.sizing.max.coords[Dim.SIZING_FLOW].values:
             return float(fds.sizing.max.sel(sizing_flow=fid).values)
-        if fds.invest is not None and fid in fds.invest.max.coords['invest_flow'].values:
+        if fds.invest is not None and fid in fds.invest.max.coords[Dim.INVEST_FLOW].values:
             return float(fds.invest.max.sel(invest_flow=fid).values)
         # Element validation guards sized flows; reaching this means an invariant broke upstream.
         raise ValueError(f'Flow {fid!r} has no static size bound for big-M')  # pragma: no cover

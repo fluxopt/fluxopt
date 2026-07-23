@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from fluxopt.contract import BoundType, Dim
 from fluxopt.types import as_dataarray, fast_concat, normalize_timesteps
 
 if TYPE_CHECKING:
@@ -484,7 +485,7 @@ class StatusData:
 
 @dataclass
 class FlowsData:
-    bound_type: xr.DataArray  # (flow,) — 'unsized' | 'bounded' | 'profile'
+    bound_type: xr.DataArray  # (flow,) — BoundType.UNSIZED | BoundType.BOUNDED | BoundType.PROFILE
     rel_lb: xr.DataArray  # (flow, time[, period])
     rel_ub: xr.DataArray  # (flow, time[, period])
     fixed_profile: xr.DataArray  # (flow, time[, period]) — NaN where not fixed
@@ -496,10 +497,10 @@ class FlowsData:
     load_factor_max: xr.DataArray | None = None  # (flow,) — NaN = unbounded, per period
     ramp_up: xr.DataArray | None = None  # (flow, time[, period]) — NaN = no limit [1/h]
     ramp_down: xr.DataArray | None = None  # (flow, time[, period]) — NaN = no limit [1/h]
-    sizing: SizingData | None = None  # dim 'sizing_flow'
-    status: StatusData | None = None  # dim 'status_flow'
-    invest: InvestmentData | None = None  # dim 'invest_flow'
-    cstatus: StatusData | None = None  # dim 'cstatus_component', entity coord 'component'
+    sizing: SizingData | None = None  # dim Dim.SIZING_FLOW
+    status: StatusData | None = None  # dim Dim.STATUS_FLOW
+    invest: InvestmentData | None = None  # dim Dim.INVEST_FLOW
+    cstatus: StatusData | None = None  # dim Dim.CSTATUS_COMPONENT, entity coord 'component'
 
     def __post_init__(self) -> None:
         """Validate relative bounds: non-negative and lb <= ub."""
@@ -628,13 +629,13 @@ class FlowsData:
 
             if f.fixed_relative_profile is not None:
                 profiles.append(as_dataarray(f.fixed_relative_profile, envelope_coords))
-                bound_type.append('profile')
+                bound_type.append(BoundType.PROFILE)
             elif f.size is None:
                 profiles.append(nan_envelope)
-                bound_type.append('unsized')
+                bound_type.append(BoundType.UNSIZED)
             else:
                 profiles.append(nan_envelope)
-                bound_type.append('bounded')
+                bound_type.append(BoundType.BOUNDED)
 
             # Effect coefficients for this flow
             ec_coords: dict[str, Any] = {'effect': effect_ids, 'time': time}
@@ -678,16 +679,22 @@ class FlowsData:
             load_factor_max=_flow_bound_or_none(lf_max_vals, flow_ids),
             ramp_up=fast_concat(ramp_ups, flow_idx) if has_ramp_up else None,
             ramp_down=fast_concat(ramp_downs, flow_idx) if has_ramp_down else None,
-            sizing=SizingData.build(sizing_items, effect_ids, dim='sizing_flow', period=period),
-            invest=InvestmentData.build(invest_items, effect_ids, dim='invest_flow', period=period),
+            sizing=SizingData.build(sizing_items, effect_ids, dim=Dim.SIZING_FLOW, period=period),
+            invest=InvestmentData.build(invest_items, effect_ids, dim=Dim.INVEST_FLOW, period=period),
             status=StatusData.build(
-                status_items, effect_ids, time, dim='status_flow', prior_rates_map=prior_rates_map, dt=dt, period=period
+                status_items,
+                effect_ids,
+                time,
+                dim=Dim.STATUS_FLOW,
+                prior_rates_map=prior_rates_map,
+                dt=dt,
+                period=period,
             ),
             cstatus=StatusData.build(
                 [(cid, s) for cid, s, _ in (component_status_items or [])],
                 effect_ids,
                 time,
-                dim='cstatus_component',
+                dim=Dim.CSTATUS_COMPONENT,
                 period=period,
                 governed_flows_map={cid: gov for cid, _, gov in (component_status_items or [])} or None,
             ),
@@ -930,7 +937,7 @@ class PiecewiseData:
 
     def converter_ids(self) -> list[str]:
         """Return list of piecewise converter ids in original order."""
-        return list(self.method.coords['pw_converter'].values)
+        return list(self.method.coords[Dim.PW_CONVERTER].values)
 
     @classmethod
     def build(cls, converters: list[Converter], time: TimeIndex) -> Self | None:
@@ -974,20 +981,20 @@ class PiecewiseData:
                 pair_bounds.append(bound)
                 bp_slices.append(bp_da)
 
-        pair_idx = pd.Index(range(len(bp_slices)), name='pw_pair')
+        pair_idx = pd.Index(range(len(bp_slices)), name=Dim.PW_PAIR)
         breakpoints_da = fast_concat(bp_slices, pair_idx)
 
-        conv_idx = pd.Index(conv_ids, name='pw_converter')
+        conv_idx = pd.Index(conv_ids, name=Dim.PW_CONVERTER)
         availability = fast_concat(avail_slices, conv_idx)
 
         data = cls(
             breakpoints=breakpoints_da,
-            pair_converter=xr.DataArray(pair_conv_ids, dims=['pw_pair']),
-            pair_flow=xr.DataArray(pair_flow_ids, dims=['pw_pair']),
-            pair_bound=xr.DataArray(pair_bounds, dims=['pw_pair']),
-            method=xr.DataArray(methods, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
+            pair_converter=xr.DataArray(pair_conv_ids, dims=[Dim.PW_PAIR]),
+            pair_flow=xr.DataArray(pair_flow_ids, dims=[Dim.PW_PAIR]),
+            pair_bound=xr.DataArray(pair_bounds, dims=[Dim.PW_PAIR]),
+            method=xr.DataArray(methods, dims=[Dim.PW_CONVERTER], coords={Dim.PW_CONVERTER: conv_ids}),
             availability=availability,
-            has_status=xr.DataArray(has_statuses, dims=['pw_converter'], coords={'pw_converter': conv_ids}),
+            has_status=xr.DataArray(has_statuses, dims=[Dim.PW_CONVERTER], coords={Dim.PW_CONVERTER: conv_ids}),
         )
         data._warn_redundant_status()
         return data
@@ -1006,7 +1013,7 @@ class PiecewiseData:
             if not bool(self.has_status.sel(pw_converter=conv_id).item()):
                 continue
             mask = self.pair_converter.values == conv_id
-            all_flows_zero = is_zero.isel(pw_pair=mask).all('pw_pair')  # (breakpoint, time)
+            all_flows_zero = is_zero.isel(pw_pair=mask).all(Dim.PW_PAIR)  # (breakpoint, time)
             if bool(all_flows_zero.any().item()):
                 warnings.warn(
                     f'PiecewiseConversion on converter {conv_id!r} has Status, '
@@ -1203,8 +1210,8 @@ class StoragesData:
     final_level_min: xr.DataArray | None = None  # (storage,) — NaN = unbounded [MWh]
     final_level_max: xr.DataArray | None = None  # (storage,) — NaN = unbounded [MWh]
     prevent_simultaneous: xr.DataArray | None = None  # (storage,) — bool
-    sizing: SizingData | None = None  # dim 'sizing_storage'
-    invest: InvestmentData | None = None  # dim 'invest_storage'
+    sizing: SizingData | None = None  # dim Dim.SIZING_STORAGE
+    invest: InvestmentData | None = None  # dim Dim.INVEST_STORAGE
 
     def __post_init__(self) -> None:
         """Validate capacity, efficiencies, and loss rates."""
@@ -1339,8 +1346,8 @@ class StoragesData:
                 if prevent_vals.any()
                 else None
             ),
-            sizing=SizingData.build(sizing_items, effect_ids, dim='sizing_storage', period=period),
-            invest=InvestmentData.build(invest_items, effect_ids, dim='invest_storage', period=period),
+            sizing=SizingData.build(sizing_items, effect_ids, dim=Dim.SIZING_STORAGE, period=period),
+            invest=InvestmentData.build(invest_items, effect_ids, dim=Dim.INVEST_STORAGE, period=period),
         )
 
 

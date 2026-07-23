@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Literal
 
 import xarray as xr
 
+from fluxopt.contract import Var
+
 try:
     from fluxopt_plot.accessor import PlotAccessor  # pyrefly: ignore[missing-import]
 except ImportError:
@@ -71,27 +73,27 @@ class Result:
     @property
     def flow_rates(self) -> xr.DataArray:
         """All flow rates as (flow, time) DataArray."""
-        return self.solution['flow--rate']
+        return self.solution[Var.FLOW_RATE]
 
     @property
     def storage_levels(self) -> xr.DataArray:
         """All storage levels as (storage, time) DataArray."""
-        return self.solution['storage--level'] if 'storage--level' in self.solution else xr.DataArray()
+        return self.solution[Var.STORAGE_LEVEL] if Var.STORAGE_LEVEL in self.solution else xr.DataArray()
 
     @property
     def sizes(self) -> xr.DataArray:
         """Optimized flow sizes as (flow,) DataArray."""
-        return self.solution['flow--size'] if 'flow--size' in self.solution else xr.DataArray()
+        return self.solution[Var.FLOW_SIZE] if Var.FLOW_SIZE in self.solution else xr.DataArray()
 
     @property
     def storage_capacities(self) -> xr.DataArray:
         """Optimized storage capacities as (storage,) DataArray."""
-        return self.solution['storage--capacity'] if 'storage--capacity' in self.solution else xr.DataArray()
+        return self.solution[Var.STORAGE_CAPACITY] if Var.STORAGE_CAPACITY in self.solution else xr.DataArray()
 
     @property
     def effect_totals(self) -> xr.DataArray:
         """Total effect values as (effect,) DataArray."""
-        return self.solution['effect--total']
+        return self.solution[Var.EFFECT_TOTAL]
 
     @property
     def effects_temporal(self) -> xr.DataArray:
@@ -105,7 +107,7 @@ class Result:
     @property
     def effects_lump(self) -> xr.DataArray:
         """Non-temporal effect values as (effect,) DataArray."""
-        return self.solution['effect--lump']
+        return self.solution[Var.EFFECT_LUMP]
 
     def flow_rate(self, flow_id: str) -> xr.DataArray:
         """Get flow rate time series for a single flow.
@@ -231,41 +233,41 @@ class Result:
             model: Solved FlowSystemModel instance.
         """
         sol_vars: dict[str, xr.DataArray] = {
-            'flow--rate': model.flow_rate.solution,
-            'effect--total': model.effect_total.solution,
-            'effect--lump': model.effect_lump.solution,
+            Var.FLOW_RATE: model.flow_rate.solution,
+            Var.EFFECT_TOTAL: model.effect_total.solution,
+            Var.EFFECT_LUMP: model.effect_lump.solution,
         }
 
         if model.storage_level is not None:
-            sol_vars['storage--level'] = model.storage_level.solution
+            sol_vars[Var.STORAGE_LEVEL] = model.storage_level.solution
         if model.flow_size is not None:
-            sol_vars['flow--size'] = model.flow_size.solution
+            sol_vars[Var.FLOW_SIZE] = model.flow_size.solution
         if model.flow_size_indicator is not None:
-            sol_vars['flow--size_indicator'] = model.flow_size_indicator.solution
+            sol_vars[Var.FLOW_SIZE_INDICATOR] = model.flow_size_indicator.solution
         if model.storage_capacity is not None:
-            sol_vars['storage--capacity'] = model.storage_capacity.solution
+            sol_vars[Var.STORAGE_CAPACITY] = model.storage_capacity.solution
         if model.storage_capacity_indicator is not None:
-            sol_vars['storage--size_indicator'] = model.storage_capacity_indicator.solution
+            sol_vars[Var.STORAGE_SIZE_INDICATOR] = model.storage_capacity_indicator.solution
         if model.invest_size is not None:
-            sol_vars['invest--size'] = model.invest_size.solution
+            sol_vars[Var.INVEST_SIZE] = model.invest_size.solution
         if model.invest_build is not None:
-            sol_vars['invest--build'] = model.invest_build.solution
+            sol_vars[Var.INVEST_BUILD] = model.invest_build.solution
         if model.invest_active is not None:
-            sol_vars['invest--active'] = model.invest_active.solution
+            sol_vars[Var.INVEST_ACTIVE] = model.invest_active.solution
         if model.invest_size_at_build is not None:
-            sol_vars['invest--size_at_build'] = model.invest_size_at_build.solution
+            sol_vars[Var.INVEST_SIZE_AT_BUILD] = model.invest_size_at_build.solution
         if model.flow_on is not None:
-            sol_vars['flow--on'] = model.flow_on.solution
+            sol_vars[Var.FLOW_ON] = model.flow_on.solution
         if model.flow_startup is not None:
-            sol_vars['flow--startup'] = model.flow_startup.solution
+            sol_vars[Var.FLOW_STARTUP] = model.flow_startup.solution
         if model.flow_shutdown is not None:
-            sol_vars['flow--shutdown'] = model.flow_shutdown.solution
+            sol_vars[Var.FLOW_SHUTDOWN] = model.flow_shutdown.solution
         if model.component_on is not None:
-            sol_vars['component--on'] = model.component_on.solution
+            sol_vars[Var.COMPONENT_ON] = model.component_on.solution
         if model.component_startup is not None:
-            sol_vars['component--startup'] = model.component_startup.solution
+            sol_vars[Var.COMPONENT_STARTUP] = model.component_startup.solution
         if model.component_shutdown is not None:
-            sol_vars['component--shutdown'] = model.component_shutdown.solution
+            sol_vars[Var.COMPONENT_SHUTDOWN] = model.component_shutdown.solution
 
         # Piecewise auxiliary variables (from linopy.add_piecewise_formulation).
         # Stored under their linopy-generated names so they survive IO roundtrip.
