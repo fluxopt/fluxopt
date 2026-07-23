@@ -991,3 +991,127 @@ class TestDurationCombinations:
 
         # Pattern [on,on,off,on,on,off]: Src 4*10*0.5=20, Backup 2*10*10*0.5=100. Total=120.
         assert_allclose(result.objective, 120.0, rtol=1e-5)
+
+
+class TestStatusBuildGating:
+    def test_built_size_below_one_can_run(self):
+        """A built unit with size < 1 must be allowed to switch on.
+
+        Src: Sizing(0.2, 0.5, mandatory=True), rel_min=0.5, Status(), 1€/MWh.
+        Backup: 100€/MWh. Demand: [0.3, 0.4].
+
+        Optimal: size=0.4, Src covers both steps (cost 0.3+0.4=0.7 with
+        waste absorbing the t=0 excess of min-load if any; min at size 0.4
+        is 0.2 <= 0.3, so exact). The former ``on <= size`` constraint
+        forced on=0 for any size < 1, pushing everything to the backup.
+        """
+        result = optimize(
+            ts(2),
+            carriers=_heat,
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[0.3, 0.4])]),
+                Port(
+                    id='Src',
+                    imports=[
+                        Flow(
+                            carrier='Heat',
+                            size=Sizing(size_min=0.2, size_max=0.5, mandatory=True),
+                            relative_rate_min=0.5,
+                            effects_per_flow_hour={'cost': 1},
+                            status=Status(),
+                        )
+                    ],
+                ),
+                Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 100})]),
+                waste('Heat'),
+            ],
+        )
+        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        assert size < 1.0  # the interesting regime
+        assert_allclose(on, [1.0, 1.0], atol=1e-5)
+        assert_allclose(result.objective, 0.7, atol=1e-5)
+
+    def test_min_positive_size_gates_on(self):
+        """With size_min > 0, staying off entirely avoids building (optional sizing).
+
+        Src: Sizing(50, 100, mandatory=False, effects_per_size={'cost': 10}),
+        rel_min=0.5, Status(), 1€/MWh. Backup: 2€/MWh. Demand: [5, 5].
+
+        Building 50 costs 500 + operation; backup covers 10 MWh for 20.
+        Optimal: never build, Src stays off both steps.
+        """
+        result = optimize(
+            ts(2),
+            carriers=_heat,
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5])]),
+                Port(
+                    id='Src',
+                    imports=[
+                        Flow(
+                            carrier='Heat',
+                            size=Sizing(size_min=50, size_max=100, mandatory=False, effects_per_size={'cost': 10}),
+                            relative_rate_min=0.5,
+                            effects_per_flow_hour={'cost': 1},
+                            status=Status(),
+                        )
+                    ],
+                ),
+                Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 2})]),
+                waste('Heat'),
+            ],
+        )
+        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        assert_allclose(size, 0.0, atol=1e-5)
+        assert_allclose(on, [0.0, 0.0], atol=1e-5)
+        assert_allclose(result.objective, 20.0, atol=1e-5)
+
+
+class TestStatusSizingProfileRejected:
+    def test_element_level_rejection(self):
+        """Profile + Status + Sizing has no formulation and fails at authoring."""
+        import pytest
+
+        with pytest.raises(ValueError, match='fixed_relative_profile is not supported together with'):
+            Flow(
+                carrier='Heat',
+                size=Sizing(size_min=10, size_max=100),
+                fixed_relative_profile=[0.5, 0.8],
+                relative_rate_min=0.1,
+                status=Status(),
+            )
+
+
+class TestPriorNonUniformDtWarning:
+    def test_warns_when_prior_rates_meet_irregular_grid(self):
+        """Non-uniform dt + prior_rates warns about the assumed prior-step duration."""
+        import pytest
+
+        from fluxopt import ModelData
+
+        with pytest.warns(UserWarning, match='pre-horizon status durations assume'):
+            ModelData.build(
+                [datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 1), datetime(2024, 1, 1, 3)],
+                carriers=_heat,
+                effects=[Effect(id='cost')],
+                ports=[
+                    Port(
+                        id='Src',
+                        imports=[
+                            Flow(
+                                carrier='Heat',
+                                size=10,
+                                relative_rate_min=0.5,
+                                status=Status(uptime_min=2.0),
+                                prior_rates=[5.0, 5.0],
+                            )
+                        ],
+                    ),
+                ],
+            )

@@ -239,6 +239,16 @@ class Flow(Element):
                 f'otherwise on/off is indistinguishable (got {self.relative_rate_min})'
             )
             raise ValueError(msg)
+        if (
+            self.status is not None
+            and self.fixed_relative_profile is not None
+            and isinstance(self.size, (Sizing, Investment))
+        ):
+            msg = (
+                f'Flow {self.short_id!r}: fixed_relative_profile is not supported together with '
+                f'Status and Sizing/Investment — fix the size or drop the profile'
+            )
+            raise ValueError(msg)
         if (self.load_factor_min is not None or self.load_factor_max is not None) and self.size is None:
             msg = (
                 f'Flow {self.short_id!r}: load_factor bounds require a size '

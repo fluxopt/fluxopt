@@ -1644,8 +1644,18 @@ class ModelData:
 
         dims = Dims.build(time, dt_da, periods=periods, period_weights=period_weights)
 
-        # Scalar dt for prior duration computation (use first timestep)
+        # Scalar dt for prior duration computation. Pre-horizon steps have no
+        # dt of their own, so the first timestep's duration stands in; on a
+        # non-uniform grid that is an assumption the user should know about.
         dt_scalar = float(dims.dt.values[0])
+        if any(bf.flow.prior_rates is not None for bf in flows) and not np.allclose(dims.dt.values, dt_scalar):
+            warnings.warn(
+                f'prior_rates with non-uniform dt: pre-horizon status durations assume the first '
+                f'timestep duration ({dt_scalar} h) for every prior step. If your prior steps had '
+                f'different durations, adjust prior_rates to compensate.',
+                UserWarning,
+                stacklevel=2,
+            )
         period_idx = pd.Index(dims.period.values) if dims.period is not None else None
 
         comp_status_items: list[tuple[str, Status, list[str]]] = [
