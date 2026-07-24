@@ -212,12 +212,67 @@ def sizing(*, n: int, timesteps: int) -> Elements:
     }
 
 
+def multi_period(*, n: int, timesteps: int) -> Elements:
+    """Four investment periods over the features whose build cost is period-scoped.
+
+    Exercises every code path the time-index representation prices differently:
+    per-period aggregates (``flow_hours_max``, Effect ``periodic_max``),
+    episode-reset chains (storage cyclic/prior, status windows), and per-period
+    ``Sizing`` with size-scoped effects.
+    """
+    periods = [2030 + 5 * p for p in range(4)]
+    sources = [
+        Flow(
+            carrier='heat',
+            size=Sizing(size_min=10, size_max=300, mandatory=(i % 2 == 0), effects_per_size={'cost': 100.0}),
+            effects_per_flow_hour={'cost': 1.0 + 0.05 * i, 'co2': 0.2},
+            flow_hours_max=5000.0,
+        )
+        for i in range(n)
+    ]
+    status_sources = [
+        Flow(
+            carrier='heat',
+            size=100.0,
+            relative_rate_min=0.4,
+            effects_per_flow_hour={'cost': 2.0 + 0.1 * i},
+            status=Status(uptime_min=3, effects_per_startup={'cost': 20.0}),
+        )
+        for i in range(max(n // 2, 1))
+    ]
+    return {
+        'timesteps': _timesteps(timesteps),
+        'periods': periods,
+        'period_weights': [5.0] * len(periods),
+        'carriers': [Carrier(id='heat')],
+        'effects': [Effect(id='cost'), Effect(id='co2', unit='kg', periodic_max=1e9)],
+        'ports': [
+            Port(
+                id='demand', exports=[Flow(carrier='heat', size=100.0 * n, fixed_relative_profile=_profile(timesteps))]
+            ),
+            *[Port(id=f'src{i}', imports=[f]) for i, f in enumerate(sources)],
+            *[Port(id=f'unit{i}', imports=[f]) for i, f in enumerate(status_sources)],
+            Port(id='backup', imports=[Flow(carrier='heat', size=1e6, effects_per_flow_hour={'cost': 50.0})]),
+        ],
+        'storages': [
+            Storage(
+                id='heat_store',
+                charging=Flow(carrier='heat', size=200.0),
+                discharging=Flow(carrier='heat', size=200.0),
+                capacity=1000.0,
+                prior_level=500.0,
+            ),
+        ],
+    }
+
+
 SCENARIOS: dict[str, Callable[..., Elements]] = {
     'multi_node': multi_node,
     'status': status,
     'piecewise': piecewise,
     'effects': effects,
     'sizing': sizing,
+    'multi_period': multi_period,
 }
 
 
