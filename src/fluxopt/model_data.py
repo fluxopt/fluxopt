@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from fluxopt.constraints.episodes import Episodes
 from fluxopt.contract import BoundType, Dim
 from fluxopt.types import PiecewiseMethod, as_dataarray, fast_concat, normalize_timesteps
 from fluxopt.validation import validate_system
@@ -1564,43 +1565,21 @@ class Dims:
             result['period'] = self.period
         return result
 
-    # -- Period-boundary helpers (flat time axis) -----------------------
+    # -- Episode boundaries (flat time axis) -----------------------------
 
     @property
-    def episode_starts(self) -> xr.DataArray:
-        """Boolean (time,): True at the first timestep of each period.
+    def episodes(self) -> Episodes:
+        """Episode partition of the flat time axis.
 
-        Single-period models have exactly one episode starting at t=0.
-        Temporal-coupling constraints (SOC recursion, status windows, ramps)
-        must not chain across ``True`` positions.
+        An episode is a maximal run of consecutive-in-modeled-time timesteps;
+        temporal-coupling constraints (SOC recursion, status windows, ramps)
+        never chain across its boundaries. Boundaries fall where
+        ``time_period`` changes — one episode per period; single-period
+        models are one episode. See docs/design/time-index.md.
         """
-        n = len(self.time)
-        starts = np.zeros(n, dtype=bool)
-        starts[0] = True
-        if self.time_period is not None:
-            tp = self.time_period.values
-            starts[1:] = tp[1:] != tp[:-1]
-        return xr.DataArray(starts, dims=['time'], coords={'time': self.time})
-
-    @property
-    def chain_mask(self) -> xr.DataArray:
-        """Boolean (time[1:],): True where linking t to t-1 stays within a period.
-
-        Ready-made mask for shift-based constraints built over ``time[1:]``.
-        """
-        starts = self.episode_starts
-        return ~starts.isel(time=slice(1, None))
-
-    @property
-    def start_positions(self) -> np.ndarray:
-        """Integer positions of period starts, in period order."""
-        return np.flatnonzero(self.episode_starts.values)
-
-    @property
-    def last_positions(self) -> np.ndarray:
-        """Integer positions of period ends, in period order."""
-        starts = self.start_positions
-        return np.append(starts[1:] - 1, len(self.time) - 1)
+        if self.time_period is None:
+            return Episodes.single(self.time)
+        return Episodes.from_changes(self.time_period)
 
     def period_grouper(self, name: str = 'period') -> xr.DataArray:
         """Grouper mapping each timestep to its period label, for groupby.
@@ -1870,8 +1849,8 @@ class _TimeMapper:
 
     def _segments(self) -> list[tuple[int, slice]]:
         """Per-period (label, positional slice) pairs in period order."""
-        starts = self.dims.start_positions
-        lasts = self.dims.last_positions
+        starts = self.dims.episodes.start_positions
+        lasts = self.dims.episodes.last_positions
         return [(p, slice(int(s), int(e) + 1)) for p, s, e in zip(self._period_labels, starts, lasts, strict=True)]
 
     def to_flat(self, value: Variate | Mapping[int, Variate], name: str = 'value') -> xr.DataArray:

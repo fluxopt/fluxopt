@@ -851,7 +851,7 @@ class FlowSystemModel:
         sized_flow_ids = self._sizing_flow_ids()
         fixed_ids = [fid for fid in ids if fid not in sized_flow_ids]
         var_ids = [fid for fid in ids if fid in sized_flow_ids]
-        chain = self.data.dims.chain_mask  # ramps never bind across period boundaries
+        chain = self.data.dims.episodes.chain_mask  # ramps never bind across period boundaries
         if fixed_ids:
             # Fixed size: constant RHS r·S̄·Δt
             rhs = limit.sel(flow=fixed_ids) * ds.size.sel(flow=fixed_ids)
@@ -1090,7 +1090,7 @@ class FlowSystemModel:
         has_initial = initial.notnull()
         previous_state = initial.sel(flow=initial.coords['flow'][has_initial]) if has_initial.any() else None
 
-        episode_starts = self.data.dims.episode_starts
+        episodes = self.data.dims.episodes
         add_switch_transitions(
             self.m,
             self.flow_on,
@@ -1098,7 +1098,7 @@ class FlowSystemModel:
             self.flow_shutdown,
             name='status',
             previous_state=previous_state,
-            episode_starts=episode_starts,
+            episodes=episodes,
         )
 
         dt = self.data.dims.dt
@@ -1114,7 +1114,7 @@ class FlowSystemModel:
                 minimum=min_up,
                 maximum=max_up,
                 previous=prev_up,
-                episode_starts=episode_starts,
+                episodes=episodes,
             )
 
         # Downtime tracking: state = 1 - on
@@ -1128,7 +1128,7 @@ class FlowSystemModel:
                 minimum=min_down,
                 maximum=max_down,
                 previous=prev_down,
-                episode_starts=episode_starts,
+                episodes=episodes,
             )
 
     def _constrain_component_status(self) -> None:
@@ -1161,7 +1161,7 @@ class FlowSystemModel:
         has_initial = initial.notnull()
         previous_state = initial.sel(component=initial.coords['component'][has_initial]) if has_initial.any() else None
 
-        episode_starts = self.data.dims.episode_starts
+        episodes = self.data.dims.episodes
         add_switch_transitions(
             self.m,
             self.component_on,
@@ -1170,7 +1170,7 @@ class FlowSystemModel:
             name='cstatus',
             element_dim='component',
             previous_state=previous_state,
-            episode_starts=episode_starts,
+            episodes=episodes,
         )
 
         dt = self.data.dims.dt
@@ -1186,7 +1186,7 @@ class FlowSystemModel:
                 minimum=min_up,
                 maximum=max_up,
                 previous=prev_up,
-                episode_starts=episode_starts,
+                episodes=episodes,
             )
 
         has_any_down = min_down.notnull().any() | max_down.notnull().any()
@@ -1200,7 +1200,7 @@ class FlowSystemModel:
                 minimum=min_down,
                 maximum=max_down,
                 previous=prev_down,
-                episode_starts=episode_starts,
+                episodes=episodes,
             )
 
     def _create_balance(self) -> None:
@@ -1410,7 +1410,7 @@ class FlowSystemModel:
             else:
                 assert d.dims.period is not None
                 first = (
-                    ds.cf_temporal.isel(time=d.dims.start_positions)
+                    ds.cf_temporal.isel(time=d.dims.episodes.start_positions)
                     .assign_coords(time=d.dims.period.values)
                     .rename({'time': 'period'})
                 )
@@ -1592,13 +1592,13 @@ class FlowSystemModel:
             decay=loss_factor,
             initial=self.prior_storage_level,
             name='storage_balance',
-            episode_starts=d.dims.episode_starts,
+            episodes=d.dims.episodes,
         )
 
         # Level at the last timestep of each period, as (storage[, period])
         if d.dims.period is not None:
             level_end = (
-                self.storage_level.isel(time=d.dims.last_positions.tolist())
+                self.storage_level.isel(time=d.dims.episodes.last_positions.tolist())
                 .rename({'time': 'period'})
                 .assign_coords(period=d.dims.period.values)
             )

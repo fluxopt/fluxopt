@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import xarray as xr
 
 if TYPE_CHECKING:
     from linopy import Constraint, Model, Variable
     from linopy.expressions import LinearExpression
+
+    from fluxopt.constraints.episodes import Episodes
 
 __all__ = ['add_accumulation_constraints']
 
@@ -37,7 +38,7 @@ def add_accumulation_constraints(
     initial: LinearExpression | Variable | xr.DataArray | float | None = None,
     dim: str = 'time',
     name: str = 'accumulation',
-    episode_starts: xr.DataArray | None = None,
+    episodes: Episodes,
 ) -> Constraint | tuple[Constraint, Constraint]:
     """Add state accumulation balance constraints.
 
@@ -48,8 +49,8 @@ def add_accumulation_constraints(
 
     The recursion never links across episode boundaries: at each episode
     start the ``initial`` parameter replaces ``variable[t - 1]``. With a
-    single episode (the default) this is the classic t=0 initial condition;
-    in multi-period models each period is an independent episode.
+    single episode this is the classic t=0 initial condition; in
+    multi-period models each period is an independent episode.
 
     Args:
         m: Linopy model.
@@ -59,11 +60,12 @@ def add_accumulation_constraints(
         decay: Multiplicative retention factor per timestep (1 = no loss).
         initial: State before each episode start. If None, episode starts are
             unconstrained. May carry a ``period`` dim — matched to episodes
-            in order.
+            in order, which requires exactly one episode per period.
         dim: Temporal dimension name.
         name: Base name for constraints.
-        episode_starts: Boolean (dim,): True where a new independent episode
-            begins. None means one episode starting at the first position.
+        episodes: Episode partition of the ``dim`` axis — the recursion never
+            chains across its boundaries. Pass ``Episodes.single(...)`` for
+            one uninterrupted chain.
 
     Returns:
         Single balance constraint if initial is None, otherwise a tuple
@@ -71,11 +73,7 @@ def add_accumulation_constraints(
     """
     labels = variable.coords[dim].values
     n = len(labels)
-    if episode_starts is not None:
-        starts = episode_starts.values.astype(bool)
-    else:
-        starts = np.zeros(n, dtype=bool)
-        starts[0] = True
+    starts = episodes.check(dim, n).flags
 
     # Balance for t >= 1: variable[t] = variable[t-1] * decay[t] + inflow[t] - outflow[t]
     # Masked so the recursion never crosses an episode boundary.
@@ -100,7 +98,7 @@ def add_accumulation_constraints(
 
     # Initial constraint at each episode start:
     # variable[s] = initial * decay[s] + inflow[s] - outflow[s]
-    start_pos = np.flatnonzero(starts).tolist()
+    start_pos = episodes.start_positions.tolist()
     start_labels = labels[start_pos]
     var_0 = variable.isel({dim: start_pos})
     decay_0 = _slice_dim(decay, dim, start_pos)
@@ -109,7 +107,15 @@ def add_accumulation_constraints(
 
     init = initial
     if not isinstance(init, (int, float)) and 'period' in init.dims:
-        # Per-episode initial values: episodes and periods share order
+        # Per-episode initial values: episodes and periods share order.
+        # Guarded so cluster episodes (more episodes than periods) fail loudly
+        # instead of silently misaligning.
+        if init.sizes['period'] != episodes.n_episodes:
+            raise ValueError(
+                f'initial carries {init.sizes["period"]} period entries but the axis has '
+                f'{episodes.n_episodes} episodes — per-period initial values require '
+                'exactly one episode per period'
+            )
         init = init.rename({'period': dim}).assign_coords({dim: start_labels})
 
     # Put linopy terms (var_0, inflow_0, outflow_0) before pure DataArray

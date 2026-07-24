@@ -13,27 +13,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import numpy as np
 import xarray as xr
 
 if TYPE_CHECKING:
+    import numpy as np
     from linopy import Model, Variable
     from linopy.expressions import LinearExpression
+
+    from fluxopt.constraints.episodes import Episodes
 
 __all__ = [
     'add_duration_tracking',
     'add_switch_transitions',
     'compute_previous_duration',
 ]
-
-
-def _episode_start_flags(n: int, episode_starts: xr.DataArray | None) -> np.ndarray:
-    """Boolean per-position start flags; defaults to a single episode at 0."""
-    if episode_starts is not None:
-        return episode_starts.values.astype(bool)
-    starts = np.zeros(n, dtype=bool)
-    starts[0] = True
-    return starts
 
 
 def compute_previous_duration(
@@ -78,7 +71,7 @@ def add_duration_tracking(
     minimum: xr.DataArray | None = None,
     maximum: xr.DataArray | None = None,
     previous: xr.DataArray | None = None,
-    episode_starts: xr.DataArray | None = None,
+    episodes: Episodes,
 ) -> Variable:
     """Add consecutive duration tracking for a binary state variable.
 
@@ -97,22 +90,22 @@ def add_duration_tracking(
         minimum: Minimum duration per element. NaN = no constraint.
         maximum: Maximum duration per element. NaN = no constraint.
         previous: Previous duration per element. NaN = no previous.
-        episode_starts: Boolean (dim,): True where a new episode begins.
-            None means one episode starting at the first position.
+        episodes: Episode partition of the ``dim`` axis — tracking resets at
+            its boundaries. Pass ``Episodes.single(...)`` for one
+            uninterrupted chain.
 
     Returns:
         Duration variable with same dims as state.
     """
     element_ids: xr.DataArray = state.coords[element_dim]
     labels = state.coords[dim].values
-    starts = _episode_start_flags(len(labels), episode_starts)
+    starts = episodes.check(dim, len(labels)).flags
     chain_mask = xr.DataArray(~starts[1:], dims=[dim], coords={dim: labels[1:]})
 
     # Big-M per element: longest episode + any previous carryover. Duration
     # chains reset at episode starts, so the flat-axis total would inflate M
     # by the period count and loosen the MIP relaxation for nothing.
-    episode_ids = np.cumsum(starts) - 1
-    mega = float(np.bincount(episode_ids, weights=dt.values).max())
+    mega = episodes.max_duration(dt)
     if previous is not None:
         mega = mega + previous.fillna(0)
 
@@ -157,7 +150,7 @@ def add_duration_tracking(
                 name=name,
                 dim=dim,
                 element_dim=element_dim,
-                start_positions=np.flatnonzero(starts).tolist(),
+                start_positions=episodes.start_positions.tolist(),
             )
 
     # Minimum duration: duration[t] >= min * (state[t] - state[t+1])
@@ -264,7 +257,7 @@ def add_switch_transitions(
     element_dim: str = 'flow',
     dim: str = 'time',
     previous_state: xr.DataArray | None = None,
-    episode_starts: xr.DataArray | None = None,
+    episodes: Episodes,
 ) -> None:
     """Add startup/shutdown transition constraints.
 
@@ -281,11 +274,12 @@ def add_switch_transitions(
         element_dim: Element dimension name in status.
         dim: Temporal dimension name.
         previous_state: Previous on/off per element (pre-filtered, no NaN).
-        episode_starts: Boolean (dim,): True where a new episode begins.
-            None means one episode starting at the first position.
+        episodes: Episode partition of the ``dim`` axis — transitions never
+            link across its boundaries. Pass ``Episodes.single(...)`` for one
+            uninterrupted chain.
     """
     labels = status.coords[dim].values
-    starts = _episode_start_flags(len(labels), episode_starts)
+    starts = episodes.check(dim, len(labels)).flags
     chain_mask = xr.DataArray(~starts[1:], dims=[dim], coords={dim: labels[1:]})
 
     # Transition within episodes (t not an episode start)
@@ -304,7 +298,7 @@ def add_switch_transitions(
 
     # Initial transition from previous state, at each episode start
     if previous_state is not None:
-        start_positions = np.flatnonzero(starts).tolist()
+        start_positions = episodes.start_positions.tolist()
         ids = list(previous_state.coords[element_dim].values)
         m.add_constraints(
             startup.sel({element_dim: ids}).isel({dim: start_positions})

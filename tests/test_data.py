@@ -400,7 +400,7 @@ class TestFlatTimeIndex:
         dims = Dims.build(ts(3))
         assert dims.period is None
         assert dims.time_period is None
-        assert list(dims.episode_starts.values) == [True, False, False]
+        assert list(dims.episodes.starts.values) == [True, False, False]
 
     def test_uniform_periods_shift_calendar_years(self):
         dims = Dims.build(ts(3), periods=[2020, 2025])
@@ -408,8 +408,8 @@ class TestFlatTimeIndex:
         years = pd.DatetimeIndex(dims.time.values).year
         assert list(years) == [2024, 2024, 2024, 2029, 2029, 2029]
         assert list(dims.time_period.values) == [2020, 2020, 2020, 2025, 2025, 2025]
-        assert list(dims.start_positions) == [0, 3]
-        assert list(dims.last_positions) == [2, 5]
+        assert list(dims.episodes.start_positions) == [0, 3]
+        assert list(dims.episodes.last_positions) == [2, 5]
 
     def test_integer_timesteps_get_running_index(self):
         dims = Dims.build([0, 1, 2], periods=[1, 2], period_weights=[1, 1])
