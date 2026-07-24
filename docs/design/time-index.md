@@ -74,9 +74,13 @@ Constraint semantics:
 
 - Single-period: `timesteps=<index>` — unchanged.
 - Uniform multi-period: `timesteps=idx, periods=[2030, 2040]` — the
-  index is replicated with labels shifted into each period's calendar
-  year (datetime) or offset by the span (integer). Real, unique labels
-  are required for datetime features on a flat dim.
+  index is replicated per period; datetime labels shift by each period's
+  year gap **to the first period**, so the first period keeps the base
+  labels (a 2024 base with periods `[2030, 2040]` yields 2024 and 2034
+  labels), and integer labels offset by the span. The shift is a constant
+  whole-day offset, so time-of-day and dt are preserved exactly; dates
+  after Feb 28 drift one calendar day where leap parity differs. Real,
+  unique labels are required for datetime features on a flat dim.
 - Ragged multi-period: `timesteps={2030: hourly_idx, 2050: coarse_idx}`
   — per-period grids; real timestamps required.
 
@@ -182,8 +186,9 @@ by five rules, recorded here so they survive contributors:
 ## Resolved questions
 
 1. **Uniform-grid label replication**: replicated datetime labels are
-   shifted into each period's calendar year — datetime features need
-   real, unique labels, and identical labels would collide on a flat dim.
+   shifted apart by the period gaps (anchored at the base year, first
+   period unshifted) — datetime features need real, unique labels, and
+   identical labels would collide on a flat dim.
 2. **Integer time labels**: allowed single-period and uniform
    multi-period (running index); ragged multi-period requires real
    timestamps.

@@ -1719,8 +1719,9 @@ class Dims:
 
         - Plain index, no periods: single-period, unchanged semantics.
         - Plain index + ``periods``: uniform multi-period — the index is
-          replicated per period with labels shifted into each period's
-          calendar year (datetime) or offset by the span (integer).
+          replicated per period; datetime labels shift by each period's
+          year gap to the first period (the first period keeps the base
+          labels), integer labels offset by the span.
         - ``{period: index}`` mapping: ragged multi-period — each period has
           its own (datetime) grid; resolutions and lengths may differ.
 
