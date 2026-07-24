@@ -115,19 +115,16 @@ def add_duration_tracking(
     # duration[e,t] <= state[e,t] * M[e]
     m.add_constraints(duration <= state * mega, name=f'{name}|ub')
 
-    # Forward: duration[e,t+1] <= duration[e,t] + dt[t] — within episodes only
-    m.add_constraints(
-        duration.isel({dim: slice(1, None)}) <= duration.isel({dim: slice(None, -1)}) + dt.isel({dim: slice(None, -1)}),
-        name=f'{name}|fwd',
-        mask=chain_mask,
-    )
+    curr = duration.isel({dim: slice(1, None)})
+    prev = duration.isel({dim: slice(None, -1)}).assign_coords({dim: labels[1:]})
+    dt_step = dt.isel({dim: slice(1, None)})
 
-    # Backward: duration[e,t+1] >= duration[e,t] + dt[t] + (state[e,t+1] - 1) * M[e]
+    # Forward: duration[e,t+1] <= duration[e,t] + dt[t+1] — within episodes only
+    m.add_constraints(curr <= prev + dt_step, name=f'{name}|fwd', mask=chain_mask)
+
+    # Backward: duration[e,t+1] >= duration[e,t] + dt[t+1] + (state[e,t+1] - 1) * M[e]
     m.add_constraints(
-        duration.isel({dim: slice(1, None)})
-        >= duration.isel({dim: slice(None, -1)})
-        + dt.isel({dim: slice(None, -1)})
-        + (state.isel({dim: slice(1, None)}) - 1) * mega,
+        curr >= prev + dt_step + (state.isel({dim: slice(1, None)}) - 1) * mega,
         name=f'{name}|bwd',
         mask=chain_mask,
     )

@@ -69,16 +69,19 @@ The uptime variable \(\mathrm{D}^{\text{up}}_{f,t}\) tracks consecutive on-hours
 **Forward accumulation:**
 
 \[
-\mathrm{D}^{\text{up}}_{f,t+1} \leq \mathrm{D}^{\text{up}}_{f,t} + \Delta t_t \quad \forall \, t
+\mathrm{D}^{\text{up}}_{f,t+1} \leq \mathrm{D}^{\text{up}}_{f,t} + \Delta t_{t+1} \quad \forall \, t
 \]
 
 **Backward tightening (force accumulation when on):**
 
 \[
-\mathrm{D}^{\text{up}}_{f,t+1} \geq \mathrm{D}^{\text{up}}_{f,t} + \Delta t_t + (\sigma_{f,t+1} - 1) \cdot M \quad \forall \, t
+\mathrm{D}^{\text{up}}_{f,t+1} \geq \mathrm{D}^{\text{up}}_{f,t} + \Delta t_{t+1} + (\sigma_{f,t+1} - 1) \cdot M \quad \forall \, t
 \]
 
-where \(M\) is the total horizon length (Big-M constant).
+where \(M\) is the longest episode duration (Big-M constant). The duration
+follows the end-of-timestep convention — \(\mathrm{D}^{\text{up}}_{f,t}\)
+includes timestep \(t\)'s own \(\Delta t_t\) — which makes \(M\) exactly
+tight on any grid, uniform or not.
 
 ### Downtime
 
