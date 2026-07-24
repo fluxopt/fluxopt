@@ -76,7 +76,6 @@ def add_accumulation_constraints(
     starts = episodes.check(dim, n).flags
 
     # Balance for t >= 1: variable[t] = variable[t-1] * decay[t] + inflow[t] - outflow[t]
-    # Masked so the recursion never crosses an episode boundary.
     coords_from_1 = labels[1:]
     curr = variable.isel({dim: slice(1, None)})
     # Reassign prev's coordinates to match curr so linopy can align them
@@ -107,9 +106,6 @@ def add_accumulation_constraints(
 
     init = initial
     if not isinstance(init, (int, float)) and 'period' in init.dims:
-        # Per-episode initial values: episodes and periods share order.
-        # Guarded so cluster episodes (more episodes than periods) fail loudly
-        # instead of silently misaligning.
         if init.sizes['period'] != episodes.n_episodes:
             raise ValueError(
                 f'initial carries {init.sizes["period"]} period entries but the axis has '

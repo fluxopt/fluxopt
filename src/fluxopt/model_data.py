@@ -1615,32 +1615,59 @@ class Dims:
             result = 1.0 * result
         return result.drop_vars('period', errors='ignore')
 
-    def sum_time(self, obj: Any) -> Any:
-        """Sum over time within each period.
+    def _reduce_time(self, obj: Any, how: str) -> Any:
+        """Reduce over time within each period.
 
         Multi-period: groupby ``time_period`` → result on the ``period`` dim.
-        Single-period: plain ``.sum('time')``.
+        Single-period: plain ``.{how}('time')``.
 
         Args:
             obj: xr.DataArray or linopy Variable/LinearExpression with a time dim.
+            how: Reduction method name (``'sum'``, ``'mean'``).
         """
         if self.time_period is None:
-            return obj.sum('time')
+            return getattr(obj, how)('time')
         assert self.period is not None
-        result = obj.groupby(self.period_grouper()).sum()
+        result = getattr(obj.groupby(self.period_grouper()), how)()
         return result.sel(period=self.period.values)
+
+    def sum_time(self, obj: Any) -> Any:
+        """Sum over time within each period (see :meth:`_reduce_time`)."""
+        return self._reduce_time(obj, 'sum')
 
     def mean_time(self, obj: xr.DataArray) -> xr.DataArray:
-        """Mean over time within each period (xarray only).
+        """Mean over time within each period (see :meth:`_reduce_time`)."""
+        return self._reduce_time(obj, 'mean')
 
-        Args:
-            obj: DataArray with a time dim.
+    def _boundary_time(self, obj: Any, positions: np.ndarray, single: int) -> Any:
+        """Value at one boundary timestep of each period, on the period dim.
+
+        Multi-period: ``(…, time)`` → ``(…, period)``; single-period: plain
+        ``isel(time=single)`` (period-less).
         """
         if self.time_period is None:
-            return obj.mean('time')
+            return obj.isel(time=single)
         assert self.period is not None
-        result = obj.groupby(self.period_grouper()).mean()
-        return result.sel(period=self.period.values)
+        return obj.isel(time=positions.tolist()).rename({'time': 'period'}).assign_coords(period=self.period.values)
+
+    def first_time(self, obj: Any) -> Any:
+        """Value at each period's first timestep (see :meth:`_boundary_time`)."""
+        return self._boundary_time(obj, self.episodes.start_positions, 0)
+
+    def last_time(self, obj: Any) -> Any:
+        """Value at each period's last timestep (see :meth:`_boundary_time`)."""
+        return self._boundary_time(obj, self.episodes.last_positions, -1)
+
+    def varies_within_period(self, obj: xr.DataArray) -> xr.DataArray:
+        """Mask of elements whose values change within some period.
+
+        Compares against each period's first value exactly rather than the
+        per-period mean, so a constant factor cannot register as varying
+        through float error. Values that differ only across periods do not
+        count as varying.
+        """
+        first = self.map_to_time(self.first_time(obj))
+        return (obj != first).any('time')
 
     def to_dataset(self) -> xr.Dataset:
         """Serialize to xr.Dataset."""
@@ -1897,6 +1924,13 @@ class _TimeMapper:
         raise TypeError(f'{name}: unsupported input type {type(value)}')
 
     def _from_mapping(self, value: Mapping[int, Variate], name: str) -> xr.DataArray:
+        """Align a ``{period: entry}`` mapping segment by segment.
+
+        Each entry may be labeled by its period's segment of the flat index
+        or — in uniform mode, where segment labels are shifted into each
+        period's calendar internally — by the base grid the user actually
+        knows.
+        """
         labels = self._period_labels
         keys = {int(k) for k in value}
         if keys != set(labels):
@@ -1908,9 +1942,6 @@ class _TimeMapper:
             try:
                 arr = as_dataarray(value[p], {'time': seg_idx}, name=name).values
             except ValueError:
-                # Uniform mode shifts segment labels into each period's
-                # calendar internally; accept entries labeled by the base
-                # grid the user actually knows.
                 if self.base_time is None or len(self.base_time) != len(seg_idx):
                     raise
                 arr = as_dataarray(value[p], {'time': self.base_time}, name=name).values

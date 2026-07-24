@@ -137,6 +137,10 @@ class Episodes:
     def max_duration(self, dt: xr.DataArray) -> float:
         """Longest episode duration in hours — the Big-M for duration tracking.
 
+        Duration chains reset at episode starts, so the longest episode (not
+        the whole axis) is the tight M; an axis-length M would loosen the MIP
+        relaxation for nothing.
+
         Args:
             dt: Timestep durations ``(dim,)`` [h].
         """

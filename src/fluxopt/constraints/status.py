@@ -102,9 +102,6 @@ def add_duration_tracking(
     starts = episodes.check(dim, len(labels)).flags
     chain_mask = xr.DataArray(~starts[1:], dims=[dim], coords={dim: labels[1:]})
 
-    # Big-M per element: longest episode + any previous carryover. Duration
-    # chains reset at episode starts, so the flat-axis total would inflate M
-    # by the period count and loosen the MIP relaxation for nothing.
     mega = episodes.max_duration(dt)
     if previous is not None:
         mega = mega + previous.fillna(0)
