@@ -46,6 +46,12 @@ At the first timestep with known previous state \(\sigma_{f,0}^{\text{prev}}\):
 The previous state is derived from `Flow.prior`: on if the last prior value > 0,
 off otherwise. Without `prior`, the initial transition is unconstrained.
 
+All chains on this page (transitions and duration tracking) reset at
+*episode* boundaries: in multi-period models each period is an independent
+episode, no constraint links its first timestep to the previous period's
+last, and \(t = 0\) conditions apply at every episode start. The Big-M
+\(M\) is the longest episode duration, not the horizon length.
+
 ## Duration Tracking
 
 Duration tracking uses a Big-M formulation to count consecutive hours in a state.
@@ -190,6 +196,6 @@ An additional constraint prevents the unit from being "on" with zero size:
 | \(\mathrm{D}^{\text{down,max}}\) | Maximum downtime | [`Status.downtime_max`](../api/fluxopt/elements.md#fluxopt.elements.Status.downtime_max) |
 | \(\mathrm{r}_{f,k,t}\) | Running cost coefficient | [`Status.effects_per_running_hour`](../api/fluxopt/elements.md#fluxopt.elements.Status.effects_per_running_hour) |
 | \(\mathrm{u}_{f,k,t}\) | Startup cost coefficient | [`Status.effects_per_startup`](../api/fluxopt/elements.md#fluxopt.elements.Status.effects_per_startup) |
-| \(M\) | Big-M (horizon length) | computed |
+| \(M\) | Big-M (longest episode duration) | computed |
 
 See [Notation](notation.md) for the full symbol table.
