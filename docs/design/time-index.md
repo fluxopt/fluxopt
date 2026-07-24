@@ -88,20 +88,77 @@ Key points:
   `time_period` coord — identical to today. Multi-period attaches the
   coord. Period-boundary masks are no-ops with one period, so every
   constraint is written once.
-- **`Dims` precomputes `period_starts`**: a `(time,)` boolean mask,
-  `True` where `time_period` differs from its predecessor (and at t=0).
-  Single point of truth for boundary handling.
+- **`Dims.episodes` owns boundary handling**: an `Episodes` partition
+  whose boolean `starts` mask is `True` where `time_period` differs
+  from its predecessor (and at t=0). Single point of truth — see
+  "Episodes vs periods" below.
+
+## Episodes vs periods
+
+Two distinct temporal concepts share the flat axis; keeping them apart
+is the load-bearing distinction of this design.
+
+Some constraints link a timestep to the one before it: state
+accumulation (`E[t] = E[t-1] + …`), duration windows, switch
+transitions, ramps. These links only make physical sense if `t-1` and
+`t` are **actually adjacent in modeled time**. An **episode** is a
+maximal run of genuinely consecutive timesteps — a stretch where those
+`t-1 → t` chains may link. An episode *boundary* is a place where the
+model's time axis jumps, so every chain must be cut and restarted.
+
+A **period** is a different kind of thing: a bookkeeping and investment
+unit — "the year 2030", with its own capacity decisions, cost totals,
+and objective weight. Period answers *which ledger does this timestep's
+cost land in*; episode answers *did the clock jump right before this
+timestep*.
+
+Today the only place the clock jumps is between investment periods, so
+episodes and periods coincide 1:1:
+
+```
+time:      |––––– 8760 h of 2030 –––––|––– 2190 steps of 2040 –––|
+period:    |========== 2030 =========|========== 2040 ==========|
+episodes:  |—————— episode 1 ————————|—————— episode 2 —————————|
+```
+
+They split the day representative periods (TSA) land: one investment
+period aggregated to three typical days is *one* ledger containing
+*three* uninterrupted runs of the clock —
+
+```
+time:      |– Jan 15 –|– Apr 20 –|– Jul 3 –|––– 2040 … –––|
+period:    |========== 2030 (one ledger) ==|=== 2040 =====|
+episodes:  |— ep 1 ———|— ep 2 ———|— ep 3 ——|—— ep 4 … ————|
+```
+
+— hour 23 of Jan 15 and hour 0 of Apr 20 sit next to each other in the
+array but not in reality, so the storage recursion must cut there while
+all 72 timesteps still account into 2030's totals. Accordingly the two
+concepts own disjoint vocabulary: aggregation, weighting, and element
+fields speak *period*; coupling resets, `cyclic`, and `prior_level`
+speak *episode* (see Terminology below).
+
+The `Episodes` value class (`fluxopt.constraints.episodes`) is the
+single home for the boundary machinery: canonical boolean `starts`,
+derived `chain_mask` / `start_positions` / `last_positions` /
+`episode_ids` / `max_duration` (the duration-tracking Big-M).
+`Dims.episodes` builds it from `time_period`; TSA later extends it via
+`Episodes.from_changes(time_period, time_cluster)` with no constraint
+changes. The constraint helpers **require** an explicit `Episodes` —
+there is deliberately no single-episode default, so a multi-period
+model cannot silently chain across period boundaries by omission;
+custom single-episode axes pass `Episodes.single(...)`.
 
 ## Constraint semantics
 
 Each period remains an **independent operational episode** (unchanged
 semantics — today the orthogonal `period` dim gives this implicitly):
 
-- **Temporal coupling resets at period starts.** The SOC recursion
+- **Temporal coupling resets at episode starts.** The SOC recursion
   (`add_accumulation_constraints`), uptime/downtime windows, and startup
   detection must not link the last timestep of one period to the first
-  of the next. `add_accumulation_constraints` gains boundary handling
-  driven by `period_starts`; status windows reset there.
+  of the next. The constraint helpers take a required `episodes`
+  parameter; status windows reset at its boundaries.
 - **Cyclic storage is per-period**: level at each period's last timestep
   equals the level at that period's first (groupby first/last).
   `prior_level` applies at each period start.
@@ -200,14 +257,14 @@ grid. Rep timesteps concatenate on the flat `time` dim with a
 (the reason it stays separate from `dt`). The name follows the
 ride-along rule — coords on the time dim are `time_<what>` — keeping
 bare `cluster` free for a future per-cluster dim (occurrence counts,
-the seasonal-storage `cluster_of(chronology)` mapping), exactly as
+the seasonal-storage `chronology_cluster` mapping), exactly as
 `period` stays reserved for the investment dim. Values are
 period-local cluster ids (tsam's per-slice `clusterOrder`).
 Consequences:
 
 - The period-boundary machinery generalizes to **episode starts**:
   cluster boundaries break SOC recursion and status windows with the
-  same mask infrastructure (`period_starts` → episode starts).
+  same mask infrastructure (period starts → episode starts).
 - Composition with investment periods is automatic: different cluster
   counts per period are just more raggedness; `time_period(time)` and
   `time_cluster(time)` coexist, aggregates groupby either. Episode
@@ -217,7 +274,7 @@ Consequences:
   the established grounds: second constraint code path, and ragged
   cluster counts across investment periods reintroduce masks.
 - **Seasonal storage** (Kotzur-style superposition) adds one new dim —
-  the original chronology (real day sequence with a `cluster_of`
+  the original chronology (real day sequence with a `chronology_cluster`
   mapping) — carrying only inter-period SOC linking variables.
   Structurally analogous to the `period` dim for investment; never on
   operational data.
@@ -258,6 +315,33 @@ then, ``dt`` must be passed explicitly); cluster-episode boundary
 resets for storage/status (until then, TSA feeds are only correct
 without intra-period temporal coupling).
 
+## Terminology
+
+The temporal vocabulary sorts into three registers; names are generated
+by five rules, recorded here so they survive contributors:
+
+1. **Bare singular noun = a dim** (an axis variables can live on):
+   `time`, `period`, `build_period`. Reserved for future dims:
+   `cluster`, `chronology`, `scenario`, `episode` (if per-episode
+   parameters ever need an axis, e.g. episode-indexed prior state).
+2. **Ride-along coord on a dim = `<dim>_<what>`**: `time_period`,
+   later `time_cluster`; on the chronology dim, `chronology_cluster`
+   (not `cluster_of`). The prefix keeps the bare noun free for the dim.
+3. **Unprefixed temporal data vars live on `time`** (`dt`, `weights`);
+   anything on another dim carries the dim as prefix
+   (`period_weights`, a future `cluster_weights`).
+4. **`period` is accounting, `episode` is coupling topology** — neither
+   register borrows the other's word. Element fields may say
+   period-things (`periodic_min`), never episode-things; constraint
+   helpers say episode-things, never period-things. `Storage.cyclic`
+   and `prior_level` are episode semantics and documented as such.
+5. **Audience split for borrowed words**: prose says "representative
+   period" ↔ code says `cluster`; prose "investment period" ↔ code
+   `period`; `snapshot` exists only at the PyPSA boundary. "Horizon" /
+   "chunk" is reserved for the rolling-horizon driver's solver
+   decomposition (state deliberately carries across chunk boundaries)
+   and must never be called an episode.
+
 ## Serialization & interop
 
 - Plain coords round-trip through NetCDF unchanged — no MultiIndex
@@ -270,7 +354,7 @@ without intra-period temporal coupling).
 ## Accepted trade-offs
 
 - **Boundary masks are a permanent tax** on every time-coupled
-  constraint. Mitigated by centralizing in `Dims.period_starts` and the
+  constraint. Mitigated by centralizing in `Dims.episodes` and the
   accumulation helper; but "impossible to get wrong" becomes "correct
   if the mask is applied".
 - **Per-period reductions are groupbys**, heavier than dim sums.
@@ -281,15 +365,21 @@ without intra-period temporal coupling).
 
 ## Implementation notes (as shipped)
 
-- `Dims` carries `time_period(time)` plus helpers that concentrate the
-  boundary machinery: `episode_starts`, `chain_mask`,
-  `start_positions`/`last_positions`, `map_to_time(obj)` (period → flat
-  time via vectorized `sel`, works on linopy objects), `sum_time(obj)` /
-  `mean_time(obj)` (per-period groupby, plain `.sum('time')` in
-  single-period mode).
+- The boundary machinery lives in the frozen `Episodes` value class
+  (`fluxopt.constraints.episodes`): canonical boolean `starts`, derived
+  `chain_mask`, `start_positions`/`last_positions`, `episode_ids`,
+  `n_episodes`, and `max_duration(dt)` (the duration-tracking Big-M).
+  `Dims.episodes` builds it from `time_period`; `Dims` additionally
+  keeps `map_to_time(obj)` (period → flat time via vectorized `sel`,
+  works on linopy objects) and `sum_time(obj)` / `mean_time(obj)`
+  (per-period groupby, plain `.sum('time')` in single-period mode).
 - `add_accumulation_constraints`, `add_duration_tracking`, and
-  `add_switch_transitions` gained an `episode_starts` parameter; the
-  default (single episode) preserves prior behavior for custom users.
+  `add_switch_transitions` **require** an `episodes` argument — no
+  single-episode default, so multi-period models cannot silently chain
+  across period boundaries by omission. Custom single-episode axes pass
+  `Episodes.single(...)`. Per-period `initial` values are guarded: they
+  demand exactly one episode per period, so future cluster episodes
+  fail loudly instead of misaligning.
 - Operational input conversion lives in `_TimeMapper.to_flat`. Beyond
   the designed shapes ({period: series} dict, flat series, scalars), two
   conveniences were kept deliberately: a within-period-length series
@@ -308,11 +398,11 @@ without intra-period temporal coupling).
 ## Migration touch list
 
 - `Dims` — flat build from dict-of-indexes, `time_period` coord,
-  `period_starts` property; `coords()` signature keeps working.
+  `episodes` partition; `coords()` signature keeps working.
 - `constraints/storage.py` — boundary-aware accumulation; per-period
   cyclic/initial.
 - `constraints/status.py` + status blocks in `model.py` — window resets
-  at `period_starts`.
+  at episode starts.
 - `model.py` — per-period aggregates (`flow_hours`, `load_factor`) via
   groupby; effect periodic/total aggregation; investment↔operation
   coupling via `sel(period=time_period)`.
@@ -333,14 +423,16 @@ without intra-period temporal coupling).
    **required** for ragged multi-period; integer timesteps stay
    supported for single-period (and uniform multi-period, as a global
    running index).
+3. **`weights` stays separate from `dt`** (no folding into a single
+   per-timestep objective weighting à la PyPSA's
+   `snapshot_weightings.objective`). Occurrence count and duration are
+   different physical quantities that compose — a 4-hour segment
+   occurring 12 times needs both — and folding them is what makes
+   disaggregation and per-quantity weighting painful downstream.
 
 ## Open questions
 
-1. **`weights` vs `dt` folding**: keep operational `weights` separate
-   from `dt` (status quo) or fold into a single objective weighting per
-   timestep (PyPSA's `snapshot_weightings.objective`)? Leaning: keep
-   separate — TSA occurrence counts and durations are distinct concepts.
-2. **Enforce divisor-of-24h frequencies** for ragged per-period grids
+1. **Enforce divisor-of-24h frequencies** for ragged per-period grids
    (validation error) or document-and-warn only? Leaning: warn — hard
    enforcement blocks legitimate irregular grids (e.g. rolling-horizon
    stubs), and `dt`-weighting keeps the math correct regardless.
