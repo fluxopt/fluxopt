@@ -4,6 +4,7 @@ import os
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NoReturn, Self, get_args
 
@@ -1514,7 +1515,8 @@ class Dims:
     weights, and the period dimension. In multi-period models ``time_period``
     maps each timestep to its investment period; operational arrays and
     variables carry only the flat ``time`` dim, while investment-scoped data
-    lives on ``period``. See: docs/design/time-index.md
+    lives on ``period``. Treated as immutable after construction (derived
+    views are cached). See: docs/design/time-index.md
     """
 
     time: xr.DataArray  # (time,) — flat coordinate labels across all periods
@@ -1567,7 +1569,7 @@ class Dims:
 
     # -- Episode boundaries (flat time axis) -----------------------------
 
-    @property
+    @cached_property
     def episodes(self) -> Episodes:
         """Episode partition of the flat time axis.
 
@@ -1581,6 +1583,12 @@ class Dims:
             return Episodes.single(self.time)
         return Episodes.from_changes(self.time_period)
 
+    @cached_property
+    def _time_period_indexer(self) -> xr.DataArray:
+        """(time,) period label per timestep, without ride-along coords."""
+        assert self.time_period is not None
+        return xr.DataArray(self.time_period.values, dims=['time'], coords={'time': self.time})
+
     def period_grouper(self, name: str = 'period') -> xr.DataArray:
         """Grouper mapping each timestep to its period label, for groupby.
 
@@ -1592,7 +1600,7 @@ class Dims:
         """
         if self.time_period is None:
             raise ValueError('period_grouper requires a multi-period model')
-        return xr.DataArray(self.time_period.values, dims=['time'], coords={'time': self.time}, name=name)
+        return self._time_period_indexer.rename(name)
 
     def map_to_time(self, obj: Any) -> Any:
         """Expand a period-dimensioned object onto the flat time axis.
@@ -1607,8 +1615,7 @@ class Dims:
         """
         if self.time_period is None or 'period' not in obj.dims:
             return obj
-        indexer = xr.DataArray(self.time_period.values, dims=['time'], coords={'time': self.time})
-        result = obj.sel(period=indexer)
+        result = obj.sel(period=self._time_period_indexer)
         if not hasattr(result, 'drop_vars'):
             # linopy Variable lacks drop_vars; lift to a LinearExpression so
             # the stray coord cannot trigger outer-join warnings downstream.
@@ -1864,16 +1871,17 @@ class _TimeMapper:
     dims: Dims
     base_time: pd.Index | None = None  # within-period labels (uniform mode only)
 
-    @property
+    @cached_property
     def time(self) -> pd.Index:
         """Flat time index."""
         return pd.Index(self.dims.time.values, name='time')
 
-    @property
+    @cached_property
     def _period_labels(self) -> list[int]:
         assert self.dims.period is not None
         return [int(p) for p in self.dims.period.values]
 
+    @cached_property
     def _segments(self) -> list[tuple[int, slice]]:
         """Per-period (label, positional slice) pairs in period order."""
         starts = self.dims.episodes.start_positions
@@ -1937,7 +1945,7 @@ class _TimeMapper:
             raise ValueError(f'{name}: mapping keys {sorted(keys)} do not match periods {labels}')
         flat_idx = self.time
         parts: list[np.ndarray] = []
-        for p, slc in self._segments():
+        for p, slc in self._segments:
             seg_idx = flat_idx[slc]
             try:
                 arr = as_dataarray(value[p], {'time': seg_idx}, name=name).values
@@ -2005,9 +2013,9 @@ class _TimeMapper:
         flat_idx = self.time
         n = len(arr)
         if n == len(flat_idx):
-            return xr.DataArray(arr.astype(float), dims=['time'], coords={'time': flat_idx}, name=name)
+            return xr.DataArray(np.asarray(arr, dtype=float), dims=['time'], coords={'time': flat_idx}, name=name)
         if self.base_time is not None and n == len(self.base_time):
-            return self._tile(arr.astype(float), name)
+            return self._tile(np.asarray(arr, dtype=float), name)
         options = [f'flat time({len(flat_idx)})']
         if self.base_time is not None:
             options.append(f'within-period time({len(self.base_time)})')
