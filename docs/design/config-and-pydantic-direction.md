@@ -89,7 +89,7 @@ static frames from `_t` time-varying data. Model it as:
 
 ```
 Variate := float | list[float] | ProfileRef
-ProfileRef := reference into a CSV/netCDF column (name + source)
+ProfileRef := reference into a dataset variable (dataset + variable)
 ```
 
 Structural YAML carries the graph + scalars + refs; profiles live in data files.
@@ -181,7 +181,7 @@ rival. That demo is a strong card in the #1788 ↔ #1796 discussion.
 **Phase 2 landed (stacked PR)** — `ProfileRef` + full structural round-trip:
 
 - **`ProfileRef`** (`float | list | ProfileRef` at last, in `types.py`): a
-  serializable reference to a time-series in a data file, with `.resolve(sources)`
+  serializable reference to a time-series in a data file, with `.resolve(profiles)`
   → `DataArray`. Added to the `Variate` union so config round-trips without
   inlining profiles; `as_dataarray` rejects an unresolved ref loudly.
 - **`to_dict` / `from_dict`** (`fluxopt.to_dict`, `fluxopt.from_dict`): JSON-safe
@@ -205,11 +205,11 @@ by a builder — not a mutable domain object. This mirrors the codebase's existi
 | 3 | **`FlowSystemModel`** | the linopy solver; owns `.m` (escape hatch) | → `Result` |
 
 - **`FlowSystem`** (`flow_system.py`): a pydantic aggregate mirroring `optimize()`;
-  `from_dict`/`from_yaml`/`to_dict`/`to_yaml`; `.optimize(sources=...)` delegates to
+  `from_dict`/`from_yaml`/`to_dict`/`to_yaml`; `.optimize(profiles=...)` delegates to
   the existing pipeline (`ModelData.build → FlowSystemModel`). Python construction
   stays first-class — the same object is built in code or loaded from YAML.
-- **`ProfileRef` auto-resolution**: `.optimize(sources=...)` runs a recursive
-  pre-pass (`_resolve_refs`) that swaps every `ProfileRef` for `resolve(sources)`
+- **`ProfileRef` auto-resolution**: `.optimize(profiles=...)` runs a recursive
+  pre-pass (`_resolve_refs`) that swaps every `ProfileRef` for `resolve(profiles)`
   on a **deep copy**, so the `FlowSystem` stays reusable across different data.
   Sources are passed **in code** (`{id: Dataset}`), not via file paths in YAML —
   structure is declarative, data supply is explicit.
@@ -223,7 +223,7 @@ by a builder — not a mutable domain object. This mirrors the codebase's existi
 
 A `@model_validator(mode='after')` runs at construction (and inside `from_dict`/
 `from_yaml`) and rejects, with clear messages: undeclared effect references
-(`effects_*` / `contribution_from` / `objective_effects`), undeclared carrier
+(`effects_*` / `contribution_from` / `objective`), undeclared carrier
 references, and duplicate effect / carrier / component ids. This moves the common
 authoring mistakes from build-time (`.optimize()`) to load-time — the point of a
 declarative workflow. Runs once after all fields are assembled, so element order
@@ -236,12 +236,21 @@ not a priority. The genuinely wanted future feature is **arithmetic / expression
 in the YAML** (e.g. `2 * base_cost`, shared parameters) — the Calliope/linopy
 YAML-math direction (§5), deferred.
 
-**Still deferred (Phase 5+):**
+**Phase 5 (partially landed)** — id qualification moved from element
+construction to the build step: `Flow` lost its mutable `id` field, parents no
+longer rewrite child flows, and qualified ids are derived on demand by internal
+`_qualified_flows()` methods (records carrying the qualified id and the
+carrier-balance sign of the placement). Nothing new is exported — the public
+mental model is just *short_id + the `component(short_id)` pattern in data and
+results*. Declaration-vs-use tightening as planned; flows are now reusable
+across components, and duplicate short_ids within a component fail at
+construction.
+
+**Still deferred:**
 
 - **Arithmetic / expressions in YAML** (the real future want above).
-- **Porting `__post_init__` guards to pydantic validators**, and moving id
-  qualification from element construction to the build step (declaration-vs-use
-  tightening). Incremental cleanup, not required for the win.
+- **Porting the remaining `__post_init__` guards to pydantic validators.**
+  Incremental cleanup, not required for the win.
 
 ## 7. Non-goals
 

@@ -76,6 +76,17 @@ jobs:
       - name: Run tests
         run: uv run pytest --cov=fluxopt --cov-report=xml --cov-report=term-missing
 
+      # Blocking smoke test for the benchmark suite: --benchmark-disable runs
+      # every benchmarked function once as a plain test, so API drift that
+      # breaks the (otherwise informational) CodSpeed/hint suites fails CI
+      # here. One cell is enough; memray in the bench lock has no Windows.
+      - name: Benchmark suite smoke test
+        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-24.04'
+        working-directory: benchmark
+        run: |
+          uv sync --frozen
+          uv run --no-sync pytest . --benchmark-disable
+
       - uses: codecov/codecov-action@v7
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-24.04'
         with:

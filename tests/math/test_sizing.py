@@ -26,7 +26,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -59,7 +59,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -91,7 +91,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -123,7 +123,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[50, 50])]),
                 Port(
@@ -152,7 +152,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[25, 50])]),
                 Port(
@@ -184,7 +184,7 @@ class TestFlowSizing:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[60, 60])]),
                 Port(
@@ -233,7 +233,7 @@ class TestSizingLoadFactor:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 10])]),
                 Port(
@@ -269,7 +269,7 @@ class TestSizingLoadFactor:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[30, 0])]),
                 Port(
@@ -308,7 +308,7 @@ class TestSizingRamps:
             ts(2),
             carriers=_heat,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 40])]),
                 Port(
@@ -341,7 +341,7 @@ class TestStorageSizing:
             ts(3),
             carriers=_elec,
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='Demand', exports=[Flow(carrier='Elec', size=1, fixed_relative_profile=[0, 50, 0])]),
                 Port(id='Grid', imports=[Flow(carrier='Elec', effects_per_flow_hour={'cost': [1, 10, 1]})]),

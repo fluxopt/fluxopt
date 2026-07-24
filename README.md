@@ -47,13 +47,60 @@ result = optimize(
             thermal_flow=Flow(carrier='heat', size=200)
         )
     ],
-    objective_effects='cost',
+    objective='cost',
 )
 
 print(f"Total cost: {result.objective:.2f}")
 print(result.flow_rates)
 ```
 <!--quickstart-end-->
+
+## One API, four levels of control
+
+Every level returns the same `Result`; each one only adds control — pick the
+lowest rung that does the job.
+
+**1. One-shot** — `optimize(...)` as above. Elements in, `Result` out, with
+fail-fast validation of ids and references.
+
+**2. Declarative** — gather the same arguments into a reusable, serializable
+system. Time series can stay out of the structure as `ProfileRef`s and be
+supplied at solve time via `profiles`:
+
+```python
+spec = fx.FlowSystem.from_yaml("system.yaml")   # or FlowSystem(...) in Python
+result = spec.optimize(profiles={"load": demand_ds})
+spec.to_yaml("system.yaml")                     # round-trips
+```
+
+**3. Inspectable** — materialize the solver model without solving, inspect or
+extend the underlying linopy model, retarget the objective, then solve:
+
+```python
+model = spec.build_model(profiles={"load": demand_ds})   # unbuilt FlowSystemModel
+model.build()
+model.m.add_constraints(...)                             # full linopy access
+result = model.solve()
+
+model.objective = {"cost": 1, "co2": 50}                 # retarget…
+model.build()                                            # …and rebuild
+```
+
+For a one-off tweak, stay on level 1/2 and pass
+`customize=lambda m: m.m.add_constraints(...)` instead.
+
+**4. Data-level** — build or load the xarray `ModelData` yourself and edit it
+before modeling:
+
+```python
+data = fx.ModelData.build(...)                  # or ModelData.from_netcdf(path)
+data.flows.fixed_profile.loc[{"flow": "demand(heat)"}] = 0.7
+result = fx.FlowSystemModel(data, objective="cost").optimize()
+```
+
+Results close the loop: `result.flow_rates`, `result.effect_totals`,
+`result.stats` (KPIs, effect contributions), `result.plot`, netCDF round-trip,
+and `result.data` — the exact `ModelData` the solution came from.
 
 ## Roadmap
 

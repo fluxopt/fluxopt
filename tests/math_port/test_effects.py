@@ -1,12 +1,11 @@
 """Mathematical correctness tests for effects & objective.
 
-Some tests are skipped because they test features not yet implemented in fluxopt
-(maximum_temporal, minimum_temporal). These were ported from flixopt to document
-the expected behavior and serve as ready-to-enable acceptance tests.
+flixopt's per-domain (temporal) effect bound tests were dropped: PR #242
+deliberately collapsed per-domain bounds into total_max/total_min and
+periodic_max/periodic_min.
 """
 
 import numpy as np
-import pytest
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing
@@ -32,7 +31,7 @@ class TestEffects:
                 Effect(id='cost'),
                 Effect(id='CO2'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -69,7 +68,7 @@ class TestEffects:
                 Effect(id='cost', contribution_from={'CO2': 0.5}),
                 Effect(id='CO2'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -101,7 +100,7 @@ class TestEffects:
                 Effect(id='cost'),
                 Effect(id='CO2', total_max=15),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -145,7 +144,7 @@ class TestEffects:
                 Effect(id='cost'),
                 Effect(id='CO2', total_min=25),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -173,207 +172,6 @@ class TestEffects:
         assert_allclose(result.effect_totals.sel(effect='CO2').item(), 25.0, rtol=1e-5)
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 25.0, rtol=1e-5)
 
-    def test_effect_rate_max(self, optimize):
-        """Proves: rate_max on an effect caps the per-timestep contribution,
-        forcing the optimizer to spread dirty production across timesteps.
-
-        CO2 rate_max=8. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
-        Demand=[15,5]. Without cap, Dirty covers all → CO2=[15,5], cost=20.
-        With cap=8/ts, Dirty limited to 8 per ts → Dirty=[8,5], Clean=[7,0].
-
-        Sensitivity: Without rate_max, all from Dirty → cost=20.
-        With cap, cost = (8+5)*1 + 7*5 = 48.
-        """
-        result = optimize(
-            timesteps=ts(2),
-            carriers=[Carrier(id='Heat')],
-            effects=[
-                Effect(id='cost'),
-                Effect(id='CO2', rate_max=8),
-            ],
-            objective_effects='cost',
-            ports=[
-                Port(
-                    id='Demand',
-                    exports=[
-                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([15, 5])),
-                    ],
-                ),
-                Port(
-                    id='Dirty',
-                    imports=[
-                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
-                    ],
-                ),
-                Port(
-                    id='Clean',
-                    imports=[
-                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
-                    ],
-                ),
-            ],
-        )
-        # t=0: Dirty=8 (capped), Clean=7. t=1: Dirty=5, Clean=0.
-        # cost = (8+5)*1 + 7*5 = 13 + 35 = 48
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 48.0, rtol=1e-5)
-
-    def test_effect_rate_min(self, optimize):
-        """Proves: rate_min on an effect forces a minimum per-timestep
-        contribution, even when zero would be cheaper.
-
-        CO2 rate_min=10. Dirty: 1€+1kgCO2/kWh. Demand=[5,5].
-        Without floor, Dirty=5 each ts → CO2=[5,5]. With floor, Dirty must
-        produce ≥10 each ts → excess absorbed by dump.
-
-        Sensitivity: Without rate_min, cost=10. With it, cost=20.
-        """
-        result = optimize(
-            timesteps=ts(2),
-            carriers=[Carrier(id='Heat')],
-            effects=[
-                Effect(id='cost'),
-                Effect(id='CO2', rate_min=10),
-            ],
-            objective_effects='cost',
-            ports=[
-                Port(
-                    id='Demand',
-                    exports=[
-                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([5, 5])),
-                    ],
-                ),
-                Port(
-                    id='Dirty',
-                    imports=[
-                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
-                    ],
-                ),
-                waste('Heat'),
-            ],
-        )
-        # Must emit ≥10 CO2 each ts → Dirty ≥ 10 each ts → cost = 20
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 20.0, rtol=1e-5)
-
-    def test_effect_rate_max_scales_with_dt(self, optimize):
-        """Proves: rate_max scales with timestep duration.
-
-        CO2 rate_max=4. dt=2h. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
-        Demand=[15,5] (power in MW). CO2 per timestep = rate * 1 * dt.
-
-        Per-timestep CO2 cap = rate_max * dt = 4 * 2 = 8 kgCO2.
-        Dirty rate capped at 4 MW (since 4 * 1 * 2 = 8 = cap).
-        t=0: Dirty_rate=4, Clean_rate=11. t=1: Dirty_rate=4, Clean_rate=1.
-        cost = (4*2 + 4*2)*1 + (11*2 + 1*2)*5 = 16 + 120 = 136.
-
-        Sensitivity: With dt=1h, cap=4/ts, Dirty=[4,4], Clean=[11,1], cost=68.
-        """
-        from datetime import datetime, timedelta
-
-        start = datetime(2024, 1, 1)
-        timesteps = [start, start + timedelta(hours=2)]
-        result = optimize(
-            timesteps=timesteps,
-            carriers=[Carrier(id='Heat')],
-            effects=[
-                Effect(id='cost'),
-                Effect(id='CO2', rate_max=4),
-            ],
-            objective_effects='cost',
-            ports=[
-                Port(
-                    id='Demand',
-                    exports=[
-                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([15, 5])),
-                    ],
-                ),
-                Port(
-                    id='Dirty',
-                    imports=[
-                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
-                    ],
-                ),
-                Port(
-                    id='Clean',
-                    imports=[
-                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 5, 'CO2': 0}),
-                    ],
-                ),
-            ],
-        )
-        # t=0: Dirty_rate=4 (capped), Clean_rate=11. t=1: Dirty_rate=4, Clean_rate=1.
-        # cost = (4+4)*1*2 + (11+1)*5*2 = 16 + 120 = 136
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 136.0, rtol=1e-5)
-
-    def test_effect_rate_min_scales_with_dt(self, optimize):
-        """Proves: rate_min scales with timestep duration.
-
-        CO2 rate_min=5. dt=2h. Dirty: 1€+1kgCO2/kWh. Demand=[3,3] (power).
-        Per-timestep energy: [6,6] kWh. Per-timestep CO2 floor = 5 * 2 = 10 kgCO2.
-        Dirty must produce ≥10 kWh each ts → excess absorbed by waste.
-
-        cost = 10 + 10 = 20.
-        Sensitivity: Without rate_min, Dirty=6 each ts → cost=12.
-        """
-        from datetime import datetime, timedelta
-
-        start = datetime(2024, 1, 1)
-        timesteps = [start, start + timedelta(hours=2)]
-        result = optimize(
-            timesteps=timesteps,
-            carriers=[Carrier(id='Heat')],
-            effects=[
-                Effect(id='cost'),
-                Effect(id='CO2', rate_min=5),
-            ],
-            objective_effects='cost',
-            ports=[
-                Port(
-                    id='Demand',
-                    exports=[
-                        Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([3, 3])),
-                    ],
-                ),
-                Port(
-                    id='Dirty',
-                    imports=[
-                        Flow(carrier='Heat', effects_per_flow_hour={'cost': 1, 'CO2': 1}),
-                    ],
-                ),
-                waste('Heat'),
-            ],
-        )
-        # Must emit ≥10 CO2 each ts → Dirty ≥ 10 each ts → cost = 20
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 20.0, rtol=1e-5)
-
-    @pytest.mark.skip(reason='maximum_temporal not supported in fluxopt')
-    def test_effect_maximum_temporal(self, optimize):
-        """Proves: maximum_temporal caps the sum of an effect's per-timestep contributions
-        over the period, forcing suboptimal dispatch.
-
-        CO2 maximum_temporal=12. Dirty: 1€+1kgCO2/kWh. Clean: 5€+0kgCO2/kWh.
-        Demand=[10,10]. Without cap, all Dirty → CO2=20, cost=20.
-        With temporal cap=12, Dirty limited to 12 total, Clean covers 8.
-
-        Sensitivity: Without maximum_temporal, cost=20. With cap, cost=12+40=52.
-        """
-        raise NotImplementedError  # TODO: implement maximum_temporal on Effect
-
-    @pytest.mark.skip(reason='minimum_temporal not supported in fluxopt')
-    def test_effect_minimum_temporal(self, optimize):
-        """Proves: minimum_temporal forces the sum of an effect's per-timestep contributions
-        to reach at least the specified value.
-
-        CO2 minimum_temporal=25. Dirty: 1€+1kgCO2/kWh. Demand=[10,10] (total=20).
-        Must produce ≥25 CO2 → Dirty ≥25, but demand only 20.
-        Excess absorbed by bus with imbalance_penalty=0.
-
-        Sensitivity: Without minimum_temporal, Dirty=20 → cost=20.
-        With floor=25, Dirty=25 → cost=25.
-        """
-        raise NotImplementedError  # TODO: implement minimum_temporal on Effect
-
     def test_contribution_from_periodic(self, optimize):
         """Proves: contribution_from adds a weighted fraction of one effect's periodic
         (investment) sum into another effect's total.
@@ -392,7 +190,7 @@ class TestEffects:
                 Effect(id='cost', contribution_from={'CO2': 10}),
                 Effect(id='CO2'),
             ],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -414,27 +212,79 @@ class TestEffects:
         )
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 170.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='maximum_periodic not supported in fluxopt')
     def test_effect_maximum_periodic(self, optimize):
-        """Proves: maximum_periodic limits the total periodic (investment-related) effect.
+        """Proves: periodic_max limits the period's total effect.
 
-        Two boilers: CheapBoiler (invest=10€, CO2_periodic=100kg) and
-        ExpensiveBoiler (invest=50€, CO2_periodic=10kg).
-        CO2 has maximum_periodic=50. CheapBoiler's 100kg exceeds this.
-
-        Sensitivity: Without limit, CheapBoiler chosen → cost=30.
-        With limit=50, ExpensiveBoiler needed → cost=70.
+        CheapBoiler (invest=10€, CO2=100kg) vs ExpensiveBoiler (invest=50€, CO2=10kg);
+        CO2 periodic_max=50 rules out CheapBoiler → cost = 50 + 20 = 70 (30 without the limit).
+        flixopt's maximum_periodic; equivalent here since CO2 is invest-only (PR #242).
         """
-        raise NotImplementedError  # TODO: implement maximum_periodic on Effect
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost'), Effect(id='CO2', periodic_max=50)],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10]))]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
+            ],
+            converters=[
+                Converter.boiler(
+                    'CheapBoiler',
+                    thermal_efficiency=1.0,
+                    fuel_flow=Flow(carrier='Gas'),
+                    thermal_flow=Flow(
+                        carrier='Heat',
+                        size=Sizing(size_min=50, size_max=50, mandatory=False, effects_fixed={'cost': 10, 'CO2': 100}),
+                    ),
+                ),
+                Converter.boiler(
+                    'ExpensiveBoiler',
+                    thermal_efficiency=1.0,
+                    fuel_flow=Flow(carrier='Gas'),
+                    thermal_flow=Flow(
+                        carrier='Heat',
+                        size=Sizing(size_min=50, size_max=50, mandatory=False, effects_fixed={'cost': 50, 'CO2': 10}),
+                    ),
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 70.0, rtol=1e-5)
+        assert result.effect_totals.sel(effect='CO2').item() <= 50.0 + 1e-5
 
-    @pytest.mark.skip(reason='minimum_periodic not supported in fluxopt')
     def test_effect_minimum_periodic(self, optimize):
-        """Proves: minimum_periodic forces a minimum total periodic effect.
+        """Proves: periodic_min forces a minimum on the period's total effect.
 
-        Boiler with optional investment (invest=100€, CO2_periodic=50kg).
-        CO2 has minimum_periodic=40.
-
-        Sensitivity: Without minimum_periodic, no investment → cost=40.
-        With minimum_periodic=40, must invest → cost=120.
+        Optional boiler invest (100€, CO2=50kg); CO2 periodic_min=40 forces the invest
+        → cost = 100 + 20 = 120 (40 backup-only without the floor).
+        flixopt's minimum_periodic; equivalent here since CO2 is invest-only (PR #242).
         """
-        raise NotImplementedError  # TODO: implement minimum_periodic on Effect
+        result = optimize(
+            timesteps=ts(2),
+            carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
+            effects=[Effect(id='cost'), Effect(id='CO2', periodic_min=40)],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=np.array([10, 10]))]),
+                Port(id='GasSrc', imports=[Flow(carrier='Gas', effects_per_flow_hour={'cost': 1})]),
+            ],
+            converters=[
+                Converter.boiler(
+                    'InvestBoiler',
+                    thermal_efficiency=1.0,
+                    fuel_flow=Flow(carrier='Gas'),
+                    thermal_flow=Flow(
+                        carrier='Heat',
+                        size=Sizing(size_min=50, size_max=50, mandatory=False, effects_fixed={'cost': 100, 'CO2': 50}),
+                    ),
+                ),
+                Converter.boiler(
+                    'Backup',
+                    thermal_efficiency=0.5,
+                    fuel_flow=Flow(carrier='Gas'),
+                    thermal_flow=Flow(carrier='Heat', size=100),
+                ),
+            ],
+        )
+        assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
+        assert result.effect_totals.sel(effect='CO2').item() >= 40.0 - 1e-5

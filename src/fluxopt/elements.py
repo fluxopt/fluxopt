@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal, override
+from typing import Any, Literal, NamedTuple, override
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,6 +32,25 @@ def qualified_id(component: str, flow: str) -> str:
 def node_id(carrier: str, node: str) -> str:
     """Format a carrier-node id: ``carrier:node``."""
     return f'{carrier}{NODE_SEP}{node}'
+
+
+class _BoundFlow(NamedTuple):
+    """A flow bound to its place in a component (internal build record).
+
+    Produced by the ``_qualified_flows()`` method of Port, Converter, and
+    Storage — the single place where component-local ``short_id``s become
+    system-global qualified ids. The flow declaration itself is never
+    modified.
+    """
+
+    id: str
+    """Qualified flow id ``component(short_id)``."""
+    flow: Flow
+    """The flow declaration (unmodified)."""
+    sign: Literal[1, -1]
+    """Carrier-balance coefficient of the placement: +1 produces into the
+    carrier (imports, converter outputs, discharging), -1 consumes from it
+    (exports, converter inputs, charging)."""
 
 
 class Carrier(Element):
@@ -136,10 +155,11 @@ class Flow(Element):
         Flow(carrier='heat', node='A')  # short_id='heat:A'
         Flow(carrier='elec', short_id='base')  # short_id='base'
 
-    ``short_id`` must be unique within a component.  Storage renames
-    colliding short_ids to ``charge`` / ``discharge`` before qualification.
-    ``id`` is the qualified form set by the parent component:
-    ``component(short_id)``.
+    ``short_id`` must be unique within a component.  The system-global
+    qualified id ``component(short_id)`` is derived at build time and
+    appears as the ``flow`` coordinate in ``ModelData`` and results; the
+    flow itself is never modified. Storage resolves colliding short_ids
+    to ``charge`` / ``discharge`` at that point.
 
     See: docs/math/flows.md
     """
@@ -149,10 +169,8 @@ class Flow(Element):
     short_id: str = ''
     """Component-local identifier; defaults to ``carrier``
     (or ``carrier:node``). The qualified form ``component(short_id)``
-    is stored in ``id``.
+    is derived at build time.
     """
-    id: str = Field(default='', init=False)
-    """Qualified id ``component(short_id)``, set by the parent component."""
     node: str | None = None
     """Sub-node for multi-node carrier balancing."""
     size: float | Sizing | Investment | None = None  # P̄_f  [MW]
@@ -202,7 +220,8 @@ class Flow(Element):
     status initial conditions.
     """
 
-    # Identity semantics (mutable, id set by parent component) — was dataclass eq=False.
+    # Identity semantics — array-valued fields make value equality ill-defined,
+    # and set/dict usage needs hashability.
     def __eq__(self, other: object) -> bool:
         return self is other
 
@@ -211,14 +230,23 @@ class Flow(Element):
 
     @override
     def model_post_init(self, __context: Any) -> None:
-        """Default short_id from carrier/node, set id = short_id."""
+        """Default short_id from carrier/node and validate field combinations."""
         if not self.short_id:
             self.short_id = node_id(self.carrier, self.node) if self.node else self.carrier
-        self.id = self.short_id
         if self.status is not None and isinstance(self.relative_rate_min, (int, float)) and self.relative_rate_min <= 0:
             msg = (
                 f'Flow {self.short_id!r}: relative_rate_min must be > 0 when status is set, '
                 f'otherwise on/off is indistinguishable (got {self.relative_rate_min})'
+            )
+            raise ValueError(msg)
+        if (
+            self.status is not None
+            and self.fixed_relative_profile is not None
+            and isinstance(self.size, (Sizing, Investment))
+        ):
+            msg = (
+                f'Flow {self.short_id!r}: fixed_relative_profile is not supported together with '
+                f'Status and Sizing/Investment — fix the size or drop the profile'
             )
             raise ValueError(msg)
         if (self.load_factor_min is not None or self.load_factor_max is not None) and self.size is None:
@@ -239,7 +267,7 @@ class Effect(Element):
     """A tracked quantity across the optimization horizon (cost, CO₂, …).
 
     One effect is designated as the objective to minimize via the
-    ``objective_effects`` argument of ``optimize()``. Others can be bounded
+    ``objective`` argument of ``optimize()``. Others can be bounded
     to enforce budgets (e.g. emission caps).
 
     Effects accumulate contributions from two domains:
@@ -269,14 +297,11 @@ class Effect(Element):
     """Lower bound applied to each period independently.
     Scalar or per-period values (multi-period only).
     """
-    rate_max: Variate | None = None  # Φ̄_{k,t}  [unit/h] — rate, scaled by dt
-    """Upper bound rate [unit/h], scaled by Δt."""
-    rate_min: Variate | None = None  # Φ̲_{k,t}  [unit/h] — rate, scaled by dt
-    """Lower bound rate [unit/h], scaled by Δt."""
     contribution_from: dict[str, Variate] = Field(default_factory=dict)
     """Cross-effect factors ``{source_effect: factor}``.
-    Scalar factors apply identically to both domains; time-varying
-    factors are averaged for the lump domain.
+    Scalar factors apply identically to both domains. Time-varying factors
+    apply per-timestep in the temporal domain and are rejected at build time
+    when the source effect carries lump (sizing/fixed) contributions.
     """
     period_weights: list[float] | None = None  # ω[p] — scales total across periods
     """Per-period weights ω for total aggregation;
@@ -287,13 +312,18 @@ class Effect(Element):
 class Storage(Element):
     """Energy storage with level dynamics.
 
-    Flow ids are qualified as ``storage(flow)``. When both flows connect
-    to the same carrier, they are renamed to ``charge`` / ``discharge``::
+    Flow ids are qualified as ``storage(flow)`` at build time. When both
+    flows share a short_id, the qualified ids use ``charge`` /
+    ``discharge`` instead (the flows themselves are never modified)::
 
         Storage(
             id='bat', charging=Flow(carrier='elec'), discharging=Flow(carrier='elec')
         )  # bat(charge), bat(discharge)
-        Storage(id='bat', charging=Flow(carrier='elec'), discharging=Flow(carrier='heat'))  # bat(elec), bat(heat)
+        Storage(
+            id='bat',
+            charging=Flow(carrier='elec', short_id='in'),
+            discharging=Flow(carrier='elec', short_id='out'),
+        )  # bat(in), bat(out)
 
     Level balance::
 
@@ -345,20 +375,38 @@ class Storage(Element):
     (the two switches would have no defined precedence).
     """
 
+    def _local_short_ids(self) -> tuple[str, str]:
+        """Component-local flow names; a colliding pair becomes ``charge`` / ``discharge``."""
+        if self.charging.short_id == self.discharging.short_id:
+            return 'charge', 'discharge'
+        return self.charging.short_id, self.discharging.short_id
+
+    @property
+    def _charging_id(self) -> str:
+        """Qualified id of the charging flow, derived at build time."""
+        return qualified_id(self.id, self._local_short_ids()[0])
+
+    @property
+    def _discharging_id(self) -> str:
+        """Qualified id of the discharging flow, derived at build time."""
+        return qualified_id(self.id, self._local_short_ids()[1])
+
+    def _qualified_flows(self) -> list[_BoundFlow]:
+        """Both flows with qualified ids; charging consumes, discharging produces."""
+        return [
+            _BoundFlow(self._charging_id, self.charging, -1),
+            _BoundFlow(self._discharging_id, self.discharging, 1),
+        ]
+
     @override
     def model_post_init(self, __context: Any) -> None:
-        """Validate carrier match, rename colliding flow ids, and qualify."""
+        """Validate carrier match and status/size requirements."""
         if self.charging.carrier != self.discharging.carrier:
             msg = (
                 f'Storage {self.id!r}: charging carrier {self.charging.carrier!r} '
                 f'!= discharging carrier {self.discharging.carrier!r}'
             )
             raise ValueError(msg)
-        if self.charging.short_id == self.discharging.short_id:
-            self.charging.short_id = 'charge'
-            self.discharging.short_id = 'discharge'
-        self.charging.id = qualified_id(self.id, self.charging.short_id)
-        self.discharging.id = qualified_id(self.id, self.discharging.short_id)
         if self.status is not None:
             for f in (self.charging, self.discharging):
                 if f.status is not None:

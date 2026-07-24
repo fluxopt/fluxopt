@@ -22,7 +22,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(3),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -75,7 +75,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -127,7 +127,7 @@ class TestFlowInvest:
             timesteps=ts(2),
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -172,7 +172,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -212,7 +212,7 @@ class TestFlowInvest:
         # fuel=60 (all from FixedBoiler @eta=1), invest=10, total=70
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 70.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='piecewise sizing not supported in fluxopt')
+    @pytest.mark.skip(reason='piecewise investment effects not supported — issue #26')
     def test_piecewise_invest_cost(self, optimize):
         """Proves: piecewise_effects_of_investment applies non-linear investment costs
         where the cost-per-size changes across size segments (economies of scale).
@@ -238,7 +238,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -296,7 +296,7 @@ class TestFlowInvest:
         result = optimize(
             timesteps=ts(2),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -337,7 +337,7 @@ class TestFlowInvest:
         # CheapBoiler covers all: fuel = 20/0.5 = 40
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
 
-    @pytest.mark.skip(reason='retirement effects not supported in fluxopt')
+    @pytest.mark.skip(reason='retirement effects not supported — issue #18')
     def test_invest_effects_of_retirement(self, optimize):
         """Proves: effects_of_retirement adds a cost when NOT investing.
 
@@ -348,7 +348,7 @@ class TestFlowInvest:
         """
         raise NotImplementedError  # TODO: implement effects_of_retirement on Sizing
 
-    @pytest.mark.skip(reason='retirement effects not supported in fluxopt')
+    @pytest.mark.skip(reason='retirement effects not supported — issue #18')
     def test_invest_retirement_triggers_when_not_investing(self, optimize):
         """Proves: effects_of_retirement is incurred when investment is skipped.
 
@@ -374,7 +374,7 @@ class TestFlowInvestWithStatus:
         result = optimize(
             timesteps=ts(4),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -427,7 +427,7 @@ class TestFlowInvestWithStatus:
         result = optimize(
             timesteps=ts(3),
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -474,7 +474,7 @@ class TestFlowInvestWithStatus:
         status = result.solution['flow--on'].sel(flow='InvestBoiler(Heat)').values
         assert_allclose(status, [1, 1, 1], atol=1e-5)
 
-    @pytest.mark.skip(reason='active_hours not supported in fluxopt')
+    @pytest.mark.skip(reason='active_hours_min/max not supported — issue #16')
     def test_invest_with_active_hours_max(self, optimize):
         """Proves: Invested unit respects active_hours_max constraint.
 

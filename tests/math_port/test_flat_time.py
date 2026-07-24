@@ -246,7 +246,6 @@ class TestEpisodeBigM:
             periods=[2030, 2040],
             period_weights=[1, 1],
         )
-        fs = FlowSystemModel(data)
-        fs._objective_effects = {'cost': 1.0}
+        fs = FlowSystemModel(data, objective='cost')
         fs.build()
         assert float(fs.m.variables['uptime'].upper.max()) == 3.0

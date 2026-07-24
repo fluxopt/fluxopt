@@ -15,7 +15,7 @@ class TestCarrierBalance:
             timesteps=ts(2),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='Demand',
@@ -54,7 +54,7 @@ class TestMultiNodeBalance:
             timesteps=ts(2),
             carriers=[Carrier(id='heat', nodes=['A', 'B'])],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='cheap_a', imports=[Flow(carrier='heat', node='A', size=100, effects_per_flow_hour={'cost': 1})]
@@ -80,7 +80,7 @@ class TestMultiNodeBalance:
             timesteps=ts(2),
             carriers=[Carrier(id='heat', nodes=['A', 'B'])],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='cheap_a', imports=[Flow(carrier='heat', node='A', size=200, effects_per_flow_hour={'cost': 1})]
@@ -103,7 +103,7 @@ class TestMultiNodeBalance:
             timesteps=ts(2),
             carriers=[Carrier(id='elec'), Carrier(id='heat', nodes=['A', 'B'])],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 # Electricity: single-node
                 Port(id='grid', imports=[Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.1})]),

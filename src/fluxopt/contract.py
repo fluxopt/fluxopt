@@ -1,0 +1,117 @@
+"""The cross-layer data contract.
+
+Names shared between the layers — ``model_data`` (writes them),
+``model`` (builds variables/constraints from them), and ``results`` /
+``contributions`` / ``stats`` (read the solution) — live here so a rename
+is a one-line change instead of a silent cross-file drift.
+
+Core dimensions
+    The entity dimensions ``flow``, ``carrier``, ``converter``, ``storage``,
+    ``effect``, ``source_effect``, ``time``, ``period`` and the converter
+    equation axis ``eq_idx`` are stable vocabulary used as plain literals
+    throughout — ubiquitous enough that constants would hurt readability.
+    The *regime* dimensions below index optional feature tables over a
+    subset of an entity dimension and are renamed back to the entity
+    dimension at constraint time.
+
+Sentinel conventions
+    - ``NaN`` in a parameter array means "not set": an unsized flow's
+      ``size``, unbounded aggregate limits (``flow_hours_*``,
+      ``load_factor_*``, effect ``total_*`` / ``periodic_*``), a free
+      storage ``prior_level`` / final level, an ``Investment`` lifetime
+      (forever), unknown prior status durations, and a carrier
+      ``flow_coeff`` entry for a flow not on that carrier.
+    - ``''`` (empty string) means "not set" for color fields and is the
+      padding value in the ragged ``governed_flows`` string array.
+    - ``None`` at container level means the feature is absent entirely
+      (the converters/storages/piecewise tables, the sizing / invest /
+      status sub-containers, and all-NaN optional per-flow bounds).
+    - ``bound_type`` is the one explicit sentinel: :class:`BoundType`.
+
+Solution variables
+    linopy variable names follow ``<family>--<field>`` with family one of
+    ``flow`` / ``component`` / ``storage`` / ``invest`` / ``effect``.
+    The same names key ``Result.solution``.
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class BoundType(StrEnum):
+    """How a flow's rate envelope is bounded — the model layer's dispatch key."""
+
+    UNSIZED = 'unsized'
+    """No size: rate is only bounded below by 0 (and above by nothing)."""
+    BOUNDED = 'bounded'
+    """Rate in ``[rel_lb, rel_ub] * size``."""
+    PROFILE = 'profile'
+    """Rate fixed to ``fixed_profile * size``."""
+
+
+class Dim:
+    """Regime dimensions: optional feature tables over an entity subset.
+
+    Distinct from the entity dimensions (plain literals, see module
+    docstring) and from the :class:`~fluxopt.model_data.Dims` data table.
+    """
+
+    SIZING_FLOW = 'sizing_flow'
+    INVEST_FLOW = 'invest_flow'
+    STATUS_FLOW = 'status_flow'
+    CSTATUS_COMPONENT = 'cstatus_component'
+    SIZING_STORAGE = 'sizing_storage'
+    INVEST_STORAGE = 'invest_storage'
+    PW_CONVERTER = 'pw_converter'
+    PW_PAIR = 'pw_pair'
+
+
+class Contribution:
+    """Effect-contribution term keys (see :mod:`fluxopt.effect_terms`).
+
+    Each key names one way a solver variable (or constant) contributes to
+    the effects; the same keys identify the shares in the post-solve
+    decomposition.
+    """
+
+    FLOW_HOUR = 'flow_hour'
+    STATUS_RUNNING = 'status_running'
+    STATUS_STARTUP = 'status_startup'
+    COMPONENT_RUNNING = 'component_running'
+    COMPONENT_STARTUP = 'component_startup'
+    FLOW_SIZING_PER_SIZE = 'flow_sizing_per_size'
+    FLOW_SIZING_FIXED_OPTIONAL = 'flow_sizing_fixed_optional'
+    FLOW_SIZING_FIXED_MANDATORY = 'flow_sizing_fixed_mandatory'
+    STORAGE_SIZING_PER_SIZE = 'storage_sizing_per_size'
+    STORAGE_SIZING_FIXED_OPTIONAL = 'storage_sizing_fixed_optional'
+    STORAGE_SIZING_FIXED_MANDATORY = 'storage_sizing_fixed_mandatory'
+    INVEST_PER_SIZE_AT_BUILD = 'invest_per_size_at_build'
+    INVEST_FIXED_AT_BUILD = 'invest_fixed_at_build'
+    INVEST_PER_SIZE_RECURRING = 'invest_per_size_recurring'
+    INVEST_FIXED_RECURRING = 'invest_fixed_recurring'
+
+
+class Var:
+    """Solution variable names, ``<family>--<field>`` (also keys of ``Result.solution``)."""
+
+    FLOW_RATE = 'flow--rate'
+    FLOW_SIZE = 'flow--size'
+    FLOW_SIZE_INDICATOR = 'flow--size_indicator'
+    FLOW_ON = 'flow--on'
+    FLOW_STARTUP = 'flow--startup'
+    FLOW_SHUTDOWN = 'flow--shutdown'
+    COMPONENT_ON = 'component--on'
+    COMPONENT_STARTUP = 'component--startup'
+    COMPONENT_SHUTDOWN = 'component--shutdown'
+    STORAGE_LEVEL = 'storage--level'
+    STORAGE_CHARGING = 'storage--charging'
+    STORAGE_CAPACITY = 'storage--capacity'
+    STORAGE_SIZE_INDICATOR = 'storage--size_indicator'
+    STORAGE_PRIOR = 'storage--prior'
+    INVEST_SIZE = 'invest--size'
+    INVEST_SIZE_AT_BUILD = 'invest--size_at_build'
+    INVEST_BUILD = 'invest--build'
+    INVEST_ACTIVE = 'invest--active'
+    EFFECT_TOTAL = 'effect--total'
+    EFFECT_LUMP = 'effect--lump'

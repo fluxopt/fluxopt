@@ -130,15 +130,15 @@ class TestEffectsTable:
 
 
 class TestFlowNodeId:
-    def test_node_included_in_default_id(self):
-        """Flow with node set auto-generates carrier:node id."""
+    def test_node_included_in_default_short_id(self):
+        """Flow with node set auto-generates carrier:node short_id."""
         f = Flow(carrier='heat', node='A')
-        assert f.id == 'heat:A'
+        assert f.short_id == 'heat:A'
 
     def test_node_without_node_uses_carrier(self):
-        """Flow without node uses carrier as id."""
+        """Flow without node uses carrier as short_id."""
         f = Flow(carrier='heat')
-        assert f.id == 'heat'
+        assert f.short_id == 'heat'
 
 
 class TestStorageValidation:
@@ -147,21 +147,62 @@ class TestStorageValidation:
         with pytest.raises(ValueError, match='charging carrier'):
             Storage(id='bat', charging=Flow(carrier='elec'), discharging=Flow(carrier='heat'))
 
-    def test_same_short_id_renamed_to_charge_discharge(self):
-        """Storage with same short_id renames both short_id and id."""
+    def test_same_short_id_resolves_to_charge_discharge(self):
+        """Colliding short_ids resolve to charge/discharge in the qualified ids only."""
         s = Storage(id='bat', charging=Flow(carrier='elec'), discharging=Flow(carrier='elec'))
-        assert s.charging.short_id == 'charge'
-        assert s.discharging.short_id == 'discharge'
-        assert s.charging.id == 'bat(charge)'
-        assert s.discharging.id == 'bat(discharge)'
+        assert s.charging.short_id == 'elec'  # declaration untouched
+        assert s.discharging.short_id == 'elec'
+        assert s._charging_id == 'bat(charge)'
+        assert s._discharging_id == 'bat(discharge)'
 
     def test_distinct_short_ids_preserved(self):
         """Storage with explicit different short_ids keeps them in qualified id."""
         s = Storage(
             id='bat', charging=Flow(carrier='elec', short_id='in'), discharging=Flow(carrier='elec', short_id='out')
         )
-        assert s.charging.id == 'bat(in)'
-        assert s.discharging.id == 'bat(out)'
+        assert s._charging_id == 'bat(in)'
+        assert s._discharging_id == 'bat(out)'
+
+
+class TestFlowQualification:
+    def test_declarations_are_never_mutated(self):
+        """Placing a flow in a component leaves the flow object untouched."""
+        f = Flow(carrier='elec')
+        Port(id='grid', imports=[f])
+        assert f.short_id == 'elec'
+        assert not hasattr(f, 'id')
+
+    def test_port_qualified_flows_carry_signs(self):
+        buy, sell = Flow(carrier='elec', short_id='buy'), Flow(carrier='elec', short_id='sell')
+        port = Port(id='grid', imports=[buy], exports=[sell])
+        assert [(bf.id, bf.sign) for bf in port._qualified_flows()] == [
+            ('grid(buy)', 1),
+            ('grid(sell)', -1),
+        ]
+
+    def test_flow_reused_across_components_gets_two_entries(self):
+        """One flow declaration placed in two components yields two dataset columns."""
+        f = Flow(carrier='b', size=100)
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier(id='b')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='src', imports=[f]), Port(id='sink', exports=[f])],
+        )
+        assert list(data.flows.size.coords['flow'].values) == ['src(b)', 'sink(b)']
+
+    def test_port_duplicate_short_ids_raise_at_construction(self):
+        with pytest.raises(ValueError, match=r"Port 'grid': duplicate flow short_id\(s\) \['elec'\]"):
+            Port(id='grid', imports=[Flow(carrier='elec')], exports=[Flow(carrier='elec')])
+
+    def test_converter_duplicate_short_ids_raise_at_construction(self):
+        with pytest.raises(ValueError, match=r"Converter 'c': duplicate flow short_id\(s\) \['gas'\]"):
+            Converter(
+                id='c',
+                inputs=[Flow(carrier='gas'), Flow(carrier='gas')],
+                outputs=[Flow(carrier='heat')],
+                conversion_factors=[{'gas': 0.9, 'heat': -1}],
+            )
 
 
 class TestConverterValidation:
@@ -199,18 +240,18 @@ class TestConverterValidation:
 class TestCarrierValidation:
     def test_undeclared_carrier_raises(self):
         """Flow referencing an undeclared carrier raises ValueError."""
-        with pytest.raises(ValueError, match='not in the declared carriers'):
+        with pytest.raises(ValueError, match='undeclared carrier'):
             optimize(
                 timesteps=ts(2),
                 carriers=[Carrier(id='gas')],
                 effects=[Effect(id='cost')],
-                objective_effects='cost',
+                objective='cost',
                 ports=[Port(id='grid', imports=[Flow(carrier='elec', size=100)])],
             )
 
     def test_undeclared_carrier_in_model_data_build(self):
         """ModelData.build rejects flows with undeclared carriers."""
-        with pytest.raises(ValueError, match="carrier 'elec'"):
+        with pytest.raises(ValueError, match=r"undeclared carrier\(s\) \['elec'\]"):
             ModelData.build(
                 ts(2),
                 carriers=[Carrier(id='gas')],
@@ -256,7 +297,7 @@ class TestCarrierBalance:
             timesteps=ts(3),
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(id='src', imports=[Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 0.04})]),
                 Port(id='sink', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
@@ -278,7 +319,7 @@ class TestMultiNodeCarrier:
             timesteps=ts(3),
             carriers=[Carrier(id='heat', nodes=['A', 'B'])],
             effects=[Effect(id='cost')],
-            objective_effects='cost',
+            objective='cost',
             ports=[
                 Port(
                     id='src_a', imports=[Flow(carrier='heat', node='A', size=100, effects_per_flow_hour={'cost': 0.04})]
@@ -528,3 +569,56 @@ class TestOperationalInputAlignment:
         )
         with pytest.raises(ValueError, match='uniform grid'):
             self._build(frame, timesteps=ragged, periods=None)
+
+
+class TestEffectTerms:
+    def test_terms_enumerate_declared_contributions(self):
+        """The term table names every contribution of a full-featured system."""
+        from fluxopt import Sizing, Status
+        from fluxopt.contract import Contribution
+        from fluxopt.effect_terms import effect_terms
+
+        source = Flow(
+            carrier='elec',
+            size=Sizing(size_min=0, size_max=100, effects_per_size={'cost': 5.0}, mandatory=False),
+            relative_rate_min=0.1,
+            status=Status(effects_per_running_hour={'cost': 1.0}, effects_per_startup={'cost': 2.0}),
+            effects_per_flow_hour={'cost': 0.04},
+        )
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        bat = Storage(
+            id='bat',
+            charging=Flow(carrier='elec', size=10),
+            discharging=Flow(carrier='elec', size=10),
+            capacity=Sizing(size_min=0, size_max=50, effects_per_size={'cost': 3.0}, effects_fixed={'cost': 7.0}),
+        )
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
+            storages=[bat],
+        )
+        keys = {t.key for t in effect_terms(data)}
+        assert keys == {
+            Contribution.FLOW_HOUR,
+            Contribution.STATUS_RUNNING,
+            Contribution.STATUS_STARTUP,
+            Contribution.FLOW_SIZING_PER_SIZE,
+            Contribution.STORAGE_SIZING_PER_SIZE,
+            Contribution.STORAGE_SIZING_FIXED_MANDATORY,
+        }
+
+    def test_zero_coefficient_terms_are_omitted(self):
+        """Terms whose coefficients are all zero do not appear."""
+        from fluxopt.effect_terms import effect_terms
+
+        flow = Flow(carrier='elec', size=100)
+        demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
+        data = ModelData.build(
+            ts(3),
+            carriers=[Carrier(id='elec')],
+            effects=[Effect(id='cost')],
+            ports=[Port(id='grid', imports=[flow]), Port(id='demand', exports=[demand])],
+        )
+        assert effect_terms(data) == []

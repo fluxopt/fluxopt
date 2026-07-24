@@ -11,7 +11,7 @@ _BASE = {
     'timesteps': [0, 1],
     'carriers': [Carrier(id='Heat')],
     'effects': [Effect(id='cost')],
-    'objective_effects': 'cost',
+    'objective': 'cost',
 }
 
 
@@ -31,7 +31,7 @@ class TestValidReferences:
 
     def test_penalty_effect_is_allowed(self) -> None:
         # 'penalty' is a built-in objective target even when not declared.
-        assert _system(objective_effects={'cost': 1, 'penalty': 0}) is not None
+        assert _system(objective={'cost': 1, 'penalty': 0}) is not None
 
     def test_nested_effect_refs_pass(self) -> None:
         # effect keys inside Sizing / Status still validate.
@@ -72,8 +72,8 @@ class TestFailFast:
             _system(ports=[Port(id='S', imports=[Flow(carrier='gas')])])
 
     def test_bad_objective(self) -> None:
-        with pytest.raises(ValidationError, match='objective_effects references undeclared'):
-            _system(objective_effects='nope')
+        with pytest.raises(ValidationError, match='objective references undeclared'):
+            _system(objective='nope')
 
     def test_duplicate_effect_id(self) -> None:
         with pytest.raises(ValidationError, match='Duplicate effect'):
@@ -92,3 +92,9 @@ class TestFailFast:
         good['ports'][0]['imports'][0]['effects_per_flow_hour'] = {'co2': 1}
         with pytest.raises(ValidationError, match='undeclared effect'):
             FlowSystem.from_dict(good)
+
+    def test_penalty_only_objective_rejected(self) -> None:
+        with pytest.raises(ValidationError, match='non-penalty effect'):
+            _system(objective='penalty')
+        with pytest.raises(ValidationError, match='non-penalty effect'):
+            _system(objective={'penalty': 1.0})

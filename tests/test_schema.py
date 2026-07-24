@@ -39,11 +39,12 @@ class TestValidation:
 
             Flow(carrier='gas', relative_rate_min=0.0, size=10.0, status=Status())
 
-    def test_nested_identity_and_qualification_preserved(self) -> None:
+    def test_nested_identity_preserved_without_mutation(self) -> None:
         gas, heat = Flow(carrier='gas'), Flow(carrier='heat')
         conv = Converter.boiler('b', 0.9, gas, heat)
         assert conv.inputs[0] is gas  # pydantic keeps the instance
-        assert gas.id == 'b(gas)'  # parent qualified it in place
+        assert gas.short_id == 'gas'  # the declaration is never modified
+        assert conv._qualified_flows()[0].id == 'b(gas)'  # qualification is derived, not stored
 
 
 class TestSchema:
