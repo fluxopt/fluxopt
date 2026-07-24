@@ -119,6 +119,7 @@ extend-fixable = ["B", "SIM", "RUF", "C4", "UP"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
 "scripts/**/*.py" = ["T201", "RUF003"]
+"src/fluxopt/benchmark.py" = ["T201"]
 "docs/notebooks/*.ipynb" = ["T201", "RUF001", "RUF003"]
 
 [tool.ruff.format]

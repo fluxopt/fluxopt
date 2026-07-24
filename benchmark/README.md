@@ -13,6 +13,9 @@ One `benchmark()` suite, served by [CodSpeed] in CI and [pytest-benchmem] locall
 - `test_build.py` — the feature matrix at one scale, and a multi_node scaling curve.
 - `test_io.py` — the same matrix + scaling curve for `ModelData.to_netcdf`
   (write) and `ModelData.from_netcdf` (read). Solve-free, so no solved `Result`.
+- `test_reference.py` — the realistic reference systems bundled in the package
+  (`fluxopt.benchmark`, also behind `python -m fluxopt.benchmark`) at a quarter
+  year. Skips on fluxopt versions that predate the module.
 
 ## Pinned, standalone env
 
@@ -40,6 +43,49 @@ token), tracking history and annotating PRs on the dashboard:
 
 Both are `continue-on-error` (informational, never block a merge). The walltime
 job needs a CodSpeed `codspeed-macro` runner provisioned for the org.
+
+## Compare two refs — benchmem sweep
+
+Compare any two fluxopt refs or released versions with one fresh venv per
+ref — without touching your checkout (a dirty tree is fine). From the repo
+root:
+
+```bash
+uvx --from 'git+https://github.com/fluxopt/pytest-benchmem' benchmem sweep fluxopt \
+    git+https://github.com/fluxopt/fluxopt@main \
+    git+https://github.com/fluxopt/fluxopt@my-branch \
+    --suite benchmark/ --memory
+uvx --from 'git+https://github.com/fluxopt/pytest-benchmem' benchmem compare .benchmarks/sweep/*.json
+```
+
+Once the next pytest-benchmem release ships, install plain
+`'pytest-benchmem[plot]'` from PyPI instead — the released 0.4.10 needs the
+`git+` source (and workaround flags) because of
+[pytest-benchmem#168–171](https://github.com/fluxopt/pytest-benchmem/issues/168),
+all fixed on its `main`.
+
+Sweep resolves one fresh venv per ref (no lockfile — it can't, the dependency
+set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
+`--pin <spec>` to hold individual dependencies still.
+
+## Or: switch branches
+
+Zero extra installs — run the suite on each branch in the pinned env
+(`uv run` re-syncs the editable fluxopt after every switch; needs a clean
+tree):
+
+```bash
+cd benchmark
+uv run pytest . --benchmark-only --benchmark-memory --benchmark-json head.json
+git switch main
+uv run pytest . --benchmark-only --benchmark-memory --benchmark-json base.json
+git switch -
+uv run benchmem compare base.json head.json
+```
+
+Both flows run the whole suite — archetypes, IO, and the realistic reference
+systems. On PRs, the `benchmark-hint` workflow runs `test_reference.py` the
+same way and posts the numbers as a sticky comment.
 
 ## Local memory profiling — pytest-benchmem
 
