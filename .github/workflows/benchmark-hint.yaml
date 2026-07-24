@@ -1,0 +1,72 @@
+name: Benchmark hint
+
+# A small performance hint on every PR: run the realistic reference-system
+# suite (benchmark/test_reference.py) under pytest-benchmem and post its
+# numbers as one sticky PR comment (and to the job summary). Informational
+# only — deltas and dashboards are CodSpeed's job; local ref-vs-ref
+# comparison is `benchmem sweep` (see benchmark/README.md).
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hint:
+    name: Benchmark hint
+    runs-on: ubuntu-latest
+    continue-on-error: true # informational, never blocks a merge
+    permissions:
+      contents: read
+      pull-requests: write # sticky comment
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # hatch-vcs
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Run reference benchmarks (pytest-benchmem)
+        working-directory: benchmark
+        run: |
+          uv sync --frozen
+          uv run --no-sync pytest test_reference.py --benchmark-only --benchmark-memory \
+            --benchmark-json "$RUNNER_TEMP/run.json"
+      - name: Report the numbers
+        working-directory: benchmark
+        run: |
+          {
+            echo '### Benchmark hint'
+            echo ''
+            echo '`benchmark/test_reference.py` under [pytest-benchmem](https://github.com/fluxopt/pytest-benchmem) — quarter-year horizon; peak = memray allocator high-water, as on CodSpeed. Shared-runner walltime is noisy: a hint, not a gate.'
+            echo ''
+            uv run --no-sync benchmem compare "$RUNNER_TEMP/run.json" \
+              --format md --columns time,peak --stat mean --group-by func
+            echo ''
+            echo '<details>'
+            echo '<summary>Replicate locally / compare against ${{ github.event.pull_request.base.ref }}</summary>'
+            echo ''
+            echo '```bash'
+            echo "uvx --from 'git+https://github.com/fluxopt/pytest-benchmem' benchmem sweep fluxopt \\"
+            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.base.ref }} \'
+            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.head.ref }} \'
+            echo '    --suite benchmark/ --memory'
+            echo "uvx --from 'git+https://github.com/fluxopt/pytest-benchmem' benchmem compare .benchmarks/sweep/*.json"
+            echo '```'
+            echo ''
+            echo 'One fresh venv per ref, checkout untouched; covers the archetype, IO and reference-system benchmarks. Alternative flows: benchmark/README.md.'
+            echo '</details>'
+          } > "$RUNNER_TEMP/comment.md"
+          cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Post as sticky PR comment
+        # Fork PRs get a read-only token; their numbers stay in the job summary.
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh pr comment "${{ github.event.pull_request.number }}"
+          --edit-last --create-if-none
+          --body-file "$RUNNER_TEMP/comment.md"

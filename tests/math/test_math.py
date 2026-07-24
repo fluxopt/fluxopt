@@ -398,6 +398,37 @@ class TestEffects:
         )
         assert_allclose(result.objective, 15.0, rtol=1e-5)
 
+    def test_effect_constant_contribution_does_not_warn(self):
+        """A constant contribution_from must not trip the time-varying warning (mean != value in float)."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            optimize(
+                ts(3),
+                carriers=[Carrier(id='Heat')],
+                effects=[
+                    Effect(id='cost', contribution_from={'co2': 0.045}),
+                    Effect(id='co2'),
+                ],
+                objective='cost',
+                ports=[
+                    Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5, 5])]),
+                    Port(
+                        id='Source',
+                        imports=[
+                            Flow(
+                                carrier='Heat',
+                                effects_per_flow_hour={'co2': 1},
+                                size=Sizing(size_min=10, size_max=10, mandatory=True, effects_per_size={'co2': 1.0}),
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        msgs = [str(w.message) for w in caught]
+        assert not any('averaged over time' in m for m in msgs), f'Unexpected warning: {msgs}'
+
 
 # ---------------------------------------------------------------------------
 # Flow constraints

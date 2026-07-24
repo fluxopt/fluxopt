@@ -1387,7 +1387,7 @@ class FlowSystemModel:
         lump_rhs: Any = lump_direct
         if ds.cf_temporal is not None:
             cf_lump = ds.cf_temporal.mean('time')
-            varying = (ds.cf_temporal != cf_lump).any('time')  # (effect, source_effect)
+            varying = (ds.cf_temporal != ds.cf_temporal.isel(time=0)).any('time')  # (effect, source_effect)
             if bool(varying.any().item()):
                 bearing = _lump_bearing_effects(terms, cf_lump)
                 mask = varying & bearing.rename({'effect': 'source_effect'})
