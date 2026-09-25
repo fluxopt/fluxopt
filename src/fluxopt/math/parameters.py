@@ -29,7 +29,7 @@ import pandas as pd
 import polars as pl
 
 if TYPE_CHECKING:
-    from math_spec import Model
+    from mathspec import Spec as Model
 
     from fluxopt.model_data import ModelData
 
@@ -122,7 +122,7 @@ class Parameters:
         # second has only its own name to be keyed by.
         # A lookup is a source key of its own, so the three kinds arrive
         # already apart and nothing has to be taken out of an index table.
-        names = set(model.lookups)
+        names = set(model.relations)
         return cls(
             dimensions={k: _as_frame(v, k) for k, v in coords.items()},
             lookups={k: _as_frame(v, k) for k, v in sources.items() if k in names},

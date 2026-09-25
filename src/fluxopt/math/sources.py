@@ -35,12 +35,12 @@ PROGRAM = Path(__file__).with_name('program.yaml')
 def program() -> Any:
     """fluxopt's math, loaded and checked.
 
-    A :class:`math_spec.Model` — the language is its own package, so `Model`
+    A :class:`mathspec.Model` — the language is its own package, so `Model`
     and the typesetters come from there while the engine verbs come from
     lpspec. This is the pairing of :data:`PROGRAM` with the loader, which four
     callers wanted and none wanted separately.
     """
-    from math_spec import load_model
+    from mathspec import to_spec as load_model
 
     return load_model(PROGRAM)
 

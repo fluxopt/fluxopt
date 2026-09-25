@@ -18,14 +18,14 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import xarray as xr
-from lpspec import NoSolutionError
+from specsolve import NoSolutionError
 
 from fluxopt.contract import Var
 from fluxopt.results import Result
 
 if TYPE_CHECKING:
-    from lpspec import Result as Solved
-    from math_spec import Model
+    from mathspec import Spec as Model
+    from specsolve import Result as Solved
 
     from fluxopt.model_data import ModelData
 
@@ -233,7 +233,7 @@ def _expressions(result: Any, model: Any, data: ModelData) -> xr.Dataset:
     evaluated: dict[str, xr.DataArray] = {}
     for name in model.expressions:
         try:
-            frame = result.expression(name)
+            frame = result.evaluate(name)
         except Exception as exc:  # advisory: one unreadable name is not a failed solve
             warnings.warn(f'expression {name!r} could not be read back ({exc!r})', stacklevel=3)
             continue

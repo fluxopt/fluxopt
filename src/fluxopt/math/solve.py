@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import lpspec
+import specsolve as lpspec
 
 from fluxopt.math.results import objective_weights, to_result
 from fluxopt.math.sources import build_sources, program
@@ -12,7 +12,7 @@ from fluxopt.math.sources import build_sources, program
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from math_spec import Model
+    from mathspec import Spec as Model
 
     from fluxopt.model_data import ModelData
     from fluxopt.results import Result
@@ -82,8 +82,11 @@ def solve(
             msg = f"these names are the program's own and cannot be supplied: {clashes}"
             raise ValueError(msg)
         bound |= supplied
-    from math_spec import load_model
+    from mathspec import to_spec as load_model
 
     model = program() if math is None else load_model(math)
-    solved = lpspec.solve(model, bound, solver_name, solver_options=solver_options)
+    # HiGHS has no special-ordered sets, so the piecewise set is written out
+    # as binaries for it; a sink that takes `sos:` gets the set as declared.
+    built = model.expand('sos') if solver_name == 'highs' else model
+    solved = lpspec.solve(built, bound, solver_name, solver_options=solver_options)
     return to_result(solved, data, weights, model)

@@ -41,7 +41,7 @@ class TestReadable:
             'every parameter the program declares should have a table bound for it'
         )
         assert set(params.dimensions) == set(math.dimensions)
-        assert set(params.lookups) == set(math.lookups)
+        assert set(params.lookups) == set(math.relations)
 
     def test_every_table_is_polars(self) -> None:
         """One format out, whatever the binder happened to build it with."""
@@ -148,14 +148,14 @@ class TestSupplyingALookup:
         math = system.math()
         raw = math.to_dict()
         raw['dimensions']['region'] = {'dtype': 'str'}
-        raw['lookups']['region_of'] = {'over': 'flow', 'into': 'region'}
+        raw['relations']['region_of'] = {'key': 'flow', 'values': 'region'}
         raw['parameters']['region_cap'] = {'dims': ['region', 'time', 'period']}
         raw['constraints']['region_limit'] = {
-            'foreach': ['region', 'time', 'period'],
+            'dims': ['region', 'time', 'period'],
             'where': 'region_cap',
-            'expression': 'sum(rate, by=region_of) <= region_cap',
+            'expression': 'sum(rate, by=region_of, over=flow, into=region) <= region_cap',
         }
-        from math_spec import load_model
+        from mathspec import to_spec as load_model
 
         return system, load_model(raw)
 

@@ -52,7 +52,7 @@ class TestEditingTheMath:
         math = system.math()
         math.parameters['grid_cap'] = type(math.parameters['carrier_sign'])(dims=['time'])
         math.constraints['grid_cap_row'] = type(math.constraints['carrier_balance'])(
-            foreach=['flow', 'time', 'period'],
+            dims=['flow', 'time', 'period'],
             where='is_grid',
             expression='rate <= grid_cap',
         )

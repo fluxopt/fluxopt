@@ -39,17 +39,17 @@ dimensions:
 # arrive as columns on the `flow` index table, each named for its lookup.
 # `_of` where the bare name would shadow the dimension it maps into — the
 # namespace is flat and refuses that.
-lookups:
-  carrier_of: {over: flow, into: carrier}
-  converter_of: {over: flow, into: converter}
-  charge_storage: {over: flow, into: storage}
-  discharge_storage: {over: flow, into: storage}
+relations:
+  carrier_of: {key: flow, values: carrier}
+  converter_of: {key: flow, values: converter}
+  charge_storage: {key: flow, values: storage}
+  discharge_storage: {key: flow, values: storage}
   # The decision a flow's rate answers to: itself where the flow carries
   # its own Status, its component where a component's Status governs it,
   # null where nothing gates it. `at()` reads the binary back through it.
-  status_of: {over: flow, into: status_entity}
+  status_of: {key: flow, values: status_entity}
   # A piecewise curve's own on/off decision, where its component has one.
-  pw_status_of: {over: converter, into: status_entity}
+  pw_status_of: {key: converter, values: status_entity}
 
 parameters:
   # Boundary mask as data, not a `time > 0` comparison: with ragged
@@ -231,61 +231,61 @@ parameters:
 
 variables:
   rate:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     bounds: {lower: rate_min, upper: rate_max}
 
   level:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     bounds: {lower: level_min, upper: level_max}
 
   # No `where:` — membership of `status_entity` is the mask. An entity is in
   # the dimension because it carries a Status; there is no second way to say so.
   running:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     domain: binary
 
   startup:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     domain: binary
 
   shutdown:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     domain: binary
 
   uptime:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_uptime"
     bounds: {lower: 0, upper: uptime_upper}
 
   downtime:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_downtime"
     bounds: {lower: 0, upper: downtime_upper}
 
   # Investment flows share this variable — `size` is the capacity available in
   # a period, whether it came from Sizing or from a build decision.
   size:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_sizing OR has_invest"
     bounds: {lower: 0, upper: size_max}
 
   invest_size:
-    foreach: [flow]
+    dims: [flow]
     where: "has_invest"
     bounds: {lower: 0, upper: size_max}
 
   invest_build:
-    foreach: [flow, build_period]
+    dims: [flow, build_period]
     where: "has_invest"
     domain: binary
 
   invest_active:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_invest"
     domain: binary
 
   invest_size_at_build:
-    foreach: [flow, build_period]
+    dims: [flow, build_period]
     where: "has_invest"
     bounds: {lower: 0, upper: size_max}
 
@@ -294,34 +294,34 @@ variables:
   # constant term — a constant cannot be attributed to the flow that owes it,
   # and on the constant side of the ledger it has to be covered for every row.
   size_built:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_sizing"
     domain: binary
 
   capacity:
-    foreach: [storage, period]
+    dims: [storage, period]
     where: "has_capacity_sizing"
     bounds: {lower: 0, upper: capacity_max}
 
   capacity_built:
-    foreach: [storage, period]
+    dims: [storage, period]
     where: "has_capacity_sizing"
     domain: binary
 
   charging:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "prevent_simultaneous"
     domain: binary
 
   # Convex-combination weights over the breakpoints of each curve.
   lam:
-    foreach: [converter, bp, time, period]
+    dims: [converter, bp, time, period]
     where: "pw_bp_present"
     bounds: {lower: 0, upper: 1}
 
   effect_total:
-    foreach: [effect, period]
-    bounds: {lower: -.inf, upper: .inf}
+    dims: [effect, period]
+    bounds: {lower: null, upper: null}
 
 # The restriction that makes the weights a piecewise curve rather than any
 # convex combination: at most two nonzero, and those two adjacent. A set
@@ -331,9 +331,8 @@ variables:
 sos:
   on_one_segment:
     variable: lam
-    over: bp
+    along: bp
     type: 2
-    big_m: 1
     description: The operating point lies on one segment of the curve.
 
 expressions:
@@ -407,385 +406,385 @@ expressions:
 
   net_charge:
     expression: >-
-      sum(rate, by=charge_storage) * charge_gain
-      - sum(rate, by=discharge_storage) * discharge_draw
+      sum(rate, by=charge_storage, over=flow, into=storage) * charge_gain
+      - sum(rate, by=discharge_storage, over=flow, into=storage) * discharge_draw
     description: Energy entering a storage per step, net of discharge draw.
 
 constraints:
   carrier_balance:
-    foreach: [carrier, time, period]
-    expression: sum(rate * carrier_sign, by=carrier_of) == 0
+    dims: [carrier, time, period]
+    expression: sum(rate * carrier_sign, by=carrier_of, over=flow, into=carrier) == 0
 
   conversion:
-    foreach: [converter, eq_idx, time, period]
+    dims: [converter, eq_idx, time, period]
     where: "conversion_active"
-    expression: sum(rate * conversion_factor, by=converter_of) == 0
+    expression: sum(rate * conversion_factor, by=converter_of, over=flow, into=converter) == 0
 
   # --- storage recurrence: the three cases are disjoint and cover every row.
   # cyclic wraps, so t=0 reads level[last] and needs no prior variable.
   storage_balance_cyclic:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "is_cyclic"
-    expression: level == shift(level, over=time, offset=1, edge='wrap') * retention + net_charge
+    expression: level == shift(level, along=time, offset=1, edge='wrap') * retention + net_charge
 
   storage_balance_step:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "NOT is_cyclic AND NOT is_first"
-    expression: level == shift(level, over=time, offset=1) * retention + net_charge
+    expression: level == shift(level, along=time, offset=1) * retention + net_charge
 
   storage_balance_prior:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "NOT is_cyclic AND is_first"
     expression: level == prior_level * retention + net_charge
 
   # --- semi-continuous rate: {0} u [size*rel_lb, size*rel_ub], via `running`.
-  # `at(running, by=status_of)` is what makes one family serve both kinds of
+  # `at(running, by=status_of, over=status_entity, into=flow)` is what makes one family serve both kinds of
   # Status: a flow that carries its own reads its own binary, a flow governed
   # by a component reads that component's, and neither knows the difference.
   status_rate_min:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_gated AND NOT has_sizing AND is_bounded"
-    expression: rate >= relative_rate_min * size_bound * at(running, by=status_of)
+    expression: rate >= relative_rate_min * size_bound * at(running, by=status_of, over=status_entity, into=flow)
 
   status_rate_max:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_gated AND NOT has_sizing AND is_bounded"
-    expression: rate <= relative_rate_max * size_bound * at(running, by=status_of)
+    expression: rate <= relative_rate_max * size_bound * at(running, by=status_of, over=status_entity, into=flow)
 
   status_rate_fixed:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_gated AND NOT has_sizing AND is_profile"
-    expression: rate == fixed_relative_profile * size_bound * at(running, by=status_of)
+    expression: rate == fixed_relative_profile * size_bound * at(running, by=status_of, over=status_entity, into=flow)
 
   status_transition:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "NOT is_first"
-    expression: startup - shutdown == running - shift(running, over=time, offset=1)
+    expression: startup - shutdown == running - shift(running, along=time, offset=1)
 
   status_transition_initial:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "initial_status AND is_first"
     expression: startup - shutdown == running - initial_status
 
   status_exclusive:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     expression: startup + shutdown <= 1
 
   # --- big-M duration tracking: uptime[t] accumulates dt while `running`.
   uptime_gate:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_uptime"
     expression: uptime <= uptime_big_m * running
 
   uptime_accum_max:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_uptime AND NOT is_first"
-    expression: uptime <= shift(uptime, over=time, offset=1) + shift(dt, over=time, offset=1, edge=0)
+    expression: uptime <= shift(uptime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
 
   uptime_accum_min:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_uptime AND NOT is_first"
     expression: >-
-      uptime >= shift(uptime, over=time, offset=1) + shift(dt, over=time, offset=1, edge=0)
+      uptime >= shift(uptime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
       + (running - 1) * uptime_big_m
 
   # minimum run length, read one step ahead
   uptime_min_run:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_uptime AND uptime_min AND NOT is_last"
-    expression: uptime >= uptime_min * (running - shift(running, over=time, offset=-1))
+    expression: uptime >= uptime_min * (running - shift(running, along=time, offset=-1))
 
   # --- P in [rel_lb, rel_ub] * S with S a decision variable — so these leave
   # `bounds:` and become rows (lpspec #31).
   sizing_rate_min:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "(has_sizing OR has_invest) AND NOT is_gated AND is_bounded"
     expression: rate >= relative_rate_min * size
 
   sizing_rate_max:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "(has_sizing OR has_invest) AND NOT is_gated AND is_bounded"
     expression: rate <= relative_rate_max * size
 
   sizing_rate_fixed:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "(has_sizing OR has_invest) AND NOT is_gated AND is_profile"
     expression: rate == fixed_relative_profile * size
 
   # --- P <= running*M+, P <= S*rel_ub, P >= (running-1)*M- + S*rel_lb
   status_sizing_rate_bigm:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_gated AND has_sizing"
-    expression: rate <= relative_rate_max * size_max * at(running, by=status_of)
+    expression: rate <= relative_rate_max * size_max * at(running, by=status_of, over=status_entity, into=flow)
 
   status_sizing_rate_max:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_gated AND has_sizing"
     expression: rate <= relative_rate_max * size
 
   status_sizing_rate_min:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_gated AND has_sizing"
     expression: >-
-      rate - relative_rate_min * size_max * at(running, by=status_of) - relative_rate_min * size
+      rate - relative_rate_min * size_max * at(running, by=status_of, over=status_entity, into=flow) - relative_rate_min * size
       >= 0 - relative_rate_min * size_max
 
   # an unbuilt unit cannot be running
   status_sizing_gate_size:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_gated AND has_sizing AND size_min > 0"
-    expression: size >= size_min * at(running, by=status_of)
+    expression: size >= size_min * at(running, by=status_of, over=status_entity, into=flow)
 
   status_sizing_gate_built:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_gated AND has_sizing AND NOT mandatory AND NOT (size_min > 0)"
-    expression: at(running, by=status_of) <= size_built
+    expression: at(running, by=status_of, over=status_entity, into=flow) <= size_built
 
   sizing_mandatory_built:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_sizing AND mandatory"
     expression: size_built == 1
 
   sizing_min:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_sizing AND mandatory"
     expression: size >= size_min
 
   sizing_optional_min:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_sizing AND NOT mandatory"
     expression: size >= size_min * size_built
 
   sizing_optional_max:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_sizing AND NOT mandatory"
     expression: size <= size_max * size_built
 
   # --- P_t - P_{t-1} <= r+ * S * dt, relaxed at a startup for status flows.
   # Periods are independent, hence the is_first mask.
   ramp_up:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "has_ramp_up AND NOT is_first AND NOT has_sizing AND NOT is_gated"
-    expression: rate - shift(rate, over=time, offset=1) <= ramp_up_limit
+    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_limit
 
   ramp_up_status:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "has_ramp_up AND NOT is_first AND NOT has_sizing AND is_gated"
-    expression: rate - shift(rate, over=time, offset=1) - size_bound * at(startup, by=status_of) <= ramp_up_limit
+    expression: rate - shift(rate, along=time, offset=1) - size_bound * at(startup, by=status_of, over=status_entity, into=flow) <= ramp_up_limit
 
   ramp_up_sized:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "has_ramp_up AND NOT is_first AND has_sizing AND NOT is_gated"
-    expression: rate - shift(rate, over=time, offset=1) - ramp_up_coeff * size <= 0
+    expression: rate - shift(rate, along=time, offset=1) - ramp_up_coeff * size <= 0
 
   ramp_up_sized_status:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "has_ramp_up AND NOT is_first AND has_sizing AND is_gated"
     expression: >-
-      rate - shift(rate, over=time, offset=1) - ramp_up_coeff * size
-      - size_bound * at(startup, by=status_of) <= 0
+      rate - shift(rate, along=time, offset=1) - ramp_up_coeff * size
+      - size_bound * at(startup, by=status_of, over=status_entity, into=flow) <= 0
 
   ramp_down:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "has_ramp_down AND NOT is_first AND NOT has_sizing AND NOT is_gated"
-    expression: shift(rate, over=time, offset=1) - rate <= ramp_down_limit
+    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_limit
 
   ramp_down_status:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "has_ramp_down AND NOT is_first AND NOT has_sizing AND is_gated"
-    expression: shift(rate, over=time, offset=1) - rate - size_bound * at(shutdown, by=status_of) <= ramp_down_limit
+    expression: shift(rate, along=time, offset=1) - rate - size_bound * at(shutdown, by=status_of, over=status_entity, into=flow) <= ramp_down_limit
 
   ramp_down_sized:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "has_ramp_down AND NOT is_first AND has_sizing AND NOT is_gated"
-    expression: shift(rate, over=time, offset=1) - rate - ramp_down_coeff * size <= 0
+    expression: shift(rate, along=time, offset=1) - rate - ramp_down_coeff * size <= 0
 
   ramp_down_sized_status:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "has_ramp_down AND NOT is_first AND has_sizing AND is_gated"
     expression: >-
-      shift(rate, over=time, offset=1) - rate - ramp_down_coeff * size
-      - size_bound * at(shutdown, by=status_of) <= 0
+      shift(rate, along=time, offset=1) - rate - ramp_down_coeff * size
+      - size_bound * at(shutdown, by=status_of, over=status_entity, into=flow) <= 0
 
   # --- capacity as a decision variable: the level envelope becomes rows.
   cap_level_max:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "has_capacity_sizing"
     expression: level <= capacity
 
   cap_level_rel_min:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "has_capacity_sizing"
     expression: level >= relative_level_min * capacity
 
   cap_level_rel_max:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "has_capacity_sizing"
     expression: level <= relative_level_max * capacity
 
   cap_mandatory_built:
-    foreach: [storage, period]
+    dims: [storage, period]
     where: "has_capacity_sizing AND capacity_mandatory"
     expression: capacity_built == 1
 
   cap_min:
-    foreach: [storage, period]
+    dims: [storage, period]
     where: "has_capacity_sizing AND capacity_mandatory"
     expression: capacity >= capacity_min
 
   cap_optional_min:
-    foreach: [storage, period]
+    dims: [storage, period]
     where: "has_capacity_sizing AND NOT capacity_mandatory"
     expression: capacity >= capacity_min * capacity_built
 
   cap_optional_max:
-    foreach: [storage, period]
+    dims: [storage, period]
     where: "has_capacity_sizing AND NOT capacity_mandatory"
     expression: capacity <= capacity_max * capacity_built
 
   # --- downtime mirrors uptime with the state inverted: (1 - running).
   # (1-running[t]) - (1-running[t+1]) reduces to shift(running, by=-1) - running.
   downtime_gate:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_downtime"
     expression: downtime + downtime_big_m * running <= downtime_big_m
 
   downtime_accum_max:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_downtime AND NOT is_first"
-    expression: downtime <= shift(downtime, over=time, offset=1) + shift(dt, over=time, offset=1, edge=0)
+    expression: downtime <= shift(downtime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
 
   downtime_accum_min:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_downtime AND NOT is_first"
     expression: >-
-      downtime >= shift(downtime, over=time, offset=1) + shift(dt, over=time, offset=1, edge=0)
+      downtime >= shift(downtime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
       - downtime_big_m * running
 
   downtime_min_run:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "has_downtime AND downtime_min AND NOT is_last"
-    expression: downtime >= downtime_min * (shift(running, over=time, offset=-1) - running)
+    expression: downtime >= downtime_min * (shift(running, along=time, offset=-1) - running)
 
   # --- carry-over from before the horizon:
   # duration[0] = state[0] * (previous + dt[0]), and a prior run shorter than
   # the minimum forces continuation.
   uptime_carryover:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "is_first AND previous_uptime"
     expression: uptime == running * (previous_uptime + dt)
 
   downtime_carryover:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "is_first AND previous_downtime"
     expression: downtime + running * (previous_downtime + dt) == previous_downtime + dt
 
   status_forced_on:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "is_first AND forced_on_at_start"
     expression: running >= 1
 
   status_forced_off:
-    foreach: [status_entity, time, period]
+    dims: [status_entity, time, period]
     where: "is_first AND forced_off_at_start"
     expression: running <= 0
 
   storage_final_min:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "is_last AND final_level_min"
     expression: level >= final_level_min
 
   storage_final_max:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "is_last AND final_level_max"
     expression: level <= final_level_max
 
   # --- P^c <= M^c b,  P^d <= M^d (1 - b)
   storage_no_simul_charge:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "prevent_simultaneous"
-    expression: sum(rate, by=charge_storage) - sum(size_bound, by=charge_storage) * charging <= 0
+    expression: sum(rate, by=charge_storage, over=flow, into=storage) - sum(size_bound, by=charge_storage, over=flow, into=storage) * charging <= 0
 
   storage_no_simul_discharge:
-    foreach: [storage, time, period]
+    dims: [storage, time, period]
     where: "prevent_simultaneous"
     expression: >-
-      sum(rate, by=discharge_storage) + sum(size_bound, by=discharge_storage) * charging
-      <= sum(size_bound, by=discharge_storage)
+      sum(rate, by=discharge_storage, over=flow, into=storage) + sum(size_bound, by=discharge_storage, over=flow, into=storage) * charging
+      <= sum(size_bound, by=discharge_storage, over=flow, into=storage)
 
   # --- build at most once (exactly once when mandatory); never when capacity
   # already exists from before the horizon.
   invest_build_mandatory:
-    foreach: [flow]
+    dims: [flow]
     where: "has_invest AND mandatory AND NOT has_prior_capacity"
     expression: sum(invest_build, over=build_period) == 1
 
   invest_build_optional:
-    foreach: [flow]
+    dims: [flow]
     where: "has_invest AND NOT mandatory AND NOT has_prior_capacity"
     expression: sum(invest_build, over=build_period) <= 1
 
   invest_build_prior:
-    foreach: [flow]
+    dims: [flow]
     where: "has_invest AND has_prior_capacity"
     expression: sum(invest_build, over=build_period) == 0
 
   invest_active_logic:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_invest"
     expression: >-
       invest_active - sum(invest_build * lifetime_window, over=build_period)
       == prior_capacity_active
 
   invest_size_prior:
-    foreach: [flow]
+    dims: [flow]
     where: "has_invest AND has_prior_capacity"
     expression: invest_size == prior_capacity
 
   invest_size_mandatory_min:
-    foreach: [flow]
+    dims: [flow]
     where: "has_invest AND mandatory AND NOT has_prior_capacity"
     expression: invest_size >= size_min
 
   invest_size_optional_min:
-    foreach: [flow]
+    dims: [flow]
     where: "has_invest AND NOT mandatory AND NOT has_prior_capacity"
     expression: invest_size - size_min * sum(invest_build, over=build_period) >= 0
 
   invest_size_optional_max:
-    foreach: [flow]
+    dims: [flow]
     where: "has_invest AND NOT mandatory AND NOT has_prior_capacity"
     expression: invest_size - size_max * sum(invest_build, over=build_period) <= 0
 
   # --- size == invest_size when active, 0 when not (big-M).
   invest_size_link_active:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_invest"
     expression: size - size_max * invest_active <= 0
 
   invest_size_link_max:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_invest"
     expression: size - invest_size <= 0
 
   invest_size_link_min:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "has_invest"
     expression: size - invest_size - size_max * invest_active >= 0 - size_max
 
   # --- size_at_build == invest_size * build, linearised.
   invest_sab_build:
-    foreach: [flow, build_period]
+    dims: [flow, build_period]
     where: "has_invest"
     expression: invest_size_at_build - size_max * invest_build <= 0
 
   invest_sab_max:
-    foreach: [flow, build_period]
+    dims: [flow, build_period]
     where: "has_invest"
     expression: invest_size_at_build - invest_size <= 0
 
   invest_sab_min:
-    foreach: [flow, build_period]
+    dims: [flow, build_period]
     where: "has_invest"
     expression: >-
       invest_size_at_build - invest_size - size_max * invest_build
@@ -793,101 +792,101 @@ constraints:
 
   # --- flow aggregates. Each period is bounded on its own.
   flow_hours_lower:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "flow_hours_min"
     expression: sum(rate * dt * time_weight, over=time) >= flow_hours_min
 
   flow_hours_upper:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "flow_hours_max"
     expression: sum(rate * dt * time_weight, over=time) <= flow_hours_max
 
   load_factor_lower:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "load_factor_min_bound"
     expression: sum(rate * dt * time_weight, over=time) >= load_factor_min_bound
 
   load_factor_upper:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "load_factor_max_bound"
     expression: sum(rate * dt * time_weight, over=time) <= load_factor_max_bound
 
   # Sized flows state the same bound with the size on the left, because it is
   # a decision rather than a number.
   load_factor_lower_sized:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "load_factor_min_coeff"
     expression: sum(rate * dt * time_weight, over=time) - load_factor_min_coeff * size >= 0
 
   load_factor_upper_sized:
-    foreach: [flow, period]
+    dims: [flow, period]
     where: "load_factor_max_coeff"
     expression: sum(rate * dt * time_weight, over=time) - load_factor_max_coeff * size <= 0
 
   # --- piecewise: one convexity row per curve, one link row per curve flow.
   pw_convexity:
-    foreach: [converter, time, period]
+    dims: [converter, time, period]
     where: "has_piecewise AND NOT pw_gated"
     expression: sum(lam, over=bp) == 1
 
   pw_convexity_gated:
-    foreach: [converter, time, period]
+    dims: [converter, time, period]
     where: "has_piecewise AND pw_gated"
-    expression: sum(lam, over=bp) == at(running, by=pw_status_of)
+    expression: sum(lam, over=bp) == at(running, by=pw_status_of, over=status_entity, into=converter)
 
   # A link is a row keyed on the flow, so a curve ties as many flows as it has.
   pw_link_equal:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_piecewise AND pw_equal"
-    expression: rate == sum(at(lam, by=converter_of) * pw_bp_value, over=bp)
+    expression: rate == sum(at(lam, by=converter_of, over=converter, into=flow) * pw_bp_value, over=bp)
 
   pw_link_upper:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_piecewise AND pw_upper"
-    expression: rate <= sum(at(lam, by=converter_of) * pw_bp_value, over=bp)
+    expression: rate <= sum(at(lam, by=converter_of, over=converter, into=flow) * pw_bp_value, over=bp)
 
   pw_link_lower:
-    foreach: [flow, time, period]
+    dims: [flow, time, period]
     where: "is_piecewise AND pw_lower"
-    expression: rate >= sum(at(lam, by=converter_of) * pw_bp_value, over=bp)
+    expression: rate >= sum(at(lam, by=converter_of, over=converter, into=flow) * pw_bp_value, over=bp)
 
   # Adjacency: weight may only be carried by the segment in use, or the one
   # ending at this breakpoint. Together with the pick row below this is SOS2.
   # Availability scales the envelope rather than the curve, so it bounds the
   # reference link instead of moving the breakpoints.
   pw_availability:
-    foreach: [converter, time, period]
+    dims: [converter, time, period]
     where: "has_piecewise AND NOT pw_gated"
-    expression: sum(rate * pw_ref, by=converter_of) <= pw_avail_bound
+    expression: sum(rate * pw_ref, by=converter_of, over=flow, into=converter) <= pw_avail_bound
 
   pw_availability_gated:
-    foreach: [converter, time, period]
+    dims: [converter, time, period]
     where: "has_piecewise AND pw_gated"
     expression: >-
-      sum(rate * pw_ref, by=converter_of) - pw_avail_bound * at(running, by=pw_status_of)
+      sum(rate * pw_ref, by=converter_of, over=flow, into=converter) - pw_avail_bound * at(running, by=pw_status_of, over=status_entity, into=converter)
       <= 0
 
   effect_accounting:
-    foreach: [effect, period]
+    dims: [effect, period]
     expression: effect_total == effect_temporal + effect_lump
 
   effect_periodic_min:
-    foreach: [effect, period]
+    dims: [effect, period]
     where: "periodic_min"
     expression: effect_total >= periodic_min
 
   effect_periodic_max:
-    foreach: [effect, period]
+    dims: [effect, period]
     where: "periodic_max"
     expression: effect_total <= periodic_max
 
   effect_total_lower:
-    foreach: [effect]
+    dims: [effect]
     where: "total_min"
     expression: sum(effect_total * period_weight, over=period) >= total_min
 
   effect_total_upper:
-    foreach: [effect]
+    dims: [effect]
     where: "total_max"
     expression: sum(effect_total * period_weight, over=period) <= total_max
 

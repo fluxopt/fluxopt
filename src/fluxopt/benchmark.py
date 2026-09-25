@@ -1292,15 +1292,15 @@ def measure(model: str, timesteps: int = HOURS_PER_YEAR, solve: bool = False) ->
     start = perf_counter()
     data = ModelData.build(**elements)
     data_s = perf_counter() - start
-    import lpspec
+    import specsolve as lpspec
 
-    from fluxopt.math import PROGRAM, build_sources
+    from fluxopt.math import build_sources, program
     from fluxopt.math.results import objective_weights
 
     weights = objective_weights(data, 'cost')
     sources, coords = build_sources(data, weights)
     start = perf_counter()
-    bound = lpspec.build(PROGRAM, {**sources, **coords})
+    bound = lpspec.build(program().expand('sos'), {**sources, **coords})
     build_s = perf_counter() - start
     # Binaries are not a field the engine reports — it counts columns, and
     # integrality is a property of each rather than a second total.
