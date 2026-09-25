@@ -1,0 +1,117 @@
+# P in [rel_lb, rel_ub] * S with S a decision variable — so these leave
+# `bounds:` and become rows.
+description: A flow's size may be a decision, and what building it costs.
+
+dimensions:
+  time: {dtype: int}
+  period: {dtype: int}
+  effect: {dtype: str}
+  flow: {dtype: str}
+
+parameters:
+  has_sizing: {dims: [flow], dtype: bool}
+  # Whether the build decision is already taken. Serves both mechanisms: a
+  # flow's size is a `Sizing` or an `Investment`, never both, so the two
+  # never claim the same row.
+  mandatory: {dims: [flow], dtype: bool}
+  # The size a flow may be built to. Shared by both mechanisms for the same
+  # reason `mandatory` is.
+  size_min: {dims: [flow]}
+  size_max: {dims: [flow]}
+  # Lump-domain effect coefficients, Leontief-folded like the temporal ones.
+  effects_per_size: {dims: [flow, effect, period]}
+  effects_fixed: {dims: [flow, effect, period]}
+  # Load factors stated relative to size, because the size is a decision.
+  load_factor_min_coeff: {dims: [flow, period]}    # lambda * T, size a variable
+  load_factor_max_coeff: {dims: [flow, period]}
+
+variables:
+  # Investment flows share this variable — `size` is the capacity available in
+  # a period, whether it came from Sizing or from a build decision.
+  size:
+    dims: [flow, period]
+    where: "has_sizing OR has_invest"
+    bounds: {lower: 0, upper: size_max}
+
+  # Every sized flow has one, not only the optional ones: a mandatory build
+  # is the same decision already taken, and pinning it to 1 is cheaper than a
+  # constant term — a constant cannot be attributed to the flow that owes it.
+  size_built:
+    dims: [flow, period]
+    where: "has_sizing"
+    domain: binary
+
+expressions:
+  contribution_flow_per_size:
+    expression: size * effects_per_size
+    description: What a flow's built size costs, per period.
+  contribution_flow_fixed:
+    expression: size_built * effects_fixed
+    description: What deciding to build a flow costs at all, per period.
+  sizing_costs:
+    expression: sum(contribution_flow_per_size, over=flow) + sum(contribution_flow_fixed, over=flow)
+    description: What sizing the flows adds to each effect.
+
+given:
+  parameters:
+    has_invest: {dims: [flow], dtype: bool}
+    is_gated: {dims: [flow], dtype: bool}
+    is_bounded: {dims: [flow], dtype: bool}
+    is_profile: {dims: [flow], dtype: bool}
+    relative_rate_min: {dims: [flow, time, period]}
+    relative_rate_max: {dims: [flow, time, period]}
+    fixed_relative_profile: {dims: [flow, time, period]}
+    dt: {dims: [time]}
+    time_weight: {dims: [time]}
+  variables:
+    rate: {dims: [flow, time, period]}
+  expressions:
+    effect_lump: {dims: [effect, period], term: sizing_costs}
+
+constraints:
+  sizing_rate_min:
+    dims: [flow, time, period]
+    where: "(has_sizing OR has_invest) AND NOT is_gated AND is_bounded"
+    expression: rate >= relative_rate_min * size
+
+  sizing_rate_max:
+    dims: [flow, time, period]
+    where: "(has_sizing OR has_invest) AND NOT is_gated AND is_bounded"
+    expression: rate <= relative_rate_max * size
+
+  sizing_rate_fixed:
+    dims: [flow, time, period]
+    where: "(has_sizing OR has_invest) AND NOT is_gated AND is_profile"
+    expression: rate == fixed_relative_profile * size
+
+  sizing_mandatory_built:
+    dims: [flow, period]
+    where: "has_sizing AND mandatory"
+    expression: size_built == 1
+
+  sizing_min:
+    dims: [flow, period]
+    where: "has_sizing AND mandatory"
+    expression: size >= size_min
+
+  sizing_optional_min:
+    dims: [flow, period]
+    where: "has_sizing AND NOT mandatory"
+    expression: size >= size_min * size_built
+
+  sizing_optional_max:
+    dims: [flow, period]
+    where: "has_sizing AND NOT mandatory"
+    expression: size <= size_max * size_built
+
+  # Sized flows state the load-factor bound with the size on the left,
+  # because it is a decision rather than a number.
+  load_factor_lower_sized:
+    dims: [flow, period]
+    where: "load_factor_min_coeff"
+    expression: sum(rate * dt * time_weight, over=time) - load_factor_min_coeff * size >= 0
+
+  load_factor_upper_sized:
+    dims: [flow, period]
+    where: "load_factor_max_coeff"
+    expression: sum(rate * dt * time_weight, over=time) - load_factor_max_coeff * size <= 0

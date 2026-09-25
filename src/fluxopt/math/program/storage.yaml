@@ -1,0 +1,172 @@
+# End-of-period storage convention, level[t] = level[t-1]*retention + net.
+# Cyclic storage wraps (shift edge='wrap'), acyclic uses a data-side prior.
+description: A storage carries a level from one step to the next.
+
+dimensions:
+  time: {dtype: int}
+  period: {dtype: int}
+  effect: {dtype: str}
+  storage: {dtype: str}
+  flow: {dtype: str}
+
+relations:
+  charge_storage: {key: flow, values: storage}
+  discharge_storage: {key: flow, values: storage}
+
+parameters:
+  charge_gain: {dims: [storage, time]}     # eta_c * dt
+  discharge_draw: {dims: [storage, time]}  # dt / eta_d
+  retention: {dims: [storage, time]}       # (1 - loss) ** dt
+  # `relative_level_* * capacity`, folded data-side for the same reason
+  # `rate_min` is, and dense for the same reason: a storage whose capacity is
+  # a variable is bounded 0..inf here, and the relative pair does the work.
+  level_min: {dims: [storage, time]}
+  level_max: {dims: [storage, time]}
+  is_cyclic: {dims: [storage], dtype: bool}
+  # Carries a period axis so a rolling-horizon fold can collapse `time`
+  # alone: a carry reduces exactly one dimension, and the level it copies
+  # forward is per period.
+  prior_level: {dims: [storage, period]}
+
+  # End-of-horizon bounds and charge/discharge exclusion.
+  final_level_min: {dims: [storage]}
+  final_level_max: {dims: [storage]}
+  prevent_simultaneous: {dims: [storage], dtype: bool}
+
+  # Storage sizing.
+  has_capacity_sizing: {dims: [storage], dtype: bool}
+  capacity_mandatory: {dims: [storage], dtype: bool}
+  capacity_min: {dims: [storage]}
+  capacity_max: {dims: [storage]}
+  relative_level_min: {dims: [storage, time]}
+  relative_level_max: {dims: [storage, time]}
+  effects_per_capacity: {dims: [storage, effect, period]}
+  effects_fixed_capacity: {dims: [storage, effect, period]}
+
+variables:
+  level:
+    dims: [storage, time, period]
+    bounds: {lower: level_min, upper: level_max}
+
+  capacity:
+    dims: [storage, period]
+    where: "has_capacity_sizing"
+    bounds: {lower: 0, upper: capacity_max}
+
+  capacity_built:
+    dims: [storage, period]
+    where: "has_capacity_sizing"
+    domain: binary
+
+  charging:
+    dims: [storage, time, period]
+    where: "prevent_simultaneous"
+    domain: binary
+
+expressions:
+  net_charge:
+    expression: >-
+      sum(rate, by=charge_storage, over=flow, into=storage) * charge_gain
+      - sum(rate, by=discharge_storage, over=flow, into=storage) * discharge_draw
+    description: Energy entering a storage per step, net of discharge draw.
+  contribution_storage_per_capacity:
+    expression: capacity * effects_per_capacity
+    description: What a storage's built capacity costs, per period.
+  contribution_storage_fixed:
+    expression: capacity_built * effects_fixed_capacity
+    description: What deciding to build a storage costs at all, per period.
+  storage_costs:
+    expression: >-
+      sum(contribution_storage_per_capacity, over=storage)
+      + sum(contribution_storage_fixed, over=storage)
+    description: What building the storages adds to each effect.
+
+given:
+  parameters:
+    is_first: {dims: [time], dtype: bool}
+    is_last: {dims: [time], dtype: bool}
+    size_bound: {dims: [flow]}
+  variables:
+    rate: {dims: [flow, time, period]}
+  expressions:
+    effect_lump: {dims: [effect, period], term: storage_costs}
+
+constraints:
+  # --- recurrence: the three cases are disjoint and cover every row.
+  # cyclic wraps, so t=0 reads level[last] and needs no prior variable.
+  storage_balance_cyclic:
+    dims: [storage, time, period]
+    where: "is_cyclic"
+    expression: level == shift(level, along=time, offset=1, edge='wrap') * retention + net_charge
+
+  storage_balance_step:
+    dims: [storage, time, period]
+    where: "NOT is_cyclic AND NOT is_first"
+    expression: level == shift(level, along=time, offset=1) * retention + net_charge
+
+  storage_balance_prior:
+    dims: [storage, time, period]
+    where: "NOT is_cyclic AND is_first"
+    expression: level == prior_level * retention + net_charge
+
+  storage_final_min:
+    dims: [storage, time, period]
+    where: "is_last AND final_level_min"
+    expression: level >= final_level_min
+
+  storage_final_max:
+    dims: [storage, time, period]
+    where: "is_last AND final_level_max"
+    expression: level <= final_level_max
+
+  # --- P^c <= M^c b,  P^d <= M^d (1 - b)
+  storage_no_simul_charge:
+    dims: [storage, time, period]
+    where: "prevent_simultaneous"
+    expression: >-
+      sum(rate, by=charge_storage, over=flow, into=storage)
+      - sum(size_bound, by=charge_storage, over=flow, into=storage) * charging <= 0
+
+  storage_no_simul_discharge:
+    dims: [storage, time, period]
+    where: "prevent_simultaneous"
+    expression: >-
+      sum(rate, by=discharge_storage, over=flow, into=storage)
+      + sum(size_bound, by=discharge_storage, over=flow, into=storage) * charging
+      <= sum(size_bound, by=discharge_storage, over=flow, into=storage)
+
+  # --- capacity as a decision variable: the level envelope becomes rows.
+  cap_level_max:
+    dims: [storage, time, period]
+    where: "has_capacity_sizing"
+    expression: level <= capacity
+
+  cap_level_rel_min:
+    dims: [storage, time, period]
+    where: "has_capacity_sizing"
+    expression: level >= relative_level_min * capacity
+
+  cap_level_rel_max:
+    dims: [storage, time, period]
+    where: "has_capacity_sizing"
+    expression: level <= relative_level_max * capacity
+
+  cap_mandatory_built:
+    dims: [storage, period]
+    where: "has_capacity_sizing AND capacity_mandatory"
+    expression: capacity_built == 1
+
+  cap_min:
+    dims: [storage, period]
+    where: "has_capacity_sizing AND capacity_mandatory"
+    expression: capacity >= capacity_min
+
+  cap_optional_min:
+    dims: [storage, period]
+    where: "has_capacity_sizing AND NOT capacity_mandatory"
+    expression: capacity >= capacity_min * capacity_built
+
+  cap_optional_max:
+    dims: [storage, period]
+    where: "has_capacity_sizing AND NOT capacity_mandatory"
+    expression: capacity <= capacity_max * capacity_built

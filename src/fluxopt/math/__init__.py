@@ -1,8 +1,9 @@
 """fluxopt's math, and the engine that builds it.
 
 Three layers: Elements -> ModelData -> this. The math is
-:data:`~fluxopt.math.sources.PROGRAM`, a declarative YAML program
-built and solved by `lpspec <https://github.com/fluxopt/lpspec>`_;
+:data:`~fluxopt.math.sources.PROGRAM`, a directory of YAML fragments that
+mathspec composes into one spec, built and solved by
+`specsolve <https://github.com/fluxopt/lpspec>`_;
 :mod:`~fluxopt.math.sources` binds a ``ModelData`` to it, and
 :mod:`~fluxopt.math.results` reads the answer back as a
 :class:`~fluxopt.results.Result`.
@@ -12,8 +13,9 @@ time in linopy calls, and deleting it is what
 ``docs/design/lpspec-direction.md`` was written to argue for: the math is a
 file now, so it is reviewed, diffed, typeset and extended as one.
 
-lpspec is pinned to a tag — its language surface is pre-1.0 and still moves,
-so an unpinned ref would let a ``uv sync`` change what the program means.
+specsolve and mathspec are pinned to commits — their language surface is
+pre-1.0 and still moves, so an unpinned ref would let a ``uv sync`` change
+what the program means.
 
 One refusal is left, and it is a difference of formulation rather than a gap:
 ``PiecewiseConversion.method='lp'`` is linopy's tangent-line *relaxation*, and

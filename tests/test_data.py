@@ -409,7 +409,11 @@ class TestContributionsAreDeclared:
         math = program()
         declared = set(TEMPORAL) | set(LUMP)
         assert declared <= set(math.expressions), 'a contribution is read that the program does not declare'
-        summed = math.expressions['effect_temporal'].expression + math.expressions['effect_lump'].expression
+        # Each feature adds one term to the ledger, and the term sums that
+        # feature's contributions, so the ledger reaches them through the terms.
+        ledger = [math.expressions[half].expression for half in ('effect_temporal', 'effect_lump')]
+        terms = [term.strip() for body in ledger for term in body.split('+')]
+        summed = ' '.join(ledger + [math.expressions[term].expression for term in terms])
         for name in declared:
             assert name in summed, f'{name} is read back but the ledger never sums it'
 

@@ -1,0 +1,65 @@
+# The ledger: what each effect totals to, what bounds it, and what the solver
+# minimises. It knows no feature. The two halves of an effect's total are sums
+# declared here with a frame and no body: each feature file adds its own term,
+# so a new feature adds a line to its own file and none to this one.
+description: Every effect is the sum of what the features charge to it.
+
+dimensions:
+  period: {dtype: int}
+  effect: {dtype: str}
+
+parameters:
+  # objective weight x period weight, folded data-side
+  objective_weight: {dims: [effect, period]}
+  # effect limits: per period, and across periods (weighted)
+  periodic_min: {dims: [effect, period]}
+  periodic_max: {dims: [effect, period]}
+  total_min: {dims: [effect]}
+  total_max: {dims: [effect]}
+  period_weight: {dims: [effect, period]}
+
+variables:
+  effect_total:
+    dims: [effect, period]
+    bounds: {lower: null, upper: null}
+
+expressions:
+  # The two halves of the ledger, named rather than inlined: each is a
+  # quantity the model reports, and naming them is what makes them readable
+  # after a solve — computed by the compiler that built the accounting row, so
+  # the split cannot drift from the total.
+  effect_temporal:
+    dims: [effect, period]
+    description: What running the system costs, accumulated over the horizon.
+  effect_lump:
+    dims: [effect, period]
+    description: What building it costs — one-time and recurring, never per step.
+
+constraints:
+  effect_accounting:
+    dims: [effect, period]
+    expression: effect_total == effect_temporal + effect_lump
+
+  effect_periodic_min:
+    dims: [effect, period]
+    where: "periodic_min"
+    expression: effect_total >= periodic_min
+
+  effect_periodic_max:
+    dims: [effect, period]
+    where: "periodic_max"
+    expression: effect_total <= periodic_max
+
+  effect_total_lower:
+    dims: [effect]
+    where: "total_min"
+    expression: sum(effect_total * period_weight, over=period) >= total_min
+
+  effect_total_upper:
+    dims: [effect]
+    where: "total_max"
+    expression: sum(effect_total * period_weight, over=period) <= total_max
+
+objective:
+  sense: minimize
+  expression: sum(sum(effect_total * objective_weight, over=period), over=effect)

@@ -9,7 +9,7 @@ were invisible to them.
 :class:`Parameters` is the other half. It is what ``build_sources`` already
 produces, given a name, a schema and a directory to live in — so
 ``system.math()`` and ``system.parameters()`` answer the same question about
-the two halves, and ``(program.yaml, parameters/)`` is the whole problem.
+the two halves, and ``(math, parameters/)`` is the whole problem.
 
 **Derived, never authored.** The tables are persistable, not a writing
 surface: the Leontief fold and the size pre-scaling have already dissolved

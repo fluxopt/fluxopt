@@ -1,7 +1,7 @@
 """Per-contributor effect breakdown, read off the program.
 
 Every contribution the ledger sums is a named expression in
-``math/program.yaml``, declared with the entity it came from and reduced only
+``math/program/``, declared with the entity it came from and reduced only
 where ``effect_accounting`` adds it up. So the breakdown is not a second
 implementation of the effect math that has to be checked against the first —
 it is the same declaration, read one step before the sum.

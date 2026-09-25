@@ -1,7 +1,7 @@
 """Bind a :class:`~fluxopt.model_data.ModelData` to fluxopt's math program.
 
 The data half of the build: this module emits the parameter tables
-:data:`PROGRAM` declares, and lpspec does the rest.
+:data:`PROGRAM` declares, and specsolve does the rest.
 
 Sparsity is carried by *row absence* — a parameter keeps its declared rank
 while its table holds only live entries. Arrays at or below a variable's own
@@ -28,21 +28,23 @@ from fluxopt.validation import reject_varying_contribution_into_lump
 if TYPE_CHECKING:
     from fluxopt.model_data import ModelData
 
-#: The YAML program holding fluxopt's math. Shipped as package data.
-PROGRAM = Path(__file__).with_name('program.yaml')
+#: The directory holding fluxopt's math, one YAML fragment per feature.
+#: Shipped as package data.
+PROGRAM = Path(__file__).with_name('program')
 
 
 def program() -> Any:
-    """fluxopt's math, loaded and checked.
+    """fluxopt's math, composed from its fragments, loaded and checked.
 
-    A :class:`mathspec.Model` — the language is its own package, so `Model`
-    and the typesetters come from there while the engine verbs come from
-    lpspec. This is the pairing of :data:`PROGRAM` with the loader, which four
-    callers wanted and none wanted separately.
+    A :class:`mathspec.Spec`. Each file under :data:`PROGRAM` states one
+    feature and loads on its own; ``effects.yaml`` declares the two halves of
+    the ledger as sums, and every feature adds its own term to them, so
+    ``merge`` writes the ledger. The engine verbs come from specsolve.
     """
-    from mathspec import to_spec as load_model
+    from mathspec import merge
 
-    return load_model(PROGRAM)
+    fragments = {path.stem: path for path in sorted(PROGRAM.glob('*.yaml'))}
+    return merge(fragments, description='fluxopt: flows, converters and storages, and what they cost.')
 
 
 #: Parameters the YAML declares with a `period` axis *and* emit without one.

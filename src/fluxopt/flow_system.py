@@ -219,7 +219,7 @@ class FlowSystem(BaseModel):
 
         The other half of :meth:`math`. That returns the equations before any
         of this system's numbers reach them; this returns the numbers, keyed
-        as the program declares them — so `(program.yaml, parameters/)` is the
+        as the program declares them — so `(math, parameters/)` is the
         whole problem, hashable and diffable, and a caller adding a constraint
         through ``math=`` can see what they are adding to.
 

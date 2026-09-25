@@ -27,7 +27,7 @@ classifiers = [
 ]
 dependencies = [
     "highspy>=1.13.1,!=1.14.*",  # 1.14.x has MIP presolve bug producing wrong results (ERGO-Code/HiGHS#2975)
-    # The modeling layer. fluxopt's math is `math/program.yaml`; specsolve
+    # The modeling layer. fluxopt's math is the fragments in `math/program/`; specsolve
     # (formerly lpspec) validates it, lowers it and streams it to the solver.
     "specsolve",
     # The language half of specsolve, extracted to its own package so a consumer
@@ -70,7 +70,7 @@ source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fluxopt"]
-artifacts = ["src/fluxopt/math/*.yaml"]
+artifacts = ["src/fluxopt/math/program/*.yaml"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/fluxopt/", "LICENSE", "README.md"]

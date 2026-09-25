@@ -1,0 +1,202 @@
+# Whatever carries an on/off decision: a flow with its own Status, or a
+# component whose Status governs several flows at once. One dimension,
+# because the two differ only in which rows read the binary.
+description: An on/off decision, its durations, and what running and starting cost.
+
+dimensions:
+  time: {dtype: int}
+  period: {dtype: int}
+  effect: {dtype: str}
+  flow: {dtype: str}
+  status_entity: {dtype: str}
+
+relations:
+  # The decision a flow's rate answers to: itself where the flow carries its
+  # own Status, its component where a component's Status governs it, absent
+  # where nothing gates it. `at()` reads the binary back through it.
+  status_of: {key: flow, values: status_entity}
+
+parameters:
+  # `is_gated` is a flow-side mask: this rate answers to a binary. Which
+  # binary is `status_of`. Every other parameter here is the decision's own,
+  # so it sits on `status_entity` and is stated once for both kinds.
+  is_gated: {dims: [flow], dtype: bool}
+  has_uptime: {dims: [status_entity], dtype: bool}
+  uptime_min: {dims: [status_entity]}
+  # The duration variable's ceiling: the declared maximum, or the big-M where
+  # none is declared.
+  uptime_upper: {dims: [status_entity]}
+  uptime_big_m: {dims: [status_entity]}     # big-M: horizon + any prior uptime
+  downtime_big_m: {dims: [status_entity]}   # big-M: horizon + any prior downtime
+  has_downtime: {dims: [status_entity], dtype: bool}
+  downtime_min: {dims: [status_entity]}
+  downtime_upper: {dims: [status_entity]}
+  initial_status: {dims: [status_entity]}
+  previous_uptime: {dims: [status_entity]}
+  previous_downtime: {dims: [status_entity]}
+  forced_on_at_start: {dims: [status_entity], dtype: bool}   # prior run shorter than uptime_min
+  forced_off_at_start: {dims: [status_entity], dtype: bool}
+  effects_per_running_hour: {dims: [status_entity, effect, time, period]}   # running effects * dt
+  effects_per_startup: {dims: [status_entity, effect, time, period]}        # startup effects
+
+variables:
+  # No `where:` — membership of `status_entity` is the mask. An entity is in
+  # the dimension because it carries a Status; there is no second way to say so.
+  running:
+    dims: [status_entity, time, period]
+    domain: binary
+
+  startup:
+    dims: [status_entity, time, period]
+    domain: binary
+
+  shutdown:
+    dims: [status_entity, time, period]
+    domain: binary
+
+  uptime:
+    dims: [status_entity, time, period]
+    where: "has_uptime"
+    bounds: {lower: 0, upper: uptime_upper}
+
+  downtime:
+    dims: [status_entity, time, period]
+    where: "has_downtime"
+    bounds: {lower: 0, upper: downtime_upper}
+
+expressions:
+  contribution_running:
+    expression: running * effects_per_running_hour
+    description: What being on costs, per timestep, for whatever carries the decision.
+  contribution_startup:
+    expression: startup * effects_per_startup
+    description: What each start costs, at the step it happens.
+  status_costs:
+    expression: >-
+      sum(sum(contribution_running * time_weight, over=time), over=status_entity)
+      + sum(sum(contribution_startup * time_weight, over=time), over=status_entity)
+    description: What running and starting add to each effect over the horizon.
+
+given:
+  parameters:
+    is_first: {dims: [time], dtype: bool}
+    is_last: {dims: [time], dtype: bool}
+    dt: {dims: [time]}
+    time_weight: {dims: [time]}
+    size_bound: {dims: [flow]}
+    is_bounded: {dims: [flow], dtype: bool}
+    is_profile: {dims: [flow], dtype: bool}
+    relative_rate_min: {dims: [flow, time, period]}
+    relative_rate_max: {dims: [flow, time, period]}
+    fixed_relative_profile: {dims: [flow, time, period]}
+    has_sizing: {dims: [flow], dtype: bool}
+  variables:
+    rate: {dims: [flow, time, period]}
+  expressions:
+    effect_temporal: {dims: [effect, period], term: status_costs}
+
+constraints:
+  # --- semi-continuous rate: {0} u [size*rel_lb, size*rel_ub], via `running`.
+  # `at(running, by=status_of, ...)` is what makes one family serve both kinds
+  # of Status: a flow that carries its own reads its own binary, a flow
+  # governed by a component reads that component's, and neither knows the
+  # difference. A sized flow's version is in `status_sizing.yaml`.
+  status_rate_min:
+    dims: [flow, time, period]
+    where: "is_gated AND NOT has_sizing AND is_bounded"
+    expression: rate >= relative_rate_min * size_bound * at(running, by=status_of, over=status_entity, into=flow)
+
+  status_rate_max:
+    dims: [flow, time, period]
+    where: "is_gated AND NOT has_sizing AND is_bounded"
+    expression: rate <= relative_rate_max * size_bound * at(running, by=status_of, over=status_entity, into=flow)
+
+  status_rate_fixed:
+    dims: [flow, time, period]
+    where: "is_gated AND NOT has_sizing AND is_profile"
+    expression: rate == fixed_relative_profile * size_bound * at(running, by=status_of, over=status_entity, into=flow)
+
+  status_transition:
+    dims: [status_entity, time, period]
+    where: "NOT is_first"
+    expression: startup - shutdown == running - shift(running, along=time, offset=1)
+
+  status_transition_initial:
+    dims: [status_entity, time, period]
+    where: "initial_status AND is_first"
+    expression: startup - shutdown == running - initial_status
+
+  status_exclusive:
+    dims: [status_entity, time, period]
+    expression: startup + shutdown <= 1
+
+  # --- big-M duration tracking: uptime[t] accumulates dt while `running`.
+  uptime_gate:
+    dims: [status_entity, time, period]
+    where: "has_uptime"
+    expression: uptime <= uptime_big_m * running
+
+  uptime_accum_max:
+    dims: [status_entity, time, period]
+    where: "has_uptime AND NOT is_first"
+    expression: uptime <= shift(uptime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
+
+  uptime_accum_min:
+    dims: [status_entity, time, period]
+    where: "has_uptime AND NOT is_first"
+    expression: >-
+      uptime >= shift(uptime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
+      + (running - 1) * uptime_big_m
+
+  # minimum run length, read one step ahead
+  uptime_min_run:
+    dims: [status_entity, time, period]
+    where: "has_uptime AND uptime_min AND NOT is_last"
+    expression: uptime >= uptime_min * (running - shift(running, along=time, offset=-1))
+
+  # --- downtime mirrors uptime with the state inverted: (1 - running).
+  # (1-running[t]) - (1-running[t+1]) reduces to shift(running, by=-1) - running.
+  downtime_gate:
+    dims: [status_entity, time, period]
+    where: "has_downtime"
+    expression: downtime + downtime_big_m * running <= downtime_big_m
+
+  downtime_accum_max:
+    dims: [status_entity, time, period]
+    where: "has_downtime AND NOT is_first"
+    expression: downtime <= shift(downtime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
+
+  downtime_accum_min:
+    dims: [status_entity, time, period]
+    where: "has_downtime AND NOT is_first"
+    expression: >-
+      downtime >= shift(downtime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
+      - downtime_big_m * running
+
+  downtime_min_run:
+    dims: [status_entity, time, period]
+    where: "has_downtime AND downtime_min AND NOT is_last"
+    expression: downtime >= downtime_min * (shift(running, along=time, offset=-1) - running)
+
+  # --- carry-over from before the horizon:
+  # duration[0] = state[0] * (previous + dt[0]), and a prior run shorter than
+  # the minimum forces continuation.
+  uptime_carryover:
+    dims: [status_entity, time, period]
+    where: "is_first AND previous_uptime"
+    expression: uptime == running * (previous_uptime + dt)
+
+  downtime_carryover:
+    dims: [status_entity, time, period]
+    where: "is_first AND previous_downtime"
+    expression: downtime + running * (previous_downtime + dt) == previous_downtime + dt
+
+  status_forced_on:
+    dims: [status_entity, time, period]
+    where: "is_first AND forced_on_at_start"
+    expression: running >= 1
+
+  status_forced_off:
+    dims: [status_entity, time, period]
+    where: "is_first AND forced_off_at_start"
+    expression: running <= 0
