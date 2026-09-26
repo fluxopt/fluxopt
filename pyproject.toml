@@ -47,6 +47,9 @@ dependencies = [
     # its own — a column of labels no system happens to fill must still say it
     # holds labels.
     "polars>=1.30",
+    # What polars needs to read a pandas 3 frame: pandas 3 stores labels as
+    # Arrow strings, and `pl.from_pandas` refuses them without it.
+    "pyarrow>=15",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "xarray>=2024.1.0",
