@@ -586,7 +586,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     )
 
     flow_index['status_of'] = [status_of.get(f) for f in flow_ids]
-    entity_ids = st.ids if st is not None else []
+    entity_ids: list[str] = st.ids if st is not None else []
     gated_ids = [f for f in flow_ids if f in status_of]
 
     sources['is_gated'] = _flags('is_gated', 'flow', gated_ids)
