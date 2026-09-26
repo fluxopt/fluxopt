@@ -205,7 +205,7 @@ dependencies = [
 requires-dist = [
     { name = "highspy", specifier = ">=1.13.1,!=1.14.*" },
     { name = "linopy", specifier = ">=0.7.0" },
-    { name = "mathspec", git = "https://github.com/energy-models/mathspec?rev=a7b416b9970ab40e610d515000d30b79267818c1" },
+    { name = "mathspec", git = "https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda" },
     { name = "netcdf4", specifier = ">=1.6.0" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.1" },
@@ -448,8 +448,8 @@ wheels = [
 
 [[package]]
 name = "mathspec"
-version = "0.2.1.dev21+ga7b416b99"
-source = { git = "https://github.com/energy-models/mathspec?rev=a7b416b9970ab40e610d515000d30b79267818c1#a7b416b9970ab40e610d515000d30b79267818c1" }
+version = "0.2.1.dev24+g0b0e4b0aa"
+source = { git = "https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyparsing" },
