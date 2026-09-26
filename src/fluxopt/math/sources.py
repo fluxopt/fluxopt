@@ -987,11 +987,13 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         """One table per lookup declared over *over*, from its index columns."""
         return {
             name: pl.DataFrame(
-                {over: index[over].tolist(), target: index[name].tolist()},
+                {over: mapped[over].tolist(), target: mapped[name].tolist()},
                 schema={over: pl.String, target: pl.String},
-            ).drop_nulls(target)
+            )
             for name, target in into.items()
             if name in index.columns
+            # pandas 3 reads a missing label as NaN, which no string column takes.
+            for mapped in (index[index[name].notna()],)
         }
 
     flow_axis = pl.DataFrame({'flow': flow_ids}, schema={'flow': pl.String})
