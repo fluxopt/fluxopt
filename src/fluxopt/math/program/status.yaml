@@ -17,10 +17,9 @@ relations:
   status_of: {key: flow, values: status_entity}
 
 parameters:
-  # `is_gated` is a flow-side mask: this rate answers to a binary. Which
-  # binary is `status_of`. Every other parameter here is the decision's own,
-  # so it sits on `status_entity` and is stated once for both kinds.
-  is_gated: {dims: [flow], dtype: bool}
+  # A flow is gated where `status_of` has a row for it. Every parameter here
+  # is the decision's own, so it sits on `status_entity` and is stated once
+  # for both kinds.
   has_uptime: {dims: [status_entity], dtype: bool}
   uptime_min: {dims: [status_entity]}
   # The duration variable's ceiling: the declared maximum, or the big-M where
@@ -79,8 +78,6 @@ expressions:
 
 given:
   parameters:
-    is_first: {dims: [time], dtype: bool}
-    is_last: {dims: [time], dtype: bool}
     dt: {dims: [time]}
     time_weight: {dims: [time]}
   expressions:
@@ -89,12 +86,12 @@ given:
 constraints:
   status_transition:
     dims: [status_entity, time, period]
-    where: "NOT is_first"
+    where: "position(time) != 0"
     expression: startup - shutdown == running - shift(running, along=time, offset=1)
 
   status_transition_initial:
     dims: [status_entity, time, period]
-    where: "initial_status AND is_first"
+    where: "initial_status AND position(time) == 0"
     expression: startup - shutdown == running - initial_status
 
   status_exclusive:
@@ -109,12 +106,12 @@ constraints:
 
   uptime_accum_max:
     dims: [status_entity, time, period]
-    where: "has_uptime AND NOT is_first"
+    where: "has_uptime AND position(time) != 0"
     expression: uptime <= shift(uptime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
 
   uptime_accum_min:
     dims: [status_entity, time, period]
-    where: "has_uptime AND NOT is_first"
+    where: "has_uptime AND position(time) != 0"
     expression: >-
       uptime >= shift(uptime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
       + (running - 1) * uptime_big_m
@@ -122,7 +119,7 @@ constraints:
   # minimum run length, read one step ahead
   uptime_min_run:
     dims: [status_entity, time, period]
-    where: "has_uptime AND uptime_min AND NOT is_last"
+    where: "has_uptime AND uptime_min AND position(time) != -1"
     expression: uptime >= uptime_min * (running - shift(running, along=time, offset=-1))
 
   # --- downtime mirrors uptime with the state inverted: (1 - running).
@@ -134,19 +131,19 @@ constraints:
 
   downtime_accum_max:
     dims: [status_entity, time, period]
-    where: "has_downtime AND NOT is_first"
+    where: "has_downtime AND position(time) != 0"
     expression: downtime <= shift(downtime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
 
   downtime_accum_min:
     dims: [status_entity, time, period]
-    where: "has_downtime AND NOT is_first"
+    where: "has_downtime AND position(time) != 0"
     expression: >-
       downtime >= shift(downtime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
       - downtime_big_m * running
 
   downtime_min_run:
     dims: [status_entity, time, period]
-    where: "has_downtime AND downtime_min AND NOT is_last"
+    where: "has_downtime AND downtime_min AND position(time) != -1"
     expression: downtime >= downtime_min * (shift(running, along=time, offset=-1) - running)
 
   # --- carry-over from before the horizon:
@@ -154,20 +151,20 @@ constraints:
   # the minimum forces continuation.
   uptime_carryover:
     dims: [status_entity, time, period]
-    where: "is_first AND previous_uptime"
+    where: "position(time) == 0 AND previous_uptime"
     expression: uptime == running * (previous_uptime + dt)
 
   downtime_carryover:
     dims: [status_entity, time, period]
-    where: "is_first AND previous_downtime"
+    where: "position(time) == 0 AND previous_downtime"
     expression: downtime + running * (previous_downtime + dt) == previous_downtime + dt
 
   status_forced_on:
     dims: [status_entity, time, period]
-    where: "is_first AND forced_on_at_start"
+    where: "position(time) == 0 AND forced_on_at_start"
     expression: running >= 1
 
   status_forced_off:
     dims: [status_entity, time, period]
-    where: "is_first AND forced_off_at_start"
+    where: "position(time) == 0 AND forced_off_at_start"
     expression: running <= 0

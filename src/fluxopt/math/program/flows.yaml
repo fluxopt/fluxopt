@@ -17,10 +17,6 @@ relations:
   carrier_of: {key: flow, values: carrier}
 
 parameters:
-  # Boundary mask as data, not a `time > 0` comparison: with ragged
-  # multi-period time the first step of *each* period is a boundary.
-  is_first: {dims: [time], dtype: bool}
-  is_last: {dims: [time], dtype: bool}
   dt: {dims: [time]}                       # timestep duration [h]
   # Aggregation weight per timestep; multiplies where the sum happens.
   time_weight: {dims: [time]}

@@ -73,7 +73,7 @@ expressions:
         when: "is_cyclic"
         expression: shift(level, along=time, offset=1, edge='wrap')
       first:
-        when: "NOT is_cyclic AND is_first"
+        when: "NOT is_cyclic AND position(time) == 0"
         expression: prior_level
     otherwise: shift(level, along=time, offset=1)
     description: The level a storage carries into a step.
@@ -96,8 +96,6 @@ expressions:
 
 given:
   parameters:
-    is_first: {dims: [time], dtype: bool}
-    is_last: {dims: [time], dtype: bool}
     size_bound: {dims: [flow]}
   variables:
     rate: {dims: [flow, time, period]}
@@ -111,12 +109,12 @@ constraints:
 
   storage_final_min:
     dims: [storage, time, period]
-    where: "is_last AND final_level_min"
+    where: "position(time) == -1 AND final_level_min"
     expression: level >= final_level_min
 
   storage_final_max:
     dims: [storage, time, period]
-    where: "is_last AND final_level_max"
+    where: "position(time) == -1 AND final_level_max"
     expression: level <= final_level_max
 
   # --- P^c <= M^c b,  P^d <= M^d (1 - b)

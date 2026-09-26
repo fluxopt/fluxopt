@@ -636,6 +636,30 @@ class TestFlowConstraints:
         )
         assert_allclose(result.objective, 140.0, rtol=1e-5)
 
+    def test_a_ramp_of_zero_holds_the_rate(self):
+        """A ramp of 0 is a ramp: the rate may not rise at all.
+
+        CheapSrc (size=100, ramp_up=0), cost 1. Demand=[10,50]. Cheap stays at
+        10, so Expensive covers 40 at t1: cost = 10 + 10 + 40*5 = 220.
+
+        Sensitivity: a ramp read as absent lets Cheap cover all -> cost=60.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 50])]),
+                Port(
+                    id='CheapSrc',
+                    imports=[Flow(carrier='Heat', size=100, ramp_up_per_hour=0.0, effects_per_flow_hour={'cost': 1})],
+                ),
+                Port(id='ExpensiveSrc', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+        )
+        assert_allclose(result.objective, 220.0, rtol=1e-5)
+
     def test_ramp_down_limits_decrease(self):
         """ramp_down_per_hour caps the rate decrease between timesteps.
 

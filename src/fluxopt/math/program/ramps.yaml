@@ -1,5 +1,5 @@
 # P_t - P_{t-1} <= r * dt * S, relaxed by S at a start-up for a gated flow.
-# Periods are independent, hence the is_first mask.
+# Periods are independent, so the first step has no row.
 description: How fast a flow's rate may change from one step to the next.
 
 dimensions:
@@ -12,15 +12,13 @@ relations:
   status_of: {key: flow, values: status_entity}
 
 parameters:
-  has_ramp_up: {dims: [flow], dtype: bool}
-  has_ramp_down: {dims: [flow], dtype: bool}
-  ramp_up_coeff: {dims: [flow, time, period]}    # r+ * dt, per unit of size
+  # r+ * dt, per unit of size. A flow with a ramp has a row, a ramp of 0
+  # included; a flow without one has none.
+  ramp_up_coeff: {dims: [flow, time, period]}
   ramp_down_coeff: {dims: [flow, time, period]}
 
 given:
   parameters:
-    is_first: {dims: [time], dtype: bool}
-    is_gated: {dims: [flow], dtype: bool}
     size_bound: {dims: [flow]}
   variables:
     rate: {dims: [flow, time, period]}
@@ -36,7 +34,7 @@ expressions:
     dims: [flow, time, period]
     cases:
       gated:
-        when: "is_gated"
+        when: "status_of"
         expression: size_bound * at(startup, by=status_of, over=status_entity, into=flow)
     otherwise: 0
     description: How far a start-up relaxes the ramp-up limit.
@@ -44,7 +42,7 @@ expressions:
     dims: [flow, time, period]
     cases:
       gated:
-        when: "is_gated"
+        when: "status_of"
         expression: size_bound * at(shutdown, by=status_of, over=status_entity, into=flow)
     otherwise: 0
     description: How far a shut-down relaxes the ramp-down limit.
@@ -52,10 +50,10 @@ expressions:
 constraints:
   ramp_up:
     dims: [flow, time, period]
-    where: "has_ramp_up AND NOT is_first"
+    where: "ramp_up_coeff AND position(time) != 0"
     expression: rate - shift(rate, along=time, offset=1) <= ramp_up_coeff * flow_size + startup_release
 
   ramp_down:
     dims: [flow, time, period]
-    where: "has_ramp_down AND NOT is_first"
+    where: "ramp_down_coeff AND position(time) != 0"
     expression: shift(rate, along=time, offset=1) - rate <= ramp_down_coeff * flow_size + shutdown_release

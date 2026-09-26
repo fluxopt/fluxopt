@@ -45,7 +45,7 @@ expressions:
     dims: [flow, period]
     cases:
       decided:
-        when: "has_sizing OR has_invest"
+        when: "size"
         expression: size
     otherwise: size_bound
     description: The size a flow has, whether it is decided or given.
@@ -71,15 +71,15 @@ constraints:
   # hold for every sized flow and only the build is pinned.
   sizing_mandatory_built:
     dims: [flow, period]
-    where: "has_sizing AND mandatory"
+    where: "size_built AND mandatory"
     expression: size_built == 1
 
   sizing_min:
     dims: [flow, period]
-    where: "has_sizing"
+    where: "size_built"
     expression: size >= size_min * size_built
 
   sizing_max:
     dims: [flow, period]
-    where: "has_sizing"
+    where: "size_built"
     expression: size <= size_max * size_built

@@ -15,18 +15,18 @@ dimensions:
   bp: {dtype: int}
 
 relations:
-  converter_of: {key: flow, values: converter}
-  # A piecewise curve's own on/off decision, where its component has one.
+  # The curve a flow is a link of. A flow of no curve has no row.
+  curve_of: {key: flow, values: converter}
+  # The breakpoints a curve has. Curves of different width share one `bp`
+  # axis, so a narrower curve has no row past its end.
+  breakpoint: {key: [converter, bp]}
+  # A curve's own on/off decision, where its component has one. A curve with
+  # a row is gated.
   pw_status_of: {key: converter, values: status_entity}
 
 parameters:
-  has_piecewise: {dims: [converter], dtype: bool}
-  pw_gated: {dims: [converter], dtype: bool}       # the curve answers to a Status
-  pw_bp_present: {dims: [converter, bp], dtype: bool}   # this curve has this breakpoint
-  is_piecewise: {dims: [flow], dtype: bool}        # this flow is a link of a curve
-  pw_equal: {dims: [flow], dtype: bool}            # pinned to the curve
-  pw_upper: {dims: [flow], dtype: bool}            # bounded above by it
-  pw_lower: {dims: [flow], dtype: bool}            # bounded below by it
+  # How a link meets its curve: '==' pinned to it, '<=' below it, '>=' above.
+  link_sense: {dims: [flow], dtype: str}
   pw_bp_value: {dims: [flow, bp, time]}            # this link's breakpoint values
   pw_ref: {dims: [flow]}                           # 1 on the link availability scales
   pw_avail_bound: {dims: [converter, time, period]}  # availability * widest breakpoint
@@ -35,7 +35,7 @@ variables:
   # Convex-combination weights over the breakpoints of each curve.
   lam:
     dims: [converter, bp, time, period]
-    where: "pw_bp_present"
+    where: "breakpoint"
     bounds: {lower: 0, upper: 1}
 
 given:
@@ -59,41 +59,41 @@ constraints:
   # --- one convexity row per curve, one link row per curve flow.
   pw_convexity:
     dims: [converter, time, period]
-    where: "has_piecewise AND NOT pw_gated"
+    where: "count(breakpoint, over=bp) >= 1 AND NOT pw_status_of"
     expression: sum(lam, over=bp) == 1
 
   pw_convexity_gated:
     dims: [converter, time, period]
-    where: "has_piecewise AND pw_gated"
+    where: "count(breakpoint, over=bp) >= 1 AND pw_status_of"
     expression: sum(lam, over=bp) == at(running, by=pw_status_of, over=status_entity, into=converter)
 
   # A link is a row keyed on the flow, so a curve ties as many flows as it has.
   pw_link_equal:
     dims: [flow, time, period]
-    where: "is_piecewise AND pw_equal"
-    expression: rate == sum(at(lam, by=converter_of, over=converter, into=flow) * pw_bp_value, over=bp)
+    where: "link_sense == '=='"
+    expression: rate == sum(at(lam, by=curve_of, over=converter, into=flow) * pw_bp_value, over=bp)
 
   pw_link_upper:
     dims: [flow, time, period]
-    where: "is_piecewise AND pw_upper"
-    expression: rate <= sum(at(lam, by=converter_of, over=converter, into=flow) * pw_bp_value, over=bp)
+    where: "link_sense == '<='"
+    expression: rate <= sum(at(lam, by=curve_of, over=converter, into=flow) * pw_bp_value, over=bp)
 
   pw_link_lower:
     dims: [flow, time, period]
-    where: "is_piecewise AND pw_lower"
-    expression: rate >= sum(at(lam, by=converter_of, over=converter, into=flow) * pw_bp_value, over=bp)
+    where: "link_sense == '>='"
+    expression: rate >= sum(at(lam, by=curve_of, over=converter, into=flow) * pw_bp_value, over=bp)
 
   # Availability scales the envelope rather than the curve, so it bounds the
   # reference link instead of moving the breakpoints.
   pw_availability:
     dims: [converter, time, period]
-    where: "has_piecewise AND NOT pw_gated"
-    expression: sum(rate * pw_ref, by=converter_of, over=flow, into=converter) <= pw_avail_bound
+    where: "count(breakpoint, over=bp) >= 1 AND NOT pw_status_of"
+    expression: sum(rate * pw_ref, by=curve_of, over=flow, into=converter) <= pw_avail_bound
 
   pw_availability_gated:
     dims: [converter, time, period]
-    where: "has_piecewise AND pw_gated"
+    where: "count(breakpoint, over=bp) >= 1 AND pw_status_of"
     expression: >-
-      sum(rate * pw_ref, by=converter_of, over=flow, into=converter)
+      sum(rate * pw_ref, by=curve_of, over=flow, into=converter)
       - pw_avail_bound * at(running, by=pw_status_of, over=status_entity, into=converter)
       <= 0

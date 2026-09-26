@@ -18,18 +18,15 @@ expressions:
     dims: [flow, time, period]
     cases:
       gated:
-        when: "is_gated AND NOT has_sizing"
+        when: "status_of AND NOT size_built"
         expression: size_bound * at(running, by=status_of, over=status_entity, into=flow)
     otherwise: flow_size
     description: What the envelope's fractions multiply.
 
 given:
   parameters:
-    is_gated: {dims: [flow], dtype: bool}
     is_bounded: {dims: [flow], dtype: bool}
     is_profile: {dims: [flow], dtype: bool}
-    has_sizing: {dims: [flow], dtype: bool}
-    has_invest: {dims: [flow], dtype: bool}
     size_bound: {dims: [flow]}
     mandatory: {dims: [flow], dtype: bool}
     size_min: {dims: [flow]}
@@ -51,33 +48,33 @@ constraints:
   # `rate_min`/`rate_max` already.
   rate_envelope_min:
     dims: [flow, time, period]
-    where: "is_bounded AND (is_gated OR has_sizing OR has_invest) AND NOT (is_gated AND has_sizing)"
+    where: "is_bounded AND (status_of OR size) AND NOT (status_of AND size_built)"
     expression: rate >= relative_rate_min * envelope_size
 
   rate_envelope_max:
     dims: [flow, time, period]
-    where: "is_bounded AND (is_gated OR has_sizing OR has_invest) AND NOT (is_gated AND has_sizing)"
+    where: "is_bounded AND (status_of OR size) AND NOT (status_of AND size_built)"
     expression: rate <= relative_rate_max * envelope_size
 
   rate_envelope_fixed:
     dims: [flow, time, period]
-    where: "is_profile AND (is_gated OR has_sizing OR has_invest) AND NOT (is_gated AND has_sizing)"
+    where: "is_profile AND (status_of OR size) AND NOT (status_of AND size_built)"
     expression: rate == fixed_relative_profile * envelope_size
 
   # --- gated and sized: P <= running*M+, P <= S*rel_ub, P >= (running-1)*M- + S*rel_lb
   status_sizing_rate_bigm:
     dims: [flow, time, period]
-    where: "is_gated AND has_sizing"
+    where: "status_of AND size_built"
     expression: rate <= relative_rate_max * size_max * at(running, by=status_of, over=status_entity, into=flow)
 
   status_sizing_rate_max:
     dims: [flow, time, period]
-    where: "is_gated AND has_sizing"
+    where: "status_of AND size_built"
     expression: rate <= relative_rate_max * size
 
   status_sizing_rate_min:
     dims: [flow, time, period]
-    where: "is_gated AND has_sizing"
+    where: "status_of AND size_built"
     expression: >-
       rate - relative_rate_min * size_max * at(running, by=status_of, over=status_entity, into=flow)
       - relative_rate_min * size
@@ -86,10 +83,10 @@ constraints:
   # an unbuilt unit cannot be running
   status_sizing_gate_size:
     dims: [flow, time, period]
-    where: "is_gated AND has_sizing AND size_min > 0"
+    where: "status_of AND size_built AND size_min > 0"
     expression: size >= size_min * at(running, by=status_of, over=status_entity, into=flow)
 
   status_sizing_gate_built:
     dims: [flow, time, period]
-    where: "is_gated AND has_sizing AND NOT mandatory AND NOT (size_min > 0)"
+    where: "status_of AND size_built AND NOT mandatory AND NOT (size_min > 0)"
     expression: at(running, by=status_of, over=status_entity, into=flow) <= size_built

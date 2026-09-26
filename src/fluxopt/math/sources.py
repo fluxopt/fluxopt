@@ -101,18 +101,7 @@ _INT_DIMS = frozenset({'time', 'period', 'build_period', 'eq_idx', 'bp'})
 #: Parameters the program declares ``dtype: bool``.
 _BOOL_PARAMS = frozenset(
     {
-        'is_first',
-        'is_last',
-        'conversion_active',
         'is_cyclic',
-        'is_gated',
-        'is_piecewise',
-        'has_piecewise',
-        'pw_gated',
-        'pw_equal',
-        'pw_upper',
-        'pw_lower',
-        'pw_bp_present',
         'is_bounded',
         'is_profile',
         'has_uptime',
@@ -123,8 +112,6 @@ _BOOL_PARAMS = frozenset(
         'mandatory',
         'has_invest',
         'has_prior_capacity',
-        'has_ramp_up',
-        'has_ramp_down',
         'prevent_simultaneous',
         'has_capacity_sizing',
         'capacity_mandatory',
@@ -463,16 +450,17 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             ['flow', 'eq_idx', 'time', 'value']
         )
         # One row per equation each converter states — the counts, expanded.
-        sources['conversion_active'] = pl.DataFrame(
+        sources['equation'] = pl.DataFrame(
             {
                 'converter': [c for c, n in zip(cds.ids, cds.equations['n_equations'], strict=True) for _ in range(n)],
                 'eq_idx': [i for n in cds.equations['n_equations'] for i in range(n)],
-            }
-        ).with_columns(pl.lit(True).alias('value'))
+            },
+            schema={'converter': pl.String, 'eq_idx': pl.Int64},
+        )
     else:
         flow_index['converter_of'] = None
         sources['conversion_factor'] = _empty('conversion_factor', 'flow', 'eq_idx', 'time')
-        sources['conversion_active'] = _empty('conversion_active', 'converter', 'eq_idx')
+        sources['equation'] = pl.DataFrame(schema={'converter': pl.String, 'eq_idx': pl.Int64})
 
     # --- storage ----------------------------------------------------------
     storage_ids: list[str] = []
@@ -587,7 +575,6 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     entity_ids: list[str] = st.ids if st is not None else []
     gated_ids = [f for f in flow_ids if f in status_of]
 
-    sources['is_gated'] = _flags('is_gated', 'flow', gated_ids)
     sources['is_bounded'] = _flags('is_bounded', 'flow', is_bounded)
     sources['is_profile'] = _flags('is_profile', 'flow', is_profile)
 
@@ -686,7 +673,6 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             sources[n] = _empty(n, 'status_entity')
 
     sources['dt'] = dims.timesteps.select(['time', pl.col('dt').alias('value')])
-    sources['is_last'] = pd.DataFrame({'time': ordinals, 'value': [i == len(ordinals) - 1 for i in ordinals]})
 
     # --- sizing -----------------------------------------------------------
     if sz is not None:
@@ -714,11 +700,9 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     # unit of size; the program multiplies by `flow_size`.
     ramps = fds.ramps.join(dt_by_time, on='time')
     for kind in ('up', 'down'):
+        # A ramp of 0 is a row: the row is what says the flow has a ramp.
         declared = ramps.filter(pl.col(f'ramp_{kind}').is_not_null())
-        sources[f'has_ramp_{kind}'] = _flags(
-            f'has_ramp_{kind}', 'flow', declared['flow'].unique(maintain_order=True).to_list()
-        )
-        sources[f'ramp_{kind}_coeff'] = _live(declared, pl.col(f'ramp_{kind}') * pl.col('dt'))
+        sources[f'ramp_{kind}_coeff'] = _live(declared, pl.col(f'ramp_{kind}') * pl.col('dt'), drop_zero=False)
     # --- investment -------------------------------------------------------
     if inv is not None:
         period_labels_inv: list[Any] = dims.periods['label'].to_list()
@@ -797,7 +781,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     # `status_sizing_rate_min`, where a dropped zero is a bound rather than an
     # absent coefficient — and a flow whose lower bound is zero is the
     # ordinary case, so dropping it would break exactly the common one.
-    sources['relative_rate_min'] = _live(scaled, pl.col('relative_rate_min'), drop_zero=False)
+    sources['relative_rate_min'] = _live(scaled, pl.col('relative_rate_min'), drop_zero=True)
 
     # --- effects: the sparse one -----------------------------------------
     eds = data.effects
@@ -876,7 +860,6 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         sources[key] = frame.filter(pl.col(key).is_not_null()).select([*axes, pl.col(key).alias('value')])
 
     # --- temporal boundary mask ------------------------------------------
-    sources['is_first'] = pd.DataFrame({'time': ordinals, 'value': [i == 0 for i in ordinals]})
     sources['time_weight'] = dims.timesteps.select(['time', pl.col('weight').alias('value')])
 
     # --- flow aggregates ------------------------------------------------
@@ -905,7 +888,6 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         # through are its rows, so the identity is what remains after dropping
         # the axes a curve varies along.
         identity = links.select(['converter', 'flow', 'bound']).unique(maintain_order=True)
-        pair_flow = identity['flow'].to_list()
 
         sources['pw_bp_value'] = _with_time_ordinals(links.filter(pl.col('value') != 0), dims).select(
             ['flow', 'bp', 'time', 'value']
@@ -916,14 +898,11 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         # of a narrower one.
         present = links.select(['converter', 'bp']).unique(maintain_order=True).sort(['converter', 'bp'])
         bp_width = int(present['bp'].max() or 0) + 1 if len(present) else 0  # type: ignore[arg-type]
-        sources['pw_bp_present'] = present.with_columns(pl.lit(True).alias('value'))
+        sources['breakpoint'] = present.select(['converter', pl.col('bp').cast(pl.Int64)])
 
         gated = curves.filter(pl.col('has_status'))['converter'].unique(maintain_order=True).to_list()
-        sources['has_piecewise'] = _flags('has_piecewise', 'converter', pw_convs)
-        sources['pw_gated'] = _flags('pw_gated', 'converter', gated)
-        sources['is_piecewise'] = _flags('is_piecewise', 'flow', pair_flow)
-        for name, sign in (('pw_equal', '=='), ('pw_upper', '<='), ('pw_lower', '>=')):
-            sources[name] = _flags(name, 'flow', identity.filter(pl.col('bound') == sign)['flow'].to_list())
+        sources['curve_of'] = identity.select(['flow', 'converter'])
+        sources['link_sense'] = identity.select(['flow', pl.col('bound').alias('value')])
 
         # Availability scales the envelope of the reference link — a curve's
         # first, which is what the eager lane bounds too.
@@ -950,18 +929,14 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         converter_ids = linear_convs + [c for c in pw_convs if c not in set(linear_convs)]
     else:
         for name, dcols in (
-            ('has_piecewise', ('converter',)),
-            ('pw_gated', ('converter',)),
-            ('is_piecewise', ('flow',)),
-            ('pw_equal', ('flow',)),
-            ('pw_upper', ('flow',)),
-            ('pw_lower', ('flow',)),
             ('pw_ref', ('flow',)),
-            ('pw_bp_present', ('converter', 'bp')),
             ('pw_bp_value', ('flow', 'bp', 'time')),
             ('pw_avail_bound', ('converter', 'time')),
         ):
             sources[name] = _empty(name, *dcols)
+        sources['breakpoint'] = pl.DataFrame(schema={'converter': pl.String, 'bp': pl.Int64})
+        sources['curve_of'] = pl.DataFrame(schema={'flow': pl.String, 'converter': pl.String})
+        sources['link_sense'] = pl.DataFrame(schema={'flow': pl.String, 'value': pl.String})
         converter_ids = linear_convs
 
     # A map is its own source key, keyed `(over, into)` and holding only the
