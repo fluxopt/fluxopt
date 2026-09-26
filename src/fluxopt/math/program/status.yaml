@@ -83,39 +83,10 @@ given:
     is_last: {dims: [time], dtype: bool}
     dt: {dims: [time]}
     time_weight: {dims: [time]}
-    size_bound: {dims: [flow]}
-    is_bounded: {dims: [flow], dtype: bool}
-    is_profile: {dims: [flow], dtype: bool}
-    relative_rate_min: {dims: [flow, time, period]}
-    relative_rate_max: {dims: [flow, time, period]}
-    fixed_relative_profile: {dims: [flow, time, period]}
-    has_sizing: {dims: [flow], dtype: bool}
-  variables:
-    rate: {dims: [flow, time, period]}
   expressions:
     effect_temporal: {dims: [effect, period], term: status_costs}
 
 constraints:
-  # --- semi-continuous rate: {0} u [size*rel_lb, size*rel_ub], via `running`.
-  # `at(running, by=status_of, ...)` is what makes one family serve both kinds
-  # of Status: a flow that carries its own reads its own binary, a flow
-  # governed by a component reads that component's, and neither knows the
-  # difference. A sized flow's version is in `status_sizing.yaml`.
-  status_rate_min:
-    dims: [flow, time, period]
-    where: "is_gated AND NOT has_sizing AND is_bounded"
-    expression: rate >= relative_rate_min * size_bound * at(running, by=status_of, over=status_entity, into=flow)
-
-  status_rate_max:
-    dims: [flow, time, period]
-    where: "is_gated AND NOT has_sizing AND is_bounded"
-    expression: rate <= relative_rate_max * size_bound * at(running, by=status_of, over=status_entity, into=flow)
-
-  status_rate_fixed:
-    dims: [flow, time, period]
-    where: "is_gated AND NOT has_sizing AND is_profile"
-    expression: rate == fixed_relative_profile * size_bound * at(running, by=status_of, over=status_entity, into=flow)
-
   status_transition:
     dims: [status_entity, time, period]
     where: "NOT is_first"

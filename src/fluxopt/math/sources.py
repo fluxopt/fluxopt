@@ -56,10 +56,8 @@ PERIOD_PARAMS = frozenset(
         'pw_avail_bound',
         'flow_hours_min',
         'flow_hours_max',
-        'load_factor_min_bound',
-        'load_factor_max_bound',
-        'load_factor_min_coeff',
-        'load_factor_max_coeff',
+        'load_factor_min',
+        'load_factor_max',
         'lifetime_window',
         'prior_capacity_active',
     }
@@ -712,21 +710,15 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             sources[n] = _empty(n, 'storage', 'time')
 
     # --- ramps ------------------------------------------------------------
-    # A ramp limit is per hour, so the step's allowance is limit x dt. Where
-    # the size is a number that allowance is absolute; where it is a variable
-    # the per-unit coefficient travels instead and the program multiplies.
-    ramps = fds.ramps.join(dt_by_time, on='time').join(fds.sizes, on='flow', how='left')
+    # A ramp limit is per hour, so the step's allowance is limit x dt, per
+    # unit of size; the program multiplies by `flow_size`.
+    ramps = fds.ramps.join(dt_by_time, on='time')
     for kind in ('up', 'down'):
         declared = ramps.filter(pl.col(f'ramp_{kind}').is_not_null())
         sources[f'has_ramp_{kind}'] = _flags(
             f'has_ramp_{kind}', 'flow', declared['flow'].unique(maintain_order=True).to_list()
         )
-        allowance = pl.col(f'ramp_{kind}') * pl.col('dt')
-        # The split follows the program's `has_sizing`, not the absence of a
-        # fixed size: those are the two branches the constraints are written in.
-        sized = pl.col('flow').is_in(pl.Series(sizing_ids, dtype=pl.String).implode())
-        sources[f'ramp_{kind}_coeff'] = _live(declared.filter(sized), allowance)
-        sources[f'ramp_{kind}_limit'] = _live(declared.filter(~sized), allowance * pl.col('size'))
+        sources[f'ramp_{kind}_coeff'] = _live(declared, pl.col(f'ramp_{kind}') * pl.col('dt'))
     # --- investment -------------------------------------------------------
     if inv is not None:
         period_labels_inv: list[Any] = dims.periods['label'].to_list()
@@ -888,23 +880,16 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     sources['time_weight'] = dims.timesteps.select(['time', pl.col('weight').alias('value')])
 
     # --- flow aggregates ------------------------------------------------
-    # `size` here is the static one; a sized flow's is a variable, so its bound
-    # travels as a coefficient instead of a product and the program multiplies.
+    # A load factor bounds the mean rate as a fraction of the size, so it
+    # travels as lambda x T and the program multiplies by `flow_size`.
     total_duration = float((dims.timesteps['dt'] * dims.timesteps['weight']).sum())
-    # A load factor bounds the mean rate as a fraction of the size. Where the
-    # size is a number the bound is one too; where it is a variable the bound
-    # travels as a coefficient and the program multiplies.
-    aggregates = fds.aggregates.join(fds.sizes, on='flow', how='left')
+    aggregates = fds.aggregates
     for name in ('flow_hours_min', 'flow_hours_max'):
         sources[name] = aggregates.select(['flow', pl.col(name).alias('value')]).drop_nulls('value')
     for kind in ('min', 'max'):
-        declared = aggregates.filter(pl.col(f'load_factor_{kind}').is_not_null())
-        sources[f'load_factor_{kind}_bound'] = declared.select(
-            ['flow', (pl.col(f'load_factor_{kind}') * pl.col('size') * total_duration).alias('value')]
-        ).drop_nulls('value')
-        sources[f'load_factor_{kind}_coeff'] = declared.filter(pl.col('size').is_null()).select(
+        sources[f'load_factor_{kind}'] = aggregates.select(
             ['flow', (pl.col(f'load_factor_{kind}') * total_duration).alias('value')]
-        )
+        ).drop_nulls('value')
 
     # --- piecewise conversion ------------------------------------------
     # The curve tables are already the shape the program wants: a link is a

@@ -64,6 +64,19 @@ variables:
     domain: binary
 
 expressions:
+  # What the level carries into a step. A cyclic storage wraps, so its first
+  # step reads its last; an acyclic one starts from a data-side prior.
+  level_before:
+    dims: [storage, time, period]
+    cases:
+      cyclic:
+        when: "is_cyclic"
+        expression: shift(level, along=time, offset=1, edge='wrap')
+      first:
+        when: "NOT is_cyclic AND is_first"
+        expression: prior_level
+    otherwise: shift(level, along=time, offset=1)
+    description: The level a storage carries into a step.
   net_charge:
     expression: >-
       sum(rate, by=charge_storage, over=flow, into=storage) * charge_gain
@@ -92,22 +105,9 @@ given:
     effect_lump: {dims: [effect, period], term: storage_costs}
 
 constraints:
-  # --- recurrence: the three cases are disjoint and cover every row.
-  # cyclic wraps, so t=0 reads level[last] and needs no prior variable.
-  storage_balance_cyclic:
+  storage_balance:
     dims: [storage, time, period]
-    where: "is_cyclic"
-    expression: level == shift(level, along=time, offset=1, edge='wrap') * retention + net_charge
-
-  storage_balance_step:
-    dims: [storage, time, period]
-    where: "NOT is_cyclic AND NOT is_first"
-    expression: level == shift(level, along=time, offset=1) * retention + net_charge
-
-  storage_balance_prior:
-    dims: [storage, time, period]
-    where: "NOT is_cyclic AND is_first"
-    expression: level == prior_level * retention + net_charge
+    expression: level == level_before * retention + net_charge
 
   storage_final_min:
     dims: [storage, time, period]
@@ -158,15 +158,10 @@ constraints:
 
   cap_min:
     dims: [storage, period]
-    where: "has_capacity_sizing AND capacity_mandatory"
-    expression: capacity >= capacity_min
-
-  cap_optional_min:
-    dims: [storage, period]
-    where: "has_capacity_sizing AND NOT capacity_mandatory"
+    where: "has_capacity_sizing"
     expression: capacity >= capacity_min * capacity_built
 
-  cap_optional_max:
+  cap_max:
     dims: [storage, period]
-    where: "has_capacity_sizing AND NOT capacity_mandatory"
+    where: "has_capacity_sizing"
     expression: capacity <= capacity_max * capacity_built

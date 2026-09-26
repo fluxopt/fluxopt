@@ -49,8 +49,9 @@ parameters:
   # the sum energy rather than a count of steps.
   flow_hours_min: {dims: [flow, period]}
   flow_hours_max: {dims: [flow, period]}
-  load_factor_min_bound: {dims: [flow, period]}    # lambda * size * T, fixed size
-  load_factor_max_bound: {dims: [flow, period]}
+  # A load factor bounds the flow hours as a share of the size: lambda * T.
+  load_factor_min: {dims: [flow, period]}
+  load_factor_max: {dims: [flow, period]}
 
 variables:
   rate:
@@ -64,6 +65,9 @@ expressions:
   contribution_flow_hour:
     expression: rate * effects_per_flow_hour
     description: What each flow's throughput contributes, per timestep.
+  flow_hours:
+    expression: sum(rate * dt * time_weight, over=time)
+    description: The energy a flow carries in a period.
   flow_hour_costs:
     expression: sum(sum(contribution_flow_hour * time_weight, over=time), over=flow)
     description: What the flows' throughput adds to each effect over the horizon.
@@ -71,6 +75,7 @@ expressions:
 given:
   expressions:
     effect_temporal: {dims: [effect, period], term: flow_hour_costs}
+    flow_size: {dims: [flow, period]}
 
 constraints:
   carrier_balance:
@@ -80,19 +85,19 @@ constraints:
   flow_hours_lower:
     dims: [flow, period]
     where: "flow_hours_min"
-    expression: sum(rate * dt * time_weight, over=time) >= flow_hours_min
+    expression: flow_hours >= flow_hours_min
 
   flow_hours_upper:
     dims: [flow, period]
     where: "flow_hours_max"
-    expression: sum(rate * dt * time_weight, over=time) <= flow_hours_max
+    expression: flow_hours <= flow_hours_max
 
   load_factor_lower:
     dims: [flow, period]
-    where: "load_factor_min_bound"
-    expression: sum(rate * dt * time_weight, over=time) >= load_factor_min_bound
+    where: "load_factor_min"
+    expression: flow_hours >= load_factor_min * flow_size
 
   load_factor_upper:
     dims: [flow, period]
-    where: "load_factor_max_bound"
-    expression: sum(rate * dt * time_weight, over=time) <= load_factor_max_bound
+    where: "load_factor_max"
+    expression: flow_hours <= load_factor_max * flow_size

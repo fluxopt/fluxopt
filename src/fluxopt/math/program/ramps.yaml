@@ -1,4 +1,4 @@
-# P_t - P_{t-1} <= r+ * S * dt, relaxed at a startup for status flows.
+# P_t - P_{t-1} <= r * dt * S, relaxed by S at a start-up for a gated flow.
 # Periods are independent, hence the is_first mask.
 description: How fast a flow's rate may change from one step to the next.
 
@@ -14,68 +14,48 @@ relations:
 parameters:
   has_ramp_up: {dims: [flow], dtype: bool}
   has_ramp_down: {dims: [flow], dtype: bool}
-  ramp_up_limit: {dims: [flow, time, period]}    # r+ * dt * size   (fixed size)
-  ramp_down_limit: {dims: [flow, time, period]}
-  ramp_up_coeff: {dims: [flow, time, period]}    # r+ * dt          (sized: size is a variable)
+  ramp_up_coeff: {dims: [flow, time, period]}    # r+ * dt, per unit of size
   ramp_down_coeff: {dims: [flow, time, period]}
 
 given:
   parameters:
     is_first: {dims: [time], dtype: bool}
     is_gated: {dims: [flow], dtype: bool}
-    has_sizing: {dims: [flow], dtype: bool}
     size_bound: {dims: [flow]}
   variables:
     rate: {dims: [flow, time, period]}
-    size: {dims: [flow, period]}
     startup: {dims: [status_entity, time, period], domain: binary}
     shutdown: {dims: [status_entity, time, period], domain: binary}
+  expressions:
+    flow_size: {dims: [flow, period]}
+
+expressions:
+  # A gated flow may jump from zero to its minimum in the step it starts, so
+  # the step it starts in is released by the most it could carry.
+  startup_release:
+    dims: [flow, time, period]
+    cases:
+      gated:
+        when: "is_gated"
+        expression: size_bound * at(startup, by=status_of, over=status_entity, into=flow)
+    otherwise: 0
+    description: How far a start-up relaxes the ramp-up limit.
+  shutdown_release:
+    dims: [flow, time, period]
+    cases:
+      gated:
+        when: "is_gated"
+        expression: size_bound * at(shutdown, by=status_of, over=status_entity, into=flow)
+    otherwise: 0
+    description: How far a shut-down relaxes the ramp-down limit.
 
 constraints:
   ramp_up:
     dims: [flow, time, period]
-    where: "has_ramp_up AND NOT is_first AND NOT has_sizing AND NOT is_gated"
-    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_limit
-
-  ramp_up_status:
-    dims: [flow, time, period]
-    where: "has_ramp_up AND NOT is_first AND NOT has_sizing AND is_gated"
-    expression: >-
-      rate - shift(rate, along=time, offset=1)
-      - size_bound * at(startup, by=status_of, over=status_entity, into=flow) <= ramp_up_limit
-
-  ramp_up_sized:
-    dims: [flow, time, period]
-    where: "has_ramp_up AND NOT is_first AND has_sizing AND NOT is_gated"
-    expression: rate - shift(rate, along=time, offset=1) - ramp_up_coeff * size <= 0
-
-  ramp_up_sized_status:
-    dims: [flow, time, period]
-    where: "has_ramp_up AND NOT is_first AND has_sizing AND is_gated"
-    expression: >-
-      rate - shift(rate, along=time, offset=1) - ramp_up_coeff * size
-      - size_bound * at(startup, by=status_of, over=status_entity, into=flow) <= 0
+    where: "has_ramp_up AND NOT is_first"
+    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_coeff * flow_size + startup_release
 
   ramp_down:
     dims: [flow, time, period]
-    where: "has_ramp_down AND NOT is_first AND NOT has_sizing AND NOT is_gated"
-    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_limit
-
-  ramp_down_status:
-    dims: [flow, time, period]
-    where: "has_ramp_down AND NOT is_first AND NOT has_sizing AND is_gated"
-    expression: >-
-      shift(rate, along=time, offset=1) - rate
-      - size_bound * at(shutdown, by=status_of, over=status_entity, into=flow) <= ramp_down_limit
-
-  ramp_down_sized:
-    dims: [flow, time, period]
-    where: "has_ramp_down AND NOT is_first AND has_sizing AND NOT is_gated"
-    expression: shift(rate, along=time, offset=1) - rate - ramp_down_coeff * size <= 0
-
-  ramp_down_sized_status:
-    dims: [flow, time, period]
-    where: "has_ramp_down AND NOT is_first AND has_sizing AND is_gated"
-    expression: >-
-      shift(rate, along=time, offset=1) - rate - ramp_down_coeff * size
-      - size_bound * at(shutdown, by=status_of, over=status_entity, into=flow) <= 0
+    where: "has_ramp_down AND NOT is_first"
+    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_coeff * flow_size + shutdown_release

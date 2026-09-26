@@ -1,5 +1,5 @@
-# P in [rel_lb, rel_ub] * S with S a decision variable — so these leave
-# `bounds:` and become rows.
+# A flow's size as a decision: whether it is built, and how large. The rows
+# that scale the rate by it are in `envelope.yaml`.
 description: A flow's size may be a decision, and what building it costs.
 
 dimensions:
@@ -21,9 +21,6 @@ parameters:
   # Lump-domain effect coefficients, Leontief-folded like the temporal ones.
   effects_per_size: {dims: [flow, effect, period]}
   effects_fixed: {dims: [flow, effect, period]}
-  # Load factors stated relative to size, because the size is a decision.
-  load_factor_min_coeff: {dims: [flow, period]}    # lambda * T, size a variable
-  load_factor_max_coeff: {dims: [flow, period]}
 
 variables:
   # Investment flows share this variable — `size` is the capacity available in
@@ -42,6 +39,16 @@ variables:
     domain: binary
 
 expressions:
+  # What an envelope, a ramp or a load factor scales with: the decision where
+  # the size is one, and the number a flow was given otherwise.
+  flow_size:
+    dims: [flow, period]
+    cases:
+      decided:
+        when: "has_sizing OR has_invest"
+        expression: size
+    otherwise: size_bound
+    description: The size a flow has, whether it is decided or given.
   contribution_flow_per_size:
     expression: size * effects_per_size
     description: What a flow's built size costs, per period.
@@ -55,35 +62,13 @@ expressions:
 given:
   parameters:
     has_invest: {dims: [flow], dtype: bool}
-    is_gated: {dims: [flow], dtype: bool}
-    is_bounded: {dims: [flow], dtype: bool}
-    is_profile: {dims: [flow], dtype: bool}
-    relative_rate_min: {dims: [flow, time, period]}
-    relative_rate_max: {dims: [flow, time, period]}
-    fixed_relative_profile: {dims: [flow, time, period]}
-    dt: {dims: [time]}
-    time_weight: {dims: [time]}
-  variables:
-    rate: {dims: [flow, time, period]}
+    size_bound: {dims: [flow]}
   expressions:
     effect_lump: {dims: [effect, period], term: sizing_costs}
 
 constraints:
-  sizing_rate_min:
-    dims: [flow, time, period]
-    where: "(has_sizing OR has_invest) AND NOT is_gated AND is_bounded"
-    expression: rate >= relative_rate_min * size
-
-  sizing_rate_max:
-    dims: [flow, time, period]
-    where: "(has_sizing OR has_invest) AND NOT is_gated AND is_bounded"
-    expression: rate <= relative_rate_max * size
-
-  sizing_rate_fixed:
-    dims: [flow, time, period]
-    where: "(has_sizing OR has_invest) AND NOT is_gated AND is_profile"
-    expression: rate == fixed_relative_profile * size
-
+  # A mandatory build is the same decision already taken, so the size rows
+  # hold for every sized flow and only the build is pinned.
   sizing_mandatory_built:
     dims: [flow, period]
     where: "has_sizing AND mandatory"
@@ -91,27 +76,10 @@ constraints:
 
   sizing_min:
     dims: [flow, period]
-    where: "has_sizing AND mandatory"
-    expression: size >= size_min
-
-  sizing_optional_min:
-    dims: [flow, period]
-    where: "has_sizing AND NOT mandatory"
+    where: "has_sizing"
     expression: size >= size_min * size_built
 
-  sizing_optional_max:
+  sizing_max:
     dims: [flow, period]
-    where: "has_sizing AND NOT mandatory"
+    where: "has_sizing"
     expression: size <= size_max * size_built
-
-  # Sized flows state the load-factor bound with the size on the left,
-  # because it is a decision rather than a number.
-  load_factor_lower_sized:
-    dims: [flow, period]
-    where: "load_factor_min_coeff"
-    expression: sum(rate * dt * time_weight, over=time) - load_factor_min_coeff * size >= 0
-
-  load_factor_upper_sized:
-    dims: [flow, period]
-    where: "load_factor_max_coeff"
-    expression: sum(rate * dt * time_weight, over=time) - load_factor_max_coeff * size <= 0

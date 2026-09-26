@@ -1,0 +1,95 @@
+# A flow's rate as a share of its size: rel_lb * S <= P <= rel_ub * S, or
+# P = profile * S. S is a number, a decision, or a number while the flow is on.
+# A flow that is both gated and sized needs the binary and the decision at
+# once, so it takes the big-M rows below instead.
+description: A flow's rate within its envelope, a share of its size.
+
+dimensions:
+  time: {dtype: int}
+  period: {dtype: int}
+  flow: {dtype: str}
+  status_entity: {dtype: str}
+
+relations:
+  status_of: {key: flow, values: status_entity}
+
+expressions:
+  envelope_size:
+    dims: [flow, time, period]
+    cases:
+      gated:
+        when: "is_gated AND NOT has_sizing"
+        expression: size_bound * at(running, by=status_of, over=status_entity, into=flow)
+    otherwise: flow_size
+    description: What the envelope's fractions multiply.
+
+given:
+  parameters:
+    is_gated: {dims: [flow], dtype: bool}
+    is_bounded: {dims: [flow], dtype: bool}
+    is_profile: {dims: [flow], dtype: bool}
+    has_sizing: {dims: [flow], dtype: bool}
+    has_invest: {dims: [flow], dtype: bool}
+    size_bound: {dims: [flow]}
+    mandatory: {dims: [flow], dtype: bool}
+    size_min: {dims: [flow]}
+    size_max: {dims: [flow]}
+    relative_rate_min: {dims: [flow, time, period]}
+    relative_rate_max: {dims: [flow, time, period]}
+    fixed_relative_profile: {dims: [flow, time, period]}
+  variables:
+    rate: {dims: [flow, time, period]}
+    running: {dims: [status_entity, time, period], domain: binary}
+    size: {dims: [flow, period]}
+    size_built: {dims: [flow, period], domain: binary}
+  expressions:
+    flow_size: {dims: [flow, period]}
+
+constraints:
+  # The rows exist where the size scales the rate at all: a gated flow, or a
+  # sized one. A flow of fixed size that nothing gates has its envelope in
+  # `rate_min`/`rate_max` already.
+  rate_envelope_min:
+    dims: [flow, time, period]
+    where: "is_bounded AND (is_gated OR has_sizing OR has_invest) AND NOT (is_gated AND has_sizing)"
+    expression: rate >= relative_rate_min * envelope_size
+
+  rate_envelope_max:
+    dims: [flow, time, period]
+    where: "is_bounded AND (is_gated OR has_sizing OR has_invest) AND NOT (is_gated AND has_sizing)"
+    expression: rate <= relative_rate_max * envelope_size
+
+  rate_envelope_fixed:
+    dims: [flow, time, period]
+    where: "is_profile AND (is_gated OR has_sizing OR has_invest) AND NOT (is_gated AND has_sizing)"
+    expression: rate == fixed_relative_profile * envelope_size
+
+  # --- gated and sized: P <= running*M+, P <= S*rel_ub, P >= (running-1)*M- + S*rel_lb
+  status_sizing_rate_bigm:
+    dims: [flow, time, period]
+    where: "is_gated AND has_sizing"
+    expression: rate <= relative_rate_max * size_max * at(running, by=status_of, over=status_entity, into=flow)
+
+  status_sizing_rate_max:
+    dims: [flow, time, period]
+    where: "is_gated AND has_sizing"
+    expression: rate <= relative_rate_max * size
+
+  status_sizing_rate_min:
+    dims: [flow, time, period]
+    where: "is_gated AND has_sizing"
+    expression: >-
+      rate - relative_rate_min * size_max * at(running, by=status_of, over=status_entity, into=flow)
+      - relative_rate_min * size
+      >= 0 - relative_rate_min * size_max
+
+  # an unbuilt unit cannot be running
+  status_sizing_gate_size:
+    dims: [flow, time, period]
+    where: "is_gated AND has_sizing AND size_min > 0"
+    expression: size >= size_min * at(running, by=status_of, over=status_entity, into=flow)
+
+  status_sizing_gate_built:
+    dims: [flow, time, period]
+    where: "is_gated AND has_sizing AND NOT mandatory AND NOT (size_min > 0)"
+    expression: at(running, by=status_of, over=status_entity, into=flow) <= size_built

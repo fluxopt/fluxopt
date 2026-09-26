@@ -20,7 +20,7 @@ import pytest
 from conftest import ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Status, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Investment, Port, Sizing, Status, Storage, optimize
 
 # ---------------------------------------------------------------------------
 # Bus balance & dispatch
@@ -600,6 +600,41 @@ class TestFlowConstraints:
         assert_allclose(result.objective, 140.0, rtol=1e-5)
         cheap = result.flow_rate('CheapSrc(Heat)').values
         assert cheap[1] - cheap[0] <= 20.0 + 1e-5, f'Ramp-up violated: {cheap}'
+
+    def test_ramp_up_limits_an_invested_flow(self):
+        """A ramp holds on a flow whose size an investment decides.
+
+        The same system as the fixed-size case, with CheapSrc built to exactly
+        100 by a mandatory investment: t1 <= 30 again, so cost = 140.
+
+        Was wrong: the allowance travelled as `r * dt * size` with the fixed
+        size, and an invested flow has none, so `ramp_up_limit` had no row for
+        it and the build refused the system with a DataError.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 50])]),
+                Port(
+                    id='CheapSrc',
+                    imports=[
+                        Flow(
+                            carrier='Heat',
+                            size=Investment(size_min=100, size_max=100),
+                            ramp_up_per_hour=0.2,
+                            effects_per_flow_hour={'cost': 1},
+                        )
+                    ],
+                ),
+                Port(id='ExpensiveSrc', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+            periods=[2020],
+            period_weights=[1],
+        )
+        assert_allclose(result.objective, 140.0, rtol=1e-5)
 
     def test_ramp_down_limits_decrease(self):
         """ramp_down_per_hour caps the rate decrease between timesteps.
