@@ -89,21 +89,44 @@ class TestCarriersData:
         assert data.carriers.carriers.filter(pl.col('carrier') == 'elec')['color'][0] == 'blue'
         assert data.carriers.carriers.filter(pl.col('carrier') == 'elec')['description'][0] == 'Electricity'
 
-    def test_from_dataset_roundtrip(self, tmp_path):
 
-        data = ModelData.build(
-            ts(2),
-            carriers=[Carrier(id='elec', unit='kWh', color='red', description='Power')],
+class TestBuildValidation:
+    def test_undeclared_effect_rejected_without_flow_system(self) -> None:
+        """The raw ModelData.build path rejects undeclared effect references."""
+        with pytest.raises(ValueError, match=r"undeclared effect\(s\) \['co2'\]"):
+            ModelData.build(
+                ts(3),
+                carriers=[Carrier(id='elec')],
+                effects=[Effect(id='cost')],
+                ports=[Port(id='grid', imports=[Flow(carrier='elec', size=10, effects_per_flow_hour={'co2': 1.0})])],
+            )
+
+    def test_a_status_floor_of_zero_from_a_profile_is_refused_at_build(self) -> None:
+        """`Flow` refuses a zero floor under a status, but cannot see one a `ProfileRef` supplies."""
+        from fluxopt import ProfileRef, Status
+
+        system = FlowSystem(
+            timesteps=ts(3),
+            carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
-            ports=[Port(id='src', imports=[Flow(carrier='elec', size=100)])],
+            objective='cost',
+            ports=[
+                Port(
+                    id='grid',
+                    imports=[
+                        Flow(
+                            carrier='elec',
+                            size=100,
+                            relative_rate_min=ProfileRef(dataset='p', variable='floor'),
+                            status=Status(),
+                        )
+                    ],
+                ),
+                Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
+            ],
         )
-        # Frames round-trip through parquet, which carries their schema —
-        # a column with no rows still knows what it holds.
-        out = tmp_path / 'model'
-        data.save(out)
-        loaded = ModelData.load(out)
-        assert loaded.carriers.carriers.equals(data.carriers.carriers)
-        assert loaded.carriers.membership.equals(data.carriers.membership)
+        with pytest.raises(ValueError, match='on/off is indistinguishable'):
+            system.build_data({'p': {'floor': xr.DataArray([0.3, 0.0, 0.3], dims=['time'])}})
 
 
 class TestConvertersTable:

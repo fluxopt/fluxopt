@@ -1,18 +1,15 @@
 # Benchmarks
 
 Time + memory benchmarks for the build pipeline —
-`Elements → ModelData (xarray) → FlowSystemModel (linopy)` — and for NetCDF IO
-(`ModelData ⇄ .nc`). The HiGHS solve is excluded (non-deterministic, not ours to
-profile); the solved-`Result` round-trip is excluded for the same reason (it
-needs a solve to produce).
+`Elements → ModelData → sources → specsolve model`. The HiGHS solve is excluded
+(non-deterministic, not ours to profile). Persisting a spec and its sources is
+specsolve's archive, and benchmarked there.
 
 One `benchmark()` suite, served by [CodSpeed] in CI and [pytest-benchmem] locally.
 
 - `systems.py` — feature archetypes (`multi_node`, `status`, `piecewise`,
   `effects`, `sizing`) + `(n, timesteps)` scale tiers. Deterministic.
 - `test_build.py` — the feature matrix at one scale, and a multi_node scaling curve.
-- `test_io.py` — the same matrix + scaling curve for `ModelData.to_netcdf`
-  (write) and `ModelData.from_netcdf` (read). Solve-free, so no solved `Result`.
 - `test_reference.py` — the realistic reference systems bundled in the package
   (`fluxopt.benchmark`, also behind `python -m fluxopt.benchmark`) at a quarter
   year. Skips on fluxopt versions that predate the module.

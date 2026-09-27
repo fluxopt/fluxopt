@@ -1,22 +1,18 @@
 from __future__ import annotations
 
-import dataclasses
 import warnings
-from dataclasses import dataclass, fields
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, get_args
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import pandas as pd
 import polars as pl
 import xarray as xr
 
-from fluxopt.types import PiecewiseMethod, as_dataarray, normalize_timesteps
+from fluxopt.types import as_dataarray, normalize_timesteps
 from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
-    from _typeshed import DataclassInstance
-
     from fluxopt.components import Converter, Port
     from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage, _BoundFlow
     from fluxopt.types import TimeIndex, Timesteps
@@ -104,11 +100,6 @@ _NC_GROUPS = {
     'storages': 'model/stor',
     'piecewise': 'model/pw',
 }
-
-
-# Nested container fields on FlowsData / StoragesData — written to a
-# sub-directory of their own, not as frames of the parent container.
-_CONTAINER_FIELD_NAMES = frozenset({'sizing', 'invest'})
 
 
 @dataclass
@@ -266,16 +257,6 @@ class InvestmentData:
     def ids(self) -> list[str]:
         """The entities this table invests in, in declaration order."""
         return self.bounds['entity'].to_list()
-
-    def __post_init__(self) -> None:
-        """Re-check the lifetime `Investment` already refuses, for a reloaded file.
-
-        The bounds are the program's assumptions; the lifetime is never bound
-        as a parameter, only the window derived from it, so the program
-        cannot see it. See docs/design/validation-layers.md.
-        """
-        if len(short := self.lifetime.filter(pl.col('periods') <= 0)):
-            raise ValueError(f'Investment.lifetime must be positive on {short["entity"].to_list()}')
 
     @classmethod
     def build(
@@ -574,27 +555,6 @@ class FlowsData:
         sized, profiled = self.has_size, set(self.fixed_profile['flow'].to_list())
         return [f for f in self.ids if f in sized and f not in profiled]
 
-    def __post_init__(self) -> None:
-        """Validate sized-feature requirements; the rate bounds are the program's assumptions."""
-        self._check_sized_features()
-
-    def _check_sized_features(self) -> None:
-        """Ramp limits and load-factor bounds need a sized flow (fixed, Sizing, or Investment).
-
-        Without a size these features would feed a null into constraint
-        coefficients; the element layer already rejects this at authoring
-        time, this is the guard for direct data edits and reloads.
-        """
-        sized = self.has_size
-        for frame, columns in (
-            (self.ramps, ('ramp_up', 'ramp_down')),
-            (self.aggregates, ('load_factor_min', 'load_factor_max')),
-        ):
-            for column in columns:
-                declared = frame.filter(pl.col(column).is_not_null())['flow'].unique(maintain_order=True).to_list()
-                if bad := [f for f in declared if f not in sized]:
-                    raise ValueError(f'{column} requires a sized flow (fixed, Sizing, or Investment) on {bad}')
-
     @classmethod
     def build(
         cls,
@@ -791,19 +751,6 @@ class CarriersData:
         """The declared carriers, in declaration order."""
         return self.carriers['carrier'].to_list()
 
-    def __post_init__(self) -> None:
-        """Check the signs, and that every carrier named is declared.
-
-        Layer 3 — see docs/design/validation-layers.md.
-        """
-        if len(bad := self.membership.filter(~pl.col('sign').is_in(pl.Series([1.0, -1.0]).implode()))):
-            raise ValueError(f'CarriersData.sign must be +1 or -1; got {bad["sign"].to_list()}')
-        if len(stray := self.membership.filter(~pl.col('carrier').is_in(self.carriers['carrier'].implode()))):
-            raise ValueError(
-                f'CarriersData.membership names carriers that are not declared: '
-                f'{sorted(set(stray["carrier"].to_list()))}'
-            )
-
     @classmethod
     def build(cls, carriers: list[Carrier], flows: list[_BoundFlow], carrier_coeff: dict[str, float]) -> Self:
         """Build CarriersData from explicit carrier declarations.
@@ -865,20 +812,6 @@ class ConvertersData:
     def width(self) -> int:
         """The most equations any one converter states."""
         return int(self.equations['n_equations'].max() or 0)  # type: ignore[arg-type]
-
-    def __post_init__(self) -> None:
-        """Check the counts are positive and the rows name converters we carry.
-
-        Layer 3 — see docs/design/validation-layers.md.
-        """
-        if len(short := self.equations.filter(pl.col('n_equations') < 1)):
-            raise ValueError(f'ConvertersData.n_equations must be positive; got {short["n_equations"].to_list()}')
-        stray = self.coefficients.filter(~pl.col('converter').is_in(self.equations['converter'].implode()))
-        if len(stray):
-            raise ValueError(
-                f'ConvertersData.coefficients references unknown converter(s) '
-                f'{sorted(set(stray["converter"].to_list()))}'
-            )
 
     @classmethod
     def build(cls, converters: list[Converter], time: TimeIndex) -> Self | None:
@@ -954,19 +887,6 @@ class PiecewiseData:
     def converter_ids(self) -> list[str]:
         """Piecewise converter ids, in declaration order."""
         return self.curves['converter'].unique(maintain_order=True).to_list()
-
-    def __post_init__(self) -> None:
-        """Re-check what `PiecewiseConversion` already refuses, for a reloaded file.
-
-        A reload guard, not the enforcement: `method` is a `Literal` on the
-        element and `bound` is checked when the curve is constructed. See
-        docs/design/validation-layers.md.
-        """
-        valid = set(get_args(PiecewiseMethod.__value__))
-        if bad := sorted(set(self.curves['method'].to_list()) - valid):
-            raise ValueError(f'PiecewiseData.method must be one of {sorted(valid)}; got {bad}')
-        if bad := sorted(set(self.links['bound'].to_list()) - {'==', '<=', '>='}):
-            raise ValueError(f"PiecewiseData.bound must be '==', '<=', or '>='; got {bad}")
 
     @classmethod
     def build(cls, converters: list[Converter], time: TimeIndex) -> Self | None:
@@ -1600,28 +1520,6 @@ class Dims:
         return cls(timesteps=timesteps, periods=period_table)
 
 
-#: Which sub-container each top-level one carries, and of what class. Read by
-#: :meth:`ModelData.load` to rebuild them from their own directories.
-_SUB_CONTAINERS: dict[str, dict[str, Any]] = {
-    'flows': {'sizing': SizingData, 'invest': InvestmentData},
-    'storages': {'sizing': SizingData, 'invest': InvestmentData},
-}
-
-
-def _frames_of(obj: Any) -> dict[str, pl.DataFrame]:
-    """Every polars frame a container holds, by field name."""
-    return {f.name: value for f in dataclasses.fields(obj) if isinstance(value := getattr(obj, f.name), pl.DataFrame)}
-
-
-def _table_containers(obj: DataclassInstance) -> dict[str, Any]:
-    """Nested container fields of a table object that are present (not None)."""
-    return {
-        f.name: getattr(obj, f.name)
-        for f in fields(obj)
-        if f.name in _CONTAINER_FIELD_NAMES and getattr(obj, f.name) is not None
-    }
-
-
 @dataclass
 class ModelData:
     flows: FlowsData
@@ -1638,135 +1536,23 @@ class ModelData:
     status: StatusData | None = None
 
     def __post_init__(self) -> None:
-        """Check ids referenced *between* tables resolve.
+        """Refuse a status flow whose floor is zero, which the element could not see.
 
-        Layer 3, and the clearest case for it: no single table can answer
-        this, and a reloaded file never passed the system layer. See
-        docs/design/validation-layers.md.
-
-        Each table validates itself in its own ``__post_init__``; this checks
-        that ids referenced *between* tables resolve, so a tampered or
-        hand-edited file fails here instead of as a ``KeyError`` deep in
-        model building.
+        `Flow` refuses it at construction, but not when the floor is a
+        `ProfileRef` whose numbers arrive at build. The program cannot state
+        it: a flow's own status and its component's are one relation to it.
+        See docs/design/validation-layers.md.
         """
-        flow_ids = set(self.flows.ids)
-
-        def check_flows(ids: list[str], what: str) -> None:
-            if unknown := sorted(set(ids) - flow_ids):
-                raise ValueError(f'{what} references unknown flow id(s) {unknown}')
-
-        def coord_ids(da: xr.DataArray) -> list[str]:
-            return [str(v) for v in da.coords[da.dims[0]].values]
-
-        check_flows(self.carriers.membership['flow'].to_list(), 'carriers.membership')
-        if self.flows.sizing is not None:
-            check_flows(self.flows.sizing.ids, 'flows.sizing')
-        if self.flows.invest is not None:
-            check_flows(self.flows.invest.ids, 'flows.invest')
         entities: set[str] = set(self.status.ids) if self.status is not None else set()
-        if unknown := sorted(set(self.flows.governed_by['component'].to_list()) - entities):
-            raise ValueError(f'flows.governed_by names components without a Status: {unknown}')
-        self._check_status_not_degenerate(entities & flow_ids)
-        if self.converters is not None:
-            check_flows(self.converters.coefficients['flow'].to_list(), 'converters.coefficients')
-        if self.piecewise is not None:
-            check_flows(self.piecewise.links['flow'].to_list(), 'piecewise.links')
-        if self.storages is not None:
-            check_flows(self.storages.storages['charge_flow'].to_list(), 'storages.charge_flow')
-            check_flows(self.storages.storages['discharge_flow'].to_list(), 'storages.discharge_flow')
-            storage_ids = set(self.storages.ids)
-            for container, what in (
-                (self.storages.sizing, 'storages.sizing'),
-                (self.storages.invest, 'storages.invest'),
-            ):
-                if container is None:
-                    continue
-                ids = container.ids
-                if unknown := sorted(set(ids) - storage_ids):
-                    raise ValueError(f'{what} references unknown storage id(s) {unknown}')
-
-        effect_ids = set(self.effects.ids)
-        coeff_effects = set(self.flows.effect_pairs['effect'].unique().to_list())
-        if not coeff_effects <= effect_ids:
-            raise ValueError(
-                f'flows.effect_pairs names effects {sorted(coeff_effects - effect_ids)} that are not in '
-                f'the effects table {sorted(effect_ids)}'
-            )
-
-    def save(self, path: str | Path) -> None:
-        """Write the model data as a directory of tables.
-
-        One parquet file per frame, in a directory per container. Parquet
-        because these *are* tables: it carries the schema, so a column with no
-        rows still knows it holds strings, and an empty frame reloads as the
-        same empty frame rather than as something that lost its dtypes.
-
-        Args:
-            path: Directory to write into. Created if absent.
-        """
-        root = Path(path)
-        root.mkdir(parents=True, exist_ok=True)
-        for name, obj in self._containers().items():
-            if obj is None:
-                continue
-            group = root / name
-            group.mkdir(exist_ok=True)
-            for frame_name, frame in _frames_of(obj).items():
-                frame.write_parquet(group / f'{frame_name}.parquet')
-            for cname, sub in _table_containers(obj).items():
-                sub_group = group / cname
-                sub_group.mkdir(exist_ok=True)
-                for frame_name, frame in _frames_of(sub).items():
-                    frame.write_parquet(sub_group / f'{frame_name}.parquet')
-
-    @classmethod
-    def load(cls, path: str | Path) -> ModelData:
-        """Read model data written by :meth:`save`.
-
-        Args:
-            path: The directory :meth:`save` wrote.
-
-        Raises:
-            OSError: If the directory holds no fluxopt model data.
-        """
-        root = Path(path)
-        if not (root / 'dims').is_dir():
-            raise OSError(f'No fluxopt model data found in {root} (missing dims/)')
-
-        def read(name: str, klass: Any, subs: dict[str, Any] | None = None) -> Any:
-            group = root / name
-            if not group.is_dir():
-                return None
-            frames = {f.stem: pl.read_parquet(f) for f in sorted(group.glob('*.parquet'))}
-            return klass(**frames, **(subs or {})) if frames else None
-
-        def read_subs(name: str, klass: Any) -> dict[str, Any]:
-            out: dict[str, Any] = {}
-            for field, sub_class in _SUB_CONTAINERS.get(name, {}).items():
-                sub = read(f'{name}/{field}', sub_class)
-                if sub is not None:
-                    out[field] = sub
-            return out
-
-        return cls(
-            flows=read('flows', FlowsData, read_subs('flows', FlowsData)),
-            carriers=read('carriers', CarriersData),
-            converters=read('converters', ConvertersData),
-            effects=read('effects', EffectsData),
-            storages=read('storages', StoragesData, read_subs('storages', StoragesData)),
-            dims=read('dims', Dims),
-            piecewise=read('piecewise', PiecewiseData),
-            status=read('status', StatusData),
-        )
+        self._check_status_not_degenerate(entities & set(self.flows.ids))
 
     def _check_status_not_degenerate(self, gated: set[str]) -> None:
         """A flow carrying its own Status needs rel_lb > 0, else on/off is degenerate.
 
         A zero lower bound lets the solver sit at zero with the binary on, so
-        the status results mean nothing. `Flow` refuses it at construction;
-        this is the guard for a direct edit or a reload, and it lives here
-        rather than on `FlowsData` because the envelope and the status table
-        are two containers now.
+        the status results mean nothing. It lives here rather than on
+        `FlowsData` because the envelope and the status table are two
+        containers.
 
         Args:
             gated: Flows carrying a Status of their own.
@@ -1779,19 +1565,6 @@ class ModelData:
             raise ValueError(
                 f'Status flows must have rel_lb > 0 (else on/off is indistinguishable); violated on {degenerate}'
             )
-
-    def _containers(self) -> dict[str, Any]:
-        """Every top-level container, by the name its directory takes."""
-        return {
-            'flows': self.flows,
-            'carriers': self.carriers,
-            'converters': self.converters,
-            'effects': self.effects,
-            'storages': self.storages,
-            'piecewise': self.piecewise,
-            'status': self.status,
-            'dims': self.dims,
-        }
 
     @classmethod
     def build(

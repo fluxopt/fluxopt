@@ -17,7 +17,7 @@ is in the wrong one.
 |---|---|---|---|
 | 1 | the **element** — pydantic on `elements.py` / `components.py` | is this one element internally coherent? | the user constructs it |
 | 2 | the **system** — `validation.validate_system` | do these elements refer to each other resolvably? | `FlowSystem(...)`, and `ModelData.build` |
-| 3 | the **data** — `ModelData.__post_init__` and each container's | is this table self-consistent? | building it, *and* reloading it |
+| 3 | the **data** — `ModelData.__post_init__` and `EffectsData`'s | what only the whole built data can answer | building it |
 | 4 | the **bind** — specsolve, with the program's `assumptions:` | does this data fit the program, and hold what it assumes? | every bind: `solve`, `build`, a sweep |
 
 ### 1. The element
@@ -51,44 +51,30 @@ is what makes it the place to put such a rule *once*.
 
 ### 3. The data
 
-A rule about a materialised table's internal consistency: `pair_converter`
-naming a converter the table does not carry, `governed_by` naming a component
-without a Status, a ramp limit on a flow with no size.
+Two rules, both about the built data as a whole, and both beyond what the
+program can state:
 
-Two things reach this layer that the earlier ones could not see, and both
-are real reasons for it to exist.
+- **A cycle in `contribution_from`.** One `Effect` sees only its own
+  sources; `EffectsData` walks the whole graph.
+- **A status flow's floor above zero.** `Flow` refuses a zero floor under a
+  `Status` it can see; a `ProfileRef` supplies its numbers at build. The
+  program cannot state it, because a flow's own status and its component's
+  are one relation to it.
 
-**Reload.** `ModelData` round-trips
-through a directory of parquet tables, and a file that was hand-edited — or
-written by an older version — never passed through layers 1 and 2. Every check here is answering
-"could this table have arrived broken?", and the honest test for whether one
-belongs is:
+This layer used to re-check tables for **reload**, since `ModelData` saved
+and loaded itself as parquet and a hand-edited file never passed layers 1
+and 2. The archive replaced that: specsolve saves the spec and its sources,
+and a caller who edits a table is checked by the spec's assumptions (layer
+4). With no reload, those re-checks guarded nothing a caller could reach,
+which is the test for a dead check:
 
 > Could a caller reach this through the public API without layer 1 or 2
 > having already refused it?
 
-If not, the check is dead. Seven were: `Unknown effect {k!r} in ...` in five
-container builders, all of them behind `validate_system`'s sweep of the same
-element models. They were reachable only through the private container API.
-
-**A value the element could not see** is no longer this layer's. A
-`Variate` may be a `ProfileRef` — a name pointing at numbers supplied later —
-so `Storage` refuses `eta_charge=1.5` at construction and cannot refuse
-`eta_charge=ProfileRef(...)`. That range, and every other range on a value
-the program reads, is an `assumptions:` entry in the fragment that declares
-the parameter (layer 4). It fires on the numbers that actually reach the
-program, whether they came from a resolved reference, a reloaded file or a
-table the caller edited.
-
-What stays here is structure a table can get wrong on reload: a reference to
-an entity the table does not carry, a literal outside its set, a cycle in
-`contribution_from`, a ramp on a flow with no size. A check that duplicates
-layer 1 for that reason — `PiecewiseData.method` is a `Literal` on the
-element and re-checked here — earns its place, and its docstring should say
-so. Two value rules stay because the program cannot state them: a status
-flow's lower bound above zero (the program cannot tell a flow's own status
-from its component's), and `Investment.lifetime` (bound only as the window
-derived from it).
+A range on a value the program reads is an `assumptions:` entry in the
+fragment that declares the parameter (layer 4). It fires on the numbers that
+actually reach the program, whether they came from a resolved `ProfileRef`
+or a table the caller edited.
 
 ### 4. The bind
 
@@ -115,7 +101,7 @@ each one.
 Can one element answer it alone?                  -> 1, the element
 Does it need to see other elements?               -> 2, the system
 A range on a value the program reads?             -> 4, an assumptions: entry
-Table structure only a reload can break?          -> 3, the data
+A rule on the built data the program can't state? -> 3, the data
 Is it about shape, dtype, or coverage?            -> 4, leave it to specsolve
 ```
 
@@ -129,13 +115,5 @@ Two smells worth naming, both of which had occurred:
 
 ## Where this leaves layer 3
 
-The reload half of it stays only as long as `ModelData` serializes itself
-field by field. If a reloaded file were rebuilt through `ModelData.build`
-rather than reconstructed around it, layers 1 and 2 would run on the way back
-in and there would be nothing left for reload to catch. That is a consequence
-of the tidy-frames re-cut rather than a reason for it, but it is a second
-reason.
-
-The `ProfileRef` half has moved to the program's assumptions, which check
-values that arrive later wherever they arrive. So layer 3 is down to the
-structure of its own tables.
+Two rules. Both belong to the build rather than to a stored table, so they
+move wherever the build moves.
