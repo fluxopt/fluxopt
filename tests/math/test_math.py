@@ -17,10 +17,11 @@ API mapping (flixopt -> fluxopt):
 from __future__ import annotations
 
 import pytest
+import xarray as xr
 from conftest import ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, Investment, Port, Sizing, Status, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Investment, Port, Status, Storage, optimize
 
 # ---------------------------------------------------------------------------
 # Bus balance & dispatch
@@ -349,85 +350,25 @@ class TestEffects:
         assert_allclose(result.objective, 70.0, rtol=1e-5)
 
     @pytest.mark.parametrize(
-        ('chain_effects', 'lump_effect'),
+        'factor',
         [
-            pytest.param([Effect(id='co2')], 'co2', id='direct'),
-            pytest.param([Effect(id='co2', contribution_from={'pe': 0.2}), Effect(id='pe')], 'pe', id='transitive'),
+            pytest.param([1.0, 2.0], id='a list over the timesteps'),
+            pytest.param(xr.DataArray([1.0, 2.0], dims=['time']), id='an array over time'),
         ],
     )
-    def test_effect_time_varying_contribution_into_lump_bearing_raises(self, chain_effects, lump_effect):
-        """Time-varying contribution_from is rejected when the source effect has lump contributions.
-
-        Sizing on the source creates the lump contribution — directly on co2, or
-        on pe with a scalar chain co2 <- pe (the check follows chains).
-        """
-        source = Flow(
-            carrier='Heat',
-            effects_per_flow_hour={lump_effect: 1},
-            size=Sizing(size_min=10, size_max=10, mandatory=True, effects_per_size={lump_effect: 1.0}),
-        )
-        with pytest.raises(ValueError, match='ill-defined'):
+    def test_effect_time_varying_contribution_is_refused(self, factor):
+        """A cross-effect factor is one value per period, and the refusal names the flow-side rewrite."""
+        with pytest.raises(ValueError, match=r"varies over time.*effects_per_flow_hour=\{'cost': price \* factor\}"):
             optimize(
                 ts(2),
                 carriers=[Carrier(id='Heat')],
-                effects=[Effect(id='cost', contribution_from={'co2': [1.0, 2.0]}), *chain_effects],
+                effects=[Effect(id='cost', contribution_from={'co2': factor}), Effect(id='co2')],
                 objective='cost',
                 ports=[
                     Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5])]),
-                    Port(id='Source', imports=[source]),
+                    Port(id='Source', imports=[Flow(carrier='Heat', effects_per_flow_hour={'co2': 1})]),
                 ],
             )
-
-    def test_effect_time_varying_contribution_without_lump(self):
-        """Time-varying contribution_from is fine when the source effect is purely temporal.
-
-        co2 = [5, 5] per timestep, factor = [1, 2] -> cost = 5*1 + 5*2 = 15.
-        """
-        result = optimize(
-            ts(2),
-            carriers=[Carrier(id='Heat')],
-            effects=[
-                Effect(id='cost', contribution_from={'co2': [1.0, 2.0]}),
-                Effect(id='co2'),
-            ],
-            objective='cost',
-            ports=[
-                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5])]),
-                Port(id='Source', imports=[Flow(carrier='Heat', effects_per_flow_hour={'co2': 1})]),
-            ],
-        )
-        assert_allclose(result.objective, 15.0, rtol=1e-5)
-
-    def test_effect_constant_contribution_does_not_warn(self):
-        """A constant contribution_from must not trip the time-varying warning (mean != value in float)."""
-        import warnings
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter('always')
-            optimize(
-                ts(3),
-                carriers=[Carrier(id='Heat')],
-                effects=[
-                    Effect(id='cost', contribution_from={'co2': 0.045}),
-                    Effect(id='co2'),
-                ],
-                objective='cost',
-                ports=[
-                    Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5, 5])]),
-                    Port(
-                        id='Source',
-                        imports=[
-                            Flow(
-                                carrier='Heat',
-                                effects_per_flow_hour={'co2': 1},
-                                size=Sizing(size_min=10, size_max=10, mandatory=True, effects_per_size={'co2': 1.0}),
-                            ),
-                        ],
-                    ),
-                ],
-            )
-        msgs = [str(w.message) for w in caught]
-        assert not any('averaged over time' in m for m in msgs), f'Unexpected warning: {msgs}'
 
 
 # ---------------------------------------------------------------------------

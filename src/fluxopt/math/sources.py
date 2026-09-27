@@ -23,7 +23,6 @@ import polars as pl
 import xarray as xr
 
 from fluxopt.leontief import leontief
-from fluxopt.validation import reject_varying_contribution_into_lump
 
 if TYPE_CHECKING:
     from fluxopt.model_data import ModelData
@@ -215,7 +214,7 @@ def _effect_rows(frame: pl.DataFrame, entity: str, column: str, *axes: str) -> p
     )
 
 
-def _chained(cf: xr.DataArray | None, dims: Any, *axes: str) -> pl.DataFrame:
+def _chained(cf: xr.DataArray | None, dims: Any) -> pl.DataFrame:
     """What one unit charged to an effect adds to every other, through every chain.
 
     ``(I - C)^-1 - I``, so the ledger reads each effect as its own charge plus
@@ -223,9 +222,7 @@ def _chained(cf: xr.DataArray | None, dims: Any, *axes: str) -> pl.DataFrame:
     diagonal is zero because a cycle is refused, which keeps the table as
     sparse as the chains are.
     """
-    schema = pl.Schema(
-        {'effect': pl.String(), 'source': pl.String(), **dict.fromkeys(axes, pl.Int64()), 'value': pl.Float64()}
-    )
+    schema = pl.Schema({'effect': pl.String(), 'source': pl.String(), 'period': pl.Int64(), 'value': pl.Float64()})
     if cf is None:
         return pl.DataFrame(schema=schema)
     ids = cf.coords['effect'].values
@@ -233,8 +230,6 @@ def _chained(cf: xr.DataArray | None, dims: Any, *axes: str) -> pl.DataFrame:
         np.eye(len(ids)), dims=['effect', 'source_effect'], coords={'effect': ids, 'source_effect': ids}
     )
     rows = pl.from_pandas(_tidy(leontief(cf) - identity, drop_zero=True)).rename({'source_effect': 'source'})
-    if 'time' in rows.columns:
-        rows = _with_time_ordinals(rows, dims)
     if 'period' not in rows.columns:
         rows = rows.join(
             pl.DataFrame({'period': list(range(dims.n_periods))}, schema={'period': pl.Int64}), how='cross'
@@ -282,7 +277,6 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             not express yet, rather than dropping it silently.
     """
     _reject_unsupported(data)
-    reject_varying_contribution_into_lump(data)
     fds, dims = data.flows, data.dims
 
     ordinals = dims.timesteps['time'].to_list()
@@ -724,11 +718,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     for name in ('effects_per_running_hour', 'effects_per_startup'):
         sources.setdefault(name, _empty(name, 'status_entity', 'effect', 'time', 'period'))
 
-    # What building costs is charged once, so it takes the share averaged over
-    # the horizon — `reject_varying_contribution_into_lump` keeps that exact.
-    cf = eds.cf_matrix()
-    sources['share'] = _chained(cf, dims, 'time', 'period')
-    sources['share_lump'] = _chained(cf.mean('time') if cf is not None else None, dims, 'period')
+    sources['share'] = _chained(eds.cf_matrix(), dims)
 
     for name, entity_dim, frame, column in lump_frames:
         sources[name] = _effect_rows(frame, entity_dim, column, 'period')

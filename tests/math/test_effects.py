@@ -221,35 +221,29 @@ class TestContributionFrom:
         assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
         assert result.objective == pytest.approx(cost_total, abs=1e-6)
 
-    def test_contribution_from_time_varying(self):
-        """Time-varying contribution_from uses per-timestep values for temporal."""
-        demand = [50.0, 80.0, 60.0]
+    def test_an_hourly_carbon_price_is_charged_on_the_flow(self):
+        """A price that varies over time is a flow coefficient, not a cross-effect factor.
 
+        `contribution_from` is one value per period, so an hourly carbon price
+        moves onto the flow that emits: 0.5 kg/MWh times the price, per step.
+        """
+        demand = [50.0, 80.0, 60.0]
+        carbon_prices = [40.0, 50.0, 60.0]
         source = Flow(
             carrier='elec',
             size=200,
-            effects_per_flow_hour={'co2': 0.5},
+            effects_per_flow_hour={'co2': 0.5, 'cost': [0.5 * p for p in carbon_prices]},
         )
         sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
-        carbon_prices = [40.0, 50.0, 60.0]
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='elec')],
-            effects=[
-                Effect(
-                    id='cost',
-                    contribution_from={'co2': carbon_prices},  # time-varying
-                ),
-                Effect(id='co2', unit='kg'),
-            ],
+            effects=[Effect(id='cost'), Effect(id='co2', unit='kg')],
             objective='cost',
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        # per_ts[co2, t] = demand[t] * 0.5 (dt=1)
-        # per_ts[cost, t] = carbon_price[t] * per_ts[co2, t]
-        # total[cost] = sum(per_ts[cost, t])  (no lump costs)
         expected = sum(d * 0.5 * p for d, p in zip(demand, carbon_prices, strict=True))
         assert result.objective == pytest.approx(expected, abs=1e-6)
 

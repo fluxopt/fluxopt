@@ -59,8 +59,7 @@ def priced(name: str) -> str:
 
 def pricing(name: str) -> str:
     """A contribution with the ledger's chained share applied, as the program writes it."""
-    share = 'share' if name in TEMPORAL else 'share_lump'
-    return f'{name} + sum({share} * at({name}, by=same, over=effect, into=source), over=source)'
+    return f'{name} + sum(share * at({name}, by=same, over=effect, into=source), over=source)'
 
 
 def _first_governed_flow(data: ModelData) -> dict[str, str]:

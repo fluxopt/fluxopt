@@ -222,6 +222,29 @@ def _over_periods(value: Any, n_periods: int, what: str) -> np.ndarray:
     return arr
 
 
+def _factor_per_period(factor: Any, n_periods: int, effect: str, source: str) -> list[float]:
+    """A cross-effect factor in each period.
+
+    A factor is one number per period because the ledger applies it to what
+    an effect is charged at build time as well as per step, and one number
+    means the same thing to both.
+
+    Raises:
+        ValueError: If the factor varies over time, naming the rewrite.
+    """
+    what = f'Effect {effect!r} contribution_from {source!r}'
+    over_time = isinstance(factor, xr.DataArray | pd.Series | pd.DataFrame) and 'time' in (
+        factor.dims if isinstance(factor, xr.DataArray) else [factor.index.name, *getattr(factor, 'columns', [])]
+    )
+    if over_time or np.size(factor) not in (1, n_periods):
+        raise ValueError(
+            f'{what} varies over time; a cross-effect factor is a scalar or one value per period. '
+            f'Charge a time-varying price on the flows instead: effects_per_flow_hour={{{effect!r}: price * factor}} '
+            f'beside the {source!r} coefficient.'
+        )
+    return _per_period(factor, n_periods, what)
+
+
 def _per_period(value: Any, n_periods: int, what: str) -> list[float]:
     """A lump coefficient's value in each period.
 
@@ -1121,9 +1144,7 @@ class EffectsData:
     """What each effect is bounded by, and how effects charge one another.
 
     Bounds are optional, so an effect that names none has no row rather than
-    a row of NaN. Cross-effect factors are the ones declared: the square
-    matrix they imply is 67 MB at 2% live on the stress reference system, and
-    most of that is not sparsity but a scalar repeated across every timestep.
+    a row of NaN. Cross-effect factors are the ones declared, one per period.
     """
 
     #: (effect,) — every declared effect, in declaration order
@@ -1133,7 +1154,7 @@ class EffectsData:
     #: (effect, period, periodic_min, periodic_max) — only effects bounding a
     #: period, and only the periods they bound
     periodic: pl.DataFrame
-    #: (effect, source_effect, time, period, factor) — declared factors only
+    #: (effect, source_effect, period, factor) — declared factors only
     contributions: pl.DataFrame
     #: (effect, period, weight) — only effects overriding the global weights
     period_weights: pl.DataFrame
@@ -1147,9 +1168,8 @@ class EffectsData:
         """The cross-effect factors as a square matrix, or None if there are none.
 
         Built here rather than stored, because inverting it is the only thing
-        that wants it square, and a stored one costs a full
-        ``(effect, source_effect, time, period)`` grid to hold a handful of
-        declared factors. Transient by design: nothing keeps the result.
+        that wants it square. Carries a ``period`` axis only where a factor
+        differs between periods.
 
         Args:
             periods: Labels for the period axis. The frame indexes periods by
@@ -1163,10 +1183,9 @@ class EffectsData:
             return None
         ids = self.ids
         rest: dict[str, Any] = {}
-        for axis in ('time', 'period'):
-            values = self.contributions[axis].unique(maintain_order=True).sort().to_list()
-            if len(values) > 1 or axis == 'time':
-                rest[axis] = values
+        values = self.contributions['period'].unique(maintain_order=True).sort().to_list()
+        if len(values) > 1:
+            rest['period'] = values
         labelled = dict(rest)
         if periods is not None and 'period' in labelled:
             labelled['period'] = [periods[i] for i in rest['period']]
@@ -1201,20 +1220,14 @@ class EffectsData:
             raise ValueError(f'Circular contribution_from dependency: {" -> ".join(cycle)}')
 
     @classmethod
-    def build(cls, effects: list[Effect], time: TimeIndex, period: pd.Index | None = None) -> Self:
+    def build(cls, effects: list[Effect], period: pd.Index | None = None) -> Self:
         """Build EffectsData from element objects.
 
         Args:
             effects: Effect definitions.
-            time: Time index.
             period: Period index (multi-period only).
         """
         periods = list(range(len(period))) if period is not None else [0]
-        labels = np.asarray(time)
-        n_time = len(labels)
-        coords: dict[str, Any] = {'time': time}
-        if period is not None:
-            coords['period'] = period
 
         bounded = [e for e in effects if e.total_min is not None or e.total_max is not None]
         periodic_rows = [
@@ -1235,19 +1248,12 @@ class EffectsData:
             for p in periods
         ]
 
-        cols: dict[str, list[np.ndarray]] = {k: [] for k in ('effect', 'source_effect', 'time', 'period', 'factor')}
-        for e in effects:
-            for source, factor in e.contribution_from.items():
-                for p_index in periods:
-                    cols['effect'].append(np.full(n_time, e.id))
-                    cols['source_effect'].append(np.full(n_time, source))
-                    cols['time'].append(labels)
-                    cols['period'].append(np.full(n_time, p_index))
-                    cols['factor'].append(_series(factor, coords, p_index, n_time))
-
-        def joined(key: str, dtype: Any) -> np.ndarray:
-            parts = cols[key]
-            return np.concatenate(parts) if parts else np.array([], dtype=dtype)
+        factors = [
+            (e.id, source, p, value)
+            for e in effects
+            for source, factor in e.contribution_from.items()
+            for p, value in enumerate(_factor_per_period(factor, len(periods), e.id, source))
+        ]
 
         return cls(
             effects=pl.DataFrame({'effect': [e.id for e in effects]}, schema={'effect': pl.String}),
@@ -1274,20 +1280,9 @@ class EffectsData:
                 },
             ),
             contributions=pl.DataFrame(
-                {
-                    'effect': joined('effect', str),
-                    'source_effect': joined('source_effect', str),
-                    'time': pd.to_datetime(joined('time', 'datetime64[ns]')).to_pydatetime().tolist(),
-                    'period': joined('period', int),
-                    'factor': joined('factor', float),
-                },
-                schema={
-                    'effect': pl.String,
-                    'source_effect': pl.String,
-                    'time': pl.Datetime('us'),
-                    'period': pl.Int64,
-                    'factor': pl.Float64,
-                },
+                factors,
+                schema={'effect': pl.String, 'source_effect': pl.String, 'period': pl.Int64, 'factor': pl.Float64},
+                orient='row',
             ),
             period_weights=pl.DataFrame(
                 {
@@ -1930,7 +1925,7 @@ class ModelData:
         )
         carriers_data = CarriersData.build(carriers, flows, carrier_coeff)
         converters_data = ConvertersData.build(converters, time)
-        effects_data = EffectsData.build(effects, time, period=period_idx)
+        effects_data = EffectsData.build(effects, period=period_idx)
         storages_data = StoragesData.build(stor_list, time, period=period_idx)
         piecewise_data = PiecewiseData.build(converters, time)
 

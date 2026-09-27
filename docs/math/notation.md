@@ -67,7 +67,7 @@ The broadcast hierarchy:
   \(\underline{\mathrm{p}}_{f,t}, \bar{\mathrm{p}}_{f,t}\), profiles \(\pi_{f,t}\),
   efficiencies \(\eta^c_s, \eta^d_s\), losses \(\delta_s\), conversion
   coefficients \(\mathrm{a}_{f,i}\), effect / running / startup costs
-  \(\mathrm{c}_{f,k,t}, \mathrm{r}_{f,k,t}, \mathrm{u}_{f,k,t}\), cross-effects \(\alpha_{k,j,t}\).
+  \(\mathrm{c}_{f,k,t}, \mathrm{r}_{f,k,t}, \mathrm{u}_{f,k,t}\).
 - **Build period (\(p_b\))** — at-build investment coefficients only:
   \(\gamma^{\text{build}}_{f,k}, \phi^{\text{build}}_{f,k}\), …
 
@@ -94,8 +94,7 @@ omit unless we're discussing multi-period dynamics specifically.
 | \(\underline{\mathrm{e}}_s\) | [`Storage.relative_level_min`](../api/fluxopt/elements.md#fluxopt.elements.Storage.relative_level_min) | \([0, 1]\) | — | Relative min SOC |
 | \(\bar{\mathrm{e}}_s\) | [`Storage.relative_level_max`](../api/fluxopt/elements.md#fluxopt.elements.Storage.relative_level_max) | \([0, 1]\) | — | Relative max SOC |
 | \(\mathrm{a}_{f,i}\) | [`Converter.conversion_factors`](../api/fluxopt/components.md#fluxopt.components.Converter.conversion_factors) | \(\mathbb{R}\) | — | Conversion coefficient (per flow, per equation) |
-| \(\alpha_{k,j}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) | \(\mathbb{R}\) | varies | Cross-effect factor (scalar) |
-| \(\alpha_{k,j,t}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) (Variate) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
+| \(\alpha_{k,j}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) | \(\mathbb{R}\) | varies | Cross-effect factor (scalar or per period) |
 | \(\bar{\Phi}_k\) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.total_max) | \(\mathbb{R}\) | varies | Maximum aggregate (weighted sum across periods) |
 | \(\underline{\Phi}_k\) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect.total_min) | \(\mathbb{R}\) | varies | Minimum aggregate (weighted sum across periods) |
 | \(\bar{\Phi}_k^{\text{per period}}\) | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.periodic_max) | \(\mathbb{R}\) | varies | Maximum per period |
