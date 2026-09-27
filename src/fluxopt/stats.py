@@ -37,7 +37,7 @@ class StatsAccessor:
         """
         arr = self._result.expression(name)
         data = self._result.data
-        ids = {'flow': data.flows.ids, 'storage': data.storages.ids if data.storages is not None else []}
+        ids: dict[str, list[str]] = {'flow': data.flows.ids, 'storage': data.storages.ids if data.storages else []}
         return arr.reindex({dim: labels for dim, labels in ids.items() if dim in arr.dims})
 
     @cached_property
