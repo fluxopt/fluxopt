@@ -10,7 +10,7 @@ import pytest
 from conftest import read
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, Storage
+from fluxopt import Carrier, Effect, Flow, FlowSystem, Port, Sizing, Status, Storage
 
 from .conftest import ts
 
@@ -72,11 +72,9 @@ class TestStorageStatusValidation:
         here. One status axis makes the case ordinary: `status_sizing_*` does
         not care whether the binary is the flow's own or its component's.
         """
-        from fluxopt import ModelData
-        from fluxopt.math import build_sources
-
-        data = ModelData.build(
+        system = FlowSystem(
             timesteps=ts(3),
+            objective='cost',
             carriers=[Carrier(id='Elec')],
             effects=[Effect(id='cost')],
             ports=[
@@ -96,7 +94,7 @@ class TestStorageStatusValidation:
         )
         # Builds rather than refusing. (The system has no source, so it is
         # infeasible on its own merits — that is a different statement.)
-        assert build_sources(data, {'cost': 1.0})
+        assert system.sources()
 
 
 class TestStorageComponentStatus:

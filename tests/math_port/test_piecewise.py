@@ -12,7 +12,7 @@ import pytest
 from conftest import read
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, PiecewiseConversion, Port, Status
+from fluxopt import Carrier, Converter, Effect, Flow, FlowSystem, PiecewiseConversion, Port, Status
 
 from .conftest import ts
 
@@ -301,11 +301,10 @@ class TestRedundantStatusWarning:
     """Warn when PiecewiseConversion has Status alongside an all-flows-zero breakpoint."""
 
     def _build_with_curve(self, curve: PiecewiseConversion):
-        """Build ModelData with a single piecewise converter using `curve`."""
-        from fluxopt.model_data import ModelData
-
-        return ModelData.build(
+        """The sources of a single piecewise converter using `curve`."""
+        return FlowSystem(
             timesteps=ts(3),
+            objective='cost',
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
             ports=[
@@ -320,7 +319,7 @@ class TestRedundantStatusWarning:
                     conversion=curve,
                 )
             ],
-        )
+        ).sources()
 
     def test_warns_when_zero_breakpoint_with_status(self):
         """Curve with (0, 0) first breakpoint AND Status -> warn."""

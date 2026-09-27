@@ -2,7 +2,7 @@
 
 fluxopt ships a user-runnable benchmark that builds a few realistic energy
 systems and reports how fast the build pipeline
-(`Elements → ModelData → linopy model`) runs on *your* hardware — and how much
+(`Elements → sources → specsolve model`) runs on *your* hardware — and how much
 memory it peaks at:
 
 ```console

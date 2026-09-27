@@ -16,8 +16,8 @@ is in the wrong one.
 | | layer | answers | fires when |
 |---|---|---|---|
 | 1 | the **element** — pydantic on `elements.py` / `components.py` | is this one element internally coherent? | the user constructs it |
-| 2 | the **system** — `validation.validate_system` | do these elements refer to each other resolvably? | `FlowSystem(...)`, and `ModelData.build` |
-| 3 | the **data** — `ModelData.__post_init__` and `EffectsData`'s | what only the whole built data can answer | building it |
+| 2 | the **system** — `validation.validate_system` | do these elements refer to each other resolvably? | `FlowSystem(...)`, and `build_sources` |
+| 3 | the **sources** — `math.sources.build_sources` | what only the whole built system can answer | building them |
 | 4 | the **bind** — specsolve, with the program's `assumptions:` | does this data fit the program, and hold what it assumes? | every bind: `solve`, `build`, a sweep |
 
 ### 1. The element
@@ -46,22 +46,22 @@ nobody declared, an effect referenced but never defined, a node not in its
 carrier's node list, an objective naming an effect that does not exist.
 
 Layer 1 cannot see any of these, because an element does not know what else
-exists. `validate_system` runs on **every** path into the data layer, which
+exists. `validate_system` runs on **every** path into the sources, which
 is what makes it the place to put such a rule *once*.
 
-### 3. The data
+### 3. The sources
 
-Two rules, both about the built data as a whole, and both beyond what the
+Two rules, both about the built system as a whole, and both beyond what the
 program can state:
 
 - **A cycle in `contribution_from`.** One `Effect` sees only its own
-  sources; `EffectsData` walks the whole graph.
+  sources; `build_sources` walks the whole graph.
 - **A status flow's floor above zero.** `Flow` refuses a zero floor under a
   `Status` it can see; a `ProfileRef` supplies its numbers at build. The
   program cannot state it, because a flow's own status and its component's
   are one relation to it.
 
-This layer used to re-check tables for **reload**, since `ModelData` saved
+This layer used to re-check tables for **reload**, since the built data saved
 and loaded itself as parquet and a hand-edited file never passed layers 1
 and 2. The archive replaced that: specsolve saves the spec and its sources,
 and a caller who edits a table is checked by the spec's assumptions (layer

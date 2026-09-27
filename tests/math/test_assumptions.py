@@ -14,7 +14,7 @@ import specsolve as lpspec
 from conftest import ts
 
 from fluxopt import Carrier, Effect, Flow, FlowSystem, Investment, Port, Sizing, Status, Storage
-from fluxopt.math import build_sources, objective_weights, program
+from fluxopt.math import program
 
 
 def _system() -> FlowSystem:
@@ -77,9 +77,7 @@ def _system() -> FlowSystem:
 
 
 def _bound() -> dict[str, object]:
-    data = _system().build_data()
-    sources, coords = build_sources(data, objective_weights(data, 'cost'))
-    return {**sources, **coords}
+    return _system().sources()
 
 
 def _edit(table: object, value: float, side: str | None = None) -> pl.DataFrame:

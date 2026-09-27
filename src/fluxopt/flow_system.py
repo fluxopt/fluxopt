@@ -7,9 +7,9 @@ config) and ``ProfileRef`` references to time-series; the actual series are
 supplied at solve time via ``profiles`` (``system.optimize(profiles=...)``) and
 resolved into arrays just before the model is built.
 
-The FlowSystem has no modeling behavior of its own — ``.optimize()`` runs the existing
-pipeline (:meth:`ModelData.build` → the math program). Declaration (the system)
-and use (building/solving) stay separate.
+The FlowSystem has no modeling behavior of its own: :meth:`FlowSystem.sources`
+builds the tables bound to the math program, and ``.optimize()`` solves them.
+Declaration (the system) and use (building/solving) stay separate.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fluxopt.components import Converter, Port
 from fluxopt.elements import Carrier, Effect, Storage
-from fluxopt.model_data import ModelData
 from fluxopt.schema import from_dict, to_dict
 from fluxopt.types import ProfileRef, Timesteps
 from fluxopt.validation import validate_system
@@ -232,58 +231,38 @@ class FlowSystem(BaseModel):
 
         Args:
             profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or
-                mapping) holding the referenced variables, as
-                :meth:`build_data` takes.
-        """
-        from fluxopt.math import build_sources, objective_weights
-
-        data = self.build_data(profiles)
-        tables, coords = build_sources(data, objective_weights(data, self.objective))
-        return {**tables, **coords}
-
-    def build_data(self, profiles: Mapping[str, Any] | None = None) -> ModelData:
-        """Materialize this declaration's data, resolving profile references.
-
-        Resolves ``ProfileRef`` references (on a copy — the system stays
-        reusable across different ``profiles``) and builds the ``ModelData``
-        both lanes read.
-
-        Args:
-            profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
-                holding the referenced variables. Required if the system uses
-                any ``ProfileRef`` — see :meth:`required_profiles`.
+                mapping) holding the referenced variables. Required if the
+                system uses any ``ProfileRef`` — see :meth:`required_profiles`.
 
         Raises:
             KeyError: If any ``ProfileRef`` cannot be resolved from *profiles*;
                 lists every unresolvable ref with its element/field path.
         """
+        from fluxopt.math import build_sources
+
         refs: list[tuple[str, ProfileRef]] = []
         for group in (self.carriers, self.effects, self.ports, self.converters, self.storages):
             _collect_profile_refs(group, '', refs)
         _check_profiles_cover(refs, profiles or {})
-
-        carriers, effects, ports, converters, storages = (
-            # No refs → nothing to substitute, so no copy or walk needed.
-            (self.carriers, self.effects, self.ports, self.converters, self.storages)
-            if not refs
-            else copy.deepcopy((self.carriers, self.effects, self.ports, self.converters, self.storages))
-        )
+        # Resolved on a copy, so the system stays reusable across profiles.
+        groups = (self.carriers, self.effects, self.ports, self.converters, self.storages)
         if refs:
-            for group in (carriers, effects, ports, converters, storages):
+            groups = copy.deepcopy(groups)
+            for group in groups:
                 _resolve_refs(group, profiles or {})
-
-        data = ModelData.build(
-            self.timesteps,
-            carriers,
-            effects,
-            ports,
-            converters,
-            storages,
-            self.dt,
+        carriers, effects, ports, converters, storages = groups
+        return build_sources(
+            timesteps=self.timesteps,
+            carriers=carriers,
+            effects=effects,
+            ports=ports,
+            objective=self.objective,
+            converters=converters,
+            storages=storages,
+            dt=self.dt,
             periods=self.periods,
             period_weights=self.period_weights,
         )
-        return data
 
     def optimize(
         self,

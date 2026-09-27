@@ -10,22 +10,22 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import read, solve_data
+from conftest import read
 
 from fluxopt import (
     Carrier,
     Converter,
     Effect,
     Flow,
+    FlowSystem,
     Investment,
-    ModelData,
     PiecewiseConversion,
     Port,
     Sizing,
     Status,
     Storage,
 )
-from fluxopt.math import UnsupportedFeatureError, build_sources
+from fluxopt.math import UnsupportedFeatureError
 
 OBJECTIVE = {'cost': 1.0}
 #: Generous: the short horizons used here have no co2 slack, so a tighter cap
@@ -169,8 +169,7 @@ def test_mandatory_storage_sizing_binds_the_right_dims() -> None:
             relative_loss_per_hour=0.003,
         )
     ]
-    data = ModelData.build(**elements)
-    result = solve_data(data, OBJECTIVE)
+    result = FlowSystem(**elements, objective=OBJECTIVE).optimize()
 
     # Binding is the assertion: a mis-keyed empty table fails before a number
     # is ever produced, so an answer at all is the regression check.
@@ -180,10 +179,9 @@ def test_mandatory_storage_sizing_binds_the_right_dims() -> None:
 
 def test_sparse_coefficients_are_not_materialised() -> None:
     """`effect_coeff` is declared dense but only live rows are emitted."""
-    data = ModelData.build(**_system(48))
-    sources, coords = build_sources(data, OBJECTIVE)
+    sources = FlowSystem(**_system(48), objective=OBJECTIVE).sources()
 
-    dense = len(coords['flow']) * len(coords['effect']) * len(coords['time']) * len(coords['period'])
+    dense = len(sources['flow']) * len(sources['effect']) * len(sources['time']) * len(sources['period'])
     assert len(sources['effects_per_flow_hour']) < dense / 2
 
 
@@ -198,10 +196,8 @@ def test_piecewise_lp_method_raises_rather_than_answering_differently() -> None:
             conversion=PiecewiseConversion(points=[('gas', [0, 50, 100]), ('heat', [0, 45, 70], '<=')], method='lp'),
         )
     ]
-    data = ModelData.build(**elements)
-
     with pytest.raises(UnsupportedFeatureError, match='lp'):
-        build_sources(data, OBJECTIVE)
+        FlowSystem(**elements, objective=OBJECTIVE).sources()
 
 
 def test_investment_requires_periods() -> None:
@@ -215,7 +211,5 @@ def test_investment_requires_periods() -> None:
             Flow(carrier='heat', size=Investment(size_min=1.0, size_max=10.0, lifetime=20)),
         )
     ]
-    data = ModelData.build(**elements)
-
     with pytest.raises(UnsupportedFeatureError, match='multi-period'):
-        build_sources(data, OBJECTIVE)
+        FlowSystem(**elements, objective=OBJECTIVE).sources()

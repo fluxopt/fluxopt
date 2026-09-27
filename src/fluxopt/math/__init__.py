@@ -1,11 +1,11 @@
 """fluxopt's math, and the engine that builds it.
 
-Three layers: Elements -> ModelData -> this. The math is
+Two layers: Elements -> this. The math is
 :data:`~fluxopt.math.sources.PROGRAM`, a directory of YAML fragments that
 mathspec composes into one spec, built and solved by
 `specsolve <https://github.com/fluxopt/lpspec>`_;
-:mod:`~fluxopt.math.sources` binds a ``ModelData`` to it, and the answer is
-specsolve's own ``Result``.
+:func:`~fluxopt.math.sources.build_sources` builds the tables bound to it straight
+from the elements, and the answer is specsolve's own ``Result``.
 
 There is no second implementation. ``model.py`` built the same math a second
 time in linopy calls, and deleting it is what
@@ -24,7 +24,6 @@ answering it.
 """
 
 from fluxopt.math.sources import (
-    PERIOD_PARAMS,
     PROGRAM,
     UnsupportedFeatureError,
     build_sources,
@@ -33,7 +32,6 @@ from fluxopt.math.sources import (
 )
 
 __all__ = [
-    'PERIOD_PARAMS',
     'PROGRAM',
     'UnsupportedFeatureError',
     'build_sources',

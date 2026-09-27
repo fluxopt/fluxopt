@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from fluxopt import Flow, ModelData, Port
+from fluxopt import Flow, Port
 
 if TYPE_CHECKING:
     import xarray as xr
@@ -31,16 +31,6 @@ def read(result: Any, name: str, kind: str = 'primal') -> xr.DataArray:
     if 'period' in arr.dims and arr.sizes['period'] == 1 and arr.coords['period'].item() == 0:
         arr = arr.squeeze('period', drop=True)
     return arr
-
-
-def solve_data(data: ModelData, objective: str | dict[str, float] = 'cost') -> Any:
-    """Solve a `ModelData` built or reloaded by hand, as `FlowSystem.optimize` would."""
-    import specsolve
-
-    from fluxopt.math import build_sources, objective_weights, program
-
-    tables, coords = build_sources(data, objective_weights(data, objective))
-    return specsolve.solve(program(data.dims.time_dtype).expand('sos'), {**tables, **coords})
 
 
 def waste(carrier: str) -> Port:

@@ -29,7 +29,7 @@ def reference_system(request: pytest.FixtureRequest) -> str:
 
 
 def test_reference_build(benchmark: object, reference_system: str) -> None:
-    """Full pipeline (Elements -> ModelData -> linopy model) for one reference system."""
+    """Full pipeline (Elements -> sources -> specsolve model) for one reference system."""
     row = benchmark(fx_benchmark.measure, reference_system, QUARTER_YEAR)  # type: ignore[operator]
     extra_info = getattr(benchmark, 'extra_info', None)
     if extra_info is not None and isinstance(row, dict):

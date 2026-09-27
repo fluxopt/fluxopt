@@ -1,7 +1,7 @@
 # Benchmarks
 
 Time + memory benchmarks for the build pipeline —
-`Elements → ModelData → sources → specsolve model`. The HiGHS solve is excluded
+`Elements → sources → specsolve model`. The HiGHS solve is excluded
 (non-deterministic, not ours to profile). Persisting a spec and its sources is
 specsolve's archive, and benchmarked there.
 

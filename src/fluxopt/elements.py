@@ -185,7 +185,7 @@ class Flow(Element):
 
     ``short_id`` must be unique within a component.  The system-global
     qualified id ``component(short_id)`` is derived at build time and
-    appears as the ``flow`` coordinate in ``ModelData`` and results; the
+    appears as the ``flow`` label in the sources and results; the
     flow itself is never modified. Storage resolves colliding short_ids
     to ``charge`` / ``discharge`` at that point.
 

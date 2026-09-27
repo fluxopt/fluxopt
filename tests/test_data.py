@@ -13,92 +13,71 @@ from fluxopt import (
     Effect,
     Flow,
     FlowSystem,
-    ModelData,
     Port,
     ProfileRef,
     Storage,
     optimize,
 )
+from fluxopt.math import build_sources
+
+
+def _sources(ports, carriers=None, converters=None) -> dict:
+    """The sources of a three-step system that minimizes `cost`."""
+    return build_sources(
+        timesteps=ts(3),
+        carriers=carriers or [Carrier(id='b')],
+        effects=[Effect(id='cost')],
+        ports=ports,
+        converters=converters,
+        objective='cost',
+    )
+
+
+def _values(table: pl.DataFrame, flow: str) -> list[float]:
+    return table.filter(pl.col('flow') == flow)['value'].to_list()
 
 
 class TestFlowsTable:
     def test_bounds_with_size(self):
         flow = Flow(carrier='b', size=100, relative_rate_min=0.2, relative_rate_max=0.8)
-        data = ModelData.build(
-            ts(3),
-            carriers=[Carrier(id='b')],
-            effects=[Effect(id='cost')],
-            ports=[Port(id='src', imports=[flow])],
-        )
-        ds = data.flows
-        envelope = ds.envelope.filter(pl.col('flow') == 'src(b)')
-        assert envelope['relative_rate_min'].to_list() == [0.2, 0.2, 0.2]
-        assert envelope['relative_rate_max'].to_list() == [0.8, 0.8, 0.8]
-        assert ds.sizes.filter(pl.col('flow') == 'src(b)')['size'].to_list() == [100.0]
-        assert ds.bounded_ids == ['src(b)']
+        sources = _sources([Port(id='src', imports=[flow])])
+        assert _values(sources['rate_min'], 'src(b)') == [20.0] * 3, 'the relative floor times the size'
+        assert _values(sources['rate_max'], 'src(b)') == [80.0] * 3, 'the relative ceiling times the size'
+        assert _values(sources['size_bound'], 'src(b)') == [100.0]
+        assert sources['is_bounded']['flow'].to_list() == ['src(b)']
 
     def test_fixed_profile(self):
         flow = Flow(carrier='b', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-        data = ModelData.build(
-            ts(3),
-            carriers=[Carrier(id='b')],
-            effects=[Effect(id='cost')],
-            ports=[Port(id='sink', exports=[flow])],
-        )
-        fixed = data.flows.fixed_profile.filter(pl.col('flow') == 'sink(b)')
-        assert fixed['value'].to_list() == [0.5, 0.8, 0.6]
-        assert data.flows.profiled_ids == ['sink(b)']
+        sources = _sources([Port(id='sink', exports=[flow])])
+        assert _values(sources['rate_min'], 'sink(b)') == [50.0, 80.0, 60.0]
+        assert _values(sources['rate_max'], 'sink(b)') == [50.0, 80.0, 60.0], 'a profile pins the rate'
+        assert sources['is_profile']['flow'].to_list() == ['sink(b)']
 
     def test_unsized_flow(self):
-        flow = Flow(carrier='b')
-        data = ModelData.build(
-            ts(3),
-            carriers=[Carrier(id='b')],
-            effects=[Effect(id='cost')],
-            ports=[Port(id='src', imports=[flow])],
-        )
-        # Unsized is neither: no size to bound against, no profile to follow.
-        assert data.flows.bounded_ids == []
-        assert data.flows.profiled_ids == []
+        sources = _sources([Port(id='src', imports=[Flow(carrier='b')])])
+        assert sources['is_bounded'].is_empty(), 'no size to bound against'
+        assert sources['is_profile'].is_empty(), 'no profile to follow'
 
 
 class TestCarriersData:
     def test_coefficients(self):
         out_flow = Flow(carrier='b', size=100)
         in_flow = Flow(carrier='b', size=100)
-        data = ModelData.build(
-            ts(3),
-            carriers=[Carrier(id='b')],
-            effects=[Effect(id='cost')],
-            ports=[Port(id='src', imports=[out_flow]), Port(id='sink', exports=[in_flow])],
+        sources = _sources([Port(id='src', imports=[out_flow]), Port(id='sink', exports=[in_flow])])
+        sign = sources['carrier_sign']
+        assert dict(zip(sign['flow'], sign['value'], strict=True)) == {'src(b)': 1.0, 'sink(b)': -1.0}, (
+            'an import feeds the carrier, an export draws from it'
         )
-        m = data.carriers.membership
-        by_flow = dict(zip(m['flow'], m['sign'], strict=True))
-        assert by_flow['src(b)'] == 1.0  # output to carrier
-        assert by_flow['sink(b)'] == -1.0  # input from carrier
-        assert set(m['carrier'].to_list()) == {'b'}
-
-    def test_metadata(self):
-        data = ModelData.build(
-            ts(2),
-            carriers=[Carrier(id='elec', unit='kWh', color='blue', description='Electricity')],
-            effects=[Effect(id='cost')],
-            ports=[Port(id='src', imports=[Flow(carrier='elec', size=100)])],
-        )
-        assert data.carriers.carriers.filter(pl.col('carrier') == 'elec')['unit'][0] == 'kWh'
-        assert data.carriers.carriers.filter(pl.col('carrier') == 'elec')['color'][0] == 'blue'
-        assert data.carriers.carriers.filter(pl.col('carrier') == 'elec')['description'][0] == 'Electricity'
+        assert set(sources['carrier_of']['carrier'].to_list()) == {'b'}
 
 
 class TestBuildValidation:
     def test_undeclared_effect_rejected_without_flow_system(self) -> None:
-        """The raw ModelData.build path rejects undeclared effect references."""
+        """Building the sources directly rejects undeclared effect references."""
         with pytest.raises(ValueError, match=r"undeclared effect\(s\) \['co2'\]"):
-            ModelData.build(
-                ts(3),
+            _sources(
+                [Port(id='grid', imports=[Flow(carrier='elec', size=10, effects_per_flow_hour={'co2': 1.0})])],
                 carriers=[Carrier(id='elec')],
-                effects=[Effect(id='cost')],
-                ports=[Port(id='grid', imports=[Flow(carrier='elec', size=10, effects_per_flow_hour={'co2': 1.0})])],
             )
 
     def test_a_status_floor_of_zero_from_a_profile_is_refused_at_build(self) -> None:
@@ -126,44 +105,29 @@ class TestBuildValidation:
             ],
         )
         with pytest.raises(ValueError, match='on/off is indistinguishable'):
-            system.build_data({'p': {'floor': xr.DataArray([0.3, 0.0, 0.3], dims=['time'])}})
+            system.sources({'p': {'floor': xr.DataArray([0.3, 0.0, 0.3], dims=['time'])}})
 
 
 class TestConvertersTable:
     def test_scalar_factors(self):
-        fuel = Flow(carrier='gas', size=200)
-        heat_flow = Flow(carrier='heat', size=100)
-        boiler = Converter.boiler('boiler', 0.9, fuel, heat_flow)
-        data = ModelData.build(
-            ts(3),
+        boiler = Converter.boiler('boiler', 0.9, Flow(carrier='gas', size=200), Flow(carrier='heat', size=100))
+        sources = _sources(
+            [Port(id='src', imports=[Flow(carrier='gas', size=200)])],
             carriers=[Carrier(id='gas'), Carrier(id='heat')],
-            effects=[Effect(id='cost')],
-            ports=[Port(id='src', imports=[Flow(carrier='gas', size=200)])],
             converters=[boiler],
         )
-        ds = data.converters
-        assert ds is not None
-        first = ds.coefficients.filter(pl.col('eq_idx') == 0).group_by('flow').first()
-        by_flow = dict(zip(first['flow'], first['value'], strict=True))
-        assert by_flow['boiler(gas)'] == 0.9
-        assert by_flow['boiler(heat)'] == -1.0
-        # Only the flows the equation names have rows at all
-        assert set(by_flow) == {'boiler(gas)', 'boiler(heat)'}
+        first = sources['conversion_factor'].filter(pl.col('eq_idx') == 0).group_by('flow').first()
+        assert dict(zip(first['flow'], first['value'], strict=True)) == {'boiler(gas)': 0.9, 'boiler(heat)': -1.0}, (
+            'only the flows the equation names have rows at all'
+        )
 
 
 class TestEffectsTable:
     def test_flow_coefficients(self):
         flow = Flow(carrier='b', size=100, effects_per_flow_hour={'cost': 0.04})
-        data = ModelData.build(
-            ts(3),
-            carriers=[Carrier(id='b')],
-            effects=[Effect(id='cost')],
-            ports=[Port(id='src', imports=[flow])],
-        )
-        fds = data.flows
+        pairs = _sources([Port(id='src', imports=[flow])])['effects_per_flow_hour']
         # One row per (flow, effect) the flow actually charges — not a dense
         # product over every flow and every effect.
-        pairs = fds.effect_pairs
         assert pairs['flow'].unique().to_list() == ['src(b)']
         assert pairs['effect'].unique().to_list() == ['cost']
         assert pairs['value'].to_list() == [0.04, 0.04, 0.04]
@@ -223,13 +187,8 @@ class TestFlowQualification:
     def test_flow_reused_across_components_gets_two_entries(self):
         """One flow declaration placed in two components yields two dataset columns."""
         f = Flow(carrier='b', size=100)
-        data = ModelData.build(
-            ts(3),
-            carriers=[Carrier(id='b')],
-            effects=[Effect(id='cost')],
-            ports=[Port(id='src', imports=[f]), Port(id='sink', exports=[f])],
-        )
-        assert data.flows.ids == ['src(b)', 'sink(b)']
+        sources = _sources([Port(id='src', imports=[f]), Port(id='sink', exports=[f])])
+        assert sources['flow']['flow'].to_list() == ['src(b)', 'sink(b)']
 
     def test_port_duplicate_short_ids_raise_at_construction(self):
         with pytest.raises(ValueError, match=r"Port 'grid': duplicate flow short_id\(s\) \['elec'\]"):
@@ -289,11 +248,12 @@ class TestCarrierValidation:
                 ports=[Port(id='grid', imports=[Flow(carrier='elec', size=100)])],
             )
 
-    def test_undeclared_carrier_in_model_data_build(self):
-        """ModelData.build rejects flows with undeclared carriers."""
+    def test_undeclared_carrier_without_flow_system(self):
+        """Building the sources directly rejects flows with undeclared carriers."""
         with pytest.raises(ValueError, match=r"undeclared carrier\(s\) \['elec'\]"):
-            ModelData.build(
-                ts(2),
+            build_sources(
+                timesteps=ts(2),
+                objective='cost',
                 carriers=[Carrier(id='gas')],
                 effects=[Effect(id='cost')],
                 ports=[Port(id='grid', imports=[Flow(carrier='elec', size=100)])],
@@ -302,8 +262,9 @@ class TestCarrierValidation:
     def test_duplicate_carrier_raises(self):
         """Duplicate carrier declarations raise ValueError."""
         with pytest.raises(ValueError, match='Duplicate carrier id'):
-            ModelData.build(
-                ts(2),
+            build_sources(
+                timesteps=ts(2),
+                objective='cost',
                 carriers=[Carrier(id='elec'), Carrier(id='elec')],
                 effects=[Effect(id='cost')],
                 ports=[Port(id='grid', imports=[Flow(carrier='elec', size=100)])],
@@ -312,8 +273,9 @@ class TestCarrierValidation:
     def test_flow_node_on_nodeless_carrier_raises(self):
         """Flow with node on a carrier without nodes raises ValueError."""
         with pytest.raises(ValueError, match='has no nodes'):
-            ModelData.build(
-                ts(2),
+            build_sources(
+                timesteps=ts(2),
+                objective='cost',
                 carriers=[Carrier(id='heat')],
                 effects=[Effect(id='cost')],
                 ports=[Port(id='src', imports=[Flow(carrier='heat', node='A', size=100)])],
@@ -322,8 +284,9 @@ class TestCarrierValidation:
     def test_flow_node_not_in_carrier_nodes_raises(self):
         """Flow with node not declared on carrier raises ValueError."""
         with pytest.raises(ValueError, match="node='C'"):
-            ModelData.build(
-                ts(2),
+            build_sources(
+                timesteps=ts(2),
+                objective='cost',
                 carriers=[Carrier(id='heat', nodes=['A', 'B'])],
                 effects=[Effect(id='cost')],
                 ports=[Port(id='src', imports=[Flow(carrier='heat', node='C', size=100)])],
@@ -388,8 +351,9 @@ class TestMultiNodeCarrier:
 
     def test_node_in_carrier_dim_id(self):
         """Carrier dimension coordinates contain 'heat:A' and 'heat:B'."""
-        data = ModelData.build(
-            ts(3),
+        sources = build_sources(
+            timesteps=ts(3),
+            objective='cost',
             carriers=[Carrier(id='heat', nodes=['A', 'B'])],
             effects=[Effect(id='cost')],
             ports=[
@@ -409,10 +373,7 @@ class TestMultiNodeCarrier:
                 ),
             ],
         )
-        carrier_ids = data.carriers.ids
-        assert 'heat:A' in carrier_ids
-        assert 'heat:B' in carrier_ids
-        assert len(carrier_ids) == 2
+        assert sources['carrier']['carrier'].to_list() == ['heat:A', 'heat:B']
 
 
 class TestContributionsAreDeclared:

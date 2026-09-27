@@ -1,7 +1,7 @@
 """User-runnable benchmark: build a few realistic energy systems, report speed and memory.
 
 Run it against your installation to see how fast fluxopt's build pipeline
-(Elements → ModelData → linopy model) is on your hardware::
+(Elements → sources → specsolve model) is on your hardware::
 
     python -m fluxopt.benchmark                        # all systems, one hourly year
     python -m fluxopt.benchmark district_heating       # a single system
@@ -66,8 +66,8 @@ from fluxopt import (
     Converter,
     Effect,
     Flow,
+    FlowSystem,
     Investment,
-    ModelData,
     PiecewiseConversion,
     Port,
     Sizing,
@@ -1289,17 +1289,14 @@ def measure(model: str, timesteps: int = HOURS_PER_YEAR, solve: bool = False) ->
     elements = builder(timesteps)
     elements_s = perf_counter() - start
     stats = _system_stats(elements)
-    start = perf_counter()
-    data = ModelData.build(**elements)
-    data_s = perf_counter() - start
-    import specsolve as lpspec
+    import specsolve
 
-    from fluxopt.math import build_sources, objective_weights, program
-
-    weights = objective_weights(data, 'cost')
-    sources, coords = build_sources(data, weights)
+    system = FlowSystem(**elements, objective='cost')
     start = perf_counter()
-    bound = lpspec.build(program(data.dims.time_dtype).expand('sos'), {**sources, **coords})
+    sources = system.sources()
+    sources_s = perf_counter() - start
+    start = perf_counter()
+    bound = specsolve.build(system.spec(), sources)
     build_s = perf_counter() - start
     # Binaries are not a field the engine reports — it counts columns, and
     # integrality is a property of each rather than a second total.
@@ -1312,7 +1309,7 @@ def measure(model: str, timesteps: int = HOURS_PER_YEAR, solve: bool = False) ->
         'nonzeros': diagnostics.nonzeros,
         'constraints': diagnostics.rows,
         'elements_s': elements_s,
-        'data_s': data_s,
+        'sources_s': sources_s,
         'build_s': build_s,
     }
     if solve:
@@ -1399,7 +1396,7 @@ def _print_report(rows: list[dict[str, Any]], timesteps: int, solve: bool) -> No
         'binary',
         'constraints',
         'elements',
-        'data',
+        'sources',
         'build',
         *(['solve'] if solve else []),
         'peak rss',
@@ -1416,7 +1413,7 @@ def _print_report(rows: list[dict[str, Any]], timesteps: int, solve: bool) -> No
             _fmt_count(row['nonzeros']),
             _fmt_count(row['constraints']),
             _fmt_seconds(row['elements_s']),
-            _fmt_seconds(row['data_s']),
+            _fmt_seconds(row['sources_s']),
             _fmt_seconds(row['build_s']),
             *([_fmt_seconds(row['solve_s'])] if solve else []),
             _fmt_mem(row['peak_mib']),

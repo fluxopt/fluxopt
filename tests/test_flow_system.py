@@ -82,10 +82,10 @@ class TestProfileRefResolution:
 
 
 class TestBuildModel:
-    def test_build_data_returns_the_data_both_lanes_read(self) -> None:
+    def test_sources_are_the_tables_the_spec_is_bound_to(self) -> None:
         spec = _merit_order_spec([30, 30])
-        data = spec.build_data()
-        assert 'cost' in data.effects.ids
+        sources = spec.sources()
+        assert list(sources['effect']['effect']) == ['cost', 'penalty'], 'the declared effects, then the penalty'
         assert read(spec.optimize(), 'effect_total').sel(effect='cost').item() == pytest.approx(80.0)
 
     def test_the_spec_is_readable_without_data(self) -> None:

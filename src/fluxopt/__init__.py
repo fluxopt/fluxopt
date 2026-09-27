@@ -14,7 +14,6 @@ from fluxopt.elements import (
     Storage,
 )
 from fluxopt.flow_system import FlowSystem
-from fluxopt.model_data import Dims, ModelData
 from fluxopt.schema import all_element_schemas, element_schema, from_dict, to_dict
 from fluxopt.types import (
     ProfileRef,
@@ -86,12 +85,10 @@ __all__ = [
     'PENALTY_EFFECT_ID',
     'Carrier',
     'Converter',
-    'Dims',
     'Effect',
     'Flow',
     'FlowSystem',
     'Investment',
-    'ModelData',
     'PiecewiseConversion',
     'Port',
     'ProfileRef',

@@ -12,7 +12,7 @@ import numpy as np
 from conftest import assert_off_blocks, assert_on_blocks, read, ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, optimize
+from fluxopt import Carrier, Effect, Flow, FlowSystem, Port, Sizing, Status, optimize
 
 _heat = [Carrier(id='Heat')]
 
@@ -1093,11 +1093,10 @@ class TestPriorNonUniformDtWarning:
         """Non-uniform dt + prior_rates warns about the assumed prior-step duration."""
         import pytest
 
-        from fluxopt import ModelData
-
         with pytest.warns(UserWarning, match='pre-horizon status durations assume'):
-            ModelData.build(
-                [datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 1), datetime(2024, 1, 1, 3)],
+            FlowSystem(
+                timesteps=[datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 1), datetime(2024, 1, 1, 3)],
+                objective='cost',
                 carriers=_heat,
                 effects=[Effect(id='cost')],
                 ports=[
@@ -1114,4 +1113,4 @@ class TestPriorNonUniformDtWarning:
                         ],
                     ),
                 ],
-            )
+            ).sources()

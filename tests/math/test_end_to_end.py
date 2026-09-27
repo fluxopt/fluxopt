@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
-from conftest import read, solve_data, ts
+import specsolve
+from conftest import read, ts
 
 from fluxopt import (
     Carrier,
     Converter,
     Effect,
     Flow,
-    ModelData,
+    FlowSystem,
     Port,
     Storage,
     optimize,
@@ -88,19 +89,23 @@ class TestEndToEnd:
         sink_flow = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
         source_flow = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
-        data = ModelData.build(
-            ts(3),
+        system = FlowSystem(
+            timesteps=ts(3),
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
             ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[sink_flow])],
+            objective='cost',
         )
+        sources = system.sources()
 
-        # Change demand from 0.5 to 0.7 (relative); absolute = 0.7 * 100 = 70
-        data.flows.fixed_profile = data.flows.fixed_profile.with_columns(
-            pl.when(pl.col('flow') == 'demand(elec)').then(0.7).otherwise(pl.col('value')).alias('value')
-        )
+        # A profile pins the rate: move the demand from 0.5 * 100 to 70
+        demand = pl.col('flow') == 'demand(elec)'
+        for bound in ('rate_min', 'rate_max'):
+            sources[bound] = sources[bound].with_columns(
+                pl.when(demand).then(70.0).otherwise(pl.col('value')).alias('value')
+            )
 
-        result = solve_data(data, 'cost')
+        result = specsolve.solve(system.spec(), sources)
 
         source_rates = read(result, 'rate').sel(flow='grid(elec)').values
         for rate in source_rates:
