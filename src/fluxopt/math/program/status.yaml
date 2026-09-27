@@ -64,6 +64,14 @@ variables:
     bounds: {lower: 0, upper: downtime_upper}
 
 expressions:
+  running_before:
+    dims: [status_entity, time, period]
+    cases:
+      first:
+        when: "position(time) == 0"
+        expression: initial_status
+    otherwise: shift(running, along=time, offset=1)
+    description: Whether the decision was on in the step before.
   contribution_running:
     expression: running * effects_per_running_hour
     description: What being on costs, per timestep, for whatever carries the decision.
@@ -84,15 +92,11 @@ given:
     effect_temporal: {dims: [effect, period], term: status_costs}
 
 constraints:
+  # The first step has a row only where the state before the horizon is known.
   status_transition:
     dims: [status_entity, time, period]
-    where: "position(time) != 0"
-    expression: startup - shutdown == running - shift(running, along=time, offset=1)
-
-  status_transition_initial:
-    dims: [status_entity, time, period]
-    where: "initial_status AND position(time) == 0"
-    expression: startup - shutdown == running - initial_status
+    where: "position(time) != 0 OR initial_status"
+    expression: startup - shutdown == running - running_before
 
   status_exclusive:
     dims: [status_entity, time, period]
