@@ -429,8 +429,8 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         sources[key] = bounds.select(['flow', 'time', 'period', pl.col(key).alias('value')])
     # The big-M for every binary that has to release a rate — a ramp across a
     # start-up, a storage's charge/discharge exclusion. Stated once on `flow`;
-    # the storage side reads it through `charge_storage` rather than keeping a
-    # copy on its own axis.
+    # the storage side reads it through `port_of` rather than keeping a copy
+    # on its own axis.
     sources['size_bound'] = pd.DataFrame({'flow': flow_ids, 'value': [size_upper_of[f] for f in flow_ids]})
 
     # --- carrier balance --------------------------------------------------
@@ -466,21 +466,31 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     if data.storages is not None:
         sds = data.storages
         storage_ids = sds.ids
-        for lookup, column in (('charge_storage', 'charge_flow'), ('discharge_storage', 'discharge_flow')):
-            of_flow = dict(zip(sds.storages[column], storage_ids, strict=True))
-            flow_index[lookup] = [of_flow.get(f) for f in flow_ids]
+        port_of = pl.concat(
+            [
+                sds.storages.select(
+                    pl.col(column).alias('flow'), pl.col('storage'), pl.lit(side).alias('side')
+                ).drop_nulls('flow')
+                for side, column in (('charge', 'charge_flow'), ('discharge', 'discharge_flow'))
+            ]
+        )
 
         # One join carries every per-timestep storage parameter, since they
         # all live on the same (storage, time) rows.
         profiles = _with_time_ordinals(sds.profiles, dims).join(dt_by_time, on='time')
 
-        gains = profiles.with_columns(
-            (pl.col('eta_charge') * pl.col('dt')).alias('charge_gain'),
-            (pl.col('dt') / pl.col('eta_discharge')).alias('discharge_draw'),
-            ((1 - pl.col('loss')) ** pl.col('dt')).alias('retention'),
+        sources['retention'] = profiles.select(
+            ['storage', 'time', ((1 - pl.col('loss')) ** pl.col('dt')).alias('value')]
         )
-        for key in ('charge_gain', 'discharge_draw', 'retention'):
-            sources[key] = gains.select(['storage', 'time', pl.col(key).alias('value')])
+        sources['storage_coeff'] = pl.concat(
+            [
+                profiles.select(['storage', pl.lit(side).alias('side'), 'time', value.alias('value')])
+                for side, value in (
+                    ('charge', pl.col('eta_charge') * pl.col('dt')),
+                    ('discharge', -pl.col('dt') / pl.col('eta_discharge')),
+                )
+            ]
+        )
 
         # An absent capacity row is a storage whose capacity is a variable, so
         # its absolute level bounds are not knowable here: 0 and infinity are
@@ -526,8 +536,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         for key in ('final_level_min', 'final_level_max'):
             sources[key] = sds.levels.select(['storage', pl.col(key).alias('value')]).drop_nulls()
     else:
-        flow_index['charge_storage'] = None
-        flow_index['discharge_storage'] = None
+        port_of = pl.DataFrame(schema={'flow': pl.String, 'storage': pl.String, 'side': pl.String})
         for name, dcols in (
             ('is_cyclic', ['storage']),
             ('prior_level', ['storage']),
@@ -537,8 +546,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         ):
             sources[name] = pd.DataFrame({c: [] for c in [*dcols, 'value']})
         for name, dcols in (
-            ('charge_gain', ['storage', 'time']),
-            ('discharge_draw', ['storage', 'time']),
+            ('storage_coeff', ['storage', 'side', 'time']),
             ('retention', ['storage', 'time']),
             ('level_min', ['storage', 'time']),
             ('level_max', ['storage', 'time']),
@@ -951,8 +959,6 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         {
             'carrier_of': 'carrier',
             'converter_of': 'converter',
-            'charge_storage': 'storage',
-            'discharge_storage': 'storage',
             'status_of': 'status_entity',
         },
     )
@@ -1022,6 +1028,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         'storage': labels(storage_ids),
         'effect': labels(effect_ids),
         'status_entity': labels(entity_ids),
+        'side': labels(['charge', 'discharge']),
         'state': labels(['on', 'off']),
         # numpy, not a list: with no piecewise converter the width is 0 and a
         # bare `[]` has no integer type for the join to match.
@@ -1031,5 +1038,6 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         {'converter': list(pw_status_of), 'status_entity': [pw_status_of[c] for c in pw_status_of]},
         schema={'converter': pl.String, 'status_entity': pl.String},
     ).drop_nulls('status_entity')
+    lookup_tables['port_of'] = port_of
     _stamp_empty_dtypes(sources)
     return {**sources, **lookup_tables}, coords

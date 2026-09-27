@@ -68,7 +68,7 @@ class TestReadable:
     def test_a_lookup_holds_only_the_labels_it_is_defined_at(self) -> None:
         """No storage here, so nothing charges one — an absent map, not null rows."""
         params = _system().parameters()
-        assert params.lookups['charge_storage'].is_empty()
+        assert params.lookups['port_of'].is_empty()
         assert params.lookups['carrier_of'].height == 2
 
 
