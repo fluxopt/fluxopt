@@ -82,3 +82,9 @@ constraints:
     dims: [flow, period]
     where: "size_built"
     expression: size <= size_max * size_built
+
+assumptions:
+  size_bounds_are_ordered:
+    holds: "size_min >= 0 AND size_min <= size_max"
+    where: "size_min"
+    description: a size is not negative, and its minimum does not exceed its maximum

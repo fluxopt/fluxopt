@@ -112,6 +112,7 @@ expressions:
 given:
   parameters:
     size_bound: {dims: [flow]}
+    dt: {dims: [time]}
   variables:
     rate: {dims: [flow, time, period]}
   expressions:
@@ -168,3 +169,23 @@ constraints:
     dims: [storage, period]
     where: "has_capacity_sizing"
     expression: capacity <= capacity_max * capacity_built
+
+assumptions:
+  capacity_is_not_negative:
+    holds: "level_max >= 0"
+    description: a storage cannot hold less than nothing
+  capacity_bounds_are_ordered:
+    holds: "capacity_min >= 0 AND capacity_min <= capacity_max"
+    where: "capacity_min"
+    description: a capacity is not negative, and its minimum does not exceed its maximum
+  charging_efficiency_is_a_fraction:
+    holds: "storage_coeff > 0 AND storage_coeff <= dt"
+    where: "side == 'charge'"
+    description: charging stores at most what flows in, eta_charge in (0, 1]
+  discharging_efficiency_is_a_fraction:
+    holds: "storage_coeff <= 0 - dt"
+    where: "side == 'discharge'"
+    description: discharging draws at least what flows out, eta_discharge in (0, 1]
+  loss_is_a_fraction:
+    holds: "retention >= 0 AND retention <= 1"
+    description: a storage loses between none and all of its level per hour

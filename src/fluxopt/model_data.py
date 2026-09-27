@@ -131,18 +131,6 @@ class SizingData:
         """The entities this table sizes, in declaration order."""
         return self.bounds['entity'].to_list()
 
-    def __post_init__(self) -> None:
-        """Re-check the bounds `Sizing` already refuses, for a reloaded file.
-
-        The element layer is where this rule is enforced — there it fires on
-        the value the user wrote, naming the field. A hand-edited file never
-        passed through `Sizing` at all, which is the only reason to say it
-        twice. See docs/design/validation-layers.md.
-        """
-        bad = self.bounds.filter((pl.col('size_min') < 0) | (pl.col('size_max') < pl.col('size_min')))
-        if len(bad):
-            raise ValueError(f'Sizing bounds are not orderable on {bad["entity"].to_list()}')
-
     @classmethod
     def build(
         cls,
@@ -280,15 +268,12 @@ class InvestmentData:
         return self.bounds['entity'].to_list()
 
     def __post_init__(self) -> None:
-        """Re-check the bounds `Investment` already refuses, for a reloaded file.
+        """Re-check the lifetime `Investment` already refuses, for a reloaded file.
 
-        A reload guard — see docs/design/validation-layers.md.
+        The bounds are the program's assumptions; the lifetime is never bound
+        as a parameter, only the window derived from it, so the program
+        cannot see it. See docs/design/validation-layers.md.
         """
-        bad = self.bounds.filter(
-            (pl.col('size_min') < 0) | (pl.col('size_max') < pl.col('size_min')) | (pl.col('prior_size') < 0)
-        )
-        if len(bad):
-            raise ValueError(f'Investment bounds are not orderable on {bad["entity"].to_list()}')
         if len(short := self.lifetime.filter(pl.col('periods') <= 0)):
             raise ValueError(f'Investment.lifetime must be positive on {short["entity"].to_list()}')
 
@@ -391,20 +376,6 @@ class StatusData:
     def ids(self) -> list[str]:
         """The entities carrying a Status, in declaration order."""
         return self.entities['entity'].to_list()
-
-    def __post_init__(self) -> None:
-        """Re-check the durations `Status` already refuses, for a reloaded file.
-
-        A reload guard — see docs/design/validation-layers.md.
-        """
-        columns = ('uptime_min', 'uptime_max', 'downtime_min', 'downtime_max')
-        if len(bad := self.durations.filter(pl.any_horizontal(pl.col(c) < 0 for c in columns))):
-            raise ValueError(f'Status durations are negative on {bad["entity"].to_list()}')
-        unordered = self.durations.filter(
-            (pl.col('uptime_max') < pl.col('uptime_min')) | (pl.col('downtime_max') < pl.col('downtime_min'))
-        )
-        if len(unordered):
-            raise ValueError(f'Status max is below min on {unordered["entity"].to_list()}')
 
     @classmethod
     def build(
@@ -604,13 +575,7 @@ class FlowsData:
         return [f for f in self.ids if f in sized and f not in profiled]
 
     def __post_init__(self) -> None:
-        """Validate relative bounds, status non-degeneracy, and sized-feature requirements."""
-        negative = self.envelope.filter(pl.col('relative_rate_min') < -1e-12)['flow']
-        if bad := negative.unique(maintain_order=True).to_list():
-            raise ValueError(f'Negative lower bounds on flows: {bad}')
-        crossed = self.envelope.filter(pl.col('relative_rate_min') > pl.col('relative_rate_max') + 1e-12)['flow']
-        if bad := crossed.unique(maintain_order=True).to_list():
-            raise ValueError(f'Lower bound > upper bound on flows: {bad}')
+        """Validate sized-feature requirements; the rate bounds are the program's assumptions."""
         self._check_sized_features()
 
     def _check_sized_features(self) -> None:
@@ -1331,27 +1296,6 @@ class StoragesData:
     def ids(self) -> list[str]:
         """The declared storages, in declaration order."""
         return self.storages['storage'].to_list()
-
-    def __post_init__(self) -> None:
-        """Re-check the ranges `Storage` already refuses, on the resolved values.
-
-        Two things reach here that the element could not see: a reloaded
-        file, which never passed through `Storage` at all, and a
-        `ProfileRef`, whose numbers arrive when profiles are resolved and so
-        are not there to check when the storage is written. Everything else
-        was refused at construction — see docs/design/validation-layers.md.
-        """
-        bad_cap = self.capacity.filter(pl.col('capacity') < 0)['storage'].to_list()
-        if bad_cap:
-            raise ValueError(f'Negative capacity on storages: {bad_cap}')
-        for outside, told in (
-            ((pl.col('eta_charge') <= 0) | (pl.col('eta_charge') > 1), 'eta_charge must be in (0, 1]'),
-            ((pl.col('eta_discharge') <= 0) | (pl.col('eta_discharge') > 1), 'eta_discharge must be in (0, 1]'),
-            ((pl.col('loss') < 0) | (pl.col('loss') > 1), 'relative_loss_per_hour must be in [0, 1]'),
-        ):
-            bad = self.profiles.filter(outside)['storage'].unique(maintain_order=True).to_list()
-            if bad:
-                raise ValueError(f'{told} on storages: {bad}')
 
     @classmethod
     def build(

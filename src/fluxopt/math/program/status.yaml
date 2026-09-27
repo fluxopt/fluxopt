@@ -146,3 +146,9 @@ constraints:
     dims: [status_entity, state, time, period]
     where: "position(time) == 0 AND forced_at_start"
     expression: in_state >= 1
+
+assumptions:
+  durations_are_ordered:
+    holds: "duration_min >= 0 AND duration_min <= duration_upper"
+    where: "duration_min"
+    description: a minimum stay is not negative, and does not exceed the most the counter may reach

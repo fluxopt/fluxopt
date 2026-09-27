@@ -155,3 +155,9 @@ constraints:
     expression: >-
       invest_size_at_build - invest_size - size_max * invest_build
       >= 0 - size_max
+
+assumptions:
+  prior_capacity_is_not_negative:
+    holds: "prior_capacity >= 0"
+    where: "prior_capacity"
+    description: what was built before the horizon is a size, and a size is not negative

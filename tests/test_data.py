@@ -5,6 +5,7 @@ import pytest
 import xarray as xr
 from conftest import ts
 from pydantic import ValidationError
+from specsolve import DataError
 
 from fluxopt import (
     Carrier,
@@ -438,12 +439,11 @@ class TestStorageRanges:
         with pytest.raises(ValidationError, match=match):
             self._storage(**kwargs)
 
-    def test_a_profile_ref_is_checked_when_it_is_resolved(self):
+    def test_a_profile_ref_is_checked_when_it_is_bound(self):
         """Its numbers live elsewhere, so the element cannot see them.
 
-        This is the path that keeps the data-layer range check alive: an
-        element accepts the reference, and the values only exist once
-        profiles are bound.
+        The element accepts the reference, and the values only exist once
+        profiles are resolved; the program's assumption refuses them at bind.
         """
         system = FlowSystem(
             timesteps=ts(3),
@@ -453,5 +453,5 @@ class TestStorageRanges:
             ports=[Port(id='g', imports=[Flow(carrier='e', size=10, effects_per_flow_hour={'cost': 1.0})])],
             storages=[self._storage(capacity=10, eta_charge=ProfileRef(dataset='p', variable='eta'))],
         )
-        with pytest.raises(ValueError, match='eta_charge must be in'):
-            system.build_data({'p': {'eta': xr.DataArray([0.9, 0.9, 1.7], dims=['time'])}})
+        with pytest.raises(DataError, match='charging_efficiency_is_a_fraction'):
+            system.optimize({'p': {'eta': xr.DataArray([0.9, 0.9, 1.7], dims=['time'])}})

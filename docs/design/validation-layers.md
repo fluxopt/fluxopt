@@ -18,7 +18,7 @@ is in the wrong one.
 | 1 | the **element** — pydantic on `elements.py` / `components.py` | is this one element internally coherent? | the user constructs it |
 | 2 | the **system** — `validation.validate_system` | do these elements refer to each other resolvably? | `FlowSystem(...)`, and `ModelData.build` |
 | 3 | the **data** — `ModelData.__post_init__` and each container's | is this table self-consistent? | building it, *and* reloading it |
-| 4 | the **bind** — lpspec | does this data fit the program it is bound to? | `solve` |
+| 4 | the **bind** — specsolve, with the program's `assumptions:` | does this data fit the program, and hold what it assumes? | every bind: `solve`, `build`, a sweep |
 
 ### 1. The element
 
@@ -71,18 +71,24 @@ If not, the check is dead. Seven were: `Unknown effect {k!r} in ...` in five
 container builders, all of them behind `validate_system`'s sweep of the same
 element models. They were reachable only through the private container API.
 
-**A value the element could not see.** A `Variate` may be a
-`ProfileRef` — a name pointing at numbers supplied later — so a rule about
-its *values* cannot be decided when the element is written. `Storage`
-refuses `eta_charge=1.5` at construction and cannot refuse
-`eta_charge=ProfileRef(...)` until profiles are resolved, which is here. A
-range check that looks duplicated is doing this job.
+**A value the element could not see** is no longer this layer's. A
+`Variate` may be a `ProfileRef` — a name pointing at numbers supplied later —
+so `Storage` refuses `eta_charge=1.5` at construction and cannot refuse
+`eta_charge=ProfileRef(...)`. That range, and every other range on a value
+the program reads, is an `assumptions:` entry in the fragment that declares
+the parameter (layer 4). It fires on the numbers that actually reach the
+program, whether they came from a resolved reference, a reloaded file or a
+table the caller edited.
 
-A check that duplicates layer 1 but *does* guard one of those two is a
-different case from a dead one — `PiecewiseData.method` is a `Literal` on
-the element and re-checked here. Those earn their place, and their
-docstrings should say which job they are doing so the next reader does not
-mistake a guard for the enforcement.
+What stays here is structure a table can get wrong on reload: a reference to
+an entity the table does not carry, a literal outside its set, a cycle in
+`contribution_from`, a ramp on a flow with no size. A check that duplicates
+layer 1 for that reason — `PiecewiseData.method` is a `Literal` on the
+element and re-checked here — earns its place, and its docstring should say
+so. Two value rules stay because the program cannot state them: a status
+flow's lower bound above zero (the program cannot tell a flow's own status
+from its component's), and `Investment.lifetime` (bound only as the window
+derived from it).
 
 ### 4. The bind
 
@@ -91,19 +97,26 @@ a column typed `float` where the file says `bool`, a missing lookup column, a
 constant side the parameters do not cover, a null bound, a duplicate
 coordinate.
 
-**Do not write these.** lpspec already does, against the program's own
+**Do not write these.** specsolve already does, against the program's own
 declarations, and its messages name the parameter, the dimension, the
 offending values *and* the rewrite. Anything fluxopt writes here is a second
 implementation of a check the binder is going to run anyway — and one that
 cannot see the program, so it will be the weaker of the two.
+
+**A range on a value the program reads is written here, as an assumption.**
+`size_min <= size_max` is `size_bounds_are_ordered` in `sizing.yaml`; the
+typeset program prints it, and specsolve refuses a table that breaks it with
+the entry's name and description. `tests/math/test_assumptions.py` breaks
+each one.
 
 ## Deciding
 
 ```
 Can one element answer it alone?                  -> 1, the element
 Does it need to see other elements?               -> 2, the system
-Only violable by a reload, or by a resolved ref?  -> 3, the data
-Is it about shape, dtype, or coverage?            -> 4, leave it to lpspec
+A range on a value the program reads?             -> 4, an assumptions: entry
+Table structure only a reload can break?          -> 3, the data
+Is it about shape, dtype, or coverage?            -> 4, leave it to specsolve
 ```
 
 Two smells worth naming, both of which had occurred:
@@ -123,6 +136,6 @@ in and there would be nothing left for reload to catch. That is a consequence
 of the tidy-frames re-cut rather than a reason for it, but it is a second
 reason.
 
-The `ProfileRef` half does not go away, and should not. A rule about values
-that arrive later has to be checked later, whatever the container is made of —
-so layer 3 shrinks rather than closes.
+The `ProfileRef` half has moved to the program's assumptions, which check
+values that arrive later wherever they arrive. So layer 3 is down to the
+structure of its own tables.

@@ -97,3 +97,13 @@ constraints:
     dims: [flow, period]
     where: "load_factor_max"
     expression: flow_hours <= load_factor_max * flow_size
+
+assumptions:
+  rate_floor_is_not_negative:
+    holds: "relative_rate_min >= 0"
+    where: "relative_rate_min"
+    description: a flow runs forward; a negative floor would let it run backward
+  rate_bounds_do_not_cross:
+    holds: "relative_rate_min <= relative_rate_max"
+    where: "relative_rate_min"
+    description: a floor above the ceiling leaves no rate to choose
