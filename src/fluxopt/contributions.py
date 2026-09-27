@@ -12,9 +12,9 @@ Two views:
   what the expressions give: the coefficients are bound as declared, and the
   ledger adds the cross-effects on top of what each effect is charged.
 - **with cross-effects** (default): each contributor is charged the full
-  priced-in cost, CO2 through to cost. The solve evaluates each contribution
-  once more with the ledger's own chained `share` applied (:func:`pricing`),
-  so the breakdown and the ledger read one table.
+  priced-in cost, CO2 through to cost. ``reporting.yaml`` states each
+  contribution once more with the ledger's own chained `share` applied, as
+  ``priced_*``, so the breakdown and the ledger read one table.
 
 The contributor axis is a presentation choice rather than model math: flows
 and storages share one dimension, and a component-level cost is attributed to
@@ -53,13 +53,8 @@ LUMP: dict[str, str] = {
 
 
 def priced(name: str) -> str:
-    """The name a contribution is read back under with cross-effects applied."""
-    return f'{name}_priced'
-
-
-def pricing(name: str) -> str:
-    """A contribution with the ledger's chained share applied, as the program writes it."""
-    return f'{name} + sum(share * at({name}, by=same, over=effect, into=source), over=source)'
+    """The reported expression that is *name* with its cross-effects charged too."""
+    return name.replace('contribution_', 'priced_', 1)
 
 
 def _first_governed_flow(data: ModelData) -> dict[str, str]:

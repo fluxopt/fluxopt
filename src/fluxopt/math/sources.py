@@ -457,6 +457,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         sources['level_max'] = absolute.select(
             ['storage', 'time', (pl.col('relative_level_max') * pl.col('capacity')).fill_null(np.inf).alias('value')]
         )
+        sources['given_capacity'] = sds.capacity.select(['storage', pl.col('capacity').alias('value')])
         csz = sds.sizing
         if csz is not None:
             cap_ids = csz.ids
@@ -498,6 +499,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             ('final_level_min', ['storage']),
             ('final_level_max', ['storage']),
             ('prevent_simultaneous', ['storage']),
+            ('given_capacity', ['storage']),
         ):
             sources[name] = pd.DataFrame({c: [] for c in [*dcols, 'value']})
         for name, dcols in (

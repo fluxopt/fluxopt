@@ -221,19 +221,14 @@ def _expressions(result: Any, model: Any, data: ModelData) -> xr.Dataset:
     All of them, not the handful fluxopt reads itself: a caller who added an
     expression through ``optimize(math=...)`` named a quantity they want back,
     and an expression is evaluated against a solve, so this is the only place
-    it can be had. Each contribution comes back a second time with the
-    cross-effects applied, for the same reason.
+    it can be had.
     """
     import warnings
 
-    from fluxopt.contributions import LUMP, TEMPORAL, priced, pricing
-
-    written = {name: name for name in model.expressions}
-    written |= {priced(name): pricing(name) for name in (*TEMPORAL, *LUMP) if name in model.expressions}
     evaluated: dict[str, xr.DataArray] = {}
-    for name, expression in written.items():
+    for name in model.expressions:
         try:
-            frame = result.evaluate(expression)
+            frame = result.evaluate(name)
         except Exception as exc:  # advisory: one unreadable name is not a failed solve
             warnings.warn(f'expression {name!r} could not be read back ({exc!r})', stacklevel=3)
             continue

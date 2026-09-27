@@ -1,7 +1,8 @@
 """Derived statistics from optimization results.
 
-Computes post-processing quantities that require ModelData (dt, weights)
-— energy totals, effect contributions, solver metadata.
+Each one is a reported expression in ``math/program/reporting.yaml``,
+evaluated at the solve; this accessor reads it back under its old name and
+puts the entities the program has no value for back in as NaN.
 """
 
 from __future__ import annotations
@@ -28,6 +29,17 @@ class StatsAccessor:
     def __init__(self, result: Result) -> None:
         self._result = result
 
+    def _reported(self, name: str) -> xr.DataArray:
+        """A reported expression, with every declared entity present.
+
+        An entity the expression has no row for — an unsized flow has no
+        size — reads NaN, not the zero a sum over nothing would suggest.
+        """
+        arr = self._result.expression(name)
+        data = self._result.data
+        ids = {'flow': data.flows.ids, 'storage': data.storages.ids if data.storages is not None else []}
+        return arr.reindex({dim: labels for dim, labels in ids.items() if dim in arr.dims})
+
     @cached_property
     def flow_hours(self) -> xr.DataArray:
         """Energy per flow per timestep: P_{f,t} * dt_t.
@@ -35,7 +47,7 @@ class StatsAccessor:
         Returns:
             DataArray (flow, time) in energy units (e.g. MWh).
         """
-        return self._result.flow_rates * self._result.data.dims.dt
+        return self._reported('step_flow_hours')
 
     @cached_property
     def total_flow_hours(self) -> xr.DataArray:
@@ -44,7 +56,7 @@ class StatsAccessor:
         Returns:
             DataArray (flow,) — weighted sum of flow_hours over time.
         """
-        return (self.flow_hours * self._result.data.dims.weights).sum('time')
+        return self._reported('flow_hours')
 
     @cached_property
     def carrier_balance(self) -> xr.DataArray:
@@ -58,16 +70,12 @@ class StatsAccessor:
             balance = result.stats.carrier_balance
             balance.groupby('carrier').sum()
         """
-        import xarray as xr
-
         cd = self._result.data.carriers
-        rates = self._result.flow_rates
+        balance = self._reported('carrier_balance')
         by_flow = dict(zip(cd.membership['flow'], cd.membership['carrier'], strict=True))
-        sign_of = dict(zip(cd.membership['flow'], cd.membership['sign'], strict=True))
-        flows = [str(f) for f in rates.coords['flow'].values]
-        signs = xr.DataArray([sign_of[f] for f in flows], dims=['flow'], coords={'flow': rates.coords['flow']})
-        return (rates * signs).assign_coords(
-            carrier=xr.DataArray([by_flow[f] for f in flows], dims=['flow'], coords={'flow': rates.coords['flow']})
+        flows = [str(f) for f in balance.coords['flow'].values]
+        return balance.assign_coords(
+            carrier=xr.DataArray([by_flow[f] for f in flows], dims=['flow'], coords={'flow': balance.coords['flow']})
         )
 
     @cached_property
@@ -147,16 +155,8 @@ class StatsAccessor:
         Returns:
             DataArray (flow,) in power units (e.g. MW).
         """
-        flows = self._result.data.flows
-        ids = flows.ids
-        declared = dict(zip(flows.sizes['flow'], flows.sizes['size'], strict=True))
-        size = xr.DataArray([declared.get(f, np.nan) for f in ids], dims=['flow'], coords={'flow': ids}, name='size')
-        invested = self._result.sizes
-        # `invested` is an empty 0-d DataArray when no flow is invested; only
-        # merge when it actually carries a `flow` dim.
-        if 'flow' in invested.dims:
-            size = size.fillna(invested)
-        return size
+        size = self._reported('flow_size').rename('size')
+        return size.where(size.coords['flow'].isin(sorted(self._result.data.flows.has_size)))
 
     @cached_property
     def total_duration(self) -> xr.DataArray:
@@ -168,7 +168,7 @@ class StatsAccessor:
         Returns:
             Scalar DataArray in hours.
         """
-        return (self._result.data.dims.dt * self._result.data.dims.weights).sum('time')
+        return self._reported('total_duration')
 
     @cached_property
     def capacity_factor(self) -> xr.DataArray:
@@ -183,9 +183,8 @@ class StatsAccessor:
         Returns:
             DataArray (flow[, period]) — fraction of rated capacity used.
         """
-        with xr.set_options(keep_attrs=True):
-            cf = self.total_flow_hours / (self.resolved_sizes * self.total_duration)
-            return cf.where(lambda x: np.isfinite(x))
+        cf = self._reported('capacity_factor')
+        return cf.where(np.isfinite(cf) & self.resolved_sizes.notnull())
 
     @cached_property
     def resolved_capacities(self) -> xr.DataArray:
@@ -200,16 +199,7 @@ class StatsAccessor:
         """
         if self._result.data.storages is None:
             return xr.DataArray()
-        storages = self._result.data.storages
-        ids = storages.ids
-        declared = dict(zip(storages.capacity['storage'], storages.capacity['capacity'], strict=True))
-        cap = xr.DataArray(
-            [declared.get(s, np.nan) for s in ids], dims=['storage'], coords={'storage': ids}, name='capacity'
-        )
-        invested = self._result.storage_capacities
-        if 'storage' in invested.dims:
-            cap = cap.fillna(invested)
-        return cap
+        return self._reported('storage_capacity').rename('capacity')
 
     @cached_property
     def relative_mean_level(self) -> xr.DataArray:
@@ -226,11 +216,8 @@ class StatsAccessor:
         """
         if self._result.data.storages is None:
             return xr.DataArray()
-        dims = self._result.data.dims
-        with xr.set_options(keep_attrs=True):
-            mean_level = (self._result.storage_levels * dims.dt * dims.weights).sum('time') / self.total_duration
-            rel = mean_level / self.resolved_capacities
-            return rel.where(lambda x: np.isfinite(x))
+        rel = self._reported('relative_mean_level')
+        return rel.where(np.isfinite(rel))
 
     @cached_property
     def summary(self) -> xr.Dataset:
