@@ -21,7 +21,7 @@ Each symbol maps to a specific field or variable in the code.
 |---|---|---|---|---|
 | \(P_{f,t(,p)}\) | `flow--rate[flow, time(, period)]` | \(\geq 0\) | MW | Flow rate |
 | \(E_{s,t(,p)}\) | `storage--level[storage, time(, period)]` | \(\geq 0\) | MWh | Stored energy |
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | expression (folded into totals at build) | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | `effect_step[effect, time(, period)]` in the program | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | `effect--lump[effect(, period)]` | \(\mathbb{R}\) | varies | Lump (sizing + one-time) effect |
 | \(\Phi_{k(,p)}\) | `effect--total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
 | \(S_{f(,p)}\) | `flow--size[flow(, period)]` | \(\geq 0\) | MW | Invested flow capacity |

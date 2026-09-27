@@ -115,7 +115,7 @@ given:
   variables:
     rate: {dims: [flow, time, period]}
   expressions:
-    effect_lump: {dims: [effect, period], term: storage_costs}
+    direct_lump: {dims: [effect, period], term: storage_costs}
 
 constraints:
   storage_balance:

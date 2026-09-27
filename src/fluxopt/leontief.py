@@ -1,14 +1,10 @@
 """Cross-effect propagation: the Leontief inverse of ``contribution_from``.
 
 An effect that contributes to another — CO2 priced into cost — makes the
-effect system a linear one, and ``(I - C)^-1`` is what solves it. Two
-consumers need it and neither is the other's: the binder folds it into the
-coefficients it hands the solver (so the model never multiplies it at build
-time), and the post-solve breakdown applies it to attribute the full
-priced-in cost to each contributor.
-
-It lives here because it is neither's. Before, the binder imported it from
-the reader, which had the dependency backwards.
+effect system a linear one, and ``(I - C)^-1`` is what solves it. The model
+states that system as a fixed point and never needs the inverse; the
+post-solve breakdown applies it to attribute the full priced-in cost to each
+contributor.
 """
 
 from __future__ import annotations

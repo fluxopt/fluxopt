@@ -33,20 +33,21 @@ flow-hour of flow \(f\) (e.g., €/MWh for cost, kg/MWh for emissions).
 The cross-effect factor \(\alpha_{k,j,t}\) can be time-varying or constant
 (both via `contribution_from`).
 
-\(\Phi_{k,t}^{\text{temporal}}\) is an **expression**, not a solver variable:
-no per-timestep effect variables exist in the model. The recursive definition
-above has the closed form
+\(\Phi_{k,t}^{\text{temporal}}\) is a **variable** (`effect_step` in the
+program), and the equation above is its constraint as written. The model
+states the fixed point and the solver resolves it, so multi-level chains
+(e.g., PE → CO₂ → cost) need no special treatment, and every coefficient is
+bound as the user declared it.
+
+The post-solve breakdown attributes the priced-in cost to each contributor
+with the closed form
 
 \[
 \boldsymbol{\Phi}_t^{\text{temporal}} = (I - A_t)^{-1} \, \boldsymbol{D}_t
 \]
 
 where \(A_t = [\alpha_{k,j,t}]\) and \(\boldsymbol{D}_t\) collects the direct
-contributions — the Leontief inverse is computed numerically at build time and
-multi-level chains (e.g., PE → CO₂ → cost) substitute inline. The expression is
-summed over time directly into the total (see below); per-timestep effect
-series in results are reconstructed post-solve from flow rates and
-coefficients.
+contributions. The model itself never computes the inverse.
 
 ## Lump Domain
 
@@ -62,10 +63,11 @@ where the direct investment term is:
 \Phi_k^{\text{invest,direct}} = \sum_{f} \gamma_{f,k} \cdot S_f + \sum_{f} \phi_{f,k} \cdot y_f + \sum_{s} \gamma_{s,k} \cdot S_s + \sum_{s} \phi_{s,k} \cdot y_s
 \]
 
-Because \(\Phi_k^{\text{lump}}\) is a **variable** (not an expression), the
-solver resolves multi-level chains correctly: if PE has sizing costs
-and CO₂ depends on PE and cost depends on CO₂, the chain propagates through the
-lump domain just as it does through the temporal domain.
+\(\Phi_k^{\text{lump}}\) is a variable too, so the solver resolves
+multi-level chains the same way: if PE has sizing costs and CO₂ depends on PE
+and cost depends on CO₂, the chain propagates through the lump domain just as
+it does through the temporal domain. The factor here is
+\(\alpha_{k,j}\), the horizon mean of \(\alpha_{k,j,t}\).
 
 ## Cross-Effect Contributions
 
@@ -146,15 +148,13 @@ typically encode the period duration so the aggregate is a true physical sum.
 
 This is useful for emission caps or budget constraints.
 
-Per-timestep effect bounds do not exist: nothing binds effects per timestep,
-which is what allows the temporal domain to stay expression-only (temporal
-closure — see `docs/design/model-data-tree.md` §2.5).
+Per-timestep effect bounds do not exist: nothing binds effects per timestep.
 
 ## Parameters
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect expression (folded into totals at build) | reconstructed in results |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect variable | `effect_step[effect, time(, period)]` in the program |
 | \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow.effects_per_flow_hour) |

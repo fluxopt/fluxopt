@@ -91,17 +91,14 @@ expressions:
     expression: startup * effects_per_startup
     description: What each start costs, at the step it happens.
   status_costs:
-    expression: >-
-      sum(sum(contribution_running * time_weight, over=time), over=status_entity)
-      + sum(sum(contribution_startup * time_weight, over=time), over=status_entity)
-    description: What running and starting add to each effect over the horizon.
+    expression: sum(contribution_running, over=status_entity) + sum(contribution_startup, over=status_entity)
+    description: What running and starting add to each effect in a step.
 
 given:
   parameters:
     dt: {dims: [time]}
-    time_weight: {dims: [time]}
   expressions:
-    effect_temporal: {dims: [effect, period], term: status_costs}
+    direct_step: {dims: [effect, time, period], term: status_costs}
 
 constraints:
   # The first step has a row only where the state before the horizon is known.

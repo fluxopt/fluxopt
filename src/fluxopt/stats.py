@@ -79,19 +79,13 @@ class StatsAccessor:
         physical quantities (raw CO2, say) without conflating them with
         priced-in monetary ones.
 
-        Derived from :attr:`effect_contributions` by undoing the fold the
-        binder applied — ``(I - C) . charged`` — which is a forward multiply,
-        so the two views cannot disagree about anything but floating point.
+        Read off the program's contribution expressions as they stand: the
+        coefficients are bound as declared, so these are the direct charges.
 
         Returns:
             Dataset with ``temporal``, ``lump``, and ``total`` DataArrays.
         """
-        from fluxopt.contributions import _finalize, _undo_cross_effects
-
-        charged = self.effect_contributions
-        temporal, lump = _undo_cross_effects(charged['temporal'], charged['lump'], self._result.data)
-        ids = [str(c) for c in charged['total'].coords['contributor'].values]
-        return _finalize(temporal, lump, ids, self._result.data)
+        return self._contributions(cross_effects=False)
 
     @cached_property
     def effect_contributions(self) -> xr.Dataset:
@@ -106,9 +100,8 @@ class StatsAccessor:
             contrib['total']  # (contributor, effect) — temporal sum + lump
 
         Cross-effects (CO2 into cost via ``Effect.contribution_from``) are
-        already carried: the coefficients bound to the program hold the
-        Leontief inverse, so each contributor is charged the full priced-in
-        cost by the same expressions the ledger sums.
+        propagated as ``(I - C)^-1 . direct``, so each contributor is charged
+        the full priced-in cost.
 
         Returns:
             Dataset with ``temporal``, ``lump``, and ``total`` DataArrays.
@@ -118,6 +111,10 @@ class StatsAccessor:
                 off the model's named expressions at solve time and cannot be
                 recovered from the solution alone.
         """
+        return self._contributions(cross_effects=True)
+
+    def _contributions(self, *, cross_effects: bool) -> xr.Dataset:
+        """Both breakdowns read the same stored expressions; only the propagation differs."""
         from fluxopt.contributions import contributions_from
 
         stored = self._result.expressions
@@ -128,7 +125,7 @@ class StatsAccessor:
                 'solve, and a Result without them cannot re-derive it'
             )
             raise ValueError(msg)
-        return contributions_from(lambda name: stored.get(name), self._result.data)
+        return contributions_from(lambda name: stored.get(name), self._result.data, cross_effects=cross_effects)
 
     @cached_property
     def resolved_sizes(self) -> xr.DataArray:

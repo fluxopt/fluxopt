@@ -38,7 +38,7 @@ parameters:
   relative_rate_max: {dims: [flow, time, period]}
   fixed_relative_profile: {dims: [flow, time, period]}
 
-  # coeff * dt * time_weight, Leontief inverse already folded in.
+  # coeff * dt: what a step at this rate charges.
   effects_per_flow_hour: {dims: [flow, effect, time, period]}
 
   # The horizon's total, bounded per period. `dt * time_weight` is what makes
@@ -56,7 +56,7 @@ variables:
 
 expressions:
   # Every contribution is named before it is summed, and keeps the entity it
-  # came from. `time_weight` multiplies in the sum rather than in the
+  # came from. `time_weight` multiplies in the ledger rather than in the
   # coefficient, so a contribution reads as the physical per-step quantity.
   contribution_flow_hour:
     expression: rate * effects_per_flow_hour
@@ -65,12 +65,12 @@ expressions:
     expression: sum(rate * dt * time_weight, over=time)
     description: The energy a flow carries in a period.
   flow_hour_costs:
-    expression: sum(sum(contribution_flow_hour * time_weight, over=time), over=flow)
-    description: What the flows' throughput adds to each effect over the horizon.
+    expression: sum(contribution_flow_hour, over=flow)
+    description: What the flows' throughput adds to each effect in a step.
 
 given:
   expressions:
-    effect_temporal: {dims: [effect, period], term: flow_hour_costs}
+    direct_step: {dims: [effect, time, period], term: flow_hour_costs}
     flow_size: {dims: [flow, period]}
 
 constraints:

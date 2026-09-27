@@ -223,10 +223,10 @@ class FlowSystem(BaseModel):
         whole problem, hashable and diffable, and a caller adding a constraint
         through ``math=`` can see what they are adding to.
 
-        Derived, never authored: the fold and the pre-scaling have already
-        turned what the user declared into what the solver adds up, so the
-        set is worth keeping and not worth editing. Change the elements or
-        change the program.
+        Derived, never authored: the pre-scaling has already turned what
+        the user declared into what the solver adds up, so the set is worth
+        keeping and not worth editing. Change the elements or change the
+        program.
 
         Args:
             profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or

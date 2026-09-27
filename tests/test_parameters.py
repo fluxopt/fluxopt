@@ -102,10 +102,12 @@ class TestRoundtrip:
 
 class TestDerivedNotAuthored:
     def test_the_set_is_what_the_solver_adds_up_not_what_the_user_wrote(self) -> None:
-        """A rate of 2/MWh over 1 h steps binds as 2; the fold is already applied.
+        """A coefficient binds as the step's charge, and a cross-effect as its share.
 
-        Recorded as a test because it is the reason the set is persistable but
-        not editable — see docs/design/parameters-as-artifact.md.
+        The step length is multiplied in; `contribution_from` is not, because
+        the ledger solves the cross-effects itself. Recorded as a test because
+        a derived value is the reason the set is persistable but not editable —
+        see docs/design/parameters-as-artifact.md.
         """
         system = FlowSystem(
             timesteps=ts(2),
@@ -117,11 +119,11 @@ class TestDerivedNotAuthored:
                 Port(id='grid', imports=[Flow(carrier='heat', size=10, effects_per_flow_hour={'co2': 3})]),
             ],
         )
-        charged = system.parameters()['effects_per_flow_hour']
-        by_effect = dict(zip(charged['effect'], charged['value'], strict=True))
-        # co2 as declared, and cost as folded through `contribution_from`
-        assert by_effect['co2'] == 3.0
-        assert by_effect['cost'] == 30.0
+        params = system.parameters()
+        charged = params['effects_per_flow_hour']
+        assert dict(zip(charged['effect'], charged['value'], strict=True)) == {'co2': 3.0}, 'only what the flow emits'
+        share = params['share']
+        assert set(zip(share['effect'], share['source'], share['value'], strict=True)) == {('cost', 'co2', 10.0)}
 
 
 class TestSupplyingALookup:

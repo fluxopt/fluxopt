@@ -1,12 +1,23 @@
 # The ledger: what each effect totals to, what bounds it, and what the solver
-# minimises. It knows no feature. The two halves of an effect's total are sums
+# minimises. It knows no feature. What the features charge directly are sums
 # declared here with a frame and no body: each feature file adds its own term,
 # so a new feature adds a line to its own file and none to this one.
+#
+# An effect may also be charged a share of another (CO2 priced into cost).
+# The ledger states that as a fixed point, per step for what running costs and
+# per period for what building costs, so every coefficient stays as written.
 description: Every effect is the sum of what the features charge to it.
 
 dimensions:
+  time: {dtype: int}
   period: {dtype: int}
   effect: {dtype: str}
+  # The effect a share is taken from. Same labels as `effect`; a second axis
+  # so one effect can be read at another.
+  source: {dtype: str}
+
+relations:
+  same: {key: source, values: effect}
 
 parameters:
   # objective weight x period weight, folded data-side
@@ -17,25 +28,48 @@ parameters:
   total_min: {dims: [effect]}
   total_max: {dims: [effect]}
   period_weight: {dims: [effect, period]}
+  # One unit of `source` in a step adds `share` of it to `effect`.
+  share: {dims: [effect, source, time, period]}
+  # The same, averaged over the horizon, for what building costs.
+  share_lump: {dims: [effect, source, period]}
 
 variables:
   effect_total:
     dims: [effect, period]
     bounds: {lower: null, upper: null}
-
-expressions:
-  # The two halves of the ledger, named rather than inlined: each is a
-  # quantity the model reports, and naming them is what makes them readable
-  # after a solve — computed by the compiler that built the accounting row, so
-  # the split cannot drift from the total.
-  effect_temporal:
-    dims: [effect, period]
-    description: What running the system costs, accumulated over the horizon.
+  effect_step:
+    dims: [effect, time, period]
+    bounds: {lower: null, upper: null}
+    description: What running the system costs in a step, cross-effects included.
   effect_lump:
     dims: [effect, period]
-    description: What building it costs — one-time and recurring, never per step.
+    bounds: {lower: null, upper: null}
+    description: What building it costs — one-time and recurring, cross-effects included.
+
+expressions:
+  direct_step:
+    dims: [effect, time, period]
+    description: What the features charge each effect in a step.
+  direct_lump:
+    dims: [effect, period]
+    description: What the features charge each effect for building, per period.
+  effect_temporal:
+    expression: sum(effect_step * time_weight, over=time)
+    description: What running the system costs, accumulated over the horizon.
+
+given:
+  parameters:
+    time_weight: {dims: [time]}
 
 constraints:
+  step_accounting:
+    dims: [effect, time, period]
+    expression: effect_step == direct_step + sum(share * at(effect_step, by=same, over=effect, into=source), over=source)
+
+  lump_accounting:
+    dims: [effect, period]
+    expression: effect_lump == direct_lump + sum(share_lump * at(effect_lump, by=same, over=effect, into=source), over=source)
+
   effect_accounting:
     dims: [effect, period]
     expression: effect_total == effect_temporal + effect_lump

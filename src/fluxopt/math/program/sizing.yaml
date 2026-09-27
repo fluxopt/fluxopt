@@ -18,7 +18,6 @@ parameters:
   # reason `mandatory` is.
   size_min: {dims: [flow]}
   size_max: {dims: [flow]}
-  # Lump-domain effect coefficients, Leontief-folded like the temporal ones.
   effects_per_size: {dims: [flow, effect, period]}
   effects_fixed: {dims: [flow, effect, period]}
 
@@ -64,7 +63,7 @@ given:
     has_invest: {dims: [flow], dtype: bool}
     size_bound: {dims: [flow]}
   expressions:
-    effect_lump: {dims: [effect, period], term: sizing_costs}
+    direct_lump: {dims: [effect, period], term: sizing_costs}
 
 constraints:
   # A mandatory build is the same decision already taken, so the size rows

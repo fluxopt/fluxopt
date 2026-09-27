@@ -6,16 +6,16 @@ where ``effect_accounting`` adds it up. So the breakdown is not a second
 implementation of the effect math that has to be checked against the first —
 it is the same declaration, read one step before the sum.
 
-Two views, as before:
+Two views:
 
+- **direct**: each contributor shows only what it directly emits. This is
+  what the expressions give: the coefficients are bound as declared, and the
+  ledger solves the cross-effects as a fixed point of its own.
 - **with cross-effects** (default): each contributor is charged the full
-  priced-in cost, CO2 through to cost. This is what the expressions give
-  directly, because the coefficients bound to the program already carry the
-  Leontief inverse (:mod:`fluxopt.leontief`) — the model never multiplies it
-  at build time.
-- **direct**: each contributor shows only what it directly emits, recovered
-  as ``(I - C) . charged``. A forward multiply, and the exact inverse of the
-  fold the binder applied.
+  priced-in cost, CO2 through to cost, as ``(I - C)^-1 . direct``
+  (:mod:`fluxopt.leontief`). Per step for what running costs, and with the
+  horizon-mean share for what building costs — the two couplings the ledger
+  states.
 
 The contributor axis is a presentation choice rather than model math: flows
 and storages share one dimension, and a component-level cost is attributed to
@@ -30,6 +30,7 @@ import numpy as np
 import xarray as xr
 
 from fluxopt.contract import Var
+from fluxopt.leontief import apply_leontief, leontief
 
 if TYPE_CHECKING:
     from fluxopt.model_data import ModelData
@@ -110,33 +111,15 @@ def _gather(
     return total
 
 
-def _undo_cross_effects(
+def _with_cross_effects(
     temporal: xr.DataArray, lump: xr.DataArray, data: ModelData
 ) -> tuple[xr.DataArray, xr.DataArray]:
-    """Recover the direct view: ``(I - C) . charged``.
-
-    The exact inverse of the fold the binder applied, and a forward multiply
-    rather than another inversion — so the two views cannot disagree about
-    anything but floating point.
-    """
+    """Charge each contributor the effects its own charges feed: ``(I - C)^-1 . direct``."""
     periods = data.dims.periods['label'].to_list() if data.dims.has_periods else None
     cf = data.effects.cf_matrix(periods)
     if cf is None:
         return temporal, lump
-
-    def unfold(arr: xr.DataArray, matrix: xr.DataArray) -> xr.DataArray:
-        n = matrix.sizes['effect']
-        identity = xr.DataArray(
-            np.eye(n),
-            dims=['effect', 'source_effect'],
-            coords={'effect': matrix.coords['effect'], 'source_effect': matrix.coords['source_effect']},
-        )
-        out: xr.DataArray = xr.dot(
-            identity - matrix, arr.rename({'effect': 'source_effect'}), dim='source_effect', optimize=True
-        )
-        return out
-
-    return unfold(temporal, cf), unfold(lump, cf.mean('time'))
+    return apply_leontief(leontief(cf), temporal), apply_leontief(leontief(cf.mean('time')), lump)
 
 
 def _finalize(temporal: xr.DataArray, lump: xr.DataArray, all_ids: list[str], data: ModelData) -> xr.Dataset:
@@ -173,8 +156,8 @@ def contributions_from(read: Any, data: ModelData, *, cross_effects: bool = True
 
     temporal = _gather(read, TEMPORAL, data, all_ids, None)
     lump = _gather(read, LUMP, data, all_ids, 'build_period')
-    if not cross_effects:
-        temporal, lump = _undo_cross_effects(temporal, lump, data)
+    if cross_effects:
+        temporal, lump = _with_cross_effects(temporal, lump, data)
     return _finalize(temporal, lump, all_ids, data)
 
 

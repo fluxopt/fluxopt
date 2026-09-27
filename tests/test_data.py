@@ -397,7 +397,7 @@ class TestContributionsAreDeclared:
     def test_the_program_names_every_contribution_the_ledger_sums(self):
         """The breakdown and the ledger are one declaration, so they must agree.
 
-        `effect_temporal` and `effect_lump` sum exactly the expressions
+        `direct_step` and `direct_lump` sum exactly the expressions
         `contributions.py` reads back; a contribution added to one and not the
         other would attribute a cost nobody is charged, or charge one nobody
         is attributed.
@@ -411,7 +411,7 @@ class TestContributionsAreDeclared:
         assert declared <= set(math.expressions), 'a contribution is read that the program does not declare'
         # Each feature adds one term to the ledger, and the term sums that
         # feature's contributions, so the ledger reaches them through the terms.
-        ledger = [math.expressions[half].expression for half in ('effect_temporal', 'effect_lump')]
+        ledger = [math.expressions[half].expression for half in ('direct_step', 'direct_lump')]
         terms = [term.strip() for body in ledger for term in body.split('+')]
         summed = ' '.join(ledger + [math.expressions[term].expression for term in terms])
         for name in declared:

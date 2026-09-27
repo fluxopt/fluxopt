@@ -95,7 +95,7 @@ class TestEditingTheMath:
 
         system = FlowSystem(**simple_system)
         math = system.math()
-        block = type(math.expressions['effect_lump'])
+        block = type(math.expressions['effect_temporal'])
         math.expressions['grid_energy'] = block(
             expression='sum(rate * dt, over=flow)', description='every flow the system moved, per step'
         )

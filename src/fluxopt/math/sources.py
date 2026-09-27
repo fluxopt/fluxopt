@@ -22,7 +22,6 @@ import pandas as pd
 import polars as pl
 import xarray as xr
 
-from fluxopt.leontief import apply_leontief, leontief
 from fluxopt.validation import reject_varying_contribution_into_lump
 
 if TYPE_CHECKING:
@@ -169,7 +168,7 @@ class UnsupportedFeatureError(RuntimeError):
     """
 
 
-def _tidy(da: xr.DataArray, *, drop_zero: bool, time_ord: dict[Any, int] | None = None) -> pd.DataFrame:
+def _tidy(da: xr.DataArray, *, drop_zero: bool) -> pd.DataFrame:
     """Tidy `(dims..., value)` frame; live rows only when *drop_zero*."""
     vals = da.values
     # NaN means "absent"; +/-inf is a legitimate bound and must survive
@@ -180,7 +179,7 @@ def _tidy(da: xr.DataArray, *, drop_zero: bool, time_ord: dict[Any, int] | None 
     cols: dict[str, Any] = {}
     for dim, positions in zip(da.dims, idx, strict=True):
         labels = da.coords[dim].values[positions] if dim in da.coords else positions
-        cols[str(dim)] = [time_ord[v] for v in labels] if (dim == 'time' and time_ord) else labels
+        cols[str(dim)] = labels
     cols['value'] = vals[keep]
     return pd.DataFrame(cols)
 
@@ -204,101 +203,15 @@ def _with_time_ordinals(frame: pl.DataFrame, dims: Any) -> pl.DataFrame:
     return frame.with_columns(pl.col('time').cast(unit)).join(ordinals, on='time').drop('time').rename({'ord': 'time'})
 
 
-def _fold_effect_rows(
-    frame: pl.DataFrame, entity: str, column: str, leo: xr.DataArray | None, tidy: Any
-) -> pl.DataFrame:
-    """A per-timestep coefficient table, Leontief-folded on the rows.
+def _effect_rows(frame: pl.DataFrame, entity: str, column: str, *axes: str) -> pl.DataFrame:
+    """A coefficient table keyed on *entity*, its live rows only.
 
-    `_fold_lump_rows` for the temporal domain: the factor may vary along time
-    and period as well, so the join keys follow whatever axes it carries.
+    The containers key on `entity` because they serve flows and storages
+    alike; the parameter a table feeds names the one it is for.
     """
-    rows = frame.select(
-        [pl.col('entity').alias(entity), 'effect', 'time', 'period', pl.col(column).alias('value')]
-    ).filter(pl.col('value') != 0)
-    if leo is None or rows.is_empty():
-        return rows
-    factors = pl.from_pandas(tidy(leo, drop_zero=True)).rename({'effect': 'charged', 'source_effect': 'effect'})
-    on = ['effect', *[c for c in ('time', 'period') if c in factors.columns and c in rows.columns]]
-    return (
-        rows.join(factors, on=on, suffix='_leo')
-        .with_columns((pl.col('value') * pl.col('value_leo')).alias('value'))
-        .group_by([entity, 'charged', 'time', 'period'])
-        .agg(pl.col('value').sum())
-        .rename({'charged': 'effect'})
-        .select([entity, 'effect', 'time', 'period', 'value'])
-    )
-
-
-def _fold_lump_rows(frame: pl.DataFrame, entity: str, column: str, leo: xr.DataArray | None) -> pl.DataFrame:
-    """A lump coefficient table, Leontief-folded on the rows.
-
-    The same contraction `_flow_hour_coefficients` does, on the lump domain:
-    every declared (entity, effect) coefficient is joined against the effects
-    it feeds and the products summed back. Written once because every lump
-    container wants it — flow sizing, storage sizing and investment alike.
-
-    Stays in polars throughout. lpspec takes either, and the arithmetic here
-    is a join and a group-by, which is what a dataframe is for.
-    """
-    # The container keys on `entity` because it serves flows and storages
-    # alike; the parameter it feeds names the one it is for.
-    rows = frame.select([pl.col('entity').alias(entity), 'effect', 'period', pl.col(column).alias('value')]).filter(
+    return frame.select([pl.col('entity').alias(entity), 'effect', *axes, pl.col(column).alias('value')]).filter(
         pl.col('value') != 0
     )
-    if leo is None or rows.is_empty():
-        return rows
-
-    factors = pl.from_pandas(_tidy(leo, drop_zero=True)).rename({'effect': 'charged', 'source_effect': 'effect'})
-    on = ['effect', *[c for c in ('period',) if c in factors.columns and c in rows.columns]]
-    return (
-        rows.join(factors, on=on, suffix='_leo')
-        .with_columns((pl.col('value') * pl.col('value_leo')).alias('value'))
-        .group_by([entity, 'charged', 'period'])
-        .agg(pl.col('value').sum())
-        .rename({'charged': 'effect'})
-        .select([entity, 'effect', 'period', 'value'])
-    )
-
-
-def _flow_hour_coefficients(
-    fds: Any,
-    dims: Any,
-    leo: xr.DataArray | None,
-    tidy: Any,
-) -> pd.DataFrame:
-    """The per-flow-hour coefficient table, never materialised dense.
-
-    `effect_pair_coeff` already holds one row per (flow, effect) a flow
-    actually charges. What used to happen here was to broadcast that back to
-    the full `(flow, effect, time, period)` product so the Leontief contraction
-    could be a `xr.dot` over the effect axis — 443 MB at 4% live on the stress
-    reference system, thrown away one line later by `drop_zero`.
-
-    So the contraction happens on the rows instead: every live pair is joined
-    against the effects it feeds and the products summed back per
-    (flow, effect). Same numbers, and the widest thing built is the result.
-    """
-    pairs = tidy(fds.effect_pair_coeff * dims.dt, drop_zero=True)
-    if pairs.empty:
-        return _empty('effects_per_flow_hour', 'flow', 'effect', 'time')
-    index = pairs.pop('effect_pair').to_numpy().astype(int)
-    pairs.insert(0, 'flow', fds.effect_pair_flow.values[index])
-    pairs.insert(1, 'effect', fds.effect_pair_effect.values[index])
-    if leo is None:
-        return pairs
-
-    # (effect, source_effect[, time]) -> rows, dropping the zeros that make a
-    # sparse effect graph sparse.
-    factors = tidy(leo, drop_zero=True).rename(columns={'effect': 'charged', 'source_effect': 'effect'})
-    # Join on every axis the factor itself varies along: `contribution_from`
-    # may differ per timestep and per period, and joining on fewer keys than
-    # it carries would silently cross-multiply them.
-    on = ['effect', *[c for c in ('time', 'period') if c in factors.columns and c in pairs.columns]]
-    merged = pairs.merge(factors, on=on, suffixes=('', '_leo'))
-    merged['value'] = merged['value'] * merged['value_leo']
-    keys = ['flow', 'charged', *[c for c in ('time', 'period') if c in pairs.columns]]
-    out = merged.groupby(keys, as_index=False)['value'].sum().rename(columns={'charged': 'effect'})
-    return out[[c for c in pairs.columns if c != 'value'] + ['value']]
 
 
 def _reject_unsupported(data: ModelData) -> None:
@@ -344,16 +257,9 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     reject_varying_contribution_into_lump(data)
     fds, dims = data.flows, data.dims
 
-    # Keyed by the numpy labels an array coordinate carries, not by the frame's
-    # python ones: `tidy` looks these up with whatever xarray hands it.
-    time_ord = {v: i for i, v in enumerate(dims.time.values)}
     ordinals = dims.timesteps['time'].to_list()
     dt_by_time = dims.timesteps.select(['time', 'dt'])
     size_upper_of = _size_upper(data)
-
-    def tidy(da: xr.DataArray, *, drop_zero: bool) -> pd.DataFrame:
-        """`_tidy` with this model's time-ordinal mapping bound in."""
-        return _tidy(da, drop_zero=drop_zero, time_ord=time_ord)
 
     flow_ids = fds.ids
     sources: dict[str, Any] = {}
@@ -362,10 +268,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     sizing_ids: list[str] = []
     status_ids: list[str] = []
     # Lump-domain accumulators, filled by the flow- and storage-sizing blocks.
-    # (parameter name, entity dim, coefficients) — the entity dim is carried so
-    # an absent term still emits a correctly keyed empty table.
-    lump_terms: list[tuple[str, str, xr.DataArray | None]] = []
-    #: (parameter, entity dim, frame, value column) — the frame-backed ones
+    #: (parameter, entity dim, frame, value column)
     lump_frames: list[tuple[str, str, pl.DataFrame, str]] = []
     #: (parameter, frame, value column) — charged where the build happened
     at_build_frames: list[tuple[str, pl.DataFrame, str]] = []
@@ -559,7 +462,6 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     # the same fields and obey the same math, so the program states the family
     # once over `status_entity`. Which rows read which binary is `status_of`,
     # and nothing else distinguishes them.
-    ec_extra: list[tuple[str, xr.DataArray]] = []
     #: (parameter, frame, value column) — status coefficients, per timestep
     status_effect_frames: list[tuple[str, pl.DataFrame, str]] = []
     #: flow id -> the entity whose binary gates it. A self-status flow maps to
@@ -785,34 +687,33 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     # dt stays: a per-flow-hour rate times a duration is the step's energy.
     # The aggregation weight does not — the program applies it in the sum,
     # so a named contribution reads as the physical per-step quantity.
-    cf = eds.cf_matrix()
-    leo = leontief(cf) if cf is not None else None
     pairs = fds.effect_pairs.join(dt_by_time, on='time').select(
         ['flow', 'effect', 'time', 'period', (pl.col('value') * pl.col('dt')).alias('value')]
     )
-    sources['effects_per_flow_hour'] = _fold_effect_rows(pairs.rename({'flow': 'entity'}), 'flow', 'value', leo, tidy)
-    for name, arr in ec_extra:
-        sources[name] = tidy(apply_leontief(leo, arr) if leo is not None else arr, drop_zero=True)
+    sources['effects_per_flow_hour'] = _effect_rows(pairs.rename({'flow': 'entity'}), 'flow', 'value', 'time', 'period')
     for name, frame, column in status_effect_frames:
-        sources[name] = _fold_effect_rows(frame, 'status_entity', column, leo, tidy)
+        sources[name] = _effect_rows(frame, 'status_entity', column, 'time', 'period')
     for name in ('effects_per_running_hour', 'effects_per_startup'):
         sources.setdefault(name, _empty(name, 'status_entity', 'effect', 'time', 'period'))
 
-    # Lump domain: effect_lump = (I - cf_lump)^-1 . lump_direct, folded into
-    # the coefficients so no self-referential effect_lump variable is needed.
-    leo_lump = leontief(cf.mean('time')) if cf is not None else None
+    # Cross-effects stay as declared; the ledger solves the fixed point. What
+    # building costs is charged once, so it takes the share averaged over the
+    # horizon — `reject_varying_contribution_into_lump` keeps that exact.
+    contributions = _with_time_ordinals(eds.contributions, dims).rename({'source_effect': 'source', 'factor': 'value'})
+    sources['share'] = contributions.filter(pl.col('value') != 0).select(
+        ['effect', 'source', 'time', 'period', 'value']
+    )
+    sources['share_lump'] = (
+        contributions.group_by(['effect', 'source', 'period'], maintain_order=True)
+        .agg(pl.col('value').mean())
+        .filter(pl.col('value') != 0)
+    )
 
-    def fold(arr: xr.DataArray) -> xr.DataArray:
-        """Apply the lump-domain Leontief inverse, if there are cross-effects."""
-        return arr if leo_lump is None else apply_leontief(leo_lump, arr)
-
-    for name, entity_dim, arr in lump_terms:
-        sources[name] = tidy(fold(arr), drop_zero=True) if arr is not None else _empty(name, entity_dim, 'effect')
     for name, entity_dim, frame, column in lump_frames:
-        sources[name] = _fold_lump_rows(frame, entity_dim, column, leo_lump)
+        sources[name] = _effect_rows(frame, entity_dim, column, 'period')
     for name, frame, column in at_build_frames:
-        folded = _fold_lump_rows(frame, 'flow', column, leo_lump)
-        sources[name] = folded.with_columns(pl.col('period').alias('build_period'))
+        rows = _effect_rows(frame, 'flow', column, 'period')
+        sources[name] = rows.with_columns(pl.col('period').alias('build_period'))
     for name in ('effects_per_size', 'effects_fixed'):
         sources.setdefault(name, _empty(name, 'flow', 'effect', 'period'))
     for name in ('effects_per_capacity', 'effects_fixed_capacity'):
@@ -1027,6 +928,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         'eq_idx': axis('eq_idx', range(data.converters.width) if data.converters is not None else []),
         'storage': labels(storage_ids),
         'effect': labels(effect_ids),
+        'source': labels(effect_ids),
         'status_entity': labels(entity_ids),
         'side': labels(['charge', 'discharge']),
         'state': labels(['on', 'off']),
@@ -1039,5 +941,8 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         schema={'converter': pl.String, 'status_entity': pl.String},
     ).drop_nulls('status_entity')
     lookup_tables['port_of'] = port_of
+    lookup_tables['same'] = pl.DataFrame(
+        {'source': effect_ids, 'effect': effect_ids}, schema={'source': pl.String, 'effect': pl.String}
+    )
     _stamp_empty_dtypes(sources)
     return {**sources, **lookup_tables}, coords

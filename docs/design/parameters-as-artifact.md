@@ -73,8 +73,7 @@ declarations state overlapping facts, and `sources.py` is the translation
 between them. The renaming half of that collapses.
 
 **Only the renaming half.** A large part of `sources.py` is computation that
-has to happen somewhere whatever the container is: the Leontief fold,
-`_size_upper`'s big-M, composing an absolute envelope from `size × relative`,
+has to happen somewhere whatever the container is: `_size_upper`'s big-M, composing an absolute envelope from `size × relative`,
 mapping time labels to the ordinals the program indexes by, and cross-joining
 `PERIOD_PARAMS` onto every period. Under this shape that code *is* the build
 rather than a second pass after one — which is the saving. It does not
@@ -118,16 +117,18 @@ period weights — that are already bound parameters and can be read as such.
 
 ### The parameter set is lossy, in the one direction that matters
 
-The fold and the pre-scaling dissolve *declared* coefficients into *solver*
-coefficients. A stored parameter set therefore cannot answer "what did the
+The pre-scaling dissolves *declared* coefficients into *solver* coefficients:
+a per-flow-hour rate arrives multiplied by the step length, a relative bound
+by the size. A stored parameter set therefore cannot answer "what did the
 user write for this effect?", only "what is the solver adding up".
 
 This is the same wall the effects work hit, and it has the same answer: name
 the contribution as an expression and let the ledger sum that very expression,
-rather than storing raw coefficients beside the folded ones. Attribution is a
-question for the math, not for the parameter file — and a plan that tries to
-answer it by keeping a second, unfolded copy of the coefficients is undoing
-the fold that took the effects build from 18.5 s to 4.2 s.
+rather than storing raw coefficients beside the scaled ones. Attribution is a
+question for the math, not for the parameter file. Cross-effects follow the
+same rule: `share` binds `contribution_from` as declared, the ledger solves
+the fixed point, and the breakdown applies the Leontief inverse after the
+solve.
 
 ## It is not a YAML file
 
@@ -165,7 +166,7 @@ artifacts, four jobs:
 
 **Derived, never authored.** The parameter set is persistable, not a writing
 surface. Editing `effects_per_flow_hour` means editing numbers whose relation
-to the declared inputs the fold has already dissolved — an edit nobody can
+to the declared inputs the pre-scaling has already dissolved — an edit nobody can
 review, which is the objection that retired `customize`, moved to the data
 side. The authoring surfaces stay the element layer for data and
 `program.yaml` for math.

@@ -740,7 +740,7 @@ class TestBreakdownIsReadOffTheModel:
         """A named expression is evaluated at a solution, so the solve is where it can be had."""
         result = self._result()
         assert 'contribution_flow_hour' in result.expressions
-        assert 'effect_lump' in result.expressions
+        assert 'effect_temporal' in result.expressions
         # and it is reachable by name, not only through the breakdown
         assert result.expression('effect_temporal').sum() != 0
 

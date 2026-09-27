@@ -79,7 +79,7 @@ given:
   variables:
     size: {dims: [flow, period]}
   expressions:
-    effect_lump: {dims: [effect, period], term: investment_costs}
+    direct_lump: {dims: [effect, period], term: investment_costs}
 
 constraints:
   # --- build at most once (exactly once when mandatory); never when capacity

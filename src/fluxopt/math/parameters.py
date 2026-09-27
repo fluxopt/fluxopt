@@ -12,7 +12,7 @@ produces, given a name, a schema and a directory to live in — so
 the two halves, and ``(math, parameters/)`` is the whole problem.
 
 **Derived, never authored.** The tables are persistable, not a writing
-surface: the Leontief fold and the size pre-scaling have already dissolved
+surface: the step-length and size pre-scaling have already dissolved
 what the user declared into what the solver adds up, so an edit here is an
 edit nobody can review. The authoring surfaces stay the element layer for
 data and the program for math. See docs/design/parameters-as-artifact.md.
