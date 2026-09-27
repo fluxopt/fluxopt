@@ -17,14 +17,14 @@ dimensions:
 relations:
   # The curve a flow is a link of. A flow of no curve has no row.
   curve_of: {key: flow, values: converter}
-  # The breakpoints a curve has. Curves of different width share one `bp`
-  # axis, so a narrower curve has no row past its end.
-  breakpoint: {key: [converter, bp]}
   # A curve's own on/off decision, where its component has one. A curve with
   # a row is gated.
   pw_status_of: {key: converter, values: status_entity}
 
 parameters:
+  # The breakpoints a curve has. Curves of different width share one `bp`
+  # axis, so a narrower curve is false past its end.
+  pw_bp_present: {dims: [converter, bp], dtype: bool}
   # How a link meets its curve: '==' pinned to it, '<=' below it, '>=' above.
   link_sense: {dims: [flow], dtype: str}
   pw_bp_value: {dims: [flow, bp, time]}            # this link's breakpoint values
@@ -35,7 +35,7 @@ variables:
   # Convex-combination weights over the breakpoints of each curve.
   lam:
     dims: [converter, bp, time, period]
-    where: "breakpoint"
+    where: "pw_bp_present"
     bounds: {lower: 0, upper: 1}
 
 expressions:
@@ -71,7 +71,7 @@ constraints:
   # --- one convexity row per curve, one link row per curve flow.
   pw_convexity:
     dims: [converter, time, period]
-    where: "count(breakpoint, over=bp) >= 1"
+    where: "count(pw_bp_present, over=bp) >= 1"
     expression: sum(lam, over=bp) == curve_on
 
   # A link is a row keyed on the flow, so a curve ties as many flows as it has.
@@ -94,5 +94,5 @@ constraints:
   # reference link instead of moving the breakpoints.
   pw_availability:
     dims: [converter, time, period]
-    where: "count(breakpoint, over=bp) >= 1"
+    where: "count(pw_bp_present, over=bp) >= 1"
     expression: sum(rate * pw_ref, by=curve_of, over=flow, into=converter) <= pw_avail_bound * curve_on

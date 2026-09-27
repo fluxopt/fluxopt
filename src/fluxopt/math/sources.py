@@ -101,6 +101,8 @@ _INT_DIMS = frozenset({'time', 'period', 'build_period', 'eq_idx', 'bp'})
 #: Parameters the program declares ``dtype: bool``.
 _BOOL_PARAMS = frozenset(
     {
+        'conversion_active',
+        'pw_bp_present',
         'is_cyclic',
         'is_bounded',
         'is_profile',
@@ -450,17 +452,16 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             ['flow', 'eq_idx', 'time', 'value']
         )
         # One row per equation each converter states — the counts, expanded.
-        sources['equation'] = pl.DataFrame(
+        sources['conversion_active'] = pl.DataFrame(
             {
                 'converter': [c for c, n in zip(cds.ids, cds.equations['n_equations'], strict=True) for _ in range(n)],
                 'eq_idx': [i for n in cds.equations['n_equations'] for i in range(n)],
-            },
-            schema={'converter': pl.String, 'eq_idx': pl.Int64},
-        )
+            }
+        ).with_columns(pl.lit(True).alias('value'))
     else:
         flow_index['converter_of'] = None
         sources['conversion_factor'] = _empty('conversion_factor', 'flow', 'eq_idx', 'time')
-        sources['equation'] = pl.DataFrame(schema={'converter': pl.String, 'eq_idx': pl.Int64})
+        sources['conversion_active'] = _empty('conversion_active', 'converter', 'eq_idx')
 
     # --- storage ----------------------------------------------------------
     storage_ids: list[str] = []
@@ -898,7 +899,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         # of a narrower one.
         present = links.select(['converter', 'bp']).unique(maintain_order=True).sort(['converter', 'bp'])
         bp_width = int(present['bp'].max() or 0) + 1 if len(present) else 0  # type: ignore[arg-type]
-        sources['breakpoint'] = present.select(['converter', pl.col('bp').cast(pl.Int64)])
+        sources['pw_bp_present'] = present.with_columns(pl.lit(True).alias('value'))
 
         gated = curves.filter(pl.col('has_status'))['converter'].unique(maintain_order=True).to_list()
         sources['curve_of'] = identity.select(['flow', 'converter'])
@@ -934,7 +935,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             ('pw_avail_bound', ('converter', 'time')),
         ):
             sources[name] = _empty(name, *dcols)
-        sources['breakpoint'] = pl.DataFrame(schema={'converter': pl.String, 'bp': pl.Int64})
+        sources['pw_bp_present'] = _empty('pw_bp_present', 'converter', 'bp')
         sources['curve_of'] = pl.DataFrame(schema={'flow': pl.String, 'converter': pl.String})
         sources['link_sense'] = pl.DataFrame(schema={'flow': pl.String, 'value': pl.String})
         converter_ids = linear_convs

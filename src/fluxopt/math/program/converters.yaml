@@ -11,11 +11,10 @@ dimensions:
 
 relations:
   converter_of: {key: flow, values: converter}
-  # The equations a converter states: one row per (converter, index).
-  equation: {key: [converter, eq_idx]}
 
 parameters:
   conversion_factor: {dims: [flow, eq_idx, time]}
+  conversion_active: {dims: [converter, eq_idx], dtype: bool}   # the equations a converter states
 
 given:
   variables:
@@ -24,5 +23,5 @@ given:
 constraints:
   conversion:
     dims: [converter, eq_idx, time, period]
-    where: "equation"
+    where: "conversion_active"
     expression: sum(rate * conversion_factor, by=converter_of, over=flow, into=converter) == 0
