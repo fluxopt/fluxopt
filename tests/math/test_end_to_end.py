@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
-from conftest import ts
+from conftest import read, solve_data, ts
 
 from fluxopt import (
     Carrier,
@@ -14,7 +14,6 @@ from fluxopt import (
     Storage,
     optimize,
 )
-from fluxopt.math import solve
 
 
 class TestEndToEnd:
@@ -42,7 +41,7 @@ class TestEndToEnd:
         )
 
         # Verify gas = heat / eta
-        gas_rates = result.flow_rate('boiler(gas)').values
+        gas_rates = read(result, 'rate').sel(flow='boiler(gas)').values
         for gas_rate, hd in zip(gas_rates, heat_demand, strict=False):
             assert gas_rate == pytest.approx(hd / eta, abs=1e-6)
 
@@ -80,7 +79,7 @@ class TestEndToEnd:
         )
 
         # Verify the optimizer uses more gas in cheap hours
-        gas_rates = result.flow_rate('grid(gas)').values
+        gas_rates = read(result, 'rate').sel(flow='grid(gas)').values
         assert gas_rates[0] > gas_rates[1]  # More gas bought in cheap hour
 
     def test_modified_data(self):
@@ -101,9 +100,9 @@ class TestEndToEnd:
             pl.when(pl.col('flow') == 'demand(elec)').then(0.7).otherwise(pl.col('value')).alias('value')
         )
 
-        result = solve(data, 'cost')
+        result = solve_data(data, 'cost')
 
-        source_rates = result.flow_rate('grid(elec)').values
+        source_rates = read(result, 'rate').sel(flow='grid(elec)').values
         for rate in source_rates:
             assert rate == pytest.approx(70.0, abs=1e-6)
 
@@ -122,19 +121,19 @@ class TestEndToEnd:
         )
 
         # flow_rate accessor
-        sr = result.flow_rate('grid(elec)')
+        sr = read(result, 'rate').sel(flow='grid(elec)')
         assert 'time' in sr.dims
         assert len(sr) == 3
 
         # effect_totals DataArray
-        assert 'effect' in result.effect_totals.dims
+        assert 'effect' in read(result, 'effect_total').dims
 
         # effects_temporal
-        assert 'effect' in result.effects_temporal.dims
-        assert 'time' in result.effects_temporal.dims
+        assert 'effect' in read(result, 'effect_step', 'expression').dims
+        assert 'time' in read(result, 'effect_step', 'expression').dims
 
         # effects_lump
-        assert 'effect' in result.effects_lump.dims
+        assert 'effect' in read(result, 'effect_lump', 'expression').dims
 
     def test_int_timesteps(self):
         """Smoke test: int timesteps work end-to-end."""
@@ -159,6 +158,6 @@ class TestEndToEnd:
         )
 
         assert result.objective == pytest.approx(sum([40, 70, 50, 60]) / 0.9 * 0.04, abs=1e-6)
-        sr = result.flow_rate('boiler(gas)')
+        sr = read(result, 'rate').sel(flow='boiler(gas)')
         assert sr.dims == ('time',)
         assert len(sr) == 4

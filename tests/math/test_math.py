@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 import xarray as xr
-from conftest import ts, waste
+from conftest import read, ts, waste
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Investment, Port, Status, Storage, optimize
@@ -48,8 +48,8 @@ class TestBusBalance:
             ],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
-        src1 = result.flow_rate('Src1(Heat)').values
-        src2 = result.flow_rate('Src2(Heat)').values
+        src1 = read(result, 'rate').sel(flow='Src1(Heat)').values
+        src2 = read(result, 'rate').sel(flow='Src2(Heat)').values
         assert_allclose(src1, [20, 20], rtol=1e-5)
         assert_allclose(src2, [10, 10], rtol=1e-5)
 
@@ -150,7 +150,7 @@ class TestEffects:
             ],
         )
         assert_allclose(result.objective, 60.0, rtol=1e-5)
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 15.0, rtol=1e-5)
 
     def test_effect_maximum(self):
@@ -171,7 +171,7 @@ class TestEffects:
             ],
         )
         assert_allclose(result.objective, 65.0, rtol=1e-5)
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 15.0, rtol=1e-5)
 
     def test_effect_minimum(self):
@@ -192,7 +192,7 @@ class TestEffects:
                 waste('Heat'),
             ],
         )
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 25.0, rtol=1e-5)
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
@@ -215,7 +215,7 @@ class TestEffects:
             ],
         )
         assert_allclose(result.objective, 52.0, rtol=1e-5)
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 12.0, rtol=1e-5)
 
     def test_effect_minimum_temporal(self):
@@ -235,7 +235,7 @@ class TestEffects:
                 waste('Heat'),
             ],
         )
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 25.0, rtol=1e-5)
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
@@ -344,7 +344,7 @@ class TestEffects:
             periods=[2020, 2025],
             period_weights=[1, 1],
         )
-        co2 = float(result.effect_totals.sel(effect='CO2').sum().item())
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').sum().item())
         # Total CO2 (weighted by [1,1]) <= 20.
         assert co2 <= 20 + 1e-5
         assert_allclose(result.objective, 70.0, rtol=1e-5)
@@ -399,7 +399,7 @@ class TestFlowConstraints:
             converters=[Converter.boiler('Boiler', 1.0, fuel, thermal)],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
-        flow = result.flow_rate('Boiler(Heat)').values
+        flow = read(result, 'rate').sel(flow='Boiler(Heat)').values
         assert all(f >= 40.0 - 1e-5 for f in flow), f'Flow below relative_rate_min: {flow}'
 
     def test_relative_rate_max(self):
@@ -423,7 +423,7 @@ class TestFlowConstraints:
             ],
         )
         assert_allclose(result.objective, 200.0, rtol=1e-5)
-        flow = result.flow_rate('CheapSrc(Heat)').values
+        flow = read(result, 'rate').sel(flow='CheapSrc(Heat)').values
         assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_rate_max: {flow}'
 
     def test_flow_hours_max_per_period(self):
@@ -452,7 +452,7 @@ class TestFlowConstraints:
             period_weights=[1, 1],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
-        cheap = result.flow_rate('CheapSrc(Heat)')
+        cheap = read(result, 'rate').sel(flow='CheapSrc(Heat)')
         for p in (2020, 2025):
             per_period = float(cheap.sel(period=p).values.sum())
             assert per_period <= 15.0 + 1e-5, f'CheapSrc above flow_hours_max in period {p}: {per_period}'
@@ -539,7 +539,7 @@ class TestFlowConstraints:
             ],
         )
         assert_allclose(result.objective, 140.0, rtol=1e-5)
-        cheap = result.flow_rate('CheapSrc(Heat)').values
+        cheap = read(result, 'rate').sel(flow='CheapSrc(Heat)').values
         assert cheap[1] - cheap[0] <= 20.0 + 1e-5, f'Ramp-up violated: {cheap}'
 
     def test_ramp_up_limits_an_invested_flow(self):
@@ -625,7 +625,7 @@ class TestFlowConstraints:
             ],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
-        src = result.flow_rate('Src(Heat)').values
+        src = read(result, 'rate').sel(flow='Src(Heat)').values
         assert src[0] - src[1] <= 20.0 + 1e-5, f'Ramp-down violated: {src}'
 
     def test_ramp_requires_size(self):
@@ -700,7 +700,7 @@ class TestFlowConstraints:
             ],
         )
         assert_allclose(result.objective, 150.0, rtol=1e-5)
-        unit = result.flow_rate('Unit(Heat)').values
+        unit = read(result, 'rate').sel(flow='Unit(Heat)').values
         assert unit[2] - unit[1] <= 20.0 + 1e-5, f'Ramp violated between running steps: {unit}'
 
     def test_ramp_with_component_status(self):

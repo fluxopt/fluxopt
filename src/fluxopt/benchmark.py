@@ -1294,8 +1294,7 @@ def measure(model: str, timesteps: int = HOURS_PER_YEAR, solve: bool = False) ->
     data_s = perf_counter() - start
     import specsolve as lpspec
 
-    from fluxopt.math import build_sources, program
-    from fluxopt.math.results import objective_weights
+    from fluxopt.math import build_sources, objective_weights, program
 
     weights = objective_weights(data, 'cost')
     sources, coords = build_sources(data, weights)

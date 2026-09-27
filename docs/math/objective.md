@@ -57,13 +57,13 @@ full formulations of each term.
 |---|---|---|
 | \(k^*\) | Objective effect | `optimize(objective='cost')` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow.effects_per_flow_hour) |
-| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\omega_{k,p}\) | Period weight | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect.period_weights) (fallback: [`optimize(period_weights=...)`](../api/fluxopt/index.md#fluxopt.optimize(period_weights))) |
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Temporal (per-timestep) effect expression | `effect_step` in the program |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect expression (sizing + one-time costs) | `effect--lump[effect(, period)]` |
-| \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect expression (sizing + one-time costs) | `effect_lump[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
 
 See [Notation](notation.md) for the full symbol table.
 

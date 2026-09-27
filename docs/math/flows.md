@@ -113,7 +113,7 @@ Units cancel: e.g. €/MWh × MW × h = €. Contributions feed into the
 
 | Symbol | Description | API |
 |---|---|---|
-| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `rate[flow, time]` |
 | \(\bar{\mathrm{P}}_f\) | Nominal capacity | [`Flow.size`](../api/fluxopt/elements.md#fluxopt.elements.Flow.size) |
 | \(\underline{\mathrm{p}}_{f,t}\) | Relative lower bound | [`Flow.relative_rate_min`](../api/fluxopt/elements.md#fluxopt.elements.Flow.relative_rate_min) |
 | \(\bar{\mathrm{p}}_{f,t}\) | Relative upper bound | [`Flow.relative_rate_max`](../api/fluxopt/elements.md#fluxopt.elements.Flow.relative_rate_max) |

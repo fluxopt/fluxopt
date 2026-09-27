@@ -3,7 +3,7 @@ from __future__ import annotations
 import polars as pl
 import pytest
 import xarray as xr
-from conftest import ts
+from conftest import read, ts
 from pydantic import ValidationError
 from specsolve import DataError
 
@@ -308,9 +308,9 @@ class TestCarrierValidation:
 
 
 class TestCarrierBalance:
-    def test_carrier_balance_property(self):
-        """StatsAccessor.carrier_balance returns each flow's signed contribution."""
-        result = optimize(
+    def test_carrier_balance_cancels_per_carrier(self):
+        """Each flow's signed share, grouped by the carrier the sources map it to, sums to zero."""
+        system = FlowSystem(
             timesteps=ts(3),
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
@@ -320,14 +320,12 @@ class TestCarrierBalance:
                 Port(id='sink', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
         )
-        balance = result.stats.carrier_balance
-        assert 'flow' in balance.dims
-        # The carrier rides as a coordinate on the flow axis, not as an axis
-        assert 'carrier' in balance.coords
-        assert 'carrier' not in balance.dims
-        # Source produces, sink consumes — grouped by carrier they cancel
-        for val in balance.groupby('carrier').sum().sel(carrier='elec').values:
-            assert val == pytest.approx(0.0, abs=1e-6)
+        balance = read(system.optimize(), 'carrier_balance', 'expression')
+        carrier_of = system.sources()['carrier_of']
+        carrier = dict(zip(carrier_of['flow'], carrier_of['carrier'], strict=True))
+        balance = balance.assign_coords(carrier=('flow', [carrier[str(f)] for f in balance.coords['flow'].values]))
+        assert balance.sel(flow='src(elec)').values.tolist() == pytest.approx([50.0, 80.0, 60.0]), 'a source produces'
+        assert balance.groupby('carrier').sum().sel(carrier='elec').values.tolist() == pytest.approx([0.0] * 3)
 
 
 class TestMultiNodeCarrier:
@@ -356,12 +354,12 @@ class TestMultiNodeCarrier:
             ],
         )
         # Source A matches sink A demand (50 MW)
-        rate_a = result.flow_rate('src_a(heat:A)').values
+        rate_a = read(result, 'rate').sel(flow='src_a(heat:A)').values
         for val in rate_a:
             assert val == pytest.approx(50.0, abs=1e-4)
 
         # Source B matches sink B demand (80 MW)
-        rate_b = result.flow_rate('src_b(heat:B)').values
+        rate_b = read(result, 'rate').sel(flow='src_b(heat:B)').values
         for val in rate_b:
             assert val == pytest.approx(80.0, abs=1e-4)
 
@@ -398,18 +396,18 @@ class TestContributionsAreDeclared:
     def test_the_program_names_every_contribution_the_ledger_sums(self):
         """The breakdown and the ledger are one declaration, so they must agree.
 
-        `direct_step` and `direct_lump` sum exactly the expressions
-        `contributions.py` reads back; a contribution added to one and not the
-        other would attribute a cost nobody is charged, or charge one nobody
-        is attributed.
+        `direct_step` and `direct_lump` sum exactly the `contribution_*`
+        expressions, and `reporting.yaml` prices each of them as `priced_*`; a
+        contribution the ledger sums but the report does not price would
+        charge a cost nobody is attributed.
         """
 
-        from fluxopt.contributions import LUMP, TEMPORAL
         from fluxopt.math import program
 
         math = program()
-        declared = set(TEMPORAL) | set(LUMP)
-        assert declared <= set(math.expressions), 'a contribution is read that the program does not declare'
+        declared = {name for name in math.expressions if name.startswith('contribution_')}
+        missing = {name for name in declared if name.replace('contribution_', 'priced_', 1) not in math.expressions}
+        assert not missing, 'every contribution is reported again with its cross-effects charged'
         # Each feature adds one term to the ledger, and the term sums that
         # feature's contributions, so the ledger reaches them through the terms.
         ledger = [math.expressions[half].expression for half in ('direct_step', 'direct_lump')]

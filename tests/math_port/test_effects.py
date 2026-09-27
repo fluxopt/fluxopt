@@ -10,7 +10,7 @@ from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing
 
-from .conftest import ts, waste
+from .conftest import read, ts, waste
 
 
 class TestEffects:
@@ -48,8 +48,8 @@ class TestEffects:
             ],
         )
         # costs = (10+20)*2 = 60, CO2 = (10+20)*0.5 = 15
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 15.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 60.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='CO2').item(), 15.0, rtol=1e-5)
 
     def test_contribution_from_temporal(self, optimize):
         """Proves: contribution_from adds a weighted fraction of one effect's
@@ -80,8 +80,8 @@ class TestEffects:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 200.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 120.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='CO2').item(), 200.0, rtol=1e-5)
 
     def test_effect_maximum(self, optimize):
         """Proves: maximum on an effect constrains the optimizer to respect an
@@ -124,8 +124,8 @@ class TestEffects:
         )
         # Without CO2 limit: all from Dirty = 20€
         # With CO2 max=15: 15 from Dirty (15€), 5 from Clean (50€) → total 65€
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 65.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 15.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 65.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='CO2').item(), 15.0, rtol=1e-5)
 
     def test_effect_minimum(self, optimize):
         """Proves: minimum on an effect forces cumulative effect to reach at least
@@ -169,8 +169,8 @@ class TestEffects:
         )
         # Must produce ≥25 CO2. Only Dirty emits CO2 at 1kg/kWh → Dirty ≥ 25 kWh.
         # Demand only 20, so 5 excess absorbed by dump. cost = 25
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 25.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 25.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='CO2').item(), 25.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 25.0, rtol=1e-5)
 
     def test_contribution_from_periodic(self, optimize):
         """Proves: contribution_from adds a weighted fraction of one effect's periodic
@@ -210,7 +210,7 @@ class TestEffects:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 170.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 170.0, rtol=1e-5)
 
     def test_effect_maximum_periodic(self, optimize):
         """Proves: periodic_max limits the period's total effect.
@@ -249,8 +249,8 @@ class TestEffects:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 70.0, rtol=1e-5)
-        assert result.effect_totals.sel(effect='CO2').item() <= 50.0 + 1e-5
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 70.0, rtol=1e-5)
+        assert read(result, 'effect_total').sel(effect='CO2').item() <= 50.0 + 1e-5
 
     def test_effect_minimum_periodic(self, optimize):
         """Proves: periodic_min forces a minimum on the period's total effect.
@@ -286,5 +286,5 @@ class TestEffects:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
-        assert result.effect_totals.sel(effect='CO2').item() >= 40.0 - 1e-5
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 120.0, rtol=1e-5)
+        assert read(result, 'effect_total').sel(effect='CO2').item() >= 40.0 - 1e-5

@@ -152,11 +152,11 @@ Per-timestep effect bounds do not exist: nothing binds effects per timestep.
 | Symbol | Description | Reference |
 |---|---|---|
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect expression | `effect_step[effect, time(, period)]` in the program |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect expression (sizing + one-time costs) | `effect--lump[effect(, period)]` |
-| \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect expression (sizing + one-time costs) | `effect_lump[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow.effects_per_flow_hour) |
 | \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar or per period) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) |
-| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.total_max) |

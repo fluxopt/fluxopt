@@ -4,9 +4,8 @@ Three layers: Elements -> ModelData -> this. The math is
 :data:`~fluxopt.math.sources.PROGRAM`, a directory of YAML fragments that
 mathspec composes into one spec, built and solved by
 `specsolve <https://github.com/fluxopt/lpspec>`_;
-:mod:`~fluxopt.math.sources` binds a ``ModelData`` to it, and
-:mod:`~fluxopt.math.results` reads the answer back as a
-:class:`~fluxopt.results.Result`.
+:mod:`~fluxopt.math.sources` binds a ``ModelData`` to it, and the answer is
+specsolve's own ``Result``.
 
 There is no second implementation. ``model.py`` built the same math a second
 time in linopy calls, and deleting it is what
@@ -24,18 +23,20 @@ question. :class:`UnsupportedFeatureError` says so rather than quietly
 answering it.
 """
 
-from fluxopt.math.parameters import Parameters
-from fluxopt.math.results import to_result
-from fluxopt.math.solve import solve
-from fluxopt.math.sources import PERIOD_PARAMS, PROGRAM, UnsupportedFeatureError, build_sources, program
+from fluxopt.math.sources import (
+    PERIOD_PARAMS,
+    PROGRAM,
+    UnsupportedFeatureError,
+    build_sources,
+    objective_weights,
+    program,
+)
 
 __all__ = [
     'PERIOD_PARAMS',
     'PROGRAM',
-    'Parameters',
     'UnsupportedFeatureError',
     'build_sources',
+    'objective_weights',
     'program',
-    'solve',
-    'to_result',
 ]

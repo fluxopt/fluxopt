@@ -2,8 +2,9 @@
 
 An effect that contributes to another — CO2 priced into cost — makes the
 effect system a linear one, and ``(I - C)^-1`` is what solves it. The binder
-hands the model the chained share it implies; the ledger and the post-solve
-breakdown both read that share, so nothing else inverts it.
+hands the model the chained share it implies; the ledger and the priced
+contributions in ``reporting.yaml`` both read that share, so nothing else
+inverts it.
 """
 
 from __future__ import annotations

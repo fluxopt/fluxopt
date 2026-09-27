@@ -19,18 +19,18 @@ Each symbol maps to a specific field or variable in the code.
 
 | Symbol | Code | Domain | Unit | Description |
 |---|---|---|---|---|
-| \(P_{f,t(,p)}\) | `flow--rate[flow, time(, period)]` | \(\geq 0\) | MW | Flow rate |
-| \(E_{s,t(,p)}\) | `storage--level[storage, time(, period)]` | \(\geq 0\) | MWh | Stored energy |
+| \(P_{f,t(,p)}\) | `rate[flow, time(, period)]` | \(\geq 0\) | MW | Flow rate |
+| \(E_{s,t(,p)}\) | `level[storage, time(, period)]` | \(\geq 0\) | MWh | Stored energy |
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | `effect_step[effect, time(, period)]` in the program | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | `effect--lump[effect(, period)]` | \(\mathbb{R}\) | varies | Lump (sizing + one-time) effect |
-| \(\Phi_{k(,p)}\) | `effect--total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
-| \(S_{f(,p)}\) | `flow--size[flow(, period)]` | \(\geq 0\) | MW | Invested flow capacity |
-| \(y_{f(,p)}\) | `flow--size_indicator[flow(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (flow) |
-| \(S_{s(,p)}\) | `storage--capacity[storage(, period)]` | \(\geq 0\) | MWh | Invested storage capacity |
-| \(y_{s(,p)}\) | `storage--size_indicator[storage(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (storage) |
-| \(\sigma_{f,t(,p)}\) | `flow--on[flow, time(, period)]` | \(\{0, 1\}\) | — | On/off indicator |
-| \(\tau^+_{f,t(,p)}\) | `flow--startup[flow, time(, period)]` | \(\{0, 1\}\) | — | Startup event indicator |
-| \(\tau^-_{f,t(,p)}\) | `flow--shutdown[flow, time(, period)]` | \(\{0, 1\}\) | — | Shutdown event indicator |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | `effect_lump[effect(, period)]` | \(\mathbb{R}\) | varies | Lump (sizing + one-time) effect |
+| \(\Phi_{k(,p)}\) | `effect_total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
+| \(S_{f(,p)}\) | `chosen_size[flow(, period)]` | \(\geq 0\) | MW | Invested flow capacity |
+| \(y_{f(,p)}\) | `size_built[flow(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (flow) |
+| \(S_{s(,p)}\) | `chosen_capacity[storage(, period)]` | \(\geq 0\) | MWh | Invested storage capacity |
+| \(y_{s(,p)}\) | `capacity_built[storage(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (storage) |
+| \(\sigma_{f,t(,p)}\) | `running[status_entity, time(, period)]` | \(\{0, 1\}\) | — | On/off indicator |
+| \(\tau^+_{f,t(,p)}\) | `startup[status_entity, time(, period)]` | \(\{0, 1\}\) | — | Startup event indicator |
+| \(\tau^-_{f,t(,p)}\) | `shutdown[status_entity, time(, period)]` | \(\{0, 1\}\) | — | Shutdown event indicator |
 | \(\mathrm{D}^{\text{up}}_{f,t(,p)}\) | `uptime[flow, time(, period)]` | \(\geq 0\) | h | Consecutive uptime |
 | \(\mathrm{D}^{\text{down}}_{f,t(,p)}\) | `downtime[flow, time(, period)]` | \(\geq 0\) | h | Consecutive downtime |
 

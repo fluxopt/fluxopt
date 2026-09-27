@@ -7,6 +7,7 @@ linear converter on/off.
 
 import numpy as np
 import pytest
+from conftest import read
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, Storage
@@ -122,10 +123,9 @@ class TestStorageComponentStatus:
                 ),
             ],
         )
-        assert 'component--on' in result.solution
-        assert 'component--startup' in result.solution
-        assert 'component--shutdown' in result.solution
-        assert 'Bat' in result.solution['component--on'].coords['component'].values
+        for name in ('running', 'startup', 'shutdown'):
+            assert 'Bat' in read(result, name).coords['status_entity'].values, f'{name} carries the component'
+        assert 'Bat' in read(result, 'running').rename(status_entity='component').coords['component'].values
 
     def test_status_gates_both_flows(self, optimize):
         """When component_on=0, both charging and discharging are forced to 0."""
@@ -150,9 +150,9 @@ class TestStorageComponentStatus:
                 ),
             ],
         )
-        on = result.solution['component--on'].sel(component='Bat').values
-        charge = result.solution['flow--rate'].sel(flow='Bat(charge)').values
-        discharge = result.solution['flow--rate'].sel(flow='Bat(discharge)').values
+        on = read(result, 'running').rename(status_entity='component').sel(component='Bat').values
+        charge = read(result, 'rate').sel(flow='Bat(charge)').values
+        discharge = read(result, 'rate').sel(flow='Bat(discharge)').values
         for t in range(3):
             if on[t] < 0.5:
                 assert charge[t] < 1e-6, f't={t}: charge={charge[t]} but on=0'
@@ -195,8 +195,8 @@ class TestStorageComponentStatus:
             ],
         )
         # Direct supply costs 20€ — startup cost deters using storage at all.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
-        startups = result.solution['component--startup'].sel(component='Bat').values
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 20.0, rtol=1e-5)
+        startups = read(result, 'startup').rename(status_entity='component').sel(component='Bat').values
         assert startups.sum() == 0
 
     def test_running_cost_accrues_per_timestep(self, optimize):
@@ -226,8 +226,8 @@ class TestStorageComponentStatus:
         )
         # Running cost so high that storage stays off and demand draws from grid directly.
         # objective = 10 (grid only); storage on-hours = 0.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
-        on_hours = result.solution['component--on'].sel(component='Bat').values
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 10.0, rtol=1e-5)
+        on_hours = read(result, 'running').rename(status_entity='component').sel(component='Bat').values
         assert on_hours.sum() == 0
 
     def test_fixed_profile_with_status_solves(self, optimize):
@@ -261,10 +261,10 @@ class TestStorageComponentStatus:
         )
         # Grid pays for charge (5 MWh = 5 * 1 €/MWh = 5) plus demand (5 MWh = 5).
         # Plus any discharge gap. Charging is forced by profile when on=1.
-        assert result.effect_totals.sel(effect='cost').item() >= 5.0
+        assert read(result, 'effect_total').sel(effect='cost').item() >= 5.0
         # Charging actual rate must match profile when on=1 (and be 0 when on=0)
-        on = result.solution['component--on'].sel(component='Bat').values
-        charge = result.solution['flow--rate'].sel(flow='Bat(charge)').values
+        on = read(result, 'running').rename(status_entity='component').sel(component='Bat').values
+        charge = read(result, 'rate').sel(flow='Bat(charge)').values
         for t in range(3):
             expected = 0.5 * 10 * on[t] if t < 2 else 0.0
             assert_allclose(charge[t], expected, atol=1e-6)

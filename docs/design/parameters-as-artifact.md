@@ -1,6 +1,10 @@
 # The parameters are an artifact too
 
-**Status:** Draft / decision record, written before the work.
+**Status:** Decision record, written before the work. Superseded in its API:
+the numbers are `FlowSystem.sources()`, a plain dict of tables the caller may
+edit, and persisting them is specsolve's archive (`optimize(archive=...)`,
+`specsolve.load_archive`). The `Parameters` class is gone; the argument for
+giving the numbers the math's status stands.
 **Companion:** [`lpspec-direction.md`](lpspec-direction.md), whose step 6 this
 finishes and sharpens, and [`validation-layers.md`](validation-layers.md),
 whose layer 3 it half closes.

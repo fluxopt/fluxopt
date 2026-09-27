@@ -5,7 +5,7 @@ from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port
 
-from .conftest import ts
+from .conftest import read, ts
 
 
 class TestConversionEfficiency:
@@ -44,7 +44,7 @@ class TestConversionEfficiency:
             ],
         )
         # fuel = (10+20+10)/0.8 = 50, cost@1€/kWh = 50
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 50.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 50.0, rtol=1e-5)
 
     def test_variable_efficiency(self, optimize):
         """Proves: Boiler accepts a time-varying efficiency array and applies it per timestep.
@@ -82,7 +82,7 @@ class TestConversionEfficiency:
             ],
         )
         # fuel = 10/0.5 + 10/1.0 = 30
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 30.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 30.0, rtol=1e-5)
 
     def test_chp_dual_output(self, optimize):
         """Proves: CHP conversion factors for both thermal and electrical output are correct.
@@ -130,4 +130,4 @@ class TestConversionEfficiency:
         )
         # Per timestep: fuel = 50/0.5 = 100, elec = 100*0.4 = 40
         # Per timestep cost = 100*1 - 40*2 = 20, total = 2*20 = 40
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 40.0, rtol=1e-5)

@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import xarray as xr
-from conftest import ts, waste
+from conftest import read, ts, waste
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Investment, Port, Sizing, Status, Storage
@@ -214,7 +214,7 @@ class TestMultiPeriod:
             demand=[10, 10, 10],
             ports=[Port(id='Grid', imports=[Flow(carrier='Heat', size=capex, effects_per_flow_hour={'cost': 1})])],
         )
-        sizes = result.sizes.sel(flow='Grid(Heat)')
+        sizes = read(result, 'chosen_size').sel(flow='Grid(Heat)')
         assert_allclose(sizes.sel(period=2020).item(), sizes.sel(period=2025).item(), rtol=1e-5)
         assert_allclose(sizes.values, [10.0, 10.0], rtol=1e-5)
         assert_allclose(result.objective, 350.0, rtol=1e-5)

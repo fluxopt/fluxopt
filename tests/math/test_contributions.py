@@ -1,11 +1,60 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 import xarray as xr
-from conftest import ts
+from conftest import read, ts
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, Storage, optimize
 from fluxopt.components import Converter
+
+#: Each contribution ``reporting.yaml`` prices, and the entity it is keyed by.
+TEMPORAL = {'flow_hour': 'flow', 'running': 'status_entity', 'startup': 'status_entity'}
+LUMP = {
+    'flow_per_size': 'flow',
+    'flow_fixed': 'flow',
+    'storage_per_capacity': 'storage',
+    'storage_fixed': 'storage',
+    'invest_per_size_at_build': 'flow',
+    'invest_fixed_at_build': 'flow',
+    'invest_per_size_recurring': 'flow',
+    'invest_fixed_recurring': 'flow',
+}
+
+
+def _gathered(result, names: dict[str, str], prefix: str, grid: xr.DataArray) -> xr.DataArray:
+    """The named contributions summed onto *grid*, a zero `(contributor, effect[, time])` array."""
+    total = grid
+    for name, entity in names.items():
+        if not len(result.evaluate(f'{prefix}_{name}')):
+            continue
+        arr = read(result, f'{prefix}_{name}', 'expression').rename({entity: 'contributor'})
+        if 'build_period' in arr.dims:
+            arr = arr.sum('build_period')
+        total = total + arr.reindex_like(grid).fillna(0)
+    return total
+
+
+def breakdown(result, *, priced: bool = True) -> xr.Dataset:
+    """What each flow and storage charges each effect: ``temporal`` per step, ``lump``, and their ``total``.
+
+    Read off the program's own ``priced_*`` expressions, or ``contribution_*``
+    for what each entity charges directly.
+    """
+    rate = read(result, 'rate')
+    contributors = [str(f) for f in rate.coords['flow'].values]
+    if len(result.evaluate('level')):
+        contributors += [str(s) for s in read(result, 'level').coords['storage'].values]
+    effects = [str(e) for e in read(result, 'effect_total').coords['effect'].values]
+    grid = xr.DataArray(
+        np.zeros((len(contributors), len(effects))),
+        dims=['contributor', 'effect'],
+        coords={'contributor': contributors, 'effect': effects},
+    )
+    prefix = 'priced' if priced else 'contribution'
+    temporal = _gathered(result, TEMPORAL, prefix, grid.expand_dims(time=rate.coords['time'].values).copy())
+    lump = _gathered(result, LUMP, prefix, grid.copy())
+    return xr.Dataset({'temporal': temporal, 'lump': lump, 'total': temporal.sum('time') + lump})
 
 
 class TestSumToTotal:
@@ -23,9 +72,9 @@ class TestSumToTotal:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        total_from_solver = float(result.effect_totals.sel(effect='cost').values)
+        total_from_solver = float(read(result, 'effect_total').sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
 
     def test_two_sources_sum_to_total(self):
@@ -47,9 +96,9 @@ class TestSumToTotal:
             ],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        total_from_solver = float(result.effect_totals.sel(effect='cost').values)
+        total_from_solver = float(read(result, 'effect_total').sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
 
     def test_per_timestep_temporal_matches_hand_computed(self):
@@ -69,9 +118,9 @@ class TestSumToTotal:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        ept = result.effects_temporal.sel(effect='cost')
+        ept = read(result, 'effect_step', 'expression').sel(effect='cost')
         assert list(ept.values.round(6)) == [2.0, 3.2, 2.4]
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         temporal_sum = contrib['temporal'].sel(effect='cost').sum('contributor')
         xr.testing.assert_allclose(temporal_sum, ept)
 
@@ -96,7 +145,7 @@ class TestProportionalSplit:
             ],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         cheap_cost = float(contrib['total'].sel(contributor='cheap_src(elec)', effect='cost').values)
         exp_cost = float(contrib['total'].sel(contributor='exp_src(elec)', effect='cost').values)
         demand_total = 50 + 80 + 60
@@ -123,7 +172,7 @@ class TestCrossEffects:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         total_energy = sum(demand)
         direct_cost = total_energy * 0.04
         co2_total = total_energy * 0.5
@@ -135,7 +184,9 @@ class TestCrossEffects:
 
         # Sum matches solver
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
+        assert total_from_contrib == pytest.approx(
+            float(read(result, 'effect_total').sel(effect='cost').values), abs=1e-6
+        )
 
     def test_cross_effect_two_emitters(self):
         """Carbon tax is split proportionally between two emitting sources."""
@@ -160,14 +211,16 @@ class TestCrossEffects:
             ],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         # Clean source has zero CO2 -> zero carbon tax contribution
         clean_co2 = float(contrib['temporal'].sel(contributor='clean_src(elec)', effect='co2').sum('time').values)
         assert clean_co2 == pytest.approx(0.0, abs=1e-6)
 
         # Totals still match
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
+        assert total_from_contrib == pytest.approx(
+            float(read(result, 'effect_total').sel(effect='cost').values), abs=1e-6
+        )
 
     def test_transitive_cross_effects(self):
         """PE -> CO2 -> cost chain: contributions propagate transitively."""
@@ -188,7 +241,7 @@ class TestCrossEffects:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         total_energy = sum(demand)
         pe_total = total_energy * 2.0
         co2_total = pe_total * 0.3
@@ -217,7 +270,7 @@ class TestSizing:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         grid_inv = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
         demand_inv = float(contrib['lump'].sel(contributor='demand(elec)', effect='cost').values)
         # size=50 (min to meet demand) * effects_per_size=100
@@ -227,7 +280,9 @@ class TestSizing:
 
         # Sum matches solver
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
+        assert total_from_contrib == pytest.approx(
+            float(read(result, 'effect_total').sel(effect='cost').values), abs=1e-6
+        )
 
     def test_optional_sizing_fixed_costs(self):
         """Optional sizing with fixed costs uses binary indicator in contributions."""
@@ -247,9 +302,11 @@ class TestSizing:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
+        assert total_from_contrib == pytest.approx(
+            float(read(result, 'effect_total').sel(effect='cost').values), abs=1e-6
+        )
 
         # Grid has investment cost from fixed costs
         grid_periodic = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
@@ -276,13 +333,15 @@ class TestSizing:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
+        assert total_from_contrib == pytest.approx(
+            float(read(result, 'effect_total').sel(effect='cost').values), abs=1e-6
+        )
 
         # Grid flow gets the investment cost (including cross-effect from CO2)
         grid_inv_cost = float(contrib['lump'].sel(contributor='grid(elec)', effect='cost').values)
-        invest_size = float(result.sizes.sel(flow='grid(elec)').values)
+        invest_size = float(read(result, 'chosen_size').sel(flow='grid(elec)').values)
         invest_co2 = invest_size * 10
         expected_inv_cost = invest_co2 * 50
         assert grid_inv_cost == pytest.approx(expected_inv_cost, abs=1e-6)
@@ -309,9 +368,9 @@ class TestStatus:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        total_from_solver = float(result.effect_totals.sel(effect='cost').values)
+        total_from_solver = float(read(result, 'effect_total').sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
 
         # Grid has running costs, demand does not
@@ -341,7 +400,7 @@ class TestConverter:
             converters=[Converter.boiler('boiler', thermal_efficiency=0.9, fuel_flow=fuel, thermal_flow=heat_flow)],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         # Boiler fuel flow has cost
         boiler_fuel_cost = float(contrib['total'].sel(contributor='boiler(gas)', effect='cost').values)
         assert boiler_fuel_cost == pytest.approx(sum([50, 80, 60]) / 0.9 * 0.03, abs=1e-5)
@@ -351,7 +410,9 @@ class TestConverter:
 
         # Total matches
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        assert total_from_contrib == pytest.approx(float(result.effect_totals.sel(effect='cost').values), abs=1e-6)
+        assert total_from_contrib == pytest.approx(
+            float(read(result, 'effect_total').sel(effect='cost').values), abs=1e-6
+        )
 
 
 class TestStorage:
@@ -379,15 +440,15 @@ class TestStorage:
             ],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         # Storage appears as a contributor in periodic
         bat_inv = float(contrib['lump'].sel(contributor='battery', effect='cost').values)
-        bat_capacity = float(result.storage_capacities.sel(storage='battery').values)
+        bat_capacity = float(read(result, 'chosen_capacity').sel(storage='battery').values)
         assert bat_inv == pytest.approx(bat_capacity * 50, abs=1e-5)
 
         # Total (summed over all contributors) matches solver
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        solver_total = float(result.effect_totals.sel(effect='cost').values)
+        solver_total = float(read(result, 'effect_total').sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(solver_total, abs=1e-6)
 
     def test_storage_sizing_cross_effect(self):
@@ -417,14 +478,14 @@ class TestStorage:
             ],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         total_from_contrib = float(contrib['total'].sel(effect='cost').sum('contributor').values)
-        solver_total = float(result.effect_totals.sel(effect='cost').values)
+        solver_total = float(read(result, 'effect_total').sel(effect='cost').values)
         assert total_from_contrib == pytest.approx(solver_total, abs=1e-6)
 
         # Storage has CO2 investment cost that gets priced into cost via cross-effect
         bat_periodic_cost = float(contrib['lump'].sel(contributor='battery', effect='cost').values)
-        bat_capacity = float(result.storage_capacities.sel(storage='battery').values)
+        bat_capacity = float(read(result, 'chosen_capacity').sel(storage='battery').values)
         expected_co2_inv = bat_capacity * 5
         expected_cost_inv = expected_co2_inv * 50
         assert bat_periodic_cost == pytest.approx(expected_cost_inv, abs=1e-6)
@@ -445,7 +506,7 @@ class TestEdgeCases:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         assert float(contrib['total'].sum().values) == pytest.approx(0.0, abs=1e-6)
 
     def test_multiple_effects_sum_to_total(self):
@@ -462,29 +523,11 @@ class TestEdgeCases:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        contrib = result.stats.effect_contributions
+        contrib = breakdown(result)
         for eff in ['cost', 'co2']:
             total_from_contrib = float(contrib['total'].sel(effect=eff).sum('contributor').values)
-            total_from_solver = float(result.effect_totals.sel(effect=eff).values)
+            total_from_solver = float(read(result, 'effect_total').sel(effect=eff).values)
             assert total_from_contrib == pytest.approx(total_from_solver, abs=1e-6)
-
-    def test_caching(self):
-        """Stats accessor and its properties are cached."""
-
-        source = Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 0.04})
-        sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
-
-        result = optimize(
-            timesteps=ts(3),
-            carriers=[Carrier(id='elec')],
-            effects=[Effect(id='cost')],
-            objective='cost',
-            ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
-        )
-
-        assert result.stats is result.stats
-        assert result.stats.effect_contributions is result.stats.effect_contributions
-        assert result.stats.effect_contributions_direct is result.stats.effect_contributions_direct
 
 
 class TestDirectContributions:
@@ -505,8 +548,8 @@ class TestDirectContributions:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        with_cross = result.stats.effect_contributions
-        direct = result.stats.effect_contributions_direct
+        with_cross = breakdown(result)
+        direct = breakdown(result, priced=False)
         xr.testing.assert_allclose(with_cross['temporal'], direct['temporal'])
         xr.testing.assert_allclose(with_cross['lump'], direct['lump'])
         xr.testing.assert_allclose(with_cross['total'], direct['total'])
@@ -530,8 +573,8 @@ class TestDirectContributions:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        with_cross = result.stats.effect_contributions
-        direct = result.stats.effect_contributions_direct
+        with_cross = breakdown(result)
+        direct = breakdown(result, priced=False)
         assert not direct['total'].equals(with_cross['total'])
         assert not direct['temporal'].equals(with_cross['temporal'])
 
@@ -553,8 +596,8 @@ class TestDirectContributions:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        direct = result.stats.effect_contributions_direct
-        with_cross = result.stats.effect_contributions
+        direct = breakdown(result, priced=False)
+        with_cross = breakdown(result)
 
         total_energy = sum(demand)
         # Direct view: grid pays only its own per-flow-hour cost (no CO2 markup)
@@ -588,7 +631,7 @@ class TestDirectContributions:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        direct = result.stats.effect_contributions_direct
+        direct = breakdown(result, priced=False)
         co2_direct = float(direct['total'].sel(effect='co2').sum('contributor').values)
         assert co2_direct == pytest.approx(sum(demand) * 0.5, abs=1e-6)
 
@@ -612,8 +655,8 @@ class TestDirectContributions:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        direct = result.stats.effect_contributions_direct
-        with_cross = result.stats.effect_contributions
+        direct = breakdown(result, priced=False)
+        with_cross = breakdown(result)
 
         total_energy = sum(demand)
         # Direct: grid only directly emits PE — no direct co2, no direct cost
@@ -649,9 +692,9 @@ class TestDirectContributions:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        direct = result.stats.effect_contributions_direct
+        direct = breakdown(result, priced=False)
         direct_cost_total = float(direct['total'].sel(effect='cost').sum('contributor').values)
-        solver_cost_total = float(result.effect_totals.sel(effect='cost').values)
+        solver_cost_total = float(read(result, 'effect_total').sel(effect='cost').values)
         # Strict inequality: there's a non-zero CO₂→cost contribution
         assert direct_cost_total < solver_cost_total
         assert direct_cost_total == pytest.approx(sum(demand) * 0.04, abs=1e-6)
@@ -677,49 +720,14 @@ class TestDirectContributions:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        direct = result.stats.effect_contributions_direct
-        invest_size = float(result.sizes.sel(flow='grid(elec)').values)
+        direct = breakdown(result, priced=False)
+        invest_size = float(read(result, 'chosen_size').sel(flow='grid(elec)').values)
 
         grid_direct_co2_lump = float(direct['lump'].sel(contributor='grid(elec)', effect='co2').values)
         grid_direct_cost_lump = float(direct['lump'].sel(contributor='grid(elec)', effect='cost').values)
         assert grid_direct_co2_lump == pytest.approx(invest_size * 10, abs=1e-6)
         # No direct sizing cost — only CO₂ → cost via cross-effect, which direct strips
         assert grid_direct_cost_lump == pytest.approx(0.0, abs=1e-6)
-
-
-class TestValidateAgainstSolver:
-    """The validation helper raises when per-contributor totals don't sum to solver totals."""
-
-    def test_raises_on_mismatch(self):
-        from fluxopt.contributions import validate_against_solver
-
-        total = xr.DataArray(
-            [[1.0, 2.0], [3.0, 4.0]],
-            dims=['contributor', 'effect'],
-            coords={'contributor': ['a', 'b'], 'effect': ['cost', 'co2']},
-        )
-        solution = xr.Dataset(
-            {
-                'effect--total': xr.DataArray([100.0, 200.0], dims=['effect'], coords={'effect': ['cost', 'co2']}),
-            }
-        )
-        with pytest.raises(ValueError, match='Effect contributions do not sum to solver totals'):
-            validate_against_solver(total, solution)
-
-    def test_passes_on_exact_match(self):
-        from fluxopt.contributions import validate_against_solver
-
-        total = xr.DataArray(
-            [[1.0, 2.0], [3.0, 4.0]],
-            dims=['contributor', 'effect'],
-            coords={'contributor': ['a', 'b'], 'effect': ['cost', 'co2']},
-        )
-        solution = xr.Dataset(
-            {
-                'effect--total': xr.DataArray([4.0, 6.0], dims=['effect'], coords={'effect': ['cost', 'co2']}),
-            }
-        )
-        validate_against_solver(total, solution)  # no exception
 
 
 class TestBreakdownIsReadOffTheModel:
@@ -736,31 +744,17 @@ class TestBreakdownIsReadOffTheModel:
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-    def test_the_solve_records_every_named_quantity(self):
-        """A named expression is evaluated at a solution, so the solve is where it can be had."""
+    def test_each_contribution_is_reachable_by_name(self):
+        """A named expression is evaluated at the solution, direct and priced alike."""
         result = self._result()
-        assert 'contribution_flow_hour' in result.expressions
-        assert 'effect_temporal' in result.expressions
-        # and it is reachable by name, not only through the breakdown
-        assert result.expression('effect_temporal').sum() != 0
-
-    def test_a_result_without_them_says_so_rather_than_guessing(self):
-        """Re-deriving from the solution alone would answer with today's logic."""
-        import dataclasses
-
-        import xarray as xr
-
-        stripped = dataclasses.replace(self._result(), expressions=xr.Dataset())
-        with pytest.raises(ValueError, match='cannot re-derive'):
-            _ = stripped.stats.effect_contributions
-        with pytest.raises(KeyError, match='effect_lump'):
-            stripped.expression('effect_lump')
+        assert read(result, 'contribution_flow_hour', 'expression').sum() != 0
+        assert read(result, 'priced_flow_hour', 'expression').sum() != 0
 
     def test_the_two_views_differ_only_by_the_fold(self):
-        """`direct` is `(I - C) . charged`, so it strips exactly the priced-in share."""
+        """The priced view adds the chained share, so it exceeds the direct one exactly where a share applies."""
         result = self._result()
-        charged = result.stats.effect_contributions
-        direct = result.stats.effect_contributions_direct
+        charged = breakdown(result)
+        direct = breakdown(result, priced=False)
         # cost receives co2 priced at 50, so direct must be the smaller of the two
         assert float(direct['total'].sel(effect='cost').sum()) < float(charged['total'].sel(effect='cost').sum())
         # co2 emits into nothing, so both views agree on it

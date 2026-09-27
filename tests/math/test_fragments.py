@@ -11,7 +11,8 @@ from __future__ import annotations
 import mathspec as ms
 import pandas as pd
 import pytest
-from conftest import ts
+import specsolve
+from conftest import read, ts
 
 from fluxopt import Carrier, Effect, Flow, FlowSystem, Port
 from fluxopt.math import PROGRAM, program
@@ -71,10 +72,14 @@ def test_a_new_fragment_adds_to_the_ledger_without_editing_it() -> None:
             Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])]),
         ],
     )
-    base = system.optimize().effect_totals.sel(effect='cost').item()
+    base = read(system.optimize(), 'effect_total').sel(effect='cost').item()
 
     math = ms.merge({**FRAGMENTS, 'grid_fee': GRID_FEE})
     fee = pd.DataFrame({'flow': ['grid(elec)'], 'effect': ['cost'], 'value': [2.0]})
-    charged = system.optimize(math=math, parameters={'fee': fee}).effect_totals.sel(effect='cost').item()
+    charged = (
+        read(specsolve.solve(math.expand('sos'), system.sources() | {'fee': fee}), 'effect_total')
+        .sel(effect='cost')
+        .item()
+    )
 
     assert charged == pytest.approx(3 * base, rel=1e-6), 'a fee of 2 on a unit cost of 1 triples the bill'

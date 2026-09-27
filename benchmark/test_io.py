@@ -5,8 +5,8 @@ multi_node scaling curve, but timing/measuring ``ModelData.save`` (write)
 and ``ModelData.load`` (read) instead of the build. Solve-free and
 deterministic, so it fits the same CodSpeed / benchmem suite.
 
-The solved-``Result`` round-trip is intentionally *not* here: building a Result
-needs a HiGHS solve, which the suite excludes (non-deterministic, not ours).
+A solved answer's round-trip is intentionally *not* here: it is specsolve's
+archive, and it needs a HiGHS solve, which the suite excludes.
 
 Run from this pinned, standalone project (``cd benchmark``)::
 

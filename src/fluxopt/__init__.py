@@ -15,7 +15,6 @@ from fluxopt.elements import (
 )
 from fluxopt.flow_system import FlowSystem
 from fluxopt.model_data import Dims, ModelData
-from fluxopt.results import Result
 from fluxopt.schema import all_element_schemas, element_schema, from_dict, to_dict
 from fluxopt.types import (
     ProfileRef,
@@ -39,11 +38,9 @@ def optimize(
     period_weights: list[float] | None = None,
     profiles: Mapping[str, Any] | None = None,
     solver: str = 'highs',
-    math: Any = None,
-    parameters: Mapping[str, Any] | None = None,
-    **kwargs: Any,
-) -> Result:
-    """Build data, build model, optimize, return results.
+    **solver_options: Any,
+) -> Any:
+    """Declare a system and solve it: :meth:`FlowSystem.optimize` in one call.
 
     Args:
         timesteps: Time index for the optimization horizon.
@@ -64,11 +61,11 @@ def optimize(
         profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
             holding referenced time series. Required if any element uses a
             ``ProfileRef``.
-        solver: Solver name — ``highs``, or ``gurobi`` with lpspec's extra.
-        math: An edited program to solve instead of the shipped one; see
-            :meth:`~fluxopt.flow_system.FlowSystem.math`.
-        parameters: Data for the parameters *math* adds.
-        **kwargs: Passed to the solver verbatim, in its own vocabulary.
+        solver: Solver name — ``highs``, or ``gurobi`` with specsolve's extra.
+        **solver_options: Passed to the solver verbatim, in its own vocabulary.
+
+    Returns:
+        specsolve's result; see :meth:`FlowSystem.optimize`.
     """
     system = FlowSystem(
         timesteps=timesteps,
@@ -82,7 +79,7 @@ def optimize(
         periods=periods,
         period_weights=period_weights,
     )
-    return system.optimize(profiles, solver=solver, math=math, parameters=parameters, **kwargs)
+    return system.optimize(profiles, solver=solver, **solver_options)
 
 
 __all__ = [
@@ -98,7 +95,6 @@ __all__ = [
     'PiecewiseConversion',
     'Port',
     'ProfileRef',
-    'Result',
     'Sizing',
     'Status',
     'Storage',

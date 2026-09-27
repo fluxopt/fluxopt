@@ -21,7 +21,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fluxopt.components import Converter, Port
 from fluxopt.elements import Carrier, Effect, Storage
-from fluxopt.math.parameters import Parameters
 from fluxopt.model_data import ModelData
 from fluxopt.schema import from_dict, to_dict
 from fluxopt.types import ProfileRef, Timesteps
@@ -31,7 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
 
-    from fluxopt.results import Result
+    import specsolve
 
 _PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
 
@@ -199,17 +198,21 @@ class FlowSystem(BaseModel):
             out.setdefault(ref.dataset, set()).add(ref.variable)
         return out
 
-    def math(self) -> Any:
-        """The equations this system will be solved as, as data.
+    def spec(self) -> Any:
+        """The equations this system is solved as, before any number is bound.
 
-        An :class:`lpspec.Model` — the whole program, before any of this
-        system's numbers are bound to it. Read it (``to_yaml()``), typeset it
-        (``mathspec.to_latex(...)``), or edit it and hand it back to
-        :meth:`optimize` as ``math=``: adding a named quantity to
-        ``expressions:`` or a row to ``constraints:`` is how a caller extends
-        the math now, in the same language and with the same load-time checks
-        the shipped program gets.
+        A :class:`mathspec.Spec`, composed from the fragments under
+        :data:`fluxopt.math.PROGRAM` with this system's ``time`` dtype, and
+        with the piecewise special-ordered sets written out as binaries so
+        every solver takes it. Read it, typeset it (``mathspec.to_latex``), or
+        extend it — ``mathspec.override`` it with a patch, or ``merge`` a
+        fragment of your own onto the shipped ones — and solve the result
+        with :func:`specsolve.solve` against :meth:`sources`.
         """
+        return self._program().expand('sos')
+
+    def _program(self) -> Any:
+        """The spec with its special-ordered sets as declared, for a solver that takes them."""
         import pandas as pd
 
         from fluxopt.math import program
@@ -218,26 +221,25 @@ class FlowSystem(BaseModel):
         stamped = isinstance(normalize_timesteps(self.timesteps), pd.DatetimeIndex)
         return program('datetime' if stamped else 'int')
 
-    def parameters(self, profiles: Mapping[str, Any] | None = None) -> Parameters:
-        """The numbers this system binds to its math, as data.
+    def sources(self, profiles: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """The numbers :meth:`spec` is bound to, one table per declared name.
 
-        The other half of :meth:`math`. That returns the equations before any
-        of this system's numbers reach them; this returns the numbers, keyed
-        as the program declares them — so `(math, parameters/)` is the
-        whole problem, hashable and diffable, and a caller adding a constraint
-        through ``math=`` can see what they are adding to.
-
-        Derived, never authored: the pre-scaling has already turned what
-        the user declared into what the solver adds up, so the set is worth
-        keeping and not worth editing. Change the elements or change the
-        program.
+        Every parameter, relation and dimension the spec declares, keyed by
+        the timestamps, years and ids the elements were written with. Edit a
+        table, or add one for a declaration of your own, and hand the dict to
+        :func:`specsolve.solve`: the spec's ``assumptions:`` check whatever
+        arrives.
 
         Args:
             profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or
                 mapping) holding the referenced variables, as
                 :meth:`build_data` takes.
         """
-        return Parameters.of(self.build_data(profiles), self.objective)
+        from fluxopt.math import build_sources, objective_weights
+
+        data = self.build_data(profiles)
+        tables, coords = build_sources(data, objective_weights(data, self.objective))
+        return {**tables, **coords}
 
     def build_data(self, profiles: Mapping[str, Any] | None = None) -> ModelData:
         """Materialize this declaration's data, resolving profile references.
@@ -288,41 +290,36 @@ class FlowSystem(BaseModel):
         profiles: Mapping[str, Any] | None = None,
         *,
         solver: str = 'highs',
-        math: Any = None,
-        dimensions: Mapping[str, Any] | None = None,
-        lookups: Mapping[str, Any] | None = None,
-        parameters: Mapping[str, Any] | None = None,
-        **kwargs: Any,
-    ) -> Result:
-        """Resolve profile references, build the data, and solve.
+        archive: str | Path | None = None,
+        **solver_options: Any,
+    ) -> specsolve.Result:
+        """Solve :meth:`spec` against :meth:`sources`.
+
+        The same as ``specsolve.solve(system.spec(), system.sources(profiles))``.
+        A solver other than HiGHS gets the piecewise sets as special-ordered
+        sets, which it takes natively.
 
         Args:
             profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
                 holding the referenced variables. Required if the system uses
                 any ``ProfileRef``.
-            solver: Solver name — ``highs``, or ``gurobi`` with lpspec's extra.
-            math: An edited :meth:`math` to solve instead of the shipped
-                program. Whatever it declares is checked and lowered exactly
-                as the shipped one is.
-            dimensions: Labels for dimensions *math* adds.
-            lookups: Data for lookups *math* adds, as ``{name: frame}``.
-            parameters: Data for parameters *math* adds.
+            solver: Solver name — ``highs``, or ``gurobi`` with specsolve's extra.
+            archive: Where specsolve writes the spec, its data and the answer,
+                as a ``.zip`` or a directory; ``specsolve.load_archive`` reads
+                it back.
+            **solver_options: Passed to the solver verbatim, in its own vocabulary.
 
-                The three are the language's own declaration blocks, and
-                :meth:`parameters` returns them under the same three names.
-                All are ignored by the shipped program, which declares
-                nothing a caller has to fill.
-            **kwargs: Passed to the solver verbatim, in its own vocabulary.
+        Returns:
+            specsolve's result: ``objective``, ``to_dataarray(name)`` for a
+            variable and ``to_dataarray(name, kind='expression')`` for a
+            reported expression such as ``flow_hours`` or ``priced_flow_hour``.
         """
-        from fluxopt.math import solve
+        import specsolve
 
-        return solve(
-            self.build_data(profiles),
-            self.objective,
-            solver_name=solver,
-            solver_options=kwargs or None,
-            math=math,
-            dimensions=dimensions,
-            lookups=lookups,
-            parameters=parameters,
+        return specsolve.solve(
+            self.spec() if solver == 'highs' else self._program(),
+            self.sources(profiles),
+            solver,
+            solver_options=solver_options or None,
+            archive=archive,
         )

@@ -14,8 +14,7 @@ import specsolve as lpspec
 from conftest import ts
 
 from fluxopt import Carrier, Effect, Flow, FlowSystem, Investment, Port, Sizing, Status, Storage
-from fluxopt.math import build_sources, program
-from fluxopt.math.results import objective_weights
+from fluxopt.math import build_sources, objective_weights, program
 
 
 def _system() -> FlowSystem:

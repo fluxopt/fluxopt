@@ -1,18 +1,38 @@
 from __future__ import annotations
 
+import mathspec as ms
 import pandas as pd
 import pytest
-from conftest import ts
+import specsolve
+from conftest import read, ts
 
 from fluxopt import Carrier, Effect, Flow, FlowSystem, Port, optimize
 
+GRID_CAP = """
+parameters:
+  grid_cap: {dims: [time]}
+  is_grid: {dims: [flow], dtype: bool}
+constraints:
+  grid_cap_row:
+    dims: [flow, time, period]
+    where: is_grid
+    expression: rate <= grid_cap
+"""
+
+GRID_ENERGY = """
+expressions:
+  grid_energy:
+    expression: sum(rate * dt, over=flow)
+    description: every flow the system moved, per step
+"""
+
 
 class TestEditingTheMath:
-    """Extending the model by editing the math, rather than by callback.
+    """Extending the model by editing the spec and its sources, then solving with specsolve.
 
     `customize` used to hand a caller the built linopy model to poke. There is
-    no such object now: the math is a file, so extending it means adding a
-    declaration to that file and binding data for whatever it names.
+    no such object now: the math is a spec and the numbers are tables, so a
+    caller edits either and hands both to `specsolve.solve`.
     """
 
     @pytest.fixture
@@ -29,16 +49,15 @@ class TestEditingTheMath:
             ],
         }
 
-    def test_math_reads_without_data_or_solver(self, simple_system):
+    def test_the_spec_reads_without_data_or_solver(self, simple_system):
         """The equations are an artefact before anything is bound to them."""
-        math = FlowSystem(**simple_system).math()
+        spec = FlowSystem(**simple_system).spec()
 
-        assert 'carrier_balance' in math.constraints
-        assert math.objective.sense == 'minimize'
-        # It round-trips as the file a reviewer reads.
-        assert 'carrier_balance' in math.to_yaml()
+        assert 'carrier_balance' in spec.constraints
+        assert spec.objective.sense == 'minimize'
+        assert 'carrier_balance' in spec.to_yaml(), 'it round-trips as the file a reviewer reads'
 
-    def test_added_constraint_changes_the_answer(self, simple_system):
+    def test_an_added_constraint_changes_the_answer(self, simple_system):
         """A row the caller wrote, in the same language, with its own data."""
         # A dearer second source, so capping the cheap one has somewhere to go
         # rather than making a fixed demand infeasible.
@@ -46,64 +65,47 @@ class TestEditingTheMath:
             Port(id='backup', imports=[Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 5.0})])
         )
         base = optimize(**simple_system)
-        assert base.flow_rate('grid(elec)').values == pytest.approx([50.0] * 3, abs=1e-6)
+        assert read(base, 'rate').sel(flow='grid(elec)').values == pytest.approx([50.0] * 3, abs=1e-6)
 
         system = FlowSystem(**simple_system)
-        math = system.math()
-        math.parameters['grid_cap'] = type(math.parameters['carrier_sign'])(dims=['time'])
-        math.constraints['grid_cap_row'] = type(math.constraints['carrier_balance'])(
-            dims=['flow', 'time', 'period'],
-            where='is_grid',
-            expression='rate <= grid_cap',
-        )
-        math.parameters['is_grid'] = type(math.parameters['carrier_sign'])(dims=['flow'], dtype='bool')
+        spec = ms.override(system.spec(), {'grid cap': GRID_CAP})
+        sources = system.sources() | {
+            'grid_cap': pd.DataFrame({'time': ts(3), 'value': [30.0, 30.0, 30.0]}),
+            'is_grid': pd.DataFrame({'flow': ['grid(elec)'], 'value': [True]}),
+        }
 
-        result = system.optimize(
-            math=math,
-            parameters={
-                'grid_cap': pd.DataFrame({'time': ts(3), 'value': [30.0, 30.0, 30.0]}),
-                'is_grid': pd.DataFrame({'flow': ['grid(elec)'], 'value': [True]}),
-            },
-        )
+        result = specsolve.solve(spec, sources)
         # The cap binds: 50 was the unconstrained answer, 30 is the cap, and
         # the dearer source picks up the rest.
-        assert result.flow_rate('grid(elec)').values == pytest.approx([30.0] * 3, abs=1e-6)
-        assert result.flow_rate('backup(elec)').values == pytest.approx([20.0] * 3, abs=1e-6)
+        assert read(result, 'rate').sel(flow='grid(elec)').values == pytest.approx([30.0] * 3, abs=1e-6)
+        assert read(result, 'rate').sel(flow='backup(elec)').values == pytest.approx([20.0] * 3, abs=1e-6)
         assert result.objective > base.objective
 
-    def test_a_caller_may_not_overwrite_the_program_s_own_data(self, simple_system):
-        """Silently replacing `rate_max` would change the model without editing it."""
+    def test_an_edited_table_changes_the_answer(self, simple_system):
+        """The sources are the caller's to edit: a dearer grid costs more."""
         system = FlowSystem(**simple_system)
-        with pytest.raises(ValueError, match='cannot be supplied'):
-            system.optimize(parameters={'rate_max': pd.DataFrame({'flow': [], 'value': []})})
+        sources = system.sources()
+        rates = sources['effects_per_flow_hour']
+        sources['effects_per_flow_hour'] = rates.with_columns(rates['value'] * 3)
 
-    def test_unedited_math_answers_what_the_shipped_program_answers(self, simple_system):
-        """Passing `math=` unchanged is not a different model."""
+        assert specsolve.solve(system.spec(), sources).objective == pytest.approx(3 * 150.0, abs=1e-6)
+
+    def test_the_unedited_pair_answers_what_optimize_answers(self, simple_system):
+        """`optimize` is `specsolve.solve(spec, sources)`, not a different model."""
         system = FlowSystem(**simple_system)
-        assert system.optimize(math=system.math()).objective == pytest.approx(
+        assert specsolve.solve(system.spec(), system.sources()).objective == pytest.approx(
             optimize(**simple_system).objective, abs=1e-9
         )
 
-    def test_a_caller_s_own_expression_comes_back_and_survives_export(self, simple_system, tmp_path):
-        """Naming a quantity is how you ask for it; the answer carries it home.
-
-        Every expression the solved program declares is evaluated at the
-        solution and travels with the `Result` — a caller's as much as
-        fluxopt's, since neither can be recovered from the solution alone.
-        """
-        from fluxopt import Result
-
+    def test_a_caller_s_own_expression_comes_back_and_survives_the_archive(self, simple_system, tmp_path):
+        """Naming a quantity is how you ask for it; the archive carries it home."""
         system = FlowSystem(**simple_system)
-        math = system.math()
-        block = type(math.expressions['effect_temporal'])
-        math.expressions['grid_energy'] = block(
-            expression='sum(rate * dt, over=flow)', description='every flow the system moved, per step'
-        )
+        spec = ms.override(system.spec(), {'grid energy': GRID_ENERGY})
 
-        result = system.optimize(math=math)
+        archive = tmp_path / 'run.zip'
+        result = specsolve.solve(spec, system.sources(), archive=archive)
         # both sides of the bus: 50 imported and 50 exported, each hour
-        assert result.expression('grid_energy').values == pytest.approx([100.0] * 3, abs=1e-6)
+        assert read(result, 'grid_energy', 'expression').values == pytest.approx([100.0] * 3, abs=1e-6)
 
-        path = tmp_path / 'result.nc'
-        result.save(path)
-        assert Result.load(path).expression('grid_energy').values == pytest.approx([100.0] * 3, abs=1e-6)
+        back = specsolve.load_archive(archive).answer
+        assert read(back, 'grid_energy', 'expression').values == pytest.approx([100.0] * 3, abs=1e-6)

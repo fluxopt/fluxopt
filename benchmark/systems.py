@@ -284,8 +284,7 @@ def build_model(data: ModelData, objective: str = 'cost') -> Any:
     """ModelData → a built model, without solving (mirrors optimize() before solve)."""
     import specsolve
 
-    from fluxopt.math import build_sources, program
-    from fluxopt.math.results import objective_weights
+    from fluxopt.math import build_sources, objective_weights, program
 
     sources, coords = build_sources(data, objective_weights(data, objective))
-    return specsolve.build(program().expand('sos'), {**sources, **coords})
+    return specsolve.build(program(data.dims.time_dtype).expand('sos'), {**sources, **coords})

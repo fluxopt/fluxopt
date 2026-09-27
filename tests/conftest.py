@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from fluxopt import Flow, Port
+from fluxopt import Flow, ModelData, Port
+
+if TYPE_CHECKING:
+    import xarray as xr
 
 
 def ts(n: int) -> list[datetime]:
@@ -15,6 +19,28 @@ def ts(n: int) -> list[datetime]:
     """
     start = datetime(2024, 1, 1)
     return [start + timedelta(hours=i) for i in range(n)]
+
+
+def read(result: Any, name: str, kind: str = 'primal') -> xr.DataArray:
+    """A variable, or with ``kind='expression'`` a reported expression, at *result*.
+
+    A system that declares no periods is solved on one period labelled 0;
+    the reader drops that axis, as a reader of such a system would.
+    """
+    arr = result.to_dataarray(name, kind)
+    if 'period' in arr.dims and arr.sizes['period'] == 1 and arr.coords['period'].item() == 0:
+        arr = arr.squeeze('period', drop=True)
+    return arr
+
+
+def solve_data(data: ModelData, objective: str | dict[str, float] = 'cost') -> Any:
+    """Solve a `ModelData` built or reloaded by hand, as `FlowSystem.optimize` would."""
+    import specsolve
+
+    from fluxopt.math import build_sources, objective_weights, program
+
+    tables, coords = build_sources(data, objective_weights(data, objective))
+    return specsolve.solve(program(data.dims.time_dtype).expand('sos'), {**tables, **coords})
 
 
 def waste(carrier: str) -> Port:

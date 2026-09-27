@@ -51,58 +51,46 @@ result = optimize(
 )
 
 print(f"Total cost: {result.objective:.2f}")
-print(result.flow_rates)
+print(result.to_dataarray("rate").squeeze("period", drop=True))
 ```
 <!--quickstart-end-->
 
-## One API, four levels of control
+## One API, three levels of control
 
-Every level returns the same `Result`; each one only adds control — pick the
-lowest rung that does the job.
+Every level answers with specsolve's `Result`; each one only adds control —
+pick the lowest rung that does the job.
 
-**1. One-shot** — `optimize(...)` as above. Elements in, `Result` out, with
-fail-fast validation of ids and references.
+**1. One-shot** — `optimize(...)` as above. Elements in, a solved answer out,
+with fail-fast validation of ids and references.
 
 **2. Declarative** — gather the same arguments into a reusable, serializable
 system. Time series can stay out of the structure as `ProfileRef`s and be
 supplied at solve time via `profiles`:
 
 ```python
-spec = fx.FlowSystem.from_yaml("system.yaml")   # or FlowSystem(...) in Python
-result = spec.optimize(profiles={"load": demand_ds})
-spec.to_yaml("system.yaml")                     # round-trips
+system = fx.FlowSystem.from_yaml("system.yaml")   # or FlowSystem(...) in Python
+result = system.optimize(profiles={"load": demand_ds}, archive="run.zip")
+system.to_yaml("system.yaml")                     # round-trips
 ```
 
-**3. Inspectable** — materialize the solver model without solving, inspect or
-extend the underlying linopy model, retarget the objective, then solve:
+**3. Spec and sources** — the system is a mathspec spec and the tables bound to
+it. Read, typeset or extend the spec, edit any table, and solve with specsolve:
 
 ```python
-model = spec.build_model(profiles={"load": demand_ds})   # unbuilt FlowSystemModel
-model.build()
-model.m.add_constraints(...)                             # full linopy access
-result = model.solve()
+import mathspec, specsolve
 
-model.objective = {"cost": 1, "co2": 50}                 # retarget…
-model.build()                                            # …and rebuild
+spec = mathspec.override(system.spec(), {"my cap": "my_cap.yaml"})
+sources = system.sources(profiles={"load": demand_ds}) | {"grid_cap": caps}
+result = specsolve.solve(spec, sources)
 ```
 
-For a one-off tweak, stay on level 1/2 and pass
-`customize=lambda m: m.m.add_constraints(...)` instead.
+The spec's `assumptions:` check whatever tables arrive.
 
-**4. Data-level** — build or load the `ModelData` tables yourself and edit
-them before modeling:
-
-```python
-data = fx.ModelData.build(...)                  # or ModelData.load(path)
-data.flows.fixed_profile = data.flows.fixed_profile.with_columns(
-    pl.when(pl.col("flow") == "demand(heat)").then(0.7).otherwise(pl.col("value")).alias("value")
-)
-result = fx.FlowSystemModel(data, objective="cost").optimize()
-```
-
-Results close the loop: `result.flow_rates`, `result.effect_totals`,
-`result.stats` (KPIs, effect contributions), `result.plot`, `save`/`load`
-round-trip, and `result.data` — the exact `ModelData` the solution came from.
+Read an answer with `result.to_dataarray("rate")` for a variable, or
+`result.to_dataarray("flow_hours", kind="expression")` for a reported quantity:
+flow hours, carrier balance, capacity factor, storage mean level, and each
+contribution with its cross-effects charged (`priced_*`). `archive=` writes
+the spec, its sources and the answer; `specsolve.load_archive` reads them back.
 
 ## Roadmap
 
@@ -142,8 +130,6 @@ Cross-cutting work not tied to a single companion package:
 
 | Milestone | Description | Status | Issue |
 |-----------|-------------|--------|-------|
-| `Result.stats` accessor | Cached xarray properties for post-processing | Planned | [#49](https://github.com/FBumann/fluxopt/issues/49) |
-| `.plot` stub on `Result` | Discoverable property, helpful error if plot package absent | Planned | [#50](https://github.com/FBumann/fluxopt/issues/50) |
 | ReadTheDocs migration | Automatic versioned docs from git tags | Planned | [#53](https://github.com/FBumann/fluxopt/issues/53) |
 | Remove plotly from core | Keep core lean — plotting deps in `fluxopt-plot` only | Planned | [#54](https://github.com/FBumann/fluxopt/issues/54) |
 

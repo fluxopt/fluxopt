@@ -1,15 +1,20 @@
+"""`ModelData` persists as a directory of tables, and a reloaded one solves as the original.
+
+A solved answer is specsolve's to persist: `optimize(archive=...)` and
+`specsolve.load_archive`, tested in `test_sources.py`.
+"""
+
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
 import xarray as xr
+from conftest import solve_data
 
-from fluxopt import Carrier, Converter, Effect, Flow, Port, Storage, optimize
-from fluxopt.results import Result
+from fluxopt import Carrier, Converter, Effect, Flow, FlowSystem, ModelData, Port, Storage
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -17,24 +22,15 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def tmp_nc(tmp_path: Path) -> Path:
-    """Where a Result is written — a directory now, not a single file."""
-    return tmp_path / 'result'
+    """Where a `ModelData` is written — a directory of tables."""
+    return tmp_path / 'data'
 
 
-def _solve_simple(timesteps: list[datetime] | list[int]) -> Result:
-    """Simple source -> demand system with cost tracking."""
-    demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-    source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
-    return optimize(
-        timesteps=timesteps,
-        carriers=[Carrier(id='elec')],
-        effects=[Effect(id='cost')],
-        objective='cost',
-        ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
-    )
+def _hours(n: int) -> list[datetime]:
+    return [datetime(2024, 1, 1, h) for h in range(n)]
 
 
-def _solve_with_storage(timesteps: list[datetime]) -> Result:
+def _with_storage() -> FlowSystem:
     """Boiler + storage system."""
     demand = Flow(carrier='heat', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
     gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': [0.02, 0.08, 0.02]})
@@ -43,8 +39,8 @@ def _solve_with_storage(timesteps: list[datetime]) -> Result:
     charge = Flow(carrier='heat', size=100)
     discharge = Flow(carrier='heat', size=100)
     storage = Storage(id='heat_store', charging=charge, discharging=discharge, capacity=200.0)
-    return optimize(
-        timesteps=timesteps,
+    return FlowSystem(
+        timesteps=_hours(3),
         carriers=[Carrier(id='gas'), Carrier(id='heat')],
         effects=[Effect(id='cost')],
         objective='cost',
@@ -55,245 +51,60 @@ def _solve_with_storage(timesteps: list[datetime]) -> Result:
 
 
 class TestRoundtrip:
-    def test_simple_datetime(self, tmp_nc: Path) -> None:
-        """Roundtrip: simple model with datetime timesteps."""
-        ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        result = _solve_simple(ts)
-
-        result.save(tmp_nc)
-        loaded = Result.load(tmp_nc)
-
-        assert loaded.objective == pytest.approx(result.objective, abs=1e-6)
-
-    def test_with_storage(self, tmp_nc: Path) -> None:
-        """Roundtrip: model with storage."""
-        ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        result = _solve_with_storage(ts)
-
-        result.save(tmp_nc)
-        loaded = Result.load(tmp_nc)
-
-        assert loaded.objective == pytest.approx(result.objective, abs=1e-6)
-
     def test_model_data_preserved(self, tmp_nc: Path) -> None:
-        """ModelData survives a NetCDF roundtrip."""
-        ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        result = _solve_with_storage(ts)
-        assert result.data is not None
+        data = _with_storage().build_data()
+        data.save(tmp_nc)
+        loaded = ModelData.load(tmp_nc)
 
-        result.save(tmp_nc)
-        loaded = Result.load(tmp_nc)
+        assert loaded.flows.ids == data.flows.ids
+        assert loaded.storages is not None
+        assert data.storages is not None
+        assert loaded.storages.ids == data.storages.ids
+        xr.testing.assert_equal(loaded.dims.dt, data.dims.dt)
+        xr.testing.assert_equal(loaded.dims.time, data.dims.time)
+        xr.testing.assert_equal(loaded.dims.weights, data.dims.weights)
 
-        assert loaded.data is not None
-        # Flows dataset preserved
-        assert loaded.data.flows.ids == result.data.flows.ids
-        # Storages dataset preserved
-        assert loaded.data.storages is not None
-        assert result.data.storages is not None
-        assert loaded.data.storages.ids == result.data.storages.ids
-        # Dims roundtrip: dt, time, and weights preserved with coordinates
-        xr.testing.assert_equal(loaded.data.dims.dt, result.data.dims.dt)
-        xr.testing.assert_equal(loaded.data.dims.time, result.data.dims.time)
-        xr.testing.assert_equal(loaded.data.dims.weights, result.data.dims.weights)
-
-    def test_model_data_resolve(self, tmp_nc: Path) -> None:
-        """Loaded ModelData can build and solve a new model."""
-        ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        result = _solve_with_storage(ts)
-
-        result.save(tmp_nc)
-        loaded = Result.load(tmp_nc)
-        assert loaded.data is not None
-
-        # Re-solve from loaded data
-        from fluxopt.math import solve
-
-        result2 = solve(loaded.data, 'cost')
-        assert result2.objective == pytest.approx(result.objective, abs=1e-6)
-
-
-class TestUnicodePath:
-    """Reading non-ASCII netCDF paths: clarify the misleading error on Windows.
-
-    netcdf4/libnetcdf (through 4.9.3) fails to open files under non-ASCII
-    *directories* on Windows with a misleading PermissionError. On a read
-    failure fluxopt replaces it with an actionable message; the guard is purely
-    reactive (it only fires if netcdf4 actually raises) and read-only. Other
-    platforms are unaffected. See #189 and Unidata/netcdf4-python#1482.
-    """
-
-    @pytest.mark.parametrize(
-        ('os_name', 'relpath', 'clarified'),
-        [
-            ('nt', 'ümlaut/r.nc', True),  # Windows + non-ASCII -> clarified ValueError
-            ('nt', 'ascii/r.nc', False),  # Windows + ASCII -> original error passes through
-            ('posix', 'ümlaut/r.nc', False),  # other platforms work -> original error passes through
-        ],
-    )
-    def test_read_error_clarified_only_on_windows_nonascii(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, os_name: str, relpath: str, clarified: bool
-    ) -> None:
-        """Read failures get a clear message only for non-ASCII paths on Windows; else propagate."""
-        from fluxopt.results import _raise_netcdf_read_error
-
-        monkeypatch.setattr('fluxopt.results.os.name', os_name)
-        original = PermissionError(13, 'Permission denied')
-        with pytest.raises((ValueError, OSError)) as excinfo:
-            _raise_netcdf_read_error(tmp_path / relpath, original)
-        if clarified:
-            assert isinstance(excinfo.value, ValueError)
-            assert 'non-ASCII' in str(excinfo.value)
-            assert excinfo.value.__cause__ is original  # original preserved in the chain
-        else:
-            assert excinfo.value is original  # untouched
-
-    @pytest.mark.skipif(os.name != 'nt', reason='upstream bug is Windows-only')
-    @pytest.mark.xfail(
-        strict=True,
-        reason='Upstream bug: netcdf4 cannot open files in non-ASCII dirs on Windows '
-        '(Unidata/netcdf4-python#1482). When this XPASSes, upstream is fixed -- drop the '
-        '_raise_netcdf_read_error guard.',
-    )
-    def test_upstream_netcdf4_nonascii_dir_canary(self, tmp_path: Path) -> None:
-        """Probe raw netcdf4 directly; alerts us (strict xfail) the day upstream fixes this."""
-        from netCDF4 import Dataset  # type: ignore[import-untyped]
-
-        d = tmp_path / 'umlaut_äöü'
-        d.mkdir()
-        with Dataset(str(d / 'probe.nc'), 'w') as ds:
-            ds.createDimension('x', 1)
-            ds.createVariable('value', 'f4', ('x',))[:] = [42]
+    def test_reloaded_data_solves_as_the_original(self, tmp_nc: Path) -> None:
+        system = _with_storage()
+        data = system.build_data()
+        data.save(tmp_nc)
+        assert solve_data(ModelData.load(tmp_nc)).objective == pytest.approx(system.optimize().objective, abs=1e-6)
 
 
 class TestCarrierMetadataRoundtrip:
     def test_carrier_metadata_preserved(self, tmp_nc: Path) -> None:
-        """Carrier unit, color, and description survive a NetCDF roundtrip."""
-        ts = [datetime(2024, 1, 1, h) for h in range(3)]
+        """Carrier unit, color, and description survive a roundtrip."""
         source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
         demand = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-        result = optimize(
-            timesteps=ts,
+        data = ModelData.build(
+            _hours(3),
             carriers=[Carrier(id='elec', unit='kWh', color='#ff0000', description='Electrical energy')],
             effects=[Effect(id='cost')],
-            objective='cost',
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[demand])],
         )
-        assert result.data is not None
-
-        result.save(tmp_nc)
-        loaded = Result.load(tmp_nc)
-
-        assert loaded.data is not None
-        assert loaded.data.carriers.carriers.filter(pl.col('carrier') == 'elec')['unit'][0] == 'kWh'
-        assert loaded.data.carriers.carriers.filter(pl.col('carrier') == 'elec')['color'][0] == '#ff0000'
-        assert (
-            loaded.data.carriers.carriers.filter(pl.col('carrier') == 'elec')['description'][0] == 'Electrical energy'
-        )
+        data.save(tmp_nc)
+        elec = ModelData.load(tmp_nc).carriers.carriers.filter(pl.col('carrier') == 'elec')
+        assert (elec['unit'][0], elec['color'][0], elec['description'][0]) == ('kWh', '#ff0000', 'Electrical energy')
 
 
 class TestRoundtripContributionFrom:
     def test_roundtrip_with_contribution_from(self, tmp_nc: Path) -> None:
-        """ModelData with contribution_from survives NetCDF roundtrip."""
-        ts = [datetime(2024, 1, 1, h) for h in range(3)]
         source = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04, 'co2': 0.5})
         sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
-
-        result = optimize(
-            timesteps=ts,
+        system = FlowSystem(
+            timesteps=_hours(3),
             carriers=[Carrier(id='elec')],
-            effects=[
-                Effect(id='cost', contribution_from={'co2': 50}),
-                Effect(id='co2', unit='kg'),
-            ],
+            effects=[Effect(id='cost', contribution_from={'co2': 50}), Effect(id='co2', unit='kg')],
             objective='cost',
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
-        assert result.data is not None
-        assert not result.data.effects.contributions.is_empty()
+        data = system.build_data()
+        assert not data.effects.contributions.is_empty()
+        data.save(tmp_nc)
+        loaded = ModelData.load(tmp_nc)
 
-        result.save(tmp_nc)
-        loaded = Result.load(tmp_nc)
-
-        assert loaded.data is not None
-        assert not loaded.data.effects.contributions.is_empty()
-        # The pairs survive, and so does the matrix they build on demand.
-        assert loaded.data.effects.contributions.equals(result.data.effects.contributions)
-
-        # Re-solve gives same objective
-        from fluxopt.math import solve
-
-        result2 = solve(loaded.data, 'cost')
-        assert result2.objective == pytest.approx(result.objective, abs=1e-6)
-
-
-class TestSolutionDataset:
-    def test_solution_is_dataset(self) -> None:
-        """solution is an xr.Dataset with solution data."""
-        ts = [datetime(2024, 1, 1, h) for h in range(3)]
-        result = _solve_simple(ts)
-
-        ds = result.solution
-        assert isinstance(ds, xr.Dataset)
-        assert 'flow--rate' in ds
-        assert ds.attrs['objective'] == pytest.approx(result.objective)
-
-
-class TestExpressionsRoundtrip:
-    def test_named_quantities_survive_a_roundtrip(self, tmp_nc: Path) -> None:
-        """Everything the model names travels with the answer, not just its variables."""
-        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
-        assert result.expressions.data_vars
-
-        result.save(tmp_nc)
-        loaded = Result.load(tmp_nc)
-
-        assert set(loaded.expressions.data_vars) == set(result.expressions.data_vars)
-        for name in result.expressions.data_vars:
-            xr.testing.assert_allclose(loaded.expressions[name], result.expressions[name])
-
-    def test_the_breakdown_is_a_view_over_them(self, tmp_nc: Path) -> None:
-        """Contributions are assembled from the stored expressions, so they survive too."""
-        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
-        result.save(tmp_nc)
-        loaded = Result.load(tmp_nc)
-
-        for view in ('temporal', 'lump', 'total'):
-            xr.testing.assert_allclose(loaded.stats.effect_contributions[view], result.stats.effect_contributions[view])
-
-    def test_a_result_without_them_says_so_rather_than_re_deriving(self, tmp_nc: Path) -> None:
-        """Re-deriving on load would answer with today's logic against yesterday's numbers."""
-        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
-        result.save(tmp_nc)
-        (tmp_nc / 'expressions.nc').unlink()
-
-        with pytest.warns(UserWarning, match='carries none of the quantities'):
-            loaded = Result.load(tmp_nc)
-        assert not loaded.expressions.data_vars
-        with pytest.raises(ValueError, match='cannot re-derive'):
-            _ = loaded.stats.effect_contributions
-
-    def test_roundtrip_does_not_warn(self, tmp_nc: Path) -> None:
-        """Loading a result that carries them emits no warning."""
-        import warnings
-
-        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
-        result.save(tmp_nc)
-
-        with warnings.catch_warnings():
-            warnings.simplefilter('error', UserWarning)
-            loaded = Result.load(tmp_nc)
-        assert loaded.expressions.data_vars
-
-    def test_directory_layout(self, tmp_nc: Path) -> None:
-        """Each part is its own file, readable without going through Result."""
-        result = _solve_simple([datetime(2024, 1, 1, h) for h in range(3)])
-        result.save(tmp_nc)
-
-        assert 'flow--rate' in xr.load_dataset(tmp_nc / 'solution.nc')
-        assert 'contribution_flow_hour' in xr.load_dataset(tmp_nc / 'expressions.nc')
-        # The model data is tables, so it is parquet anything can read
-        assert (tmp_nc / 'model' / 'carriers' / 'membership.parquet').is_file()
-        assert 'carrier' in pl.read_parquet(tmp_nc / 'model' / 'carriers' / 'membership.parquet').columns
+        assert loaded.effects.contributions.equals(data.effects.contributions)
+        assert solve_data(loaded).objective == pytest.approx(system.optimize().objective, abs=1e-6)
 
 
 class TestBuildValidation:

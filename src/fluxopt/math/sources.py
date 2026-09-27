@@ -76,6 +76,20 @@ PERIOD_PARAMS = frozenset(
 BUILD_PERIOD_PARAMS = frozenset({'lifetime_window'})
 
 
+def objective_weights(data: ModelData, objective: str | dict[str, float]) -> dict[str, float]:
+    """The weights the objective is minimised with: *objective*, and the penalty.
+
+    The built-in penalty effect is added at 1.0 unless the caller named it,
+    which is what makes a soft constraint cost something.
+    """
+    from fluxopt.elements import PENALTY_EFFECT_ID
+
+    weights = {objective: 1.0} if isinstance(objective, str) else {k: float(v) for k, v in objective.items()}
+    if PENALTY_EFFECT_ID not in weights and PENALTY_EFFECT_ID in set(data.effects.ids):
+        weights[PENALTY_EFFECT_ID] = 1.0
+    return weights
+
+
 def _live(frame: pl.DataFrame, value: pl.Expr, *, drop_zero: bool = True) -> pl.DataFrame:
     """A `(flow, time, period, value)` table from one expression over *frame*.
 
@@ -297,10 +311,10 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
     Args:
         data: The model data to bind. Both backends read the same object.
         objective: Effect ids mapped to their objective weight, as
-            :func:`~fluxopt.math.solve.solve` takes it.
+            :func:`objective_weights` returns them.
 
     Returns:
-        ``(sources, coords)`` ready to pass to ``lpspec.solve``.
+        ``(sources, coords)``; merged, they are what ``specsolve.solve`` takes.
 
     Raises:
         UnsupportedFeatureError: If *data* uses a feature the program does

@@ -28,7 +28,7 @@ over \(t\) in the API — see [Indexing Convention](notation.md#indexing-convent
 |---|---|---|
 | \(\mathrm{a}_{f,i}\) | Conversion coefficient | [`Converter.conversion_factors`](../api/fluxopt/components.md#fluxopt.components.Converter.conversion_factors) |
 | \(i\) | Equation index within a converter | row in `conversion_factors` |
-| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `rate[flow, time]` |
 
 See [Notation](notation.md) for the full symbol table.
 
