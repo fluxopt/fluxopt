@@ -45,7 +45,6 @@ _DIRECT: dict[str, str] = {
     'invest_active': Var.INVEST_ACTIVE,
     'invest_size_at_build': Var.INVEST_SIZE_AT_BUILD,
     'effect_total': Var.EFFECT_TOTAL,
-    'effect_lump': Var.EFFECT_LUMP,
 }
 
 #: The status variables, and the pair of names each splits into.
@@ -208,7 +207,11 @@ def to_result(result: Solved, data: ModelData, weights: dict[str, float], model:
         if on_components is not None:
             solution[component_var] = on_components
 
+    # The lump half of the ledger is a named expression rather than a variable:
+    # nothing in the model decides it on its own, so it is read back through
+    # the same compiler that built the accounting row.
     expressions = _expressions(result, model, data)
+    solution[Var.EFFECT_LUMP] = expressions['effect_lump']
 
     dataset = xr.Dataset(
         solution,

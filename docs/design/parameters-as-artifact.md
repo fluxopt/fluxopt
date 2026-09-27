@@ -126,9 +126,9 @@ This is the same wall the effects work hit, and it has the same answer: name
 the contribution as an expression and let the ledger sum that very expression,
 rather than storing raw coefficients beside the scaled ones. Attribution is a
 question for the math, not for the parameter file. Cross-effects follow the
-same rule: `share` binds `contribution_from` as declared, the ledger solves
-the fixed point, and the breakdown applies the Leontief inverse after the
-solve.
+same rule: the coefficients bind as declared, `share` carries the chained
+`contribution_from`, and the ledger applies it to what each effect is charged
+directly.
 
 ## It is not a YAML file
 

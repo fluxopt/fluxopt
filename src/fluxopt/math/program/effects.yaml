@@ -4,8 +4,9 @@
 # so a new feature adds a line to its own file and none to this one.
 #
 # An effect may also be charged a share of another (CO2 priced into cost).
-# The ledger states that as a fixed point, per step for what running costs and
-# per period for what building costs, so every coefficient stays as written.
+# The shares arrive already chained through every path, so each effect is its
+# own direct charge plus a share of every other's, and no effect needs a
+# variable to be read by another.
 description: Every effect is the sum of what the features charge to it.
 
 dimensions:
@@ -28,23 +29,16 @@ parameters:
   total_min: {dims: [effect]}
   total_max: {dims: [effect]}
   period_weight: {dims: [effect, period]}
-  # One unit of `source` in a step adds `share` of it to `effect`.
+  # One unit charged directly to `source` in a step adds `share` of it to
+  # `effect`, through every chain of `contribution_from`: (I - C)^-1 - I.
   share: {dims: [effect, source, time, period]}
-  # The same, averaged over the horizon, for what building costs.
+  # The same from the horizon mean of C, for what building costs.
   share_lump: {dims: [effect, source, period]}
 
 variables:
   effect_total:
     dims: [effect, period]
     bounds: {lower: null, upper: null}
-  effect_step:
-    dims: [effect, time, period]
-    bounds: {lower: null, upper: null}
-    description: What running the system costs in a step, cross-effects included.
-  effect_lump:
-    dims: [effect, period]
-    bounds: {lower: null, upper: null}
-    description: What building it costs — one-time and recurring, cross-effects included.
 
 expressions:
   direct_step:
@@ -53,6 +47,12 @@ expressions:
   direct_lump:
     dims: [effect, period]
     description: What the features charge each effect for building, per period.
+  effect_step:
+    expression: direct_step + sum(share * at(direct_step, by=same, over=effect, into=source), over=source)
+    description: What running the system costs in a step, cross-effects included.
+  effect_lump:
+    expression: direct_lump + sum(share_lump * at(direct_lump, by=same, over=effect, into=source), over=source)
+    description: What building it costs — one-time and recurring, cross-effects included.
   effect_temporal:
     expression: sum(effect_step * time_weight, over=time)
     description: What running the system costs, accumulated over the horizon.
@@ -62,14 +62,6 @@ given:
     time_weight: {dims: [time]}
 
 constraints:
-  step_accounting:
-    dims: [effect, time, period]
-    expression: effect_step == direct_step + sum(share * at(effect_step, by=same, over=effect, into=source), over=source)
-
-  lump_accounting:
-    dims: [effect, period]
-    expression: effect_lump == direct_lump + sum(share_lump * at(effect_lump, by=same, over=effect, into=source), over=source)
-
   effect_accounting:
     dims: [effect, period]
     expression: effect_total == effect_temporal + effect_lump

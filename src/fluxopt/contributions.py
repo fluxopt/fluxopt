@@ -10,7 +10,7 @@ Two views:
 
 - **direct**: each contributor shows only what it directly emits. This is
   what the expressions give: the coefficients are bound as declared, and the
-  ledger solves the cross-effects as a fixed point of its own.
+  ledger adds the cross-effects on top of what each effect is charged.
 - **with cross-effects** (default): each contributor is charged the full
   priced-in cost, CO2 through to cost, as ``(I - C)^-1 . direct``
   (:mod:`fluxopt.leontief`). Per step for what running costs, and with the
