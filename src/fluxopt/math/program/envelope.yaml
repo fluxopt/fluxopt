@@ -20,7 +20,7 @@ expressions:
       gated:
         when: "status_of AND NOT size_built"
         expression: size_bound * at(running, by=status_of, over=status_entity, into=flow)
-    otherwise: flow_size
+    otherwise: size
     description: What the envelope's fractions multiply.
 
 given:
@@ -37,10 +37,10 @@ given:
   variables:
     rate: {dims: [flow, time, period]}
     running: {dims: [status_entity, time, period], domain: binary}
-    size: {dims: [flow, period]}
+    chosen_size: {dims: [flow, period]}
     size_built: {dims: [flow, period], domain: binary}
   expressions:
-    flow_size: {dims: [flow, period]}
+    size: {dims: [flow, period]}
 
 constraints:
   # The rows exist where the size scales the rate at all: a gated flow, or a
@@ -48,17 +48,17 @@ constraints:
   # `rate_min`/`rate_max` already.
   rate_envelope_min:
     dims: [flow, time, period]
-    where: "is_bounded AND (status_of OR size) AND NOT (status_of AND size_built)"
+    where: "is_bounded AND (status_of OR chosen_size) AND NOT (status_of AND size_built)"
     expression: rate >= relative_rate_min * envelope_size
 
   rate_envelope_max:
     dims: [flow, time, period]
-    where: "is_bounded AND (status_of OR size) AND NOT (status_of AND size_built)"
+    where: "is_bounded AND (status_of OR chosen_size) AND NOT (status_of AND size_built)"
     expression: rate <= relative_rate_max * envelope_size
 
   rate_envelope_fixed:
     dims: [flow, time, period]
-    where: "is_profile AND (status_of OR size) AND NOT (status_of AND size_built)"
+    where: "is_profile AND (status_of OR chosen_size) AND NOT (status_of AND size_built)"
     expression: rate == fixed_relative_profile * envelope_size
 
   # --- gated and sized: P <= running*M+, P <= S*rel_ub, P >= (running-1)*M- + S*rel_lb
@@ -84,7 +84,7 @@ constraints:
   status_sizing_gate_size:
     dims: [flow, time, period]
     where: "status_of AND size_built AND size_min > 0"
-    expression: size >= size_min * at(running, by=status_of, over=status_entity, into=flow)
+    expression: chosen_size >= size_min * at(running, by=status_of, over=status_entity, into=flow)
 
   status_sizing_gate_built:
     dims: [flow, time, period]

@@ -71,7 +71,7 @@ expressions:
 given:
   expressions:
     direct_step: {dims: [effect, time, period], term: flow_hour_costs}
-    flow_size: {dims: [flow, period]}
+    size: {dims: [flow, period]}
 
 constraints:
   carrier_balance:
@@ -91,12 +91,12 @@ constraints:
   load_factor_lower:
     dims: [flow, period]
     where: "load_factor_min"
-    expression: flow_hours >= load_factor_min * flow_size
+    expression: flow_hours >= load_factor_min * size
 
   load_factor_upper:
     dims: [flow, period]
     where: "load_factor_max"
-    expression: flow_hours <= load_factor_max * flow_size
+    expression: flow_hours <= load_factor_max * size
 
 assumptions:
   rate_floor_is_not_negative:

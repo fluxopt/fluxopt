@@ -24,7 +24,7 @@ parameters:
 variables:
   # Investment flows share this variable — `size` is the capacity available in
   # a period, whether it came from Sizing or from a build decision.
-  size:
+  chosen_size:
     dims: [flow, period]
     where: "has_sizing OR has_invest"
     bounds: {lower: 0, upper: size_max}
@@ -40,16 +40,16 @@ variables:
 expressions:
   # What an envelope, a ramp or a load factor scales with: the decision where
   # the size is one, and the number a flow was given otherwise.
-  flow_size:
+  size:
     dims: [flow, period]
     cases:
       decided:
-        when: "size"
-        expression: size
+        when: "chosen_size"
+        expression: chosen_size
     otherwise: size_bound
     description: The size a flow has, whether it is decided or given.
   contribution_flow_per_size:
-    expression: size * effects_per_size
+    expression: chosen_size * effects_per_size
     description: What a flow's built size costs, per period.
   contribution_flow_fixed:
     expression: size_built * effects_fixed
@@ -76,12 +76,12 @@ constraints:
   sizing_min:
     dims: [flow, period]
     where: "size_built"
-    expression: size >= size_min * size_built
+    expression: chosen_size >= size_min * size_built
 
   sizing_max:
     dims: [flow, period]
     where: "size_built"
-    expression: size <= size_max * size_built
+    expression: chosen_size <= size_max * size_built
 
 assumptions:
   size_bounds_are_ordered:

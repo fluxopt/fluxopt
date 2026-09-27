@@ -15,10 +15,6 @@ dimensions:
 relations:
   same: {key: source, values: effect}
 
-parameters:
-  # A storage whose capacity is given rather than decided.
-  given_capacity: {dims: [storage]}
-
 expressions:
   step_flow_hours:
     expression: rate * dt
@@ -30,18 +26,10 @@ expressions:
     expression: sum(dt * time_weight, over=time)
     description: How long the horizon is, weighted.
   capacity_factor:
-    expression: flow_hours / (flow_size * total_duration)
+    expression: flow_hours / (size * total_duration)
     description: What each flow carries, as a share of running at its size throughout.
-  storage_capacity:
-    dims: [storage, period]
-    cases:
-      decided:
-        when: "capacity"
-        expression: capacity
-    otherwise: given_capacity
-    description: The capacity a storage has, whether it is decided or given.
   relative_mean_level:
-    expression: sum(level * dt * time_weight, over=time) / (total_duration * storage_capacity)
+    expression: sum(level * dt * time_weight, over=time) / (total_duration * capacity)
     description: The mean level of each storage, as a share of its capacity.
   # Each contribution again, with what it charges through `contribution_from`
   # added: CO2 priced into cost is charged to the flow that emitted it.
@@ -88,9 +76,9 @@ given:
   variables:
     rate: {dims: [flow, time, period]}
     level: {dims: [storage, time, period]}
-    capacity: {dims: [storage, period]}
   expressions:
-    flow_size: {dims: [flow, period]}
+    capacity: {dims: [storage, period]}
+    size: {dims: [flow, period]}
     flow_hours: {dims: [flow, period]}
     contribution_flow_hour: {dims: [flow, effect, time, period]}
     contribution_running: {dims: [status_entity, effect, time, period]}

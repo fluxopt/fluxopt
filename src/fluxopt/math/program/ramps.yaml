@@ -25,7 +25,7 @@ given:
     startup: {dims: [status_entity, time, period], domain: binary}
     shutdown: {dims: [status_entity, time, period], domain: binary}
   expressions:
-    flow_size: {dims: [flow, period]}
+    size: {dims: [flow, period]}
 
 expressions:
   # A gated flow may jump from zero to its minimum in the step it starts, so
@@ -51,9 +51,9 @@ constraints:
   ramp_up:
     dims: [flow, time, period]
     where: "ramp_up_coeff AND position(time) != 0"
-    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_coeff * flow_size + startup_release
+    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_coeff * size + startup_release
 
   ramp_down:
     dims: [flow, time, period]
     where: "ramp_down_coeff AND position(time) != 0"
-    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_coeff * flow_size + shutdown_release
+    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_coeff * size + shutdown_release

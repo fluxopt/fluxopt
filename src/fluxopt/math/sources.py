@@ -649,7 +649,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
 
     # --- ramps ------------------------------------------------------------
     # A ramp limit is per hour, so the step's allowance is limit x dt, per
-    # unit of size; the program multiplies by `flow_size`.
+    # unit of size; the program multiplies by `size`.
     ramps = fds.ramps.join(dt_by_time, on='time')
     for kind in ('up', 'down'):
         # A ramp of 0 is a row: the row is what says the flow has a ramp.
@@ -804,7 +804,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
 
     # --- flow aggregates ------------------------------------------------
     # A load factor bounds the mean rate as a fraction of the size, so it
-    # travels as lambda x T and the program multiplies by `flow_size`.
+    # travels as lambda x T and the program multiplies by `size`.
     total_duration = float((dims.timesteps['dt'] * dims.timesteps['weight']).sum())
     aggregates = fds.aggregates
     for name in ('flow_hours_min', 'flow_hours_max'):

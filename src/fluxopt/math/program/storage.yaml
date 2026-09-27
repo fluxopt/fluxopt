@@ -17,6 +17,8 @@ relations:
   port_of: {key: flow, values: [storage, side]}
 
 parameters:
+  # A storage whose capacity is given rather than decided.
+  given_capacity: {dims: [storage]}
   # What one unit of rate on a port does to the level in a step:
   # eta_c * dt on the charge port, -dt / eta_d on the discharge port.
   storage_coeff: {dims: [storage, side, time]}
@@ -52,7 +54,7 @@ variables:
     dims: [storage, time, period]
     bounds: {lower: level_min, upper: level_max}
 
-  capacity:
+  chosen_capacity:
     dims: [storage, period]
     where: "has_capacity_sizing"
     bounds: {lower: 0, upper: capacity_max}
@@ -68,6 +70,16 @@ variables:
     domain: binary
 
 expressions:
+  # The capacity a storage has: the decision where it is one, the given
+  # number otherwise. The rows that scale with a capacity read this.
+  capacity:
+    dims: [storage, period]
+    cases:
+      decided:
+        when: "chosen_capacity"
+        expression: chosen_capacity
+    otherwise: given_capacity
+    description: The capacity a storage has, whether it is decided or given.
   # What the level carries into a step. A cyclic storage wraps, so its first
   # step reads its last; an acyclic one starts from a data-side prior.
   level_before:
@@ -98,7 +110,7 @@ expressions:
     otherwise: 1 - charging
     description: Whether a port may carry anything in a step.
   contribution_storage_per_capacity:
-    expression: capacity * effects_per_capacity
+    expression: chosen_capacity * effects_per_capacity
     description: What a storage's built capacity costs, per period.
   contribution_storage_fixed:
     expression: capacity_built * effects_fixed_capacity
@@ -163,12 +175,12 @@ constraints:
   cap_min:
     dims: [storage, period]
     where: "has_capacity_sizing"
-    expression: capacity >= capacity_min * capacity_built
+    expression: chosen_capacity >= capacity_min * capacity_built
 
   cap_max:
     dims: [storage, period]
     where: "has_capacity_sizing"
-    expression: capacity <= capacity_max * capacity_built
+    expression: chosen_capacity <= capacity_max * capacity_built
 
 assumptions:
   capacity_is_not_negative:

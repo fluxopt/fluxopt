@@ -155,7 +155,7 @@ class StatsAccessor:
         Returns:
             DataArray (flow,) in power units (e.g. MW).
         """
-        size = self._reported('flow_size').rename('size')
+        size = self._reported('size')
         return size.where(size.coords['flow'].isin(sorted(self._result.data.flows.has_size)))
 
     @cached_property
@@ -199,7 +199,7 @@ class StatsAccessor:
         """
         if self._result.data.storages is None:
             return xr.DataArray()
-        return self._reported('storage_capacity').rename('capacity')
+        return self._reported('capacity')
 
     @cached_property
     def relative_mean_level(self) -> xr.DataArray:

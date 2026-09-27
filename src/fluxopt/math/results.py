@@ -33,9 +33,9 @@ if TYPE_CHECKING:
 _DIRECT: dict[str, str] = {
     'rate': Var.FLOW_RATE,
     'level': Var.STORAGE_LEVEL,
-    'size': Var.FLOW_SIZE,
+    'chosen_size': Var.FLOW_SIZE,
     'size_built': Var.FLOW_SIZE_INDICATOR,
-    'capacity': Var.STORAGE_CAPACITY,
+    'chosen_capacity': Var.STORAGE_CAPACITY,
     'capacity_built': Var.STORAGE_SIZE_INDICATOR,
     'charging': Var.STORAGE_CHARGING,
     'invest_size': Var.INVEST_SIZE,
