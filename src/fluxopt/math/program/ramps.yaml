@@ -3,7 +3,7 @@
 description: How fast a flow's rate may change from one step to the next.
 
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   flow: {dtype: str}
   status_entity: {dtype: str}

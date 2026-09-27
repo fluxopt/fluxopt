@@ -10,7 +10,7 @@
 description: Every effect is the sum of what the features charge to it.
 
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   effect: {dtype: str}
   # The effect a share is taken from. Same labels as `effect`; a second axis

@@ -4,7 +4,7 @@
 description: An on/off decision, its durations, and what running and starting cost.
 
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   effect: {dtype: str}
   flow: {dtype: str}

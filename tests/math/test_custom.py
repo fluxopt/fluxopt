@@ -61,7 +61,7 @@ class TestEditingTheMath:
         result = system.optimize(
             math=math,
             parameters={
-                'grid_cap': pd.DataFrame({'time': [0, 1, 2], 'value': [30.0, 30.0, 30.0]}),
+                'grid_cap': pd.DataFrame({'time': ts(3), 'value': [30.0, 30.0, 30.0]}),
                 'is_grid': pd.DataFrame({'flow': ['grid(elec)'], 'value': [True]}),
             },
         )

@@ -1494,6 +1494,11 @@ class Dims:
     # against a duration want these as coordinates rather than as columns;
     # everything upstream of a solve reads the frames.
     @property
+    def time_dtype(self) -> str:
+        """The program's dtype for ``time``: ``datetime`` for timestamped steps, ``int`` for numbered ones."""
+        return 'datetime' if self.timesteps['label'].dtype.is_temporal() else 'int'
+
+    @property
     def time(self) -> xr.DataArray:
         """Timestep labels as a coordinate."""
         labels = self.timesteps['label'].to_numpy()

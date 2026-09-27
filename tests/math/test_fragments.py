@@ -40,7 +40,7 @@ def test_the_ledger_is_the_sum_of_the_feature_terms() -> None:
 GRID_FEE = """
 description: A fee on every unit a flow carries, charged to one effect.
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   effect: {dtype: str}
   flow: {dtype: str}

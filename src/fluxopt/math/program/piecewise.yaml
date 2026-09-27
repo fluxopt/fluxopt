@@ -5,7 +5,7 @@
 description: A converter's flows may follow a piecewise-linear curve.
 
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   converter: {dtype: str}
   flow: {dtype: str}

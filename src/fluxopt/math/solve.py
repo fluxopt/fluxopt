@@ -84,7 +84,7 @@ def solve(
         bound |= supplied
     from mathspec import to_spec as load_model
 
-    model = program() if math is None else load_model(math)
+    model = program(data.dims.time_dtype) if math is None else load_model(math)
     # HiGHS has no special-ordered sets, so the piecewise set is written out
     # as binaries for it; a sink that takes `sos:` gets the set as declared.
     built = model.expand('sos') if solver_name == 'highs' else model

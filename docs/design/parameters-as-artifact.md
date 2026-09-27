@@ -74,7 +74,7 @@ between them. The renaming half of that collapses.
 
 **Only the renaming half.** A large part of `sources.py` is computation that
 has to happen somewhere whatever the container is: `_size_upper`'s big-M, composing an absolute envelope from `size × relative`,
-mapping time labels to the ordinals the program indexes by, and cross-joining
+putting every table on the time and period labels the user wrote, and cross-joining
 `PERIOD_PARAMS` onto every period. Under this shape that code *is* the build
 rather than a second pass after one — which is the saving. It does not
 disappear, and a plan that counts it as deleted is counting wrong.

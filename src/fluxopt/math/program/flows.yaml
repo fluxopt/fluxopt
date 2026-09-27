@@ -7,7 +7,7 @@
 description: Flows, the carrier balance, and what a flow's throughput costs.
 
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   carrier: {dtype: str}
   effect: {dtype: str}

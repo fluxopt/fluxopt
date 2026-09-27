@@ -4,11 +4,9 @@ Both lanes answer with the same object, which is what lets the parity test
 compare answers rather than shapes — and what makes deleting the linopy
 builder a deletion rather than a migration.
 
-The work is relabelling. The program indexes ``time``, ``period`` and
-``build_period`` by ordinal, because the engine joins on them and a timestamp
-is a poor join key; :class:`~fluxopt.results.Result` is read by humans and
-indexes them by the labels the element layer used. Everything else is a
-rename: one program variable to one ``Var`` name.
+The program is bound on the labels the element layer used, so the answer
+already carries them. The work is a rename, one program variable to one
+``Var`` name, and putting entities back in declaration order.
 """
 
 from __future__ import annotations
@@ -92,16 +90,14 @@ def _entity_order(data: ModelData) -> dict[str, list[str]]:
 
 
 def _relabel(arr: xr.DataArray, data: ModelData) -> xr.DataArray:
-    """Put the element layer's own labels and order back on the axes."""
+    """Put the element layer's order back on the axes, and its time dtype on ``time``.
+
+    The labels are already the user's own; only the resolution of a
+    timestamp can differ between the engine and the element layer.
+    """
     dims = data.dims
-    periods = dims.period_labels
-    for name, labels in (
-        ('time', list(dims.time.values)),
-        ('period', periods),
-        ('build_period', periods),
-    ):
-        if name in arr.dims:
-            arr = arr.assign_coords({name: [labels[int(i)] for i in arr.coords[name].values]})
+    if 'time' in arr.dims:
+        arr = arr.assign_coords(time=arr.coords['time'].values.astype(dims.time.values.dtype))
     # The build axis is a second period axis, and the solution names it
     # `period` — a build decision is indexed by the period it was taken in.
     # The program keeps the two apart only so a build can be summed into the
@@ -171,9 +167,8 @@ def to_result(result: Solved, data: ModelData, weights: dict[str, float], model:
 
     Args:
         result: The lpspec result — primal frames and named expressions.
-        data: The model data that was bound. Carries the labels the program
-            indexes by ordinal, and the tables ``Result`` reads alongside the
-            solution.
+        data: The model data that was bound. Carries the declaration order,
+            and the tables ``Result`` reads alongside the solution.
         weights: Effect ids mapped to their objective weight, for provenance.
         model: The program that was solved, whose ``expressions:`` are read
             back. Defaults to the shipped one.
@@ -190,7 +185,7 @@ def to_result(result: Solved, data: ModelData, weights: dict[str, float], model:
     if model is None:
         from fluxopt.math.sources import program
 
-        model = program()
+        model = program(data.dims.time_dtype)
     if not result.has_primal:
         raise NoSolutionError(f'no primal solution to read: the solver terminated {result.termination_condition!r}')
 

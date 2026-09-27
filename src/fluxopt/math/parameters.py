@@ -36,7 +36,14 @@ if TYPE_CHECKING:
 #: What a pandas column's dtype means in polars. `build_sources` still emits
 #: some tables through pandas, whose empty columns type as `float64` and read
 #: as a numeric label space; the mapping is what `_empty` meant to say.
-_DTYPES: dict[str, Any] = {'O': pl.String, 'b': pl.Boolean, 'i': pl.Int64, 'u': pl.Int64, 'f': pl.Float64}
+_DTYPES: dict[str, Any] = {
+    'O': pl.String,
+    'b': pl.Boolean,
+    'i': pl.Int64,
+    'u': pl.Int64,
+    'f': pl.Float64,
+    'M': pl.Datetime('us'),
+}
 
 
 def _as_frame(value: Any, name: str) -> pl.DataFrame:
@@ -113,7 +120,7 @@ class Parameters:
         from fluxopt.math.results import objective_weights
         from fluxopt.math.sources import build_sources, program
 
-        model = math if math is not None else program()
+        model = math if math is not None else program(data.dims.time_dtype)
         sources, coords = build_sources(data, objective_weights(data, objective))
 
         # A lookup either names the dimension its values are labels of, or

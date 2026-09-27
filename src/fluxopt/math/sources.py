@@ -32,17 +32,26 @@ if TYPE_CHECKING:
 PROGRAM = Path(__file__).with_name('program')
 
 
-def program() -> Any:
+def program(time: str = 'datetime') -> Any:
     """fluxopt's math, composed from its fragments, loaded and checked.
 
     A :class:`mathspec.Spec`. Each file under :data:`PROGRAM` states one
     feature and loads on its own; ``effects.yaml`` declares the two halves of
     the ledger as sums, and every feature adds its own term to them, so
     ``merge`` writes the ledger. The engine verbs come from specsolve.
+
+    Args:
+        time: The dtype of the ``time`` dimension, which the fragments declare
+            as ``datetime``: ``int`` for a system whose steps are numbered.
+            A system's own is ``data.dims.time_dtype``.
     """
     from mathspec import merge
 
-    fragments = {path.stem: path for path in sorted(PROGRAM.glob('*.yaml'))}
+    declared = '  time: {dtype: datetime}\n'
+    fragments = {
+        path.stem: path if time == 'datetime' else path.read_text().replace(declared, f'  time: {{dtype: {time}}}\n')
+        for path in sorted(PROGRAM.glob('*.yaml'))
+    }
     return merge(fragments, description='fluxopt: flows, converters and storages, and what they cost.')
 
 
@@ -62,7 +71,7 @@ PERIOD_PARAMS = frozenset(
     }
 )
 
-#: Parameters carrying the `build_period` axis; its labels map to ordinals too.
+#: Parameters carrying the `build_period` axis; it is put on periods the same way.
 #: The at-build coefficient tables are frame-backed and already carry theirs.
 BUILD_PERIOD_PARAMS = frozenset({'lifetime_window'})
 
@@ -185,10 +194,12 @@ def _tidy(da: xr.DataArray, *, drop_zero: bool) -> pd.DataFrame:
 
 
 def _with_time_ordinals(frame: pl.DataFrame, dims: Any) -> pl.DataFrame:
-    """Replace a frame's ``time`` labels with the ordinals the program uses.
+    """Replace a frame's ``time`` labels with the positions the data layer uses.
 
-    The element layer indexes time by whatever the user gave it; the program
-    indexes it by position, because a timestamp is a poor join key.
+    Most containers index time by position, and a few carry the timestamp
+    the element layer was given; this puts the few on the same positions so
+    the binder joins them alike. `_labelled` puts every table back on the
+    labels once they are joined.
 
     Both sides are cast to one time unit first. A freshly built frame carries
     microseconds and one read back from netCDF carries nanoseconds, and polars
@@ -235,6 +246,25 @@ def _chained(cf: xr.DataArray | None, dims: Any) -> pl.DataFrame:
             pl.DataFrame({'period': list(range(dims.n_periods))}, schema={'period': pl.Int64}), how='cross'
         )
     return rows.select(list(schema)).cast(schema)
+
+
+def _labelled(table: Any, by_position: dict[str, tuple[dict[int, Any], Any]]) -> Any:
+    """The table with each position on ``time`` and the period axes replaced by its label.
+
+    The tables are built on positions, because that is how the data layer
+    indexes; the program is bound on the labels the user wrote, so what a
+    caller reads or edits is the timestamp and the year.
+    """
+    if not isinstance(table, pl.DataFrame | pd.DataFrame):
+        return table
+    frame = table if isinstance(table, pl.DataFrame) else pl.from_pandas(table)
+    axes = [axis for axis in by_position if axis in frame.columns]
+    if not axes:
+        return table
+    frame = frame.with_columns(
+        pl.col(axis).replace_strict(by_position[axis][0], return_dtype=by_position[axis][1]) for axis in axes
+    )
+    return frame if isinstance(table, pl.DataFrame) else frame.to_pandas()
 
 
 def _reject_unsupported(data: ModelData) -> None:
@@ -369,8 +399,8 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         coeffs = cds.coefficients
         conv_of = dict(zip(coeffs['flow'], coeffs['converter'], strict=True))
         flow_index['converter_of'] = [conv_of.get(f) for f in flow_ids]
-        # Already the table the parameter wants — only the time labels are
-        # the element layer's and the program indexes them by ordinal.
+        # Already the table the parameter wants, keyed by timestamp where
+        # the rest of the data layer uses positions.
         sources['conversion_factor'] = _with_time_ordinals(coeffs.filter(pl.col('value') != 0), dims).select(
             ['flow', 'eq_idx', 'time', 'value']
         )
@@ -926,10 +956,11 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         """
         return pl.DataFrame({dim: list(values)}, schema={dim: pl.Int64})
 
+    time_labels = dims.timesteps['label']
     coords: dict[str, Any] = {
-        'time': axis('time', ordinals),
-        'period': axis('period', p_ordinals),
-        'build_period': axis('build_period', p_ordinals),
+        'time': pl.DataFrame({'time': time_labels}),
+        'period': axis('period', period_labels),
+        'build_period': axis('build_period', period_labels),
         'flow': flow_axis,
         'carrier': labels(data.carriers.ids),
         # Both kinds: a converter states linear equations, a piecewise curve,
@@ -956,4 +987,9 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         {'source': effect_ids, 'effect': effect_ids}, schema={'source': pl.String, 'effect': pl.String}
     )
     _stamp_empty_dtypes(sources)
-    return {**sources, **lookup_tables}, coords
+    by_position = {
+        'time': (dict(zip(ordinals, time_labels.to_list(), strict=True)), time_labels.dtype),
+        'period': (dict(zip(p_ordinals, period_labels, strict=True)), pl.Int64),
+        'build_period': (dict(zip(p_ordinals, period_labels, strict=True)), pl.Int64),
+    }
+    return {name: _labelled(table, by_position) for name, table in sources.items()} | lookup_tables, coords

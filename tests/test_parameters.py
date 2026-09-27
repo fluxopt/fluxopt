@@ -170,7 +170,9 @@ class TestSupplyingALookup:
             math=math,
             dimensions={'region': pl.DataFrame({'region': ['cheap']})},
             lookups={'region_of': pl.DataFrame({'flow': ['north(heat)'], 'region': ['cheap']})},
-            parameters={'region_cap': pl.DataFrame({'region': ['cheap'], 'time': [0], 'period': [0], 'value': [1.0]})},
+            parameters={
+                'region_cap': pl.DataFrame({'region': ['cheap'], 'time': ts(2)[:1], 'period': [0], 'value': [1.0]})
+            },
         )
         # t0: 1 cheap + 3 expensive = 16; t1: 4 cheap = 4
         assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-6)

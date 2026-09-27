@@ -5,7 +5,7 @@
 description: A flow's rate within its envelope, a share of its size.
 
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   flow: {dtype: str}
   status_entity: {dtype: str}

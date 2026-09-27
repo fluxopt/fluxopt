@@ -3,7 +3,7 @@
 description: A converter's linear equations tie the rates of its flows.
 
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   converter: {dtype: str}
   eq_idx: {dtype: int}

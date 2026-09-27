@@ -1300,7 +1300,7 @@ def measure(model: str, timesteps: int = HOURS_PER_YEAR, solve: bool = False) ->
     weights = objective_weights(data, 'cost')
     sources, coords = build_sources(data, weights)
     start = perf_counter()
-    bound = lpspec.build(program().expand('sos'), {**sources, **coords})
+    bound = lpspec.build(program(data.dims.time_dtype).expand('sos'), {**sources, **coords})
     build_s = perf_counter() - start
     # Binaries are not a field the engine reports — it counts columns, and
     # integrality is a property of each rather than a second total.

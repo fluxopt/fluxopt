@@ -3,7 +3,7 @@
 description: A storage carries a level from one step to the next.
 
 dimensions:
-  time: {dtype: int}
+  time: {dtype: datetime}
   period: {dtype: int}
   effect: {dtype: str}
   storage: {dtype: str}

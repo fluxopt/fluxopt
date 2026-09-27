@@ -210,9 +210,13 @@ class FlowSystem(BaseModel):
         the math now, in the same language and with the same load-time checks
         the shipped program gets.
         """
-        from fluxopt.math import program
+        import pandas as pd
 
-        return program()
+        from fluxopt.math import program
+        from fluxopt.types import normalize_timesteps
+
+        stamped = isinstance(normalize_timesteps(self.timesteps), pd.DatetimeIndex)
+        return program('datetime' if stamped else 'int')
 
     def parameters(self, profiles: Mapping[str, Any] | None = None) -> Parameters:
         """The numbers this system binds to its math, as data.
