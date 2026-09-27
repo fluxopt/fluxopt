@@ -223,7 +223,9 @@ def _chained(cf: xr.DataArray | None, dims: Any, *axes: str) -> pl.DataFrame:
     diagonal is zero because a cycle is refused, which keeps the table as
     sparse as the chains are.
     """
-    schema = {'effect': pl.String, 'source': pl.String, **dict.fromkeys(axes, pl.Int64), 'value': pl.Float64}
+    schema = pl.Schema(
+        {'effect': pl.String(), 'source': pl.String(), **dict.fromkeys(axes, pl.Int64()), 'value': pl.Float64()}
+    )
     if cf is None:
         return pl.DataFrame(schema=schema)
     ids = cf.coords['effect'].values
