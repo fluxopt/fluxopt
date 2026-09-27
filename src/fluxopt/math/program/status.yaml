@@ -9,6 +9,9 @@ dimensions:
   effect: {dtype: str}
   flow: {dtype: str}
   status_entity: {dtype: str}
+  # The two states a decision can hold. Downtime is uptime with the state
+  # inverted, so every duration rule is written once over `state`.
+  state: {dtype: str}
 
 relations:
   # The decision a flow's rate answers to: itself where the flow carries its
@@ -20,21 +23,18 @@ parameters:
   # A flow is gated where `status_of` has a row for it. Every parameter here
   # is the decision's own, so it sits on `status_entity` and is stated once
   # for both kinds.
-  has_uptime: {dims: [status_entity], dtype: bool}
-  uptime_min: {dims: [status_entity]}
-  # The duration variable's ceiling: the declared maximum, or the big-M where
-  # none is declared.
-  uptime_upper: {dims: [status_entity]}
-  uptime_big_m: {dims: [status_entity]}     # big-M: horizon + any prior uptime
-  downtime_big_m: {dims: [status_entity]}   # big-M: horizon + any prior downtime
-  has_downtime: {dims: [status_entity], dtype: bool}
-  downtime_min: {dims: [status_entity]}
-  downtime_upper: {dims: [status_entity]}
   initial_status: {dims: [status_entity]}
-  previous_uptime: {dims: [status_entity]}
-  previous_downtime: {dims: [status_entity]}
-  forced_on_at_start: {dims: [status_entity], dtype: bool}   # prior run shorter than uptime_min
-  forced_off_at_start: {dims: [status_entity], dtype: bool}
+  # Per state: whether the entity bounds how long it stays in it, the least
+  # it must, the ceiling of the duration counter (the declared maximum, or
+  # the big-M where none is declared), the big-M itself (horizon plus any
+  # prior run), how long it was in the state before the horizon, and whether
+  # that prior run is shorter than the minimum and so must continue.
+  has_duration: {dims: [status_entity, state], dtype: bool}
+  duration_min: {dims: [status_entity, state]}
+  duration_upper: {dims: [status_entity, state]}
+  duration_big_m: {dims: [status_entity, state]}
+  previous_duration: {dims: [status_entity, state]}
+  forced_at_start: {dims: [status_entity, state], dtype: bool}
   effects_per_running_hour: {dims: [status_entity, effect, time, period]}   # running effects * dt
   effects_per_startup: {dims: [status_entity, effect, time, period]}        # startup effects
 
@@ -53,15 +53,11 @@ variables:
     dims: [status_entity, time, period]
     domain: binary
 
-  uptime:
-    dims: [status_entity, time, period]
-    where: "has_uptime"
-    bounds: {lower: 0, upper: uptime_upper}
-
-  downtime:
-    dims: [status_entity, time, period]
-    where: "has_downtime"
-    bounds: {lower: 0, upper: downtime_upper}
+  # How long the entity has been in the state, accumulating dt while in it.
+  duration:
+    dims: [status_entity, state, time, period]
+    where: "has_duration"
+    bounds: {lower: 0, upper: duration_upper}
 
 expressions:
   running_before:
@@ -72,6 +68,22 @@ expressions:
         expression: initial_status
     otherwise: shift(running, along=time, offset=1)
     description: Whether the decision was on in the step before.
+  in_state:
+    dims: [status_entity, state, time, period]
+    cases:
+      on:
+        when: "state == 'on'"
+        expression: running
+    otherwise: 1 - running
+    description: Whether the decision is in the state.
+  stay_ends:
+    dims: [status_entity, state, time, period]
+    cases:
+      on:
+        when: "state == 'on'"
+        expression: running - shift(running, along=time, offset=-1)
+    otherwise: shift(running, along=time, offset=-1) - running
+    description: 1 where a stay in the state ends after this step.
   contribution_running:
     expression: running * effects_per_running_hour
     description: What being on costs, per timestep, for whatever carries the decision.
@@ -102,73 +114,38 @@ constraints:
     dims: [status_entity, time, period]
     expression: startup + shutdown <= 1
 
-  # --- big-M duration tracking: uptime[t] accumulates dt while `running`.
-  uptime_gate:
-    dims: [status_entity, time, period]
-    where: "has_uptime"
-    expression: uptime <= uptime_big_m * running
+  # --- big-M duration tracking: the duration accumulates dt while in the state.
+  duration_gate:
+    dims: [status_entity, state, time, period]
+    where: "has_duration"
+    expression: duration <= duration_big_m * in_state
 
-  uptime_accum_max:
-    dims: [status_entity, time, period]
-    where: "has_uptime AND position(time) != 0"
-    expression: uptime <= shift(uptime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
+  duration_accum_max:
+    dims: [status_entity, state, time, period]
+    where: "has_duration AND position(time) != 0"
+    expression: duration <= shift(duration, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
 
-  uptime_accum_min:
-    dims: [status_entity, time, period]
-    where: "has_uptime AND position(time) != 0"
+  duration_accum_min:
+    dims: [status_entity, state, time, period]
+    where: "has_duration AND position(time) != 0"
     expression: >-
-      uptime >= shift(uptime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
-      + (running - 1) * uptime_big_m
+      duration >= shift(duration, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
+      + (in_state - 1) * duration_big_m
 
-  # minimum run length, read one step ahead
-  uptime_min_run:
-    dims: [status_entity, time, period]
-    where: "has_uptime AND uptime_min AND position(time) != -1"
-    expression: uptime >= uptime_min * (running - shift(running, along=time, offset=-1))
+  # A stay that ends after this step has lasted at least the minimum.
+  duration_min_run:
+    dims: [status_entity, state, time, period]
+    where: "has_duration AND duration_min AND position(time) != -1"
+    expression: duration >= duration_min * stay_ends
 
-  # --- downtime mirrors uptime with the state inverted: (1 - running).
-  # (1-running[t]) - (1-running[t+1]) reduces to shift(running, by=-1) - running.
-  downtime_gate:
-    dims: [status_entity, time, period]
-    where: "has_downtime"
-    expression: downtime + downtime_big_m * running <= downtime_big_m
+  # --- carry-over from before the horizon: duration[0] = in_state[0] *
+  # (previous + dt[0]), and a prior stay shorter than the minimum continues.
+  duration_carryover:
+    dims: [status_entity, state, time, period]
+    where: "position(time) == 0 AND previous_duration"
+    expression: duration == in_state * (previous_duration + dt)
 
-  downtime_accum_max:
-    dims: [status_entity, time, period]
-    where: "has_downtime AND position(time) != 0"
-    expression: downtime <= shift(downtime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
-
-  downtime_accum_min:
-    dims: [status_entity, time, period]
-    where: "has_downtime AND position(time) != 0"
-    expression: >-
-      downtime >= shift(downtime, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
-      - downtime_big_m * running
-
-  downtime_min_run:
-    dims: [status_entity, time, period]
-    where: "has_downtime AND downtime_min AND position(time) != -1"
-    expression: downtime >= downtime_min * (shift(running, along=time, offset=-1) - running)
-
-  # --- carry-over from before the horizon:
-  # duration[0] = state[0] * (previous + dt[0]), and a prior run shorter than
-  # the minimum forces continuation.
-  uptime_carryover:
-    dims: [status_entity, time, period]
-    where: "position(time) == 0 AND previous_uptime"
-    expression: uptime == running * (previous_uptime + dt)
-
-  downtime_carryover:
-    dims: [status_entity, time, period]
-    where: "position(time) == 0 AND previous_downtime"
-    expression: downtime + running * (previous_downtime + dt) == previous_downtime + dt
-
-  status_forced_on:
-    dims: [status_entity, time, period]
-    where: "position(time) == 0 AND forced_on_at_start"
-    expression: running >= 1
-
-  status_forced_off:
-    dims: [status_entity, time, period]
-    where: "position(time) == 0 AND forced_off_at_start"
-    expression: running <= 0
+  status_forced:
+    dims: [status_entity, state, time, period]
+    where: "position(time) == 0 AND forced_at_start"
+    expression: in_state >= 1

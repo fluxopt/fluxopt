@@ -106,10 +106,8 @@ _BOOL_PARAMS = frozenset(
         'is_cyclic',
         'is_bounded',
         'is_profile',
-        'has_uptime',
-        'has_downtime',
-        'forced_on_at_start',
-        'forced_off_at_start',
+        'has_duration',
+        'forced_at_start',
         'has_sizing',
         'mandatory',
         'has_invest',
@@ -591,58 +589,53 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             return live if len(live) else _empty(column, 'status_entity')
 
         horizon = float(dims.timesteps['dt'].sum())
-        bounded_up = durations.filter(pl.col('uptime_min').is_not_null() | pl.col('uptime_max').is_not_null())[
-            'entity'
-        ].to_list()
-        bounded_down = durations.filter(pl.col('downtime_min').is_not_null() | pl.col('downtime_max').is_not_null())[
-            'entity'
-        ].to_list()
-        sources['has_uptime'] = _flags('has_uptime', 'status_entity', bounded_up)
-        sources['has_downtime'] = _flags('has_downtime', 'status_entity', bounded_down)
-        sources['uptime_min'] = per_entity(durations, 'uptime_min')
-        sources['downtime_min'] = per_entity(durations, 'downtime_min')
+        states = (('on', 'uptime'), ('off', 'downtime'))
+
+        def per_state(frame: pl.DataFrame, column: str) -> pl.DataFrame:
+            """One `{kind}_…` column pair of a wide frame, long over `state`, live rows only."""
+            return pl.concat(
+                [
+                    frame.select(
+                        pl.col('entity').alias('status_entity'),
+                        pl.lit(state).alias('state'),
+                        pl.col(column.format(kind=kind)).cast(pl.Float64).alias('value'),
+                    )
+                    for state, kind in states
+                ]
+            ).drop_nulls('value')
+
+        bounds_long = per_state(durations, '{kind}_min').join(
+            per_state(durations, '{kind}_max'), on=['status_entity', 'state'], how='full', coalesce=True, suffix='_max'
+        )
+        sources['has_duration'] = bounds_long.select(['status_entity', 'state', pl.lit(True).alias('value')])
+        sources['duration_min'] = per_state(durations, '{kind}_min')
         sources['initial_status'] = per_entity(prior, 'initial')
-        sources['previous_uptime'] = per_entity(prior, 'previous_uptime')
-        sources['previous_downtime'] = per_entity(prior, 'previous_downtime')
+        sources['previous_duration'] = per_state(prior, 'previous_{kind}')
 
         # Big-M covers the whole horizon plus whatever ran before it. An
         # entity with no prior has no row in `prior`, and no prior is zero.
-        big_m = all_entities.join(
-            prior.select([pl.col('entity').alias('status_entity'), 'previous_uptime', 'previous_downtime']),
-            on='status_entity',
-            how='left',
-        ).with_columns(
-            (pl.col('previous_uptime').fill_null(0.0) + horizon).alias('up'),
-            (pl.col('previous_downtime').fill_null(0.0) + horizon).alias('down'),
+        big_m = (
+            all_entities.join(pl.DataFrame({'state': [st_ for st_, _ in states]}), how='cross')
+            .join(sources['previous_duration'], on=['status_entity', 'state'], how='left')
+            .select(['status_entity', 'state', (pl.col('value').fill_null(0.0) + horizon).alias('value')])
         )
-        sources['uptime_big_m'] = big_m.select(['status_entity', pl.col('up').alias('value')])
-        sources['downtime_big_m'] = big_m.select(['status_entity', pl.col('down').alias('value')])
+        sources['duration_big_m'] = big_m
 
-        # The duration variables' ceiling: the declared maximum where there is
-        # one, the big-M where there is not. Per entity — lpspec broadcasts it
-        # over the (time, period) grid the variable is declared on.
-        for kind, ids, declared, fallback in (
-            ('uptime', bounded_up, 'uptime_max', 'up'),
-            ('downtime', bounded_down, 'downtime_max', 'down'),
-        ):
-            ceiling = (
-                pl.DataFrame({'status_entity': ids}, schema={'status_entity': pl.String})
-                .join(durations.select([pl.col('entity').alias('status_entity'), declared]), on='status_entity')
-                .join(big_m.select(['status_entity', fallback]), on='status_entity')
-                .with_columns(pl.col(declared).fill_null(pl.col(fallback)).alias('value'))
-                .select(['status_entity', 'value'])
-            )
-            sources[f'{kind}_upper'] = ceiling
+        # The duration counter's ceiling: the declared maximum where there is
+        # one, the big-M where there is not.
+        sources['duration_upper'] = (
+            bounds_long.select(['status_entity', 'state', 'value_max'])
+            .join(big_m, on=['status_entity', 'state'])
+            .select(['status_entity', 'state', pl.col('value_max').fill_null(pl.col('value')).alias('value')])
+        )
 
-        # A prior run shorter than the minimum forces continuation.
-        for forced_key, prev_column, min_column in (
-            ('forced_on_at_start', 'previous_uptime', 'uptime_min'),
-            ('forced_off_at_start', 'previous_downtime', 'downtime_min'),
-        ):
-            forced = prior.join(durations.select(['entity', min_column]), on='entity', how='inner').filter(
-                (pl.col(prev_column) > 0) & (pl.col(prev_column) < pl.col(min_column))
-            )
-            sources[forced_key] = _flags(forced_key, 'status_entity', forced['entity'].to_list())
+        # A prior stay shorter than the minimum forces continuation.
+        sources['forced_at_start'] = (
+            sources['previous_duration']
+            .join(sources['duration_min'], on=['status_entity', 'state'], suffix='_min')
+            .filter((pl.col('value') > 0) & (pl.col('value') < pl.col('value_min')))
+            .select(['status_entity', 'state', pl.lit(True).alias('value')])
+        )
 
         # `dt` turns a per-running-hour rate into the step's cost; a startup
         # happens once at the step, so it is not scaled.
@@ -656,22 +649,16 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
             ('effects_per_startup', scaled, 'startup'),
         ]
     else:
-        for n in ('has_uptime', 'has_downtime'):
-            sources[n] = _empty(n, 'status_entity')
+        sources['initial_status'] = _empty('initial_status', 'status_entity')
         for n in (
-            'uptime_min',
-            'uptime_big_m',
-            'uptime_upper',
-            'downtime_big_m',
-            'downtime_min',
-            'downtime_upper',
-            'initial_status',
-            'previous_uptime',
-            'previous_downtime',
-            'forced_on_at_start',
-            'forced_off_at_start',
+            'has_duration',
+            'duration_min',
+            'duration_upper',
+            'duration_big_m',
+            'previous_duration',
+            'forced_at_start',
         ):
-            sources[n] = _empty(n, 'status_entity')
+            sources[n] = _empty(n, 'status_entity', 'state')
 
     sources['dt'] = dims.timesteps.select(['time', pl.col('dt').alias('value')])
 
@@ -1035,6 +1022,7 @@ def build_sources(data: ModelData, objective: dict[str, float]) -> tuple[dict[st
         'storage': labels(storage_ids),
         'effect': labels(effect_ids),
         'status_entity': labels(entity_ids),
+        'state': labels(['on', 'off']),
         # numpy, not a list: with no piecewise converter the width is 0 and a
         # bare `[]` has no integer type for the join to match.
         'bp': axis('bp', range(bp_width)),
