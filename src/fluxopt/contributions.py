@@ -12,10 +12,9 @@ Two views:
   what the expressions give: the coefficients are bound as declared, and the
   ledger adds the cross-effects on top of what each effect is charged.
 - **with cross-effects** (default): each contributor is charged the full
-  priced-in cost, CO2 through to cost, as ``(I - C)^-1 . direct``
-  (:mod:`fluxopt.leontief`). Per step for what running costs, and with the
-  horizon-mean share for what building costs — the two couplings the ledger
-  states.
+  priced-in cost, CO2 through to cost. The solve evaluates each contribution
+  once more with the ledger's own chained `share` applied (:func:`pricing`),
+  so the breakdown and the ledger read one table.
 
 The contributor axis is a presentation choice rather than model math: flows
 and storages share one dimension, and a component-level cost is attributed to
@@ -30,7 +29,6 @@ import numpy as np
 import xarray as xr
 
 from fluxopt.contract import Var
-from fluxopt.leontief import apply_leontief, leontief
 
 if TYPE_CHECKING:
     from fluxopt.model_data import ModelData
@@ -52,6 +50,17 @@ LUMP: dict[str, str] = {
     'contribution_invest_per_size_recurring': 'flow',
     'contribution_invest_fixed_recurring': 'flow',
 }
+
+
+def priced(name: str) -> str:
+    """The name a contribution is read back under with cross-effects applied."""
+    return f'{name}_priced'
+
+
+def pricing(name: str) -> str:
+    """A contribution with the ledger's chained share applied, as the program writes it."""
+    share = 'share' if name in TEMPORAL else 'share_lump'
+    return f'{name} + sum({share} * at({name}, by=same, over=effect, into=source), over=source)'
 
 
 def _first_governed_flow(data: ModelData) -> dict[str, str]:
@@ -111,17 +120,6 @@ def _gather(
     return total
 
 
-def _with_cross_effects(
-    temporal: xr.DataArray, lump: xr.DataArray, data: ModelData
-) -> tuple[xr.DataArray, xr.DataArray]:
-    """Charge each contributor the effects its own charges feed: ``(I - C)^-1 . direct``."""
-    periods = data.dims.periods['label'].to_list() if data.dims.has_periods else None
-    cf = data.effects.cf_matrix(periods)
-    if cf is None:
-        return temporal, lump
-    return apply_leontief(leontief(cf), temporal), apply_leontief(leontief(cf.mean('time')), lump)
-
-
 def _finalize(temporal: xr.DataArray, lump: xr.DataArray, all_ids: list[str], data: ModelData) -> xr.Dataset:
     """Combine temporal + lump into the public ``(temporal, lump, total)`` Dataset."""
     total = (temporal * data.dims.weights).sum('time').reindex(contributor=all_ids, fill_value=0.0) + lump.reindex(
@@ -154,10 +152,9 @@ def contributions_from(read: Any, data: ModelData, *, cross_effects: bool = True
     stor_ids = data.storages.ids if data.storages is not None else []
     all_ids = flow_ids + stor_ids
 
-    temporal = _gather(read, TEMPORAL, data, all_ids, None)
-    lump = _gather(read, LUMP, data, all_ids, 'build_period')
-    if cross_effects:
-        temporal, lump = _with_cross_effects(temporal, lump, data)
+    lookup = (lambda name: read(priced(name))) if cross_effects else read
+    temporal = _gather(lookup, TEMPORAL, data, all_ids, None)
+    lump = _gather(lookup, LUMP, data, all_ids, 'build_period')
     return _finalize(temporal, lump, all_ids, data)
 
 

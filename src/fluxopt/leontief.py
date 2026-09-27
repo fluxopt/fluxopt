@@ -2,8 +2,8 @@
 
 An effect that contributes to another — CO2 priced into cost — makes the
 effect system a linear one, and ``(I - C)^-1`` is what solves it. The binder
-hands the model the chained share it implies, and the post-solve breakdown
-applies it to attribute the full priced-in cost to each contributor.
+hands the model the chained share it implies; the ledger and the post-solve
+breakdown both read that share, so nothing else inverts it.
 """
 
 from __future__ import annotations
@@ -44,17 +44,3 @@ def _inverse_per_batch(mat: np.ndarray) -> np.ndarray:
         raise ValueError('Cross-effect matrix (I - C) is singular — check for circular contribution_from chains')
     inverse = np.linalg.inv(stack)
     return np.broadcast_to(inverse[0], mat.shape) if len(inverse) == 1 else inverse.reshape(mat.shape)
-
-
-def apply_leontief(
-    leontief: xr.DataArray,
-    arr: xr.DataArray,
-) -> xr.DataArray:
-    """Apply Leontief inverse to an array with an ``effect`` dimension.
-
-    Args:
-        leontief: Leontief inverse ``(effect, source_effect[, ...])``.
-        arr: Array whose ``effect`` dim is contracted over.
-    """
-    result: xr.DataArray = xr.dot(leontief, arr.rename({'effect': 'source_effect'}), dim='source_effect', optimize=True)
-    return result
