@@ -1,8 +1,7 @@
 """Mathematical correctness tests for piecewise-linear conversion.
 
-Wraps :func:`linopy.piecewise.add_piecewise_formulation`. The new API
-auto-selects between LP (convex/concave 2-flow inequality), incremental
-(monotonic), and SOS2 formulations.
+The curve is an SOS2 set on its interpolation weights, one formulation for
+every curve shape.
 """
 
 import warnings
@@ -52,10 +51,6 @@ class TestPiecewiseConversionValidation:
             PiecewiseConversion(
                 points=[('A', [0, 1], '>='), ('B', [0, 1]), ('C', [0, 1])],
             )
-
-    def test_lp_requires_bound(self):
-        with pytest.raises(ValueError, match="method='lp' requires"):
-            PiecewiseConversion(points={'A': [0, 1], 'B': [0, 1]}, method='lp')
 
     def test_no_duplicate_flows(self):
         with pytest.raises(ValueError, match='duplicate flow'):
@@ -334,7 +329,6 @@ class TestRedundantStatusWarning:
         """All-zero point anywhere in the curve (not just first) -> warn (SOS2 allows non-monotonic)."""
         curve = PiecewiseConversion(
             points={'fuel': [50, 0, 100], 'Heat': [45, 0, 70]},
-            method='sos2',
             status=Status(effects_per_startup={'cost': 1}),
         )
         with pytest.warns(UserWarning, match=r'Boiler.*\(0, \.\.\., 0\) breakpoint'):

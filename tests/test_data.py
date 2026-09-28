@@ -13,6 +13,7 @@ from fluxopt import (
     Effect,
     Flow,
     FlowSystem,
+    PiecewiseConversion,
     Port,
     ProfileRef,
     Storage,
@@ -437,3 +438,25 @@ class TestStorageRanges:
         )
         with pytest.raises(DataError, match='charging_efficiency_is_a_fraction'):
             system.optimize({'p': {'eta': xr.DataArray([0.9, 0.9, 1.7], dims=['time'])}})
+
+
+class TestUnknownFieldsRefused:
+    """A misspelled or retired field is refused, not silently dropped."""
+
+    @pytest.mark.parametrize(
+        'build',
+        [
+            pytest.param(lambda: Flow(carrier='b', sise=100), id='misspelled-flow-field'),
+            pytest.param(
+                lambda: PiecewiseConversion(points={'a': [0, 1], 'b': [0, 1]}, method='lp'), id='retired-method'
+            ),
+            pytest.param(lambda: ProfileRef(dataset='d', variable='v', scale=2), id='profile-ref'),
+            pytest.param(
+                lambda: FlowSystem(timesteps=ts(2), carriers=[], effects=[], ports=[], objective='cost', solver='x'),
+                id='flow-system',
+            ),
+        ],
+    )
+    def test_refused(self, build):
+        with pytest.raises(ValidationError, match='Extra inputs are not permitted'):
+            build()

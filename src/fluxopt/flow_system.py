@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
     import specsolve
 
-_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
+_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
 def _resolve_refs(obj: Any, profiles: Mapping[str, Any]) -> Any:

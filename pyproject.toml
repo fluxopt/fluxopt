@@ -32,14 +32,9 @@ dependencies = [
     "specsolve",
     # The language half of specsolve, extracted to its own package so a consumer
     # that only declares and typesets math need not take an engine. fluxopt is
-    # that consumer as well as an engine one: `FlowSystem.math()` hands a
-    # `Model` to a caller who may only want to read or render it.
+    # that consumer as well as an engine one: `FlowSystem.spec()` hands a
+    # `Spec` to a caller who may only want to read or render it.
     "mathspec",
-    # Leaving. `model.py` is the last core module importing linopy; it is
-    # deleted rather than ported, and this line goes with it. specsolve has
-    # no eager lane any more, so `tests/test_engines_agree.py` skips.
-    "linopy>=0.7.0",
-    "netcdf4>=1.6.0",
     "numpy>=1.26",
     "pandas>=2.1",
     # The interchange type with lpspec: parameter tables go in as tidy frames

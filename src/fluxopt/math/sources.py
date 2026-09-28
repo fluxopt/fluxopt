@@ -23,7 +23,6 @@ import pandas as pd
 import polars as pl
 import xarray as xr
 
-from fluxopt.leontief import leontief
 from fluxopt.types import as_dataarray, compute_dt, normalize_timesteps
 from fluxopt.validation import validate_system
 
@@ -554,13 +553,6 @@ def _piecewise(converters: list[Converter], horizon: _Horizon) -> tuple[dict[str
     Returns the tables, the flow -> converter map, and the widest curve.
     """
     curves = [c for c in converters if c.conversion is not None]
-    for conv in curves:
-        if conv.conversion.method == 'lp':  # type: ignore[union-attr]
-            raise UnsupportedFeatureError(
-                "piecewise method 'lp' states a curve as its segment lines, which this lane has "
-                'no formulation for — the one it does have interpolates between breakpoints, so it '
-                'would answer a different question. Use the default method.'
-            )
     identity: list[tuple[str, str, Any]] = []
     present: list[tuple[str, int, bool]] = []
     value_keys: dict[str, list[Any]] = {'flow': [], 'bp': []}
@@ -818,7 +810,7 @@ def _effects(effects: list[Effect], objective: dict[str, float], horizon: _Horiz
                 c[ids.index(effect), ids.index(source)] = value
         if not c.any():
             continue
-        chained = leontief(xr.DataArray(c, dims=['effect', 'source_effect'])).values - np.eye(n)
+        chained = np.linalg.inv(np.eye(n) - c) - np.eye(n)
         share_rows.extend(
             (ids[i], ids[j], period, float(chained[i, j])) for i in range(n) for j in range(n) if chained[i, j] != 0
         )

@@ -4,12 +4,12 @@ from typing import Any, Literal, NamedTuple, override
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from fluxopt.types import PiecewiseMethod, Variate, variate_out_of_range
+from fluxopt.types import Variate, variate_out_of_range
 
 # Element models hold arbitrary xarray/numpy/pandas values (Variate);
 # pydantic validates ids/scalars/structure while passing those through by
 # isinstance.
-_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
+_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
 class Element(BaseModel):
@@ -479,9 +479,8 @@ _CurveTuple = tuple[str, 'list[Variate]'] | tuple[str, 'list[Variate]', Literal[
 class PiecewiseConversion(Element):
     """Piecewise-linear conversion linking N flows.
 
-    Wraps :func:`linopy.piecewise.add_piecewise_formulation`. All flows
-    share interpolation weights — every operating point lies on the same
-    piece of the curve.
+    All flows share interpolation weights, so every operating point lies on
+    the same piece of the curve.
 
     Two input forms:
 
@@ -507,11 +506,6 @@ class PiecewiseConversion(Element):
     tuples. Need >=2 flows; all breakpoint lists must share the same
     length (>=2). At most one tuple may carry a non-equality bound,
     and only when exactly two flows are present.
-    """
-    method: PiecewiseMethod = 'auto'
-    """Formulation. ``"auto"`` picks LP (2 flows + bounded +
-    matching convexity), else incremental (monotonic) or sos2.
-    Override with ``"sos2"`` / ``"incremental"`` / ``"lp"``.
     """
     status: Status | None = None
     """Component-level on/off behavior gating the curve."""
@@ -549,9 +543,6 @@ class PiecewiseConversion(Element):
             raise ValueError(msg)
         if nonequal and len(flows_pts_bounds) > 2:
             msg = f'Inequality bounds require exactly 2 flows, got {len(flows_pts_bounds)}'
-            raise ValueError(msg)
-        if self.method == 'lp' and not nonequal:
-            msg = "method='lp' requires one flow with bound '<=' or '>='"
             raise ValueError(msg)
 
     def _iter_normalized(

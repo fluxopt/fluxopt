@@ -1,6 +1,6 @@
 # fluxopt
 
-Energy system optimization with [linopy](https://github.com/PyPSA/linopy) — detailed dispatch, scaled to multi period planning.
+Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) — detailed dispatch, scaled to multi period planning.
 
 [![PyPI](https://img.shields.io/pypi/v/fluxopt)](https://pypi.org/project/fluxopt/)
 [![Downloads](https://img.shields.io/pypi/dm/fluxopt)](https://pypi.org/project/fluxopt/)

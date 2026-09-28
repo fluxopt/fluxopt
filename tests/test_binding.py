@@ -19,7 +19,6 @@ from fluxopt import (
     Flow,
     FlowSystem,
     Investment,
-    PiecewiseConversion,
     Port,
     Sizing,
     Status,
@@ -183,21 +182,6 @@ def test_sparse_coefficients_are_not_materialised() -> None:
 
     dense = len(sources['flow']) * len(sources['effect']) * len(sources['time']) * len(sources['period'])
     assert len(sources['effects_per_flow_hour']) < dense / 2
-
-
-def test_piecewise_lp_method_raises_rather_than_answering_differently() -> None:
-    """`method='lp'` is a relaxation this lane has no formulation for."""
-    elements = _system(24)
-    elements['converters'] = [
-        Converter(
-            id='pw_boiler',
-            inputs=[Flow(carrier='gas', size=100.0)],
-            outputs=[Flow(carrier='heat', size=70.0)],
-            conversion=PiecewiseConversion(points=[('gas', [0, 50, 100]), ('heat', [0, 45, 70], '<=')], method='lp'),
-        )
-    ]
-    with pytest.raises(UnsupportedFeatureError, match='lp'):
-        FlowSystem(**elements, objective=OBJECTIVE).sources()
 
 
 def test_investment_requires_periods() -> None:

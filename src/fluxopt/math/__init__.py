@@ -7,20 +7,15 @@ mathspec composes into one spec, built and solved by
 :func:`~fluxopt.math.sources.build_sources` builds the tables bound to it straight
 from the elements, and the answer is specsolve's own ``Result``.
 
-There is no second implementation. ``model.py`` built the same math a second
-time in linopy calls, and deleting it is what
-``docs/design/lpspec-direction.md`` was written to argue for: the math is a
-file now, so it is reviewed, diffed, typeset and extended as one.
+There is no second implementation: the math is a file, so it is reviewed,
+diffed, typeset and extended as one.
 
 specsolve and mathspec are pinned to commits — their language surface is
 pre-1.0 and still moves, so an unpinned ref would let a ``uv sync`` change
 what the program means.
 
-One refusal is left, and it is a difference of formulation rather than a gap:
-``PiecewiseConversion.method='lp'`` is linopy's tangent-line *relaxation*, and
-this program has only the exact formulation, so it would answer a different
-question. :class:`UnsupportedFeatureError` says so rather than quietly
-answering it.
+A feature the program does not express yet raises
+:class:`UnsupportedFeatureError` rather than being dropped silently.
 """
 
 from fluxopt.math.sources import (

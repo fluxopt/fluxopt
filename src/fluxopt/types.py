@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -21,7 +21,7 @@ class ProfileRef(BaseModel):
     :class:`xr.DataArray` with :meth:`resolve` before building the model.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
     dataset: str
     """Id of the dataset holding the profile (a key into ``profiles``)."""
@@ -67,9 +67,6 @@ type Timesteps = list[datetime] | list[int] | pd.DatetimeIndex | pd.Index
 
 # -- Internal types (after normalization) ------------------------------
 type TimeIndex = pd.DatetimeIndex | pd.Index
-
-# -- Piecewise formulation method (mirrors linopy.add_piecewise_formulation) --
-type PiecewiseMethod = Literal['auto', 'sos2', 'incremental', 'lp']
 
 
 def variate_out_of_range(
@@ -117,8 +114,8 @@ def as_dataarray(
     Pipeline: ``convert → validate dims → validate coord values → broadcast``.
 
     See :data:`Variate` for accepted inputs. Pandas inputs (``Series``,
-    ``DataFrame``) follow the same convention as ``linopy.as_dataarray``: the
-    axis ``name`` attribute selects the corresponding target dim. For
+    ``DataFrame``): the axis ``name`` attribute selects the corresponding
+    target dim. For
     ``ndarray``/``list``, the dim is selected by length (must be unambiguous).
     For ``DataArray``, dims must be a subset of *coords* and coord values must
     match exactly — alignment errors are surfaced loudly, not silently masked.
@@ -155,7 +152,7 @@ def as_dataarray(
     if isinstance(value, xr.DataArray):
         da = value
     elif isinstance(value, (pd.Series, pd.DataFrame)):
-        # Mirror linopy: pandas axes already carry coords; use axis.name as dim.
+        # Pandas axes already carry coords; use axis.name as dim.
         # Fall back to length-matching only when no axis is named.
         named = [a.name for a in value.axes if a.name is not None]
         if len(named) == value.ndim:
