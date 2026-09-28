@@ -10,7 +10,7 @@ import mathspec as ms
 import polars as pl
 import pytest
 import specsolve
-from conftest import read, ts
+from conftest import ts
 
 from fluxopt import Carrier, Effect, Flow, FlowSystem, Port
 
@@ -36,14 +36,17 @@ def test_a_table_carries_the_timestamps_and_the_years() -> None:
     assert sorted(set(rates['period'].to_list())) == [2020, 2030], 'period is keyed by the years'
 
 
-def test_numbered_steps_keep_their_numbers() -> None:
-    """Steps numbered from 10 would read as positions 0, 1, 2 if the labels were lost."""
-    system = _system([10, 20, 30])
-    assert system.spec().dimensions['time'].dtype == 'int'
-    assert system.sources()['dt']['time'].to_list() == [10, 20, 30]
-    result = system.optimize()
-    assert result.objective == pytest.approx(12.0), 'demand of 1 + 2 + 3 at a price of 2'
-    assert read(result, 'rate').sel(flow='grid(e)').coords['time'].values.tolist() == [10, 20, 30]
+@pytest.mark.parametrize('steps', [pytest.param([10, 20, 30], id='ints'), pytest.param([1.5, 2.5], id='floats')])
+def test_numbered_steps_are_refused_rather_than_read_as_1970(steps: list) -> None:
+    """pydantic reads a number as seconds since 1970, which would bind 10 s steps as 0.003 h."""
+    with pytest.raises(TypeError, match=r'must be timestamps.*pd\.date_range'):
+        _system(steps)
+
+
+def test_a_dumped_system_loads_its_timestamps_again() -> None:
+    """ISO strings are how timestamps come back from a dump, so they are not refused as numbers are."""
+    system = _system(ts(3))
+    assert FlowSystem.from_dict(system.to_dict()).sources()['dt']['time'].to_list() == ts(3)
 
 
 def test_a_supplied_table_is_keyed_by_the_same_timestamps() -> None:

@@ -139,30 +139,3 @@ class TestEndToEnd:
 
         # effects_lump
         assert 'effect' in read(result, 'effect_lump', 'expression').dims
-
-    def test_int_timesteps(self):
-        """Smoke test: int timesteps work end-to-end."""
-
-        timesteps = [0, 1, 2, 3]
-
-        demand_flow = Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        fuel = Flow(carrier='gas', size=300)
-        heat_flow = Flow(carrier='heat', size=200)
-
-        result = optimize(
-            timesteps=timesteps,
-            carriers=[Carrier(id='gas'), Carrier(id='heat')],
-            effects=[Effect(id='cost')],
-            objective='cost',
-            ports=[
-                Port(id='grid', imports=[gas_source]),
-                Port(id='demand', exports=[demand_flow]),
-            ],
-            converters=[Converter.boiler('boiler', 0.9, fuel, heat_flow)],
-        )
-
-        assert result.objective == pytest.approx(sum([40, 70, 50, 60]) / 0.9 * 0.04, abs=1e-6)
-        sr = read(result, 'rate').sel(flow='boiler(gas)')
-        assert sr.dims == ('time',)
-        assert len(sr) == 4

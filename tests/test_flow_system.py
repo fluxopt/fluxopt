@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import xarray as xr
-from conftest import read
+from conftest import read, ts
 from numpy.testing import assert_allclose
 
 from fluxopt import (
@@ -21,7 +21,7 @@ from fluxopt import (
 def _merit_order_spec(demand: object) -> FlowSystem:
     """Two priced sources meeting a fixed heat demand (see test_bus.py)."""
     return FlowSystem(
-        timesteps=[0, 1],
+        timesteps=ts(2),
         carriers=[Carrier(id='Heat')],
         effects=[Effect(id='cost')],
         objective='cost',
@@ -109,7 +109,7 @@ class TestFreeOptimizeProfiles:
         from fluxopt import optimize
 
         result = optimize(
-            timesteps=[0, 1],
+            timesteps=ts(2),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
             objective='cost',
@@ -132,7 +132,7 @@ class TestFreeOptimizeProfiles:
 class TestProfileErgonomics:
     def _two_ref_spec(self) -> FlowSystem:
         return FlowSystem(
-            timesteps=[0, 1],
+            timesteps=ts(2),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
             objective='cost',

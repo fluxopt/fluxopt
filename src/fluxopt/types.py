@@ -63,10 +63,10 @@ the field itself; ``as_dataarray`` enforces that user input only uses dims the
 caller declared in *coords*.
 """
 
-type Timesteps = list[datetime] | list[int] | pd.DatetimeIndex | pd.Index
+type Timesteps = list[datetime] | pd.DatetimeIndex
 
 # -- Internal types (after normalization) ------------------------------
-type TimeIndex = pd.DatetimeIndex | pd.Index
+type TimeIndex = pd.DatetimeIndex
 
 
 def variate_out_of_range(
@@ -234,39 +234,30 @@ def _from_unnamed_1d(arr: np.ndarray, coord_idx: dict[str, pd.Index], name: str,
 
 
 def normalize_timesteps(timesteps: Timesteps) -> TimeIndex:
-    """Normalize user-provided timesteps to an internal time index.
+    """Normalize user-provided timesteps to a datetime index.
 
     Args:
-        timesteps: Datetime objects, integers, or a DatetimeIndex.
-
-    Returns:
-        A datetime index for datetime inputs, or an integer index for integer inputs.
+        timesteps: Datetime objects, or a DatetimeIndex.
 
     Raises:
-        ValueError: If timesteps are not strictly monotonically increasing.
+        TypeError: If a timestep is not a timestamp. Numbered steps are
+            written as ``pd.date_range('2020-01-01', periods=n, freq='h')``.
+        ValueError: If timesteps are empty, not strictly monotonically
+            increasing, or contain duplicates.
     """
     if len(timesteps) == 0:
         raise ValueError('Timesteps must not be empty')
 
-    if isinstance(timesteps, pd.DatetimeIndex):
-        idx: TimeIndex = timesteps
-    elif isinstance(timesteps, pd.Index):
-        if isinstance(timesteps, pd.RangeIndex) or pd.api.types.is_integer_dtype(timesteps.dtype):
-            idx = timesteps
-        elif pd.api.types.is_datetime64_any_dtype(timesteps.dtype):
-            idx = pd.DatetimeIndex(timesteps)
-        else:
-            raise TypeError(f'Unsupported pd.Index dtype: {timesteps.dtype}. Use datetime or integer index.')
-    elif not isinstance(timesteps, list):
-        raise TypeError(f'Unsupported Timesteps type: {type(timesteps)}')
-    elif isinstance(timesteps[0], datetime):
+    stamped_index = isinstance(timesteps, pd.Index) and pd.api.types.is_datetime64_any_dtype(timesteps.dtype)
+    stamped_list = isinstance(timesteps, list) and all(isinstance(t, datetime) for t in timesteps)
+    if stamped_index or stamped_list:
         idx = pd.DatetimeIndex(timesteps)
-    elif type(timesteps[0]) is int:
-        idx = pd.Index(timesteps)
-        if not pd.api.types.is_integer_dtype(idx.dtype):
-            raise TypeError('Integer timesteps contain non-integer values')
     else:
-        raise TypeError(f'Unsupported timestep element type: {type(timesteps[0])}. Use datetime or int.')
+        found = timesteps.dtype if isinstance(timesteps, pd.Index) else type(timesteps[0]).__name__
+        raise TypeError(
+            f'Timesteps must be timestamps, got {found}. '
+            "For numbered steps, pass pd.date_range('2020-01-01', periods=n, freq='h')."
+        )
 
     if len(idx) > 1 and not idx.is_monotonic_increasing:
         raise ValueError('Timesteps must be strictly monotonically increasing')
@@ -278,10 +269,8 @@ def normalize_timesteps(timesteps: Timesteps) -> TimeIndex:
 def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> xr.DataArray:
     """Compute dt (hours) for each timestep as a DataArray.
 
-    When dt is None, auto-derives from timesteps:
-    - Datetime: consecutive differences in hours; first = second (forward-looking).
-    - Integer: 1.0 for all.
-    - Single timestep: 1.0.
+    When dt is None, it is the consecutive differences in hours, the first
+    step taking the second's; a single timestep lasts 1.0.
 
     Args:
         timesteps: Time index.
@@ -304,11 +293,6 @@ def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> xr.DataA
     if n <= 1:
         return xr.DataArray(np.ones(n), dims=['time'], coords={'time': timesteps}, name='dt')
 
-    if not isinstance(timesteps, pd.DatetimeIndex):
-        # Integer timesteps: default to 1.0
-        return xr.DataArray(np.ones(n), dims=['time'], coords={'time': timesteps}, name='dt')
-
-    # Datetime: derive from diff in hours
     diffs = np.diff(timesteps.values) / np.timedelta64(1, 'h')
     dt_values = np.empty(n)
     dt_values[0] = diffs[0]

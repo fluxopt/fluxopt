@@ -17,12 +17,12 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from fluxopt.components import Converter, Port
 from fluxopt.elements import Carrier, Effect, Storage
 from fluxopt.schema import from_dict, to_dict
-from fluxopt.types import ProfileRef, Timesteps
+from fluxopt.types import ProfileRef, Timesteps, normalize_timesteps
 from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
@@ -137,6 +137,18 @@ class FlowSystem(BaseModel):
     period_weights: list[float] | None = None
     """Explicit weights per period. Inferred from gaps if None."""
 
+    @field_validator('timesteps', mode='before')
+    @classmethod
+    def _timestamps_only(cls, value: Any) -> Any:
+        """Refuse numbered steps before pydantic reads a number as seconds since 1970.
+
+        ISO strings pass through to pydantic's own parsing, which is how a
+        dumped system loads again.
+        """
+        if not (isinstance(value, list) and value and all(isinstance(t, str) for t in value)):
+            normalize_timesteps(value)
+        return value
+
     @model_validator(mode='after')
     def _validate_references(self) -> FlowSystem:
         """Fail fast on undeclared references and duplicate ids (at construction/load)."""
@@ -201,24 +213,15 @@ class FlowSystem(BaseModel):
         """The equations this system is solved as, before any number is bound.
 
         A :class:`mathspec.Spec`, composed from the fragments under
-        :data:`fluxopt.math.PROGRAM` with this system's ``time`` dtype, and
-        with the piecewise special-ordered sets written out as binaries so
-        every solver takes it. Read it, typeset it (``mathspec.to_latex``), or
+        :data:`fluxopt.math.PROGRAM`, with the piecewise special-ordered sets
+        written out as binaries so every solver takes it. Read it, typeset it (``mathspec.to_latex``), or
         extend it — ``mathspec.override`` it with a patch, or ``merge`` a
         fragment of your own onto the shipped ones — and solve the result
         with :func:`specsolve.solve` against :meth:`sources`.
         """
-        return self._program().expand('sos')
-
-    def _program(self) -> Any:
-        """The spec with its special-ordered sets as declared, for a solver that takes them."""
-        import pandas as pd
-
         from fluxopt.math import program
-        from fluxopt.types import normalize_timesteps
 
-        stamped = isinstance(normalize_timesteps(self.timesteps), pd.DatetimeIndex)
-        return program('datetime' if stamped else 'int')
+        return program().expand('sos')
 
     def sources(self, profiles: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """The numbers :meth:`spec` is bound to, one table per declared name.
@@ -295,8 +298,10 @@ class FlowSystem(BaseModel):
         """
         import specsolve
 
+        from fluxopt.math import program
+
         return specsolve.solve(
-            self.spec() if solver == 'highs' else self._program(),
+            self.spec() if solver == 'highs' else program(),
             self.sources(profiles),
             solver,
             solver_options=solver_options or None,

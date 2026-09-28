@@ -36,26 +36,17 @@ if TYPE_CHECKING:
 PROGRAM = Path(__file__).with_name('program')
 
 
-def program(time: str = 'datetime') -> Any:
+def program() -> Any:
     """fluxopt's math, composed from its fragments, loaded and checked.
 
     A :class:`mathspec.Spec`. Each file under :data:`PROGRAM` states one
     feature and loads on its own; ``effects.yaml`` declares the two halves of
     the ledger as sums, and every feature adds its own term to them, so
     ``merge`` writes the ledger. The engine verbs come from specsolve.
-
-    Args:
-        time: The dtype of the ``time`` dimension, which the fragments declare
-            as ``datetime``: ``int`` for a system whose steps are numbered.
-            `FlowSystem.spec` passes the system's own.
     """
     from mathspec import merge
 
-    declared = '  time: {dtype: datetime}\n'
-    fragments = {
-        path.stem: path if time == 'datetime' else path.read_text().replace(declared, f'  time: {{dtype: {time}}}\n')
-        for path in sorted(PROGRAM.glob('*.yaml'))
-    }
+    fragments = {path.stem: path for path in sorted(PROGRAM.glob('*.yaml'))}
     return merge(fragments, description='fluxopt: flows, converters and storages, and what they cost.')
 
 
