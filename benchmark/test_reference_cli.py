@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from reference import SYSTEMS, main, measure
 
 REFERENCE = Path(__file__).with_name('reference.py')

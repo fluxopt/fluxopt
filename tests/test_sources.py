@@ -45,7 +45,7 @@ class TestReadable:
         assert declared <= set(sources), f'no table for {sorted(declared - set(sources))}'
 
     def test_a_table_carries_the_numbers_the_elements_declared(self) -> None:
-        """`effects_per_flow_hour` is the flow's rate times the step duration."""
+        """`effects_per_flow_hour` is what the flow declared, per flow hour."""
         charged = _frame(_system().sources()['effects_per_flow_hour'])
         assert charged['flow'].unique().to_list() == ['grid(heat)']
         assert charged['value'].to_list() == [2.0, 2.0, 2.0]
@@ -75,8 +75,8 @@ class TestArchive:
 
 
 class TestDerivedNotAuthored:
-    def test_a_coefficient_binds_as_the_step_charge_and_a_cross_effect_as_its_share(self) -> None:
-        """The step length is multiplied in; `contribution_from` binds as the chained share."""
+    def test_a_coefficient_binds_as_declared_and_a_cross_effect_as_its_share(self) -> None:
+        """A coefficient binds as declared; `contribution_from` binds as the chained share."""
         system = FlowSystem(
             timesteps=ts(2),
             carriers=[Carrier(id='heat')],

@@ -1,4 +1,4 @@
-# End-of-period storage convention, level[t] = level[t-1]*retention + net.
+# End-of-period storage convention, level[t] = level[t-1]*retention**dt + net.
 # Cyclic storage wraps (shift edge='wrap'), acyclic uses a data-side prior.
 description: A storage carries a level from one step to the next.
 
@@ -19,10 +19,11 @@ relations:
 parameters:
   # A storage whose capacity is given rather than decided.
   given_capacity: {dims: [storage]}
-  # What one unit of rate on a port does to the level in a step:
-  # eta_c * dt on the charge port, -dt / eta_d on the discharge port.
+  # What one unit of rate on a port does to the level in an hour:
+  # eta_c on the charge port, -1 / eta_d on the discharge port.
   storage_coeff: {dims: [storage, side, time]}
-  retention: {dims: [storage, time]}       # (1 - loss) ** dt
+  # What an hour keeps of the level, 1 - loss; `** dt` makes it the step's.
+  retention_per_hour: {dims: [storage, time]}
   # `relative_level_* * capacity`, folded data-side for the same reason
   # `rate_min` is, and dense for the same reason: a storage whose capacity is
   # a variable is bounded 0..inf here, and the relative pair does the work.
@@ -97,7 +98,7 @@ expressions:
     expression: sum(rate, by=port_of, over=flow, into=[storage, side])
     description: What flows through each port of a storage.
   net_charge:
-    expression: sum(port_rate * storage_coeff, over=side)
+    expression: sum(port_rate * storage_coeff, over=side) * dt
     description: Energy entering a storage per step, net of discharge draw.
   # With the exclusion, one port is open in a step: charge while charging,
   # discharge otherwise.
@@ -133,7 +134,7 @@ given:
 constraints:
   storage_balance:
     dims: [storage, time, period]
-    expression: level == level_before * retention + net_charge
+    expression: level == level_before * retention_per_hour ** dt + net_charge
 
   storage_final_min:
     dims: [storage, time, period]
@@ -191,13 +192,13 @@ assumptions:
     where: "capacity_min"
     description: a capacity is not negative, and its minimum does not exceed its maximum
   charging_efficiency_is_a_fraction:
-    holds: "storage_coeff > 0 AND storage_coeff <= dt"
+    holds: "storage_coeff > 0 AND storage_coeff <= 1"
     where: "side == 'charge'"
     description: charging stores at most what flows in, eta_charge in (0, 1]
   discharging_efficiency_is_a_fraction:
-    holds: "storage_coeff <= 0 - dt"
+    holds: "storage_coeff <= -1"
     where: "side == 'discharge'"
     description: discharging draws at least what flows out, eta_discharge in (0, 1]
   loss_is_a_fraction:
-    holds: "retention >= 0 AND retention <= 1"
+    holds: "retention_per_hour >= 0 AND retention_per_hour <= 1"
     description: a storage loses between none and all of its level per hour

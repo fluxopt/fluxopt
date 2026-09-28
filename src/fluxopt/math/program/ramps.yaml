@@ -12,13 +12,14 @@ relations:
   status_of: {key: flow, values: status_entity}
 
 parameters:
-  # r+ * dt, per unit of size. A flow with a ramp has a row, a ramp of 0
-  # included; a flow without one has none.
-  ramp_up_coeff: {dims: [flow, time, period]}
-  ramp_down_coeff: {dims: [flow, time, period]}
+  # The most the rate may change in an hour, per unit of size. A flow with a
+  # ramp has a row, a ramp of 0 included; a flow without one has none.
+  ramp_up_per_hour: {dims: [flow, time, period]}
+  ramp_down_per_hour: {dims: [flow, time, period]}
 
 given:
   parameters:
+    dt: {dims: [time]}
     size_bound: {dims: [flow]}
   variables:
     rate: {dims: [flow, time, period]}
@@ -50,10 +51,10 @@ expressions:
 constraints:
   ramp_up:
     dims: [flow, time, period]
-    where: "ramp_up_coeff AND position(time) != 0"
-    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_coeff * size + startup_release
+    where: "ramp_up_per_hour AND position(time) != 0"
+    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_per_hour * dt * size + startup_release
 
   ramp_down:
     dims: [flow, time, period]
-    where: "ramp_down_coeff AND position(time) != 0"
-    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_coeff * size + shutdown_release
+    where: "ramp_down_per_hour AND position(time) != 0"
+    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_per_hour * dt * size + shutdown_release

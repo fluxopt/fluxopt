@@ -52,12 +52,8 @@ expressions:
     expression: direct_lump + sum(share * at(direct_lump, by=same, over=effect, into=source), over=source)
     description: What building it costs — one-time and recurring, cross-effects included.
   effect_temporal:
-    expression: sum(effect_step * time_weight, over=time)
+    expression: sum(effect_step, over=time)
     description: What running the system costs, accumulated over the horizon.
-
-given:
-  parameters:
-    time_weight: {dims: [time]}
 
 constraints:
   effect_accounting:

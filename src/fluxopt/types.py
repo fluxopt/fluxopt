@@ -102,14 +102,8 @@ def variate_out_of_range(
     return float(bad[0]) if bad.size else None
 
 
-def as_dataarray(
-    value: Variate,
-    coords: Mapping[str, Any],
-    *,
-    name: str = 'value',
-    broadcast: bool = True,
-) -> xr.DataArray:
-    """Convert a Variate to a DataArray aligned to given coordinates.
+def as_dataarray(value: Variate, coords: Mapping[str, Any]) -> xr.DataArray:
+    """Convert a Variate to a DataArray spanning the given coordinates.
 
     Pipeline: ``convert → validate dims → validate coord values → broadcast``.
 
@@ -124,8 +118,6 @@ def as_dataarray(
         value: Scalar, list, ndarray, Series, DataFrame, or DataArray.
         coords: Target coordinates, e.g. ``{"time": idx, "period": pidx}``.
             Used both as the reach declaration and as alignment targets.
-        name: Name for the resulting DataArray.
-        broadcast: Expand result to span all dimensions in *coords*.
     """
     if isinstance(value, ProfileRef):
         raise ValueError(
@@ -135,17 +127,9 @@ def as_dataarray(
 
     coord_idx = {k: v if isinstance(v, pd.Index) else pd.Index(v) for k, v in coords.items()}
 
-    # --- scalar: 0-dim unless broadcast ---
     if isinstance(value, (int, float)):
-        if not broadcast:
-            return xr.DataArray(float(value), name=name)
         shape = tuple(len(v) for v in coord_idx.values())
-        return xr.DataArray(
-            np.full(shape, float(value)),
-            dims=list(coord_idx),
-            coords=coord_idx,
-            name=name,
-        )
+        return xr.DataArray(np.full(shape, float(value)), dims=list(coord_idx), coords=coord_idx, name='value')
 
     # --- 1) Convert to DataArray ---
     da: xr.DataArray
@@ -158,7 +142,7 @@ def as_dataarray(
         if len(named) == value.ndim:
             da = xr.DataArray(value)
         elif value.ndim == 1 and not named:
-            return _from_unnamed_1d(np.asarray(value.values, dtype=float), coord_idx, name, broadcast)
+            return _from_unnamed_1d(np.asarray(value.values, dtype=float), coord_idx)
         else:
             raise ValueError(
                 f'{type(value).__name__} requires axis.name set on every axis '
@@ -171,9 +155,9 @@ def as_dataarray(
                 f'np.ndarray must be 1-D (got ndim={value.ndim}); pass an xr.DataArray '
                 f'or pd.DataFrame with named axes for higher-dim inputs.'
             )
-        return _from_unnamed_1d(value, coord_idx, name, broadcast)
+        return _from_unnamed_1d(value, coord_idx)
     elif isinstance(value, list):
-        return _from_unnamed_1d(np.asarray(value, dtype=float), coord_idx, name, broadcast)
+        return _from_unnamed_1d(np.asarray(value, dtype=float), coord_idx)
     else:
         raise TypeError(f'Unsupported Variate type: {type(value)}')
 
@@ -194,16 +178,18 @@ def as_dataarray(
                 f"Use the same index as the model's {dim_name}."
             )
 
-    da = da.rename(name)
-    if broadcast:
-        for dim, idx in coord_idx.items():
-            if dim not in da.dims:
-                da = da.expand_dims({dim: idx})
-        da = da.transpose(*coord_idx)
-    return da
+    return _spanning(da.rename('value'), coord_idx)
 
 
-def _from_unnamed_1d(arr: np.ndarray, coord_idx: dict[str, pd.Index], name: str, broadcast: bool) -> xr.DataArray:
+def _spanning(da: xr.DataArray, coord_idx: dict[str, pd.Index]) -> xr.DataArray:
+    """*da* expanded over every dim of *coord_idx* it lacks, in that order."""
+    for dim, idx in coord_idx.items():
+        if dim not in da.dims:
+            da = da.expand_dims({dim: idx})
+    return da.transpose(*coord_idx)
+
+
+def _from_unnamed_1d(arr: np.ndarray, coord_idx: dict[str, pd.Index]) -> xr.DataArray:
     """Length-match an unnamed 1-D array to a single target coord.
 
     Tie-breaking: ``time`` wins over other dims when multiple match. Pass a
@@ -224,13 +210,7 @@ def _from_unnamed_1d(arr: np.ndarray, coord_idx: dict[str, pd.Index], name: str,
         )
     else:
         dim = matches[0]
-    da = xr.DataArray(arr, dims=[dim], coords={dim: coord_idx[dim]}, name=name)
-    if broadcast:
-        for d, idx in coord_idx.items():
-            if d not in da.dims:
-                da = da.expand_dims({d: idx})
-        da = da.transpose(*coord_idx)
-    return da
+    return _spanning(xr.DataArray(arr, dims=[dim], coords={dim: coord_idx[dim]}, name='value'), coord_idx)
 
 
 def normalize_timesteps(timesteps: Timesteps) -> TimeIndex:
@@ -275,42 +255,27 @@ def normalize_timesteps(timesteps: Timesteps) -> TimeIndex:
     return idx
 
 
-def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> xr.DataArray:
-    """Compute dt (hours) for each timestep as a DataArray.
+def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> np.ndarray:
+    """Each timestep's duration in hours.
 
-    When dt is None, auto-derives from timesteps:
-    - Datetime: consecutive differences in hours; first = second (forward-looking).
-    - Integer: 1.0 for all.
-    - Single timestep: 1.0.
+    When *dt* is None it is derived from *timesteps*: the gap to the next
+    timestamp in hours, the first step taking the second's; 1.0 each for
+    integer steps or a single step.
 
     Args:
         timesteps: Time index.
         dt: Override timestep duration. Validated against timesteps length.
     """
     n = len(timesteps)
-
+    if isinstance(dt, (int, float)):
+        return np.full(n, float(dt))
+    if isinstance(dt, list):
+        if len(dt) != n:
+            raise ValueError(f'dt length {len(dt)} does not match timesteps length {n}')
+        return np.array(dt, dtype=float)
     if dt is not None:
-        if isinstance(dt, (int, float)):
-            values = np.full(n, float(dt))
-        elif isinstance(dt, list):
-            if len(dt) != n:
-                raise ValueError(f'dt length {len(dt)} does not match timesteps length {n}')
-            values = np.array(dt, dtype=float)
-        else:
-            raise TypeError(f'Unsupported dt type: {type(dt)}')
-        return xr.DataArray(values, dims=['time'], coords={'time': timesteps}, name='dt')
-
-    # Auto-derive
-    if n <= 1:
-        return xr.DataArray(np.ones(n), dims=['time'], coords={'time': timesteps}, name='dt')
-
-    if not isinstance(timesteps, pd.DatetimeIndex):
-        # Integer timesteps: default to 1.0
-        return xr.DataArray(np.ones(n), dims=['time'], coords={'time': timesteps}, name='dt')
-
-    # Datetime: derive from diff in hours
+        raise TypeError(f'Unsupported dt type: {type(dt)}')
+    if n <= 1 or not isinstance(timesteps, pd.DatetimeIndex):
+        return np.ones(n)
     diffs = np.diff(timesteps.values) / np.timedelta64(1, 'h')
-    dt_values = np.empty(n)
-    dt_values[0] = diffs[0]
-    dt_values[1:] = diffs
-    return xr.DataArray(dt_values, dims=['time'], coords={'time': timesteps}, name='dt')
+    return np.concatenate([diffs[:1], diffs])

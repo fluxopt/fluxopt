@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import TypeAdapter
 
 from fluxopt.components import Converter, Port
-from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage
+from fluxopt.elements import Carrier, Effect, Flow, Investment, Sizing, Status, Storage, walk
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -53,28 +53,6 @@ def all_element_schemas() -> Mapping[str, dict[str, Any]]:
     return {t.__name__: element_schema(t) for t in ELEMENT_TYPES}
 
 
-def _inline_array_paths(obj: Any, path: str, out: list[str]) -> None:
-    """Collect paths of array-valued leaves that cannot serialize to JSON."""
-    import numpy as np
-    import pandas as pd
-    import xarray as xr
-    from pydantic import BaseModel
-
-    if isinstance(obj, (np.ndarray, pd.Series, pd.DataFrame, xr.DataArray)):
-        out.append(path)
-    elif isinstance(obj, dict):
-        for key, value in obj.items():
-            _inline_array_paths(value, f'{path}[{key!r}]', out)
-    elif isinstance(obj, list):
-        for i, value in enumerate(obj):
-            _inline_array_paths(value, f'{path}[{i}]', out)
-    elif isinstance(obj, BaseModel):
-        element_id = getattr(obj, 'id', '') or getattr(obj, 'short_id', '')
-        base = f'{type(obj).__name__}({element_id!r})' if element_id else path
-        for name in type(obj).model_fields:
-            _inline_array_paths(getattr(obj, name), f'{base}.{name}', out)
-
-
 def to_dict(element: object) -> dict[str, Any]:
     """Serialize an element to a JSON-safe dict.
 
@@ -92,8 +70,15 @@ def to_dict(element: object) -> dict[str, Any]:
     try:
         return TypeAdapter(type(element)).dump_python(element, mode='json')
     except Exception as exc:
-        arrays: list[str] = []
-        _inline_array_paths(element, type(element).__name__, arrays)
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        arrays = [
+            path
+            for path, _, _, value in walk(element, type(element).__name__)
+            if isinstance(value, np.ndarray | pd.Series | pd.DataFrame | xr.DataArray)
+        ]
         if arrays:
             msg = (
                 'cannot serialize inline array values at: '

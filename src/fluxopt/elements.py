@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Literal, NamedTuple, override
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, override
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fluxopt.types import Variate, variate_out_of_range
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 # Element models hold arbitrary xarray/numpy/pandas values (Variate);
 # pydantic validates ids/scalars/structure while passing those through by
@@ -16,6 +19,28 @@ class Element(BaseModel):
     """Base for user-facing element models (shared pydantic config)."""
 
     model_config = _PYDANTIC_CFG
+
+
+def walk(obj: Any, path: str = '') -> Iterator[tuple[str, Any, Any, Any]]:
+    """Every value inside an element tree, as ``(path, parent, key, value)``.
+
+    Descends through element fields, dict entries and list items. The path
+    names elements by class and id (``Flow('Demand(Heat)').size``); *parent*
+    and *key* are where the value sits, so a caller can replace it.
+    """
+    if isinstance(obj, BaseModel):
+        element_id = getattr(obj, 'id', '') or getattr(obj, 'short_id', '')
+        base = f'{type(obj).__name__}({element_id!r})' if element_id else path
+        children = [(f'{base}.{name}', name, getattr(obj, name)) for name in type(obj).model_fields]
+    elif isinstance(obj, dict):
+        children = [(f'{path}[{key!r}]', key, value) for key, value in obj.items()]
+    elif isinstance(obj, list):
+        children = [(f'{path}[{i}]', i, value) for i, value in enumerate(obj)]
+    else:
+        return
+    for child_path, key, value in children:
+        yield child_path, obj, key, value
+        yield from walk(value, child_path)
 
 
 PENALTY_EFFECT_ID = 'penalty'

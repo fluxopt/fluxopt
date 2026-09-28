@@ -14,13 +14,12 @@ Declaration (the system) and use (building/solving) stay separate.
 
 from __future__ import annotations
 
-import copy
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fluxopt.components import Converter, Port
-from fluxopt.elements import Carrier, Effect, Storage
+from fluxopt.elements import Carrier, Effect, Storage, walk
 from fluxopt.schema import from_dict, to_dict
 from fluxopt.types import ProfileRef, Timesteps
 from fluxopt.validation import validate_system
@@ -34,64 +33,11 @@ if TYPE_CHECKING:
 _PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
-def _resolve_refs(obj: Any, profiles: Mapping[str, Any]) -> Any:
-    """Recursively replace every ``ProfileRef`` in *obj* with a resolved array.
-
-    Walks element dataclasses, dicts and lists,
-    mutating in place. Non-container leaves (scalars, arrays) pass through.
-
-    Args:
-        obj: The value or element to walk.
-        profiles: Mapping passed to :meth:`ProfileRef.resolve`.
-    """
-    if isinstance(obj, ProfileRef):
-        return obj.resolve(profiles)
-    if isinstance(obj, dict):
-        for key, value in obj.items():
-            obj[key] = _resolve_refs(value, profiles)
-        return obj
-    if isinstance(obj, list):
-        for i, value in enumerate(obj):
-            obj[i] = _resolve_refs(value, profiles)
-        return obj
-    if isinstance(obj, BaseModel):
-        for name in type(obj).model_fields:
-            setattr(obj, name, _resolve_refs(getattr(obj, name), profiles))
-        return obj
-    return obj
-
-
-def _collect_profile_refs(obj: Any, path: str, out: list[tuple[str, ProfileRef]]) -> None:
-    """Recursively collect every ``ProfileRef`` in *obj* with a readable path.
-
-    Path segments name elements by class and id (``Flow('Demand(Heat)')``) and
-    descend through fields, dict keys, and list positions.
-
-    Args:
-        obj: The value or element to walk.
-        path: Path accumulated so far.
-        out: Collected ``(path, ref)`` pairs, appended in walk order.
-    """
-    if isinstance(obj, ProfileRef):
-        out.append((path, obj))
-    elif isinstance(obj, dict):
-        for key, value in obj.items():
-            _collect_profile_refs(value, f'{path}[{key!r}]', out)
-    elif isinstance(obj, list):
-        for i, value in enumerate(obj):
-            _collect_profile_refs(value, f'{path}[{i}]', out)
-    elif isinstance(obj, BaseModel):
-        element_id = getattr(obj, 'id', '') or getattr(obj, 'short_id', '')
-        base = f'{type(obj).__name__}({element_id!r})' if element_id else path
-        for name in type(obj).model_fields:
-            _collect_profile_refs(getattr(obj, name), f'{base}.{name}', out)
-
-
 def _check_profiles_cover(refs: list[tuple[str, ProfileRef]], profiles: Mapping[str, Any]) -> None:
     """Raise one comprehensive error if any ref cannot be resolved.
 
     Args:
-        refs: ``(path, ref)`` pairs from :func:`_collect_profile_refs`.
+        refs: ``(path, ref)`` pairs, as :meth:`FlowSystem._profile_refs` gives them.
         profiles: The solve-time profile supply.
 
     Raises:
@@ -189,13 +135,14 @@ class FlowSystem(BaseModel):
         :meth:`build_model` / :meth:`optimize` can run. Empty when every value
         is inline.
         """
-        refs: list[tuple[str, ProfileRef]] = []
-        for group in (self.carriers, self.effects, self.ports, self.converters, self.storages):
-            _collect_profile_refs(group, '', refs)
         out: dict[str, set[str]] = {}
-        for _, ref in refs:
+        for _, ref in self._profile_refs():
             out.setdefault(ref.dataset, set()).add(ref.variable)
         return out
+
+    def _profile_refs(self) -> list[tuple[str, ProfileRef]]:
+        """Every ``ProfileRef`` in the system, with the element and field it sits in."""
+        return [(path, value) for path, _, _, value in walk(self) if isinstance(value, ProfileRef)]
 
     def spec(self) -> Any:
         """The equations this system is solved as, before any number is bound.
@@ -240,29 +187,21 @@ class FlowSystem(BaseModel):
         """
         from fluxopt.math import build_sources
 
-        refs: list[tuple[str, ProfileRef]] = []
-        for group in (self.carriers, self.effects, self.ports, self.converters, self.storages):
-            _collect_profile_refs(group, '', refs)
-        _check_profiles_cover(refs, profiles or {})
+        profiles = profiles or {}
+        refs = self._profile_refs()
+        _check_profiles_cover(refs, profiles)
+        if not refs:
+            return build_sources(self)
         # Resolved on a copy, so the system stays reusable across profiles.
-        groups = (self.carriers, self.effects, self.ports, self.converters, self.storages)
-        if refs:
-            groups = copy.deepcopy(groups)
-            for group in groups:
-                _resolve_refs(group, profiles or {})
-        carriers, effects, ports, converters, storages = groups
-        return build_sources(
-            timesteps=self.timesteps,
-            carriers=carriers,
-            effects=effects,
-            ports=ports,
-            objective=self.objective,
-            converters=converters,
-            storages=storages,
-            dt=self.dt,
-            periods=self.periods,
-            period_weights=self.period_weights,
-        )
+        system = self.model_copy(deep=True)
+        for _, parent, key, value in list(walk(system)):
+            if not isinstance(value, ProfileRef):
+                continue
+            if isinstance(parent, BaseModel):
+                setattr(parent, key, value.resolve(profiles))
+            else:
+                parent[key] = value.resolve(profiles)
+        return build_sources(system)
 
     def optimize(
         self,

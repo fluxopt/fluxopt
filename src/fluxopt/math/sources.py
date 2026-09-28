@@ -24,11 +24,11 @@ import polars as pl
 import xarray as xr
 
 from fluxopt.types import as_dataarray, compute_dt, normalize_timesteps
-from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
-    from fluxopt.components import Converter, Port
-    from fluxopt.elements import Carrier, Effect, Investment, Sizing, Status, Storage, _BoundFlow
+    from fluxopt.components import Converter
+    from fluxopt.elements import Effect, Investment, Sizing, Status, Storage, _BoundFlow
+    from fluxopt.flow_system import FlowSystem
     from fluxopt.types import Timesteps
 
 #: The directory holding fluxopt's math, one YAML fragment per feature.
@@ -97,6 +97,10 @@ class _Horizon:
         return len(self.periods)
 
     @property
+    def cells(self) -> int:
+        return self.n_time * self.n_period
+
+    @property
     def has_periods(self) -> bool:
         return self.period_weight is not None
 
@@ -113,6 +117,10 @@ class _Horizon:
         da = as_dataarray(value, coords)
         arr = np.asarray(da.transpose(*coords).values, dtype=float).reshape(self.n_time, -1)
         return np.broadcast_to(arr, (self.n_time, self.n_period)).ravel()
+
+    def stacked(self, values: list[Any]) -> np.ndarray:
+        """*values*, each laid on the grid, one block after another."""
+        return np.concatenate([self.on_grid(v) for v in values]) if values else np.empty(0)
 
     def on_time(self, value: Any) -> np.ndarray:
         """A value per timestep."""
@@ -134,15 +142,12 @@ class _Horizon:
         period = np.tile(np.asarray(self.periods, dtype=np.int64), self.n_time)
         return {'time': np.tile(time, blocks), 'period': np.tile(period, blocks)}
 
-    def time_dtype(self) -> Any:
-        return self.time_series.dtype
-
 
 def _horizon(
     timesteps: Timesteps, dt: float | list[float] | None, periods: Any, period_weights: list[float] | None
 ) -> _Horizon:
     time = normalize_timesteps(timesteps)
-    durations = np.asarray(compute_dt(time, dt).values, dtype=float)
+    durations = compute_dt(time, dt)
     if periods is None:
         return _Horizon(time=time, dt=durations, periods=[0], period_weight=None)
     idx = pd.Index(periods, name='period')
@@ -170,6 +175,11 @@ def _frame(columns: dict[str, Any], schema: dict[str, Any]) -> pl.DataFrame:
     return frame.with_columns(pl.col(c).fill_nan(None) for c, t in schema.items() if t == _FLOAT)
 
 
+def _scalars(dim: str, values: dict[str, Any]) -> pl.DataFrame:
+    """One number per id, as a `(dim, value)` table."""
+    return _frame({dim: list(values), 'value': [float(v) for v in values.values()]}, {dim: _STR, 'value': _FLOAT})
+
+
 def _flags(dim: str, ids: list[str]) -> pl.DataFrame:
     """A boolean table marking *ids* true."""
     return _frame({dim: ids, 'value': [True] * len(ids)}, {dim: _STR, 'value': _BOOL})
@@ -189,7 +199,16 @@ def _per_step(
     columns: dict[str, Any] = {name: np.repeat(np.asarray(v), n) if v else [] for name, v in keys.items()}
     columns['time'] = np.tile(np.asarray(horizon.time), len(values))
     columns['value'] = np.concatenate(values) if values else np.array([], dtype=float)
-    return _frame(columns, {**schema, 'time': horizon.time_dtype(), 'value': _FLOAT})
+    return _frame(columns, {**schema, 'time': horizon.time_series.dtype, 'value': _FLOAT})
+
+
+def _per_grid(keys: dict[str, list[str]], values: list[Any], horizon: _Horizon) -> pl.DataFrame:
+    """Blocks of one value per `(time, period)` cell, each keyed by one entry of *keys*, stacked into a table."""
+    columns: dict[str, Any] = {name: np.repeat(np.asarray(v), horizon.cells) if v else [] for name, v in keys.items()}
+    columns |= horizon.grid(len(values))
+    columns['value'] = horizon.stacked(values)
+    schema = {**dict.fromkeys(keys, _STR), 'time': horizon.time_series.dtype, 'period': _INT, 'value': _FLOAT}
+    return _frame(columns, schema)
 
 
 def _on_periods(frame: pl.DataFrame, horizon: _Horizon, axis: str = 'period') -> pl.DataFrame:
@@ -204,7 +223,6 @@ def _on_periods(frame: pl.DataFrame, horizon: _Horizon, axis: str = 'period') ->
 class _Flows:
     """What the other features read about the flows."""
 
-    bound: list[_BoundFlow]
     ids: list[str]
     #: flow id -> its fixed size, for flows sized to a number
     fixed_size: dict[str, float]
@@ -233,33 +251,20 @@ def _flows(bound: list[_BoundFlow], horizon: _Horizon) -> tuple[_Flows, dict[str
     sizing = [(bf.id, bf.flow.size) for bf in bound if isinstance(bf.flow.size, Sizing)]
     invest = [(bf.id, bf.flow.size) for bf in bound if isinstance(bf.flow.size, Investment)]
     profiled = [bf.id for bf in bound if bf.flow.fixed_relative_profile is not None]
-    cells = horizon.n_time * horizon.n_period
+    profile = [np.nan if bf.flow.fixed_relative_profile is None else bf.flow.fixed_relative_profile for bf in bound]
 
     grid = _frame(
         {
-            'flow': np.repeat(ids, cells),
+            'flow': np.repeat(ids, horizon.cells),
             **horizon.grid(len(ids)),
-            'relative_rate_min': np.concatenate([horizon.on_grid(bf.flow.relative_rate_min) for bf in bound])
-            if bound
-            else [],
-            'relative_rate_max': np.concatenate([horizon.on_grid(bf.flow.relative_rate_max) for bf in bound])
-            if bound
-            else [],
-            'fixed': np.concatenate(
-                [
-                    horizon.on_grid(bf.flow.fixed_relative_profile)
-                    if bf.flow.fixed_relative_profile is not None
-                    else np.full(cells, np.nan)
-                    for bf in bound
-                ]
-            )
-            if bound
-            else [],
-            'size': np.repeat([fixed_size.get(i, np.nan) for i in ids], cells),
+            'relative_rate_min': horizon.stacked([bf.flow.relative_rate_min for bf in bound]),
+            'relative_rate_max': horizon.stacked([bf.flow.relative_rate_max for bf in bound]),
+            'fixed': horizon.stacked(profile),
+            'size': np.repeat([fixed_size.get(i, np.nan) for i in ids], horizon.cells),
         },
         {
             'flow': _STR,
-            'time': horizon.time_dtype(),
+            'time': horizon.time_series.dtype,
             'period': _INT,
             'relative_rate_min': _FLOAT,
             'relative_rate_max': _FLOAT,
@@ -267,65 +272,28 @@ def _flows(bound: list[_BoundFlow], horizon: _Horizon) -> tuple[_Flows, dict[str
             'size': _FLOAT,
         },
     )
-    flows = _Flows(bound, ids, fixed_size, sizing, invest, profiled, grid)
+    flows = _Flows(ids, fixed_size, sizing, invest, profiled, grid)
 
-    dt = pl.DataFrame({'time': horizon.time_series, 'dt': horizon.dt})
     sources: dict[str, Any] = {}
-
-    ramp_rows = [bf for bf in bound if bf.flow.ramp_up_per_hour is not None or bf.flow.ramp_down_per_hour is not None]
-    for kind in ('up', 'down'):
-        declared = [bf for bf in ramp_rows if getattr(bf.flow, f'ramp_{kind}_per_hour') is not None]
-        ramps = _frame(
-            {
-                'flow': np.repeat([bf.id for bf in declared], cells),
-                **horizon.grid(len(declared)),
-                'value': np.concatenate([horizon.on_grid(getattr(bf.flow, f'ramp_{kind}_per_hour')) for bf in declared])
-                if declared
-                else [],
-            },
-            {'flow': _STR, 'time': horizon.time_dtype(), 'period': _INT, 'value': _FLOAT},
-        )
-        # A ramp limit is per hour, so the step's allowance is limit x dt, per
-        # unit of size. A ramp of 0 is a row: the row says the flow has a ramp.
-        sources[f'ramp_{kind}_coeff'] = ramps.join(dt, on='time').select(
-            ['flow', 'time', 'period', (pl.col('value') * pl.col('dt')).alias('value')]
+    for name in ('ramp_up_per_hour', 'ramp_down_per_hour'):
+        # A ramp of 0 is a row: the row says the flow has a ramp.
+        declared = [bf for bf in bound if getattr(bf.flow, name) is not None]
+        sources[name] = _per_grid(
+            {'flow': [bf.id for bf in declared]}, [getattr(bf.flow, name) for bf in declared], horizon
         )
 
     pairs = [(bf.id, effect, factor) for bf in bound for effect, factor in bf.flow.effects_per_flow_hour.items()]
-    per_flow_hour = _frame(
-        {
-            'flow': np.repeat([f for f, _, _ in pairs], cells),
-            'effect': np.repeat([e for _, e, _ in pairs], cells),
-            **horizon.grid(len(pairs)),
-            'value': np.concatenate([horizon.on_grid(v) for _, _, v in pairs]) if pairs else [],
-        },
-        {'flow': _STR, 'effect': _STR, 'time': horizon.time_dtype(), 'period': _INT, 'value': _FLOAT},
-    )
-    # dt stays: a per-flow-hour rate times a duration is the step's energy.
-    sources['effects_per_flow_hour'] = (
-        per_flow_hour.join(dt, on='time')
-        .select(['flow', 'effect', 'time', 'period', (pl.col('value') * pl.col('dt')).alias('value')])
-        .filter(pl.col('value') != 0)
-    )
+    sources['effects_per_flow_hour'] = _per_grid(
+        {'flow': [f for f, _, _ in pairs], 'effect': [e for _, e, _ in pairs]}, [v for _, _, v in pairs], horizon
+    ).filter(pl.col('value') != 0)
 
-    aggregated = [
-        bf
-        for bf in bound
-        if any(
-            v is not None
-            for v in (bf.flow.flow_hours_min, bf.flow.flow_hours_max, bf.flow.load_factor_min, bf.flow.load_factor_max)
-        )
-    ]
     total_duration = float(horizon.dt.sum())
     for name in ('flow_hours_min', 'flow_hours_max', 'load_factor_min', 'load_factor_max'):
         # A load factor bounds the mean rate as a share of the size, so it
         # travels as lambda x T and the program multiplies by `size`.
         scale = total_duration if name.startswith('load_factor') else 1.0
-        rows = [(bf.id, getattr(bf.flow, name) * scale) for bf in aggregated if getattr(bf.flow, name) is not None]
-        sources[name] = _on_periods(
-            _frame({'flow': [r[0] for r in rows], 'value': [r[1] for r in rows]}, {'flow': _STR, 'value': _FLOAT}),
-            horizon,
-        )
+        values = {bf.id: getattr(bf.flow, name) * scale for bf in bound if getattr(bf.flow, name) is not None}
+        sources[name] = _on_periods(_scalars('flow', values), horizon)
     return flows, sources
 
 
@@ -355,7 +323,6 @@ def _lump_effects(
 
 def _sizing(flows: _Flows, horizon: _Horizon) -> dict[str, Any]:
     items = flows.sizing + flows.invest
-    ids = [i for i, _ in items]
     invest_ids = [i for i, _ in flows.invest]
     sources: dict[str, Any] = {
         'has_sizing': _flags('flow', [i for i, _ in flows.sizing]),
@@ -363,12 +330,8 @@ def _sizing(flows: _Flows, horizon: _Horizon) -> dict[str, Any]:
         # A flow's size is a `Sizing` or an `Investment`, never both, so the
         # two mechanisms share these without colliding.
         'mandatory': _flags('flow', [i for i, s in items if s.mandatory]),
-        'size_min': _frame(
-            {'flow': ids, 'value': [float(s.size_min) for _, s in items]}, {'flow': _STR, 'value': _FLOAT}
-        ),
-        'size_max': _frame(
-            {'flow': ids, 'value': [float(s.size_max) for _, s in items]}, {'flow': _STR, 'value': _FLOAT}
-        ),
+        'size_min': _scalars('flow', {i: s.size_min for i, s in items}),
+        'size_max': _scalars('flow', {i: s.size_max for i, s in items}),
         **_lump_effects(
             flows.sizing, {'effects_per_size': 'effects_per_size', 'effects_fixed': 'effects_fixed'}, 'flow', horizon
         ),
@@ -392,7 +355,7 @@ def _sizing(flows: _Flows, horizon: _Horizon) -> dict[str, Any]:
         sources[name] = table.with_columns(pl.col('period').alias('build_period'))
 
     prior = [float(inv.prior_size) for _, inv in flows.invest]
-    sources['prior_capacity'] = _frame({'flow': invest_ids, 'value': prior}, {'flow': _STR, 'value': _FLOAT})
+    sources['prior_capacity'] = _scalars('flow', dict(zip(invest_ids, prior, strict=True)))
     sources['has_prior_capacity'] = _flags('flow', [f for f, p in zip(invest_ids, prior, strict=True) if p > 0])
     window: list[tuple[str, Any, Any, float]] = []
     active: list[tuple[str, Any, float]] = []
@@ -422,7 +385,7 @@ def _size_bound(flows: _Flows) -> pl.DataFrame:
     upper = dict.fromkeys(flows.ids, 0.0)
     upper.update({i: float(s.size_max) for i, s in flows.sizing})
     upper.update(flows.fixed_size)
-    return _frame({'flow': list(upper), 'value': list(upper.values())}, {'flow': _STR, 'value': _FLOAT})
+    return _scalars('flow', upper)
 
 
 # --- status -----------------------------------------------------------------
@@ -480,36 +443,19 @@ def _status(
         .join(declared, on=['status_entity', 'state'])
         .select(['status_entity', 'state', pl.col('value_max').fill_null(pl.col('value')).alias('value')]),
         'previous_duration': previous,
-        'initial_status': _frame(
-            {'status_entity': ran, 'value': [1.0 if prior_rates[i][-1] > 0 else 0.0 for i in ran]},
-            {'status_entity': _STR, 'value': _FLOAT},
-        ),
+        'initial_status': _scalars('status_entity', {i: prior_rates[i][-1] > 0 for i in ran}),
         # A prior stay shorter than the minimum forces continuation.
         'forced_at_start': previous.join(minimum, on=['status_entity', 'state'], suffix='_min')
         .filter((pl.col('value') > 0) & (pl.col('value') < pl.col('value_min')))
         .select(['status_entity', 'state', pl.lit(True).alias('value')]),
     }
-    cells = horizon.n_time * horizon.n_period
-    for name, field, per_hour in (
-        ('effects_per_running_hour', 'effects_per_running_hour', True),
-        ('effects_per_startup', 'effects_per_startup', False),
-    ):
-        pairs = [(i, e, v) for i, z in entities for e, v in getattr(z, field).items()]
-        table = _frame(
-            {
-                'status_entity': np.repeat([i for i, _, _ in pairs], cells),
-                'effect': np.repeat([e for _, e, _ in pairs], cells),
-                **horizon.grid(len(pairs)),
-                'value': np.concatenate([horizon.on_grid(v) for _, _, v in pairs]) if pairs else [],
-            },
-            {'status_entity': _STR, 'effect': _STR, 'time': horizon.time_dtype(), 'period': _INT, 'value': _FLOAT},
-        )
-        if per_hour:
-            # `dt` turns a per-running-hour rate into the step's cost; a startup
-            # happens once at the step, so it is not scaled.
-            dt = pl.DataFrame({'time': horizon.time_series, 'dt': horizon.dt})
-            table = table.join(dt, on='time').with_columns(pl.col('value') * pl.col('dt')).drop('dt')
-        sources[name] = table.filter(pl.col('value') != 0)
+    for name in ('effects_per_running_hour', 'effects_per_startup'):
+        pairs = [(i, e, v) for i, z in entities for e, v in getattr(z, name).items()]
+        sources[name] = _per_grid(
+            {'status_entity': [i for i, _, _ in pairs], 'effect': [e for _, e, _ in pairs]},
+            [v for _, _, v in pairs],
+            horizon,
+        ).filter(pl.col('value') != 0)
     return sources
 
 
@@ -553,6 +499,7 @@ def _piecewise(converters: list[Converter], horizon: _Horizon) -> tuple[dict[str
     Returns the tables, the flow -> converter map, and the widest curve.
     """
     curves = [c for c in converters if c.conversion is not None]
+    gated = [c.id for c in curves if c.conversion.status is not None]  # type: ignore[union-attr]
     identity: list[tuple[str, str, Any]] = []
     present: list[tuple[str, int, bool]] = []
     value_keys: dict[str, list[Any]] = {'flow': [], 'bp': []}
@@ -610,9 +557,7 @@ def _piecewise(converters: list[Converter], horizon: _Horizon) -> tuple[dict[str
         ),
         # A gated curve's Status is keyed by the converter's own id.
         'pw_status_of': _frame(
-            {'converter': [c.id for c in curves if c.conversion.status is not None]}  # type: ignore[union-attr]
-            | {'status_entity': [c.id for c in curves if c.conversion.status is not None]},  # type: ignore[union-attr]
-            {'converter': _STR, 'status_entity': _STR},
+            {'converter': gated, 'status_entity': gated}, {'converter': _STR, 'status_entity': _STR}
         ),
     }
     width = max((len(next(iter(c.conversion._iter_normalized()))[1]) for c in curves), default=0)  # type: ignore[union-attr]
@@ -638,10 +583,6 @@ def _storages(storages: list[Storage], horizon: _Horizon) -> dict[str, Any]:
         blocks = [horizon.on_time(pick(s)) for s in storages]
         return _per_step({'storage': ids}, blocks, horizon, {'storage': _STR}).select(['storage', 'time', 'value'])
 
-    dt = pl.DataFrame({'time': horizon.time_series, 'dt': horizon.dt})
-    loss = per_step(lambda s: s.relative_loss_per_hour).join(dt, on='time')
-    eta_c = per_step(lambda s: s.eta_charge).join(dt, on='time')
-    eta_d = per_step(lambda s: s.eta_discharge).join(dt, on='time')
     rel_min = per_step(lambda s: s.relative_level_min)
     rel_max = per_step(lambda s: s.relative_level_max)
     capacity = pl.DataFrame(
@@ -658,7 +599,6 @@ def _storages(storages: list[Storage], horizon: _Horizon) -> dict[str, Any]:
     def sized_only(rel: pl.DataFrame) -> pl.DataFrame:
         return rel.filter(pl.col('storage').is_in(pl.Series(sized_ids, dtype=_STR).implode()) & (pl.col('value') != 0))
 
-    levels = {s.id: s for s in storages}
     return {
         'port_of': pl.DataFrame(
             [
@@ -669,19 +609,14 @@ def _storages(storages: list[Storage], horizon: _Horizon) -> dict[str, Any]:
             schema={'flow': _STR, 'storage': _STR, 'side': _STR},
             orient='row',
         ),
-        'retention': loss.select(['storage', 'time', ((1 - pl.col('value')) ** pl.col('dt')).alias('value')]),
+        'retention_per_hour': per_step(lambda s: s.relative_loss_per_hour).with_columns(
+            (1 - pl.col('value')).alias('value')
+        ),
         'storage_coeff': pl.concat(
             [
-                eta_c.select(
-                    ['storage', pl.lit('charge').alias('side'), 'time', (pl.col('value') * pl.col('dt')).alias('value')]
-                ),
-                eta_d.select(
-                    [
-                        'storage',
-                        pl.lit('discharge').alias('side'),
-                        'time',
-                        (-pl.col('dt') / pl.col('value')).alias('value'),
-                    ]
+                per_step(lambda s: s.eta_charge).select(['storage', pl.lit('charge').alias('side'), 'time', 'value']),
+                per_step(lambda s: s.eta_discharge).select(
+                    ['storage', pl.lit('discharge').alias('side'), 'time', (-1 / pl.col('value')).alias('value')]
                 ),
             ]
         ),
@@ -690,12 +625,8 @@ def _storages(storages: list[Storage], horizon: _Horizon) -> dict[str, Any]:
         'given_capacity': capacity.rename({'capacity': 'value'}),
         'has_capacity_sizing': _flags('storage', sized_ids),
         'capacity_mandatory': _flags('storage', [i for i, z in sized if z.mandatory]),
-        'capacity_min': _frame(
-            {'storage': sized_ids, 'value': [float(z.size_min) for _, z in sized]}, {'storage': _STR, 'value': _FLOAT}
-        ),
-        'capacity_max': _frame(
-            {'storage': sized_ids, 'value': [float(z.size_max) for _, z in sized]}, {'storage': _STR, 'value': _FLOAT}
-        ),
+        'capacity_min': _scalars('storage', {i: z.size_min for i, z in sized}),
+        'capacity_max': _scalars('storage', {i: z.size_max for i, z in sized}),
         'relative_level_min': sized_only(rel_min),
         'relative_level_max': sized_only(rel_max),
         **_lump_effects(
@@ -708,21 +639,9 @@ def _storages(storages: list[Storage], horizon: _Horizon) -> dict[str, Any]:
         'prevent_simultaneous': _flags('storage', [s.id for s in storages if s.prevent_simultaneous]),
         # Dense: the prior level sits on the constant side of the first
         # step's balance, where an absent row is a binding zero.
-        'prior_level': _on_periods(
-            _frame(
-                {'storage': ids, 'value': [float(levels[i].prior_level or 0.0) for i in ids]},
-                {'storage': _STR, 'value': _FLOAT},
-            ),
-            horizon,
-        ),
+        'prior_level': _on_periods(_scalars('storage', {s.id: s.prior_level or 0.0 for s in storages}), horizon),
         **{
-            key: _frame(
-                {
-                    'storage': [s.id for s in storages if getattr(s, key) is not None],
-                    'value': [getattr(s, key) for s in storages if getattr(s, key) is not None],
-                },
-                {'storage': _STR, 'value': _FLOAT},
-            )
+            key: _scalars('storage', {s.id: getattr(s, key) for s in storages if getattr(s, key) is not None})
             for key in ('final_level_min', 'final_level_max')
         },
     }
@@ -789,6 +708,7 @@ def _refuse_cycles(effect_ids: list[str], edges: list[tuple[str, str]]) -> None:
 
 def _effects(effects: list[Effect], objective: dict[str, float], horizon: _Horizon) -> dict[str, Any]:
     ids = [e.id for e in effects]
+    index = {e: i for i, e in enumerate(ids)}
     factors = [
         (e.id, source, period, value)
         for e in effects
@@ -796,25 +716,24 @@ def _effects(effects: list[Effect], objective: dict[str, float], horizon: _Horiz
         for period, value in zip(horizon.periods, _cross_effect_factor(factor, horizon, e.id, source), strict=True)
     ]
     _refuse_cycles(
-        ids, sorted({(e, s) for e, s, _, v in factors if v != 0}, key=lambda es: (ids.index(es[0]), ids.index(es[1])))
+        ids, sorted({(e, s) for e, s, _, v in factors if v != 0}, key=lambda es: (index[es[0]], index[es[1]]))
     )
 
     # (I - C)^-1 - I: what one unit charged to an effect adds to every other,
     # through every chain. Zero on the diagonal, since a cycle is refused.
     share_rows = []
     n = len(ids)
-    for p_idx, period in enumerate(horizon.periods):
+    for period in horizon.periods:
         c = np.zeros((n, n))
         for effect, source, p, value in factors:
             if p == period:
-                c[ids.index(effect), ids.index(source)] = value
+                c[index[effect], index[source]] = value
         if not c.any():
             continue
         chained = np.linalg.inv(np.eye(n) - c) - np.eye(n)
         share_rows.extend(
             (ids[i], ids[j], period, float(chained[i, j])) for i in range(n) for j in range(n) if chained[i, j] != 0
         )
-        del p_idx
 
     def at_period(value: Any, what: str) -> list[float | None]:
         return [None] * horizon.n_period if value is None else list(horizon.per_period(value, what))
@@ -857,13 +776,7 @@ def _effects(effects: list[Effect], objective: dict[str, float], horizon: _Horiz
             [(e, p, hi) for e, p, _, hi in periodic if hi is not None], schema=key, orient='row'
         ),
         **{
-            name: _frame(
-                {
-                    'effect': [e.id for e in effects if getattr(e, name) is not None],
-                    'value': [getattr(e, name) for e in effects if getattr(e, name) is not None],
-                },
-                {'effect': _STR, 'value': _FLOAT},
-            )
+            name: _scalars('effect', {e.id: getattr(e, name) for e in effects if getattr(e, name) is not None})
             for name in ('total_min', 'total_max')
         },
     }
@@ -872,20 +785,11 @@ def _effects(effects: list[Effect], objective: dict[str, float], horizon: _Horiz
 # --- the whole system ---------------------------------------------------------
 
 
-def build_sources(
-    *,
-    timesteps: Timesteps,
-    carriers: list[Carrier],
-    effects: list[Effect],
-    ports: list[Port],
-    objective: str | dict[str, float],
-    converters: list[Converter] | None = None,
-    storages: list[Storage] | None = None,
-    dt: float | list[float] | None = None,
-    periods: Any = None,
-    period_weights: list[float] | None = None,
-) -> dict[str, Any]:
-    """Every table :data:`PROGRAM` is bound to, for a system of resolved elements.
+def build_sources(system: FlowSystem) -> dict[str, Any]:
+    """Every table :data:`PROGRAM` is bound to, for a system whose profiles are resolved.
+
+    The system checked its references when it was built;
+    :meth:`FlowSystem.sources` resolves its profiles and calls this.
 
     Raises:
         UnsupportedFeatureError: If the system uses a feature the program does
@@ -896,20 +800,11 @@ def build_sources(
     """
     from fluxopt.elements import PENALTY_EFFECT_ID, Effect, node_id
 
-    converters = converters or []
-    storages = storages or []
+    converters, storages, effects = system.converters, system.storages, system.effects
     if not any(e.id == PENALTY_EFFECT_ID for e in effects):
         effects = [*effects, Effect(id=PENALTY_EFFECT_ID)]
-    validate_system(
-        carriers=carriers,
-        effects=effects,
-        ports=ports,
-        converters=converters,
-        storages=storages,
-        objective=objective,
-    )
-    horizon = _horizon(timesteps, dt, periods, period_weights)
-    bound = [bf for comp in (*ports, *converters, *storages) for bf in comp._qualified_flows()]
+    horizon = _horizon(system.timesteps, system.dt, system.periods, system.period_weights)
+    bound = [bf for comp in (*system.ports, *converters, *storages) for bf in comp._qualified_flows()]
     flows, sources = _flows(bound, horizon)
     ids = flows.ids
 
@@ -958,7 +853,7 @@ def build_sources(
         if not any(c.id == cid and c.conversion is not None for c in converters)
     }
 
-    # --- rate bounds: one chain of overrides over the dense envelope -----------
+    # --- rate bounds: the first case a flow falls in decides ---------------------
     invest_ids = [i for i, _ in flows.invest]
     has_size, profiled = flows.has_size, set(flows.profiled)
     bounded = [f for f in ids if f in has_size and f not in profiled]
@@ -966,37 +861,35 @@ def build_sources(
     def among(names: Any) -> pl.Expr:
         return pl.col('flow').is_in(pl.Series(sorted(names), dtype=_STR).implode())
 
-    size = pl.col('size')
-    b = flows.grid.with_columns(
-        pl.when(among(bounded)).then(size * pl.col('relative_rate_min')).otherwise(0.0).alias('rate_min'),
-        pl.when(among(bounded)).then(size * pl.col('relative_rate_max')).otherwise(np.inf).alias('rate_max'),
+    size, fixed = pl.col('size'), pl.col('fixed')
+    # A gated flow's rate is carried by `running`, unless a decided size takes
+    # over; a decided size is a variable, so the rate is free here and the
+    # envelope holds against the size in rows.
+    gated, free = among(own_ids), among(sizing_ids | set(invest_ids))
+    pinned = among(profiled) & fixed.is_not_null()
+    scaled_max = size * pl.when(among(profiled)).then(fixed).otherwise(pl.col('relative_rate_max'))
+    rate_min = (
+        pl.when(gated | free)
+        .then(0.0)
+        .when(pinned)
+        .then(size * fixed)
+        .when(among(bounded))
+        .then(size * pl.col('relative_rate_min'))
+        .otherwise(0.0)
     )
-    pinned = among(profiled) & pl.col('fixed').is_not_null()
-    b = b.with_columns(
-        pl.when(pinned).then(size * pl.col('fixed')).otherwise(pl.col('rate_min')).alias('rate_min'),
-        pl.when(pinned).then(size * pl.col('fixed')).otherwise(pl.col('rate_max')).alias('rate_max'),
-    )
-    # A decided size is a variable: the rate is free here, and the envelope
-    # holds against the size in rows.
-    free = among(sizing_ids | set(invest_ids))
-    b = b.with_columns(
-        pl.when(free).then(0.0).otherwise(pl.col('rate_min')).alias('rate_min'),
-        pl.when(free).then(np.inf).otherwise(pl.col('rate_max')).alias('rate_max'),
-    )
-    # A gated flow's rate is carried by `running`, unless a decided size takes over.
-    gated = among(own_ids)
-    scaled_max = size * pl.when(among(profiled)).then(pl.col('fixed')).otherwise(pl.col('relative_rate_max'))
-    b = b.with_columns(
-        pl.when(gated).then(0.0).otherwise(pl.col('rate_min')).alias('rate_min'),
-        pl.when(gated & among(sizing_ids))
-        .then(np.inf)
-        .when(gated)
+    rate_max = (
+        pl.when(gated & ~among(sizing_ids))
         .then(scaled_max)
-        .otherwise(pl.col('rate_max'))
-        .alias('rate_max'),
+        .when(gated | free)
+        .then(np.inf)
+        .when(pinned)
+        .then(size * fixed)
+        .when(among(bounded))
+        .then(size * pl.col('relative_rate_max'))
+        .otherwise(np.inf)
     )
-    for key in ('rate_min', 'rate_max'):
-        sources[key] = b.select(['flow', 'time', 'period', pl.col(key).alias('value')])
+    for key, bound_expr in (('rate_min', rate_min), ('rate_max', rate_max)):
+        sources[key] = flows.grid.select(['flow', 'time', 'period', bound_expr.alias('value')])
     # The envelope spans every flow a size scales: decided sizes, and gated flows.
     scaled = flows.grid.filter(among(sizing_ids | set(invest_ids) | set(status_of)))
     grid_keys = ['flow', 'time', 'period']
@@ -1009,15 +902,13 @@ def build_sources(
     sources |= _sizing(flows, horizon)
 
     # --- carriers, conversion, storage, effects -------------------------------
-    sign = {bf.id: float(bf.sign) for bf in bound}
-    sources['carrier_sign'] = _frame({'flow': ids, 'value': [sign[f] for f in ids]}, {'flow': _STR, 'value': _FLOAT})
+    sources['carrier_sign'] = _scalars('flow', {bf.id: bf.sign for bf in bound})
     linear, converter_of, width = _converters(converters, horizon)
     curves, curve_converter_of, bp_width = _piecewise(converters, horizon)
     sources |= linear | curves | _storages(storages, horizon)
     effect_ids = [e.id for e in effects]
-    sources |= _effects(effects, objective_weights(effect_ids, objective), horizon)
+    sources |= _effects(effects, objective_weights(effect_ids, system.objective), horizon)
     sources['dt'] = pl.DataFrame({'time': horizon.time_series, 'value': horizon.dt})
-    sources['time_weight'] = pl.DataFrame({'time': horizon.time_series, 'value': np.ones(horizon.n_time)})
 
     converter_of |= curve_converter_of
 
@@ -1032,12 +923,9 @@ def build_sources(
     sources['converter_of'] = relation(converter_of, 'flow', 'converter')
     sources['status_of'] = relation(status_of, 'flow', 'status_entity')
 
-    carrier_ids = [node_id(c.id, n) if n else c.id for c in carriers for n in c.nodes or [None]]
-    converter_ids = list(
-        dict.fromkeys(
-            [c.id for c in converters if c.conversion is None] + [c.id for c in converters if c.conversion is not None]
-        )
-    )
+    carrier_ids = [node_id(c.id, n) if n else c.id for c in system.carriers for n in c.nodes or [None]]
+    # Linear converters first, then curves.
+    converter_ids = [c.id for c in sorted(converters, key=lambda c: c.conversion is not None)]
 
     def axis(name: str, values: Any, dtype: Any) -> pl.DataFrame:
         return pl.DataFrame({name: list(values)}, schema={name: dtype})

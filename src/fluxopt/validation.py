@@ -3,8 +3,7 @@
 :func:`validate_system` is the single source of truth for "is this set of
 elements a coherent system": unique ids, resolvable carrier and effect
 references, and node membership. ``FlowSystem`` runs it at construction,
-and ``build_sources`` runs it before building a table — so the declarative
-and the programmatic path reject the same mistakes with the same messages.
+and every path to the sources goes through a ``FlowSystem``.
 """
 
 from __future__ import annotations
@@ -14,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
-from fluxopt.elements import PENALTY_EFFECT_ID
+from fluxopt.elements import PENALTY_EFFECT_ID, walk
 
 if TYPE_CHECKING:
     from fluxopt.components import Converter, Port
@@ -31,20 +30,6 @@ def check_unique(ids: list[str], kind: str) -> None:
     dupes = sorted(i for i, n in Counter(ids).items() if n > 1)
     if dupes:
         raise ValueError(f'Duplicate {kind} id(s): {dupes}')
-
-
-def _collect_effect_refs(obj: object, out: set[str]) -> None:
-    """Collect effect ids referenced by ``effects_*`` / ``contribution_from`` dicts."""
-    if isinstance(obj, BaseModel):
-        for name in type(obj).model_fields:
-            val = getattr(obj, name)
-            if isinstance(val, dict) and (name.startswith('effects_') or name == 'contribution_from'):
-                out.update(val)
-            else:
-                _collect_effect_refs(val, out)
-    elif isinstance(obj, list):
-        for item in obj:
-            _collect_effect_refs(item, out)
 
 
 def validate_system(
@@ -76,9 +61,14 @@ def validate_system(
     check_unique([bf.id for bf in flows], 'flow')
 
     effect_ids = {e.id for e in effects} | {PENALTY_EFFECT_ID}
-    refs: set[str] = set()
-    for group in (effects, ports, converters, storages):
-        _collect_effect_refs(group, refs)
+    # Every key of an `effects_*` or `contribution_from` field names an effect.
+    refs = {
+        effect
+        for _, parent, name, value in walk([effects, ports, converters, storages])
+        if isinstance(parent, BaseModel) and isinstance(value, dict)
+        if name.startswith('effects_') or name == 'contribution_from'
+        for effect in value
+    }
     if unknown := sorted(refs - effect_ids):
         raise ValueError(f'Elements reference undeclared effect(s) {unknown}; declared {sorted(effect_ids)}')
 

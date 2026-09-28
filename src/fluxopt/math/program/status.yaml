@@ -35,7 +35,7 @@ parameters:
   duration_big_m: {dims: [status_entity, state]}
   previous_duration: {dims: [status_entity, state]}
   forced_at_start: {dims: [status_entity, state], dtype: bool}
-  effects_per_running_hour: {dims: [status_entity, effect, time, period]}   # running effects * dt
+  effects_per_running_hour: {dims: [status_entity, effect, time, period]}   # per hour on
   effects_per_startup: {dims: [status_entity, effect, time, period]}        # startup effects
 
 variables:
@@ -85,7 +85,7 @@ expressions:
     otherwise: shift(running, along=time, offset=-1) - running
     description: 1 where a stay in the state ends after this step.
   contribution_running:
-    expression: running * effects_per_running_hour
+    expression: running * dt * effects_per_running_hour
     description: What being on costs, per timestep, for whatever carries the decision.
   contribution_startup:
     expression: startup * effects_per_startup

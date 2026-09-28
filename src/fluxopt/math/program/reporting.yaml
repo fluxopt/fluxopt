@@ -23,13 +23,13 @@ expressions:
     expression: rate * carrier_sign
     description: Each flow's signed share of its carrier; it sums to zero per carrier and step.
   total_duration:
-    expression: sum(dt * time_weight, over=time)
-    description: How long the horizon is, weighted.
+    expression: sum(dt, over=time)
+    description: How long the horizon is.
   capacity_factor:
     expression: flow_hours / (size * total_duration)
     description: What each flow carries, as a share of running at its size throughout.
   relative_mean_level:
-    expression: sum(level * dt * time_weight, over=time) / (total_duration * capacity)
+    expression: sum(level * dt, over=time) / (total_duration * capacity)
     description: The mean level of each storage, as a share of its capacity.
   # Each contribution again, with what it charges through `contribution_from`
   # added: CO2 priced into cost is charged to the flow that emitted it.
@@ -70,7 +70,6 @@ expressions:
 given:
   parameters:
     dt: {dims: [time]}
-    time_weight: {dims: [time]}
     carrier_sign: {dims: [flow]}
     share: {dims: [effect, source, period]}
   variables:

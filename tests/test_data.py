@@ -19,19 +19,18 @@ from fluxopt import (
     Storage,
     optimize,
 )
-from fluxopt.math import build_sources
 
 
 def _sources(ports, carriers=None, converters=None) -> dict:
     """The sources of a three-step system that minimizes `cost`."""
-    return build_sources(
+    return FlowSystem(
         timesteps=ts(3),
         carriers=carriers or [Carrier(id='b')],
         effects=[Effect(id='cost')],
         ports=ports,
-        converters=converters,
+        converters=converters or [],
         objective='cost',
-    )
+    ).sources()
 
 
 def _values(table: pl.DataFrame, flow: str) -> list[float]:
@@ -249,21 +248,10 @@ class TestCarrierValidation:
                 ports=[Port(id='grid', imports=[Flow(carrier='elec', size=100)])],
             )
 
-    def test_undeclared_carrier_without_flow_system(self):
-        """Building the sources directly rejects flows with undeclared carriers."""
-        with pytest.raises(ValueError, match=r"undeclared carrier\(s\) \['elec'\]"):
-            build_sources(
-                timesteps=ts(2),
-                objective='cost',
-                carriers=[Carrier(id='gas')],
-                effects=[Effect(id='cost')],
-                ports=[Port(id='grid', imports=[Flow(carrier='elec', size=100)])],
-            )
-
     def test_duplicate_carrier_raises(self):
         """Duplicate carrier declarations raise ValueError."""
         with pytest.raises(ValueError, match='Duplicate carrier id'):
-            build_sources(
+            FlowSystem(
                 timesteps=ts(2),
                 objective='cost',
                 carriers=[Carrier(id='elec'), Carrier(id='elec')],
@@ -274,7 +262,7 @@ class TestCarrierValidation:
     def test_flow_node_on_nodeless_carrier_raises(self):
         """Flow with node on a carrier without nodes raises ValueError."""
         with pytest.raises(ValueError, match='has no nodes'):
-            build_sources(
+            FlowSystem(
                 timesteps=ts(2),
                 objective='cost',
                 carriers=[Carrier(id='heat')],
@@ -285,7 +273,7 @@ class TestCarrierValidation:
     def test_flow_node_not_in_carrier_nodes_raises(self):
         """Flow with node not declared on carrier raises ValueError."""
         with pytest.raises(ValueError, match="node='C'"):
-            build_sources(
+            FlowSystem(
                 timesteps=ts(2),
                 objective='cost',
                 carriers=[Carrier(id='heat', nodes=['A', 'B'])],
@@ -352,7 +340,7 @@ class TestMultiNodeCarrier:
 
     def test_node_in_carrier_dim_id(self):
         """Carrier dimension coordinates contain 'heat:A' and 'heat:B'."""
-        sources = build_sources(
+        sources = FlowSystem(
             timesteps=ts(3),
             objective='cost',
             carriers=[Carrier(id='heat', nodes=['A', 'B'])],
@@ -373,7 +361,7 @@ class TestMultiNodeCarrier:
                     exports=[Flow(carrier='heat', node='B', size=100, fixed_relative_profile=[0.8, 0.8, 0.8])],
                 ),
             ],
-        )
+        ).sources()
         assert sources['carrier']['carrier'].to_list() == ['heat:A', 'heat:B']
 
 

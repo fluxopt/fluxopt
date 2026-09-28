@@ -69,12 +69,12 @@ class TestComputeDt:
     def test_explicit_scalar(self):
         ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(3)])
         result = compute_dt(ts, 0.5)
-        assert list(result.values) == [0.5, 0.5, 0.5]
+        assert list(result) == [0.5, 0.5, 0.5]
 
     def test_explicit_list(self):
         ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(3)])
         result = compute_dt(ts, [1.0, 2.0, 3.0])
-        assert list(result.values) == [1.0, 2.0, 3.0]
+        assert list(result) == [1.0, 2.0, 3.0]
 
     def test_explicit_list_wrong_length(self):
         ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(2)])
@@ -84,12 +84,12 @@ class TestComputeDt:
     def test_auto_int_defaults_to_1(self):
         ts = pd.Index([0, 1, 2], dtype=np.int64)
         result = compute_dt(ts, None)
-        assert list(result.values) == [1.0, 1.0, 1.0]
+        assert list(result) == [1.0, 1.0, 1.0]
 
     def test_auto_datetime_hourly(self):
         ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(4)])
         result = compute_dt(ts, None)
-        assert list(result.values) == [1.0, 1.0, 1.0, 1.0]
+        assert list(result) == [1.0, 1.0, 1.0, 1.0]
 
     def test_auto_datetime_irregular(self):
         dts = [
@@ -99,36 +99,30 @@ class TestComputeDt:
         ]
         ts = pd.DatetimeIndex(dts)
         result = compute_dt(ts, None)
-        assert list(result.values) == [1.0, 1.0, 3.0]
+        assert list(result) == [1.0, 1.0, 3.0]
 
     def test_single_timestep(self):
         ts = pd.Index([0], dtype=np.int64)
         result = compute_dt(ts, None)
-        assert list(result.values) == [1.0]
+        assert list(result) == [1.0]
 
     def test_single_datetime_timestep(self):
         ts = pd.DatetimeIndex([datetime(2024, 1, 1)])
         result = compute_dt(ts, None)
-        assert list(result.values) == [1.0]
+        assert list(result) == [1.0]
 
 
 class TestAsDataArrayScalar:
-    def test_no_broadcast_returns_0dim(self):
-        result = as_dataarray(5.0, {'time': pd.RangeIndex(3)}, broadcast=False)
-        assert result.shape == ()
-        assert float(result) == 5.0
+    def test_int_is_a_float(self):
+        result = as_dataarray(3, {'time': pd.RangeIndex(3)})
+        assert list(result) == [3.0, 3.0, 3.0]
         assert result.name == 'value'
-
-    def test_int_no_broadcast(self):
-        result = as_dataarray(3, {'time': pd.RangeIndex(3)}, broadcast=False)
-        assert result.shape == ()
-        assert float(result) == 3.0
 
     def test_broadcast_single_coord(self):
         idx = pd.RangeIndex(3)
         result = as_dataarray(5.0, {'time': idx})
         assert result.shape == (3,)
-        assert list(result.values) == [5.0, 5.0, 5.0]
+        assert list(result) == [5.0, 5.0, 5.0]
         assert result.dims == ('time',)
 
     def test_broadcast_multi_coord(self):
@@ -139,23 +133,18 @@ class TestAsDataArrayScalar:
         assert result.dims == ('flow', 'time')
         np.testing.assert_array_equal(result.values, np.full((2, 4), 2.0))
 
-    def test_custom_name(self):
-        result = as_dataarray(1.0, {'t': [0, 1]}, name='cost')
-        assert result.name == 'cost'
-
 
 class TestAsDataArrayList:
     def test_single_coord(self):
         result = as_dataarray([1.0, 2.0, 3.0], {'time': pd.RangeIndex(3)})
         assert result.dims == ('time',)
-        assert list(result.values) == [1.0, 2.0, 3.0]
+        assert list(result) == [1.0, 2.0, 3.0]
 
     def test_multi_coord_matches_correct_dim(self):
         flows = pd.Index(['a', 'b'])
         time = pd.RangeIndex(3)
-        result = as_dataarray([10.0, 20.0, 30.0], {'flow': flows, 'time': time}, broadcast=False)
-        assert result.dims == ('time',)
-        assert list(result.values) == [10.0, 20.0, 30.0]
+        result = as_dataarray([10.0, 20.0, 30.0], {'flow': flows, 'time': time})
+        assert list(result.sel(flow='a')) == [10.0, 20.0, 30.0], 'varies along time, the dim of its length'
 
     def test_multi_coord_broadcast(self):
         flows = pd.Index(['a', 'b'])
@@ -188,7 +177,7 @@ class TestAsDataArrayNdarray:
         arr = np.array([10.0, 20.0])
         result = as_dataarray(arr, {'flow': pd.Index(['a', 'b'])})
         assert result.dims == ('flow',)
-        assert list(result.values) == [10.0, 20.0]
+        assert list(result) == [10.0, 20.0]
 
 
 class TestAsDataArraySeries:
@@ -196,7 +185,7 @@ class TestAsDataArraySeries:
         s = pd.Series([4.0, 5.0, 6.0])
         result = as_dataarray(s, {'time': pd.RangeIndex(3)})
         assert result.dims == ('time',)
-        assert list(result.values) == [4.0, 5.0, 6.0]
+        assert list(result) == [4.0, 5.0, 6.0]
 
 
 class TestAsDataArrayDataArray:
@@ -205,7 +194,7 @@ class TestAsDataArrayDataArray:
         result = as_dataarray(da, {'time': pd.RangeIndex(2)})
         assert result.name == 'value'
         assert result.dims == ('time',)
-        assert list(result.values) == [1.0, 2.0]
+        assert list(result) == [1.0, 2.0]
 
     def test_broadcast_expands_dims(self):
         da = xr.DataArray([1.0, 2.0], dims=['time'], coords={'time': [0, 1]})
@@ -265,8 +254,8 @@ class TestAsDataArrayMultiPeriod:
     def test_unnamed_1d_prefers_time(self):
         time = pd.RangeIndex(2, name='time')
         period = pd.Index([2024, 2030], name='period')
-        result = as_dataarray([10.0, 20.0], {'time': time, 'period': period}, broadcast=False)
-        assert result.dims == ('time',)
+        result = as_dataarray([10.0, 20.0], {'time': time, 'period': period})
+        assert list(result.sel(period=2024)) == [10.0, 20.0], 'varies along time, not period'
 
 
 class TestAsDataArrayUnsupported:
