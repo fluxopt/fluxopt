@@ -1,14 +1,17 @@
-"""Smoke tests for the user-facing benchmark (``python -m fluxopt.benchmark``)."""
+"""Smoke tests for the reference-system benchmark CLI (``python reference.py``)."""
 
 from __future__ import annotations
 
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
-from fluxopt.benchmark import SYSTEMS, main, measure
+from reference import SYSTEMS, main, measure
+
+REFERENCE = Path(__file__).with_name('reference.py')
 
 
 @pytest.mark.parametrize('name', list(SYSTEMS))
@@ -45,9 +48,9 @@ def test_worker_prints_json(capsys):
 
 
 def test_cli_end_to_end():
-    """`python -m fluxopt.benchmark <model> --json` produces one JSON row per model."""
+    """`python reference.py <model> --json` produces one JSON row per model."""
     proc = subprocess.run(
-        [sys.executable, '-m', 'fluxopt.benchmark', 'district_heating', '--timesteps', '24', '--json'],
+        [sys.executable, str(REFERENCE), 'district_heating', '--timesteps', '24', '--json'],
         capture_output=True,
         text=True,
         check=False,

@@ -1,13 +1,13 @@
-"""User-runnable benchmark: build a few realistic energy systems, report speed and memory.
+"""Build a few realistic energy systems, report speed and memory.
 
-Run it against your installation to see how fast fluxopt's build pipeline
+Run it from ``benchmark/`` to see how fast fluxopt's build pipeline
 (Elements → sources → specsolve model) is on your hardware::
 
-    python -m fluxopt.benchmark                        # all systems, one hourly year
-    python -m fluxopt.benchmark district_heating       # a single system
-    python -m fluxopt.benchmark --timesteps 720        # one month instead of a year
-    python -m fluxopt.benchmark --solve                # also time the HiGHS solve
-    python -m fluxopt.benchmark --json                 # machine-readable output
+    uv run python reference.py                        # all systems, one hourly year
+    uv run python reference.py district_heating       # a single system
+    uv run python reference.py --timesteps 720        # one month instead of a year
+    uv run python reference.py --solve                # also time the HiGHS solve
+    uv run python reference.py --json                 # machine-readable output
 
 The reference systems are realistic, readable models — constant and
 time-varying data, several effects and cross-effect couplings — so the numbers
@@ -1340,7 +1340,7 @@ def _peak_rss_mib() -> float | None:
 
 def _measure_in_subprocess(model: str, timesteps: int, solve: bool) -> dict[str, Any]:
     """Measure one system in a fresh interpreter so peak memory is attributed per model."""
-    cmd = [sys.executable, '-m', 'fluxopt.benchmark', '--worker', model, '--timesteps', str(timesteps)]
+    cmd = [sys.executable, __file__, '--worker', model, '--timesteps', str(timesteps)]
     if solve:
         cmd.append('--solve')
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -1429,7 +1429,7 @@ def _print_report(rows: list[dict[str, Any]], timesteps: int, solve: bool) -> No
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog='python -m fluxopt.benchmark',
+        prog='reference.py',
         description='Build a few realistic reference energy systems and report speed and memory.',
     )
     parser.add_argument(

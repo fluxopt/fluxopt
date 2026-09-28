@@ -10,9 +10,10 @@ One `benchmark()` suite, served by [CodSpeed] in CI and [pytest-benchmem] locall
 - `systems.py` — feature archetypes (`multi_node`, `status`, `piecewise`,
   `effects`, `sizing`) + `(n, timesteps)` scale tiers. Deterministic.
 - `test_build.py` — the feature matrix at one scale, and a multi_node scaling curve.
-- `test_reference.py` — the realistic reference systems bundled in the package
-  (`fluxopt.benchmark`, also behind `python -m fluxopt.benchmark`) at a quarter
-  year. Skips on fluxopt versions that predate the module.
+- `reference.py` — realistic reference systems, and a CLI that times them
+  (`uv run python reference.py`).
+- `test_reference.py` — the reference systems at a quarter year;
+  `test_reference_cli.py` smoke-tests the CLI.
 
 ## Pinned, standalone env
 
