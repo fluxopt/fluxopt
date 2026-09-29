@@ -6,7 +6,7 @@ that the solver chooses the correct capacity.
 
 from __future__ import annotations
 
-from conftest import ts, waste
+from conftest import read, ts, waste
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, Storage, optimize
@@ -42,7 +42,7 @@ class TestFlowSizing:
             ],
         )
         assert_allclose(result.objective, 100.0, rtol=1e-5)
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
         assert size >= 50.0 - 1e-5  # No per-size cost, so size not uniquely determined
 
     def test_optional_sizing_with_fixed_cost(self):
@@ -76,7 +76,7 @@ class TestFlowSizing:
             ],
         )
         assert_allclose(result.objective, 300.0, rtol=1e-5)
-        indicator = float(result.solution['flow--size_indicator'].sel(flow='Src(Heat)').values)
+        indicator = float(read(result, 'size_built').sel(flow='Src(Heat)').values)
         assert_allclose(indicator, 1.0, atol=1e-5)
 
     def test_fixed_size_binary_invest(self):
@@ -108,7 +108,7 @@ class TestFlowSizing:
             ],
         )
         assert_allclose(result.objective, 110.0, rtol=1e-5)
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
         assert_allclose(size, 80.0, rtol=1e-5)
 
     def test_per_size_effects(self):
@@ -139,7 +139,7 @@ class TestFlowSizing:
             ],
         )
         assert_allclose(result.objective, 350.0, rtol=1e-5)
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
         assert_allclose(size, 50.0, rtol=1e-5)
 
     def test_investable_flow_with_fixed_profile(self):
@@ -169,7 +169,7 @@ class TestFlowSizing:
             ],
         )
         assert_allclose(result.objective, 75.0, rtol=1e-5)
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
         assert_allclose(size, 50.0, rtol=1e-5)
 
     def test_multiple_investable_merit_order(self):
@@ -210,8 +210,8 @@ class TestFlowSizing:
             ],
         )
         assert_allclose(result.objective, 120.6, rtol=1e-4)
-        cheap_size = float(result.sizes.sel(flow='Cheap(Heat)').values)
-        expensive_size = float(result.sizes.sel(flow='Expensive(Heat)').values)
+        cheap_size = float(read(result, 'chosen_size').sel(flow='Cheap(Heat)').values)
+        expensive_size = float(read(result, 'chosen_size').sel(flow='Expensive(Heat)').values)
         assert_allclose(cheap_size, 60.0, rtol=1e-4)
         assert_allclose(expensive_size, 0.0, atol=1e-4)
 
@@ -250,7 +250,7 @@ class TestSizingLoadFactor:
             ],
         )
         assert_allclose(result.objective, 220.0, rtol=1e-5)
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
         assert_allclose(size, 20.0, rtol=1e-5)
 
     def test_load_factor_min_forces_overproduction(self):
@@ -287,7 +287,7 @@ class TestSizingLoadFactor:
             ],
         )
         assert_allclose(result.objective, 75.0, rtol=1e-5)
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
         assert_allclose(size, 30.0, rtol=1e-5)
 
 
@@ -325,7 +325,7 @@ class TestSizingRamps:
             ],
         )
         assert_allclose(result.objective, 110.0, rtol=1e-5)
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
         assert_allclose(size, 60.0, rtol=1e-5)
 
 
@@ -361,5 +361,5 @@ class TestStorageSizing:
             ],
         )
         assert_allclose(result.objective, 50.0, rtol=1e-5)
-        cap = float(result.storage_capacities.sel(storage='Battery').values)
+        cap = float(read(result, 'chosen_capacity').sel(storage='Battery').values)
         assert cap >= 50.0 - 1e-5  # No per-size cost, so capacity not uniquely determined

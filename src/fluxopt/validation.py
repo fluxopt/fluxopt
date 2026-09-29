@@ -2,10 +2,9 @@
 
 :func:`validate_system` is the single source of truth for "is this set of
 elements a coherent system": unique ids, resolvable carrier and effect
-references, and node membership. ``FlowSystem`` runs it at construction
-(including the objective), and ``ModelData.build`` runs it before
-materializing — so the declarative and the programmatic path reject the
-same mistakes with the same messages.
+references, and node membership. ``FlowSystem`` runs it at construction,
+and ``build_sources`` runs it before building a table — so the declarative
+and the programmatic path reject the same mistakes with the same messages.
 """
 
 from __future__ import annotations
@@ -55,7 +54,7 @@ def validate_system(
     ports: list[Port],
     converters: list[Converter],
     storages: list[Storage],
-    objective: str | dict[str, float] | None = None,
+    objective: str | dict[str, float],
 ) -> None:
     """Fail fast on duplicate ids and undeclared references.
 
@@ -67,8 +66,7 @@ def validate_system(
         converters: Converter components.
         storages: Storage components.
         objective: Effect name or ``{effect: weight}`` dict to validate
-            against the declared effects; None skips the objective checks
-            (``ModelData.build`` has no objective).
+            against the declared effects.
     """
     check_unique([e.id for e in effects], 'effect')
     check_unique([c.id for c in carriers], 'carrier')
@@ -97,12 +95,11 @@ def validate_system(
                 f'Flow {bf.id!r} specifies node={node!r} but carrier {carrier.id!r} only has nodes {carrier.nodes}'
             )
 
-    if objective is not None:
-        obj_keys = [objective] if isinstance(objective, str) else list(objective)
-        if unknown := sorted(set(obj_keys) - effect_ids):
-            raise ValueError(f'objective references undeclared effect(s) {unknown}; declared {sorted(effect_ids)}')
-        if not any(k != PENALTY_EFFECT_ID for k in obj_keys):
-            raise ValueError(
-                'objective must name at least one non-penalty effect to minimize — '
-                'the built-in penalty effect is added automatically and cannot be the sole objective'
-            )
+    obj_keys = [objective] if isinstance(objective, str) else list(objective)
+    if unknown := sorted(set(obj_keys) - effect_ids):
+        raise ValueError(f'objective references undeclared effect(s) {unknown}; declared {sorted(effect_ids)}')
+    if not any(k != PENALTY_EFFECT_ID for k in obj_keys):
+        raise ValueError(
+            'objective must name at least one non-penalty effect to minimize — '
+            'the built-in penalty effect is added automatically and cannot be the sole objective'
+        )

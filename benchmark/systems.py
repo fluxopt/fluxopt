@@ -8,12 +8,11 @@ variables/constraints, so each has its own time/memory fingerprint. Deterministi
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from fluxopt import Carrier, Converter, Effect, Flow, ModelData, PiecewiseConversion, Port, Sizing, Status, Storage
-from fluxopt.model import FlowSystemModel
+from fluxopt import Carrier, Converter, Effect, Flow, FlowSystem, PiecewiseConversion, Port, Sizing, Status, Storage
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -276,13 +275,18 @@ SCENARIOS: dict[str, Callable[..., Elements]] = {
 }
 
 
-def make_model_data(builder: Callable[..., Elements], **scale: int) -> ModelData:
-    """Elements → ModelData."""
-    return ModelData.build(**builder(**scale))
+def make_system(builder: Callable[..., Elements], **scale: int) -> FlowSystem:
+    """Elements → a system that minimises cost."""
+    return FlowSystem(**builder(**scale), objective='cost')
 
 
-def build_model(data: ModelData, objective: str = 'cost') -> FlowSystemModel:
-    """ModelData → linopy model, without solving (mirrors optimize() before solve)."""
-    fs = FlowSystemModel(data, objective=objective)
-    fs.build()
-    return fs
+def make_sources(system: FlowSystem) -> dict[str, Any]:
+    """A system → the tables its spec binds."""
+    return system.sources()
+
+
+def build_model(system: FlowSystem, sources: dict[str, Any]) -> Any:
+    """Spec and sources → a built model, without solving (mirrors optimize() before solve)."""
+    import specsolve
+
+    return specsolve.build(system.spec(), sources)

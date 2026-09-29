@@ -1,11 +1,18 @@
+"""The headline quantities a result is read in, as reported expressions.
+
+Each is named in ``math/program/reporting.yaml`` (or, for ``size`` and
+``flow_hours``, in the fragment that uses them) and evaluated at the solve.
+"""
+
 import numpy as np
-from conftest import ts
+from conftest import read, ts
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, Storage, optimize
 
 # Fixed three-step demand: 50, 80, 60 MW -> 190 MWh at dt=1.
 _DEMAND_PROFILE = [0.5, 0.8, 0.6]
 _DEMAND_ENERGY = 190.0
+_GRID = 'grid(elec)'
 
 
 def _solve(source, *, dt=None, storages=()):
@@ -22,106 +29,68 @@ def _solve(source, *, dt=None, storages=()):
     )
 
 
-def test_stats_summary_quickstart():
-    """`summary` is a KPI namespace: objective, effect totals, per-flow utilization."""
-    summary = _solve(Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})).stats.summary
-
-    # KPIs present; no storages -> no storage KPIs.
-    assert set(summary.data_vars) == {
-        'objective',
-        'effect_totals',
-        'total_duration',
-        'size',
-        'total_flow_hours',
-        'capacity_factor',
-    }
-
-    # Meaningful content, not just keys.
-    assert np.isfinite(summary['objective'].item())
-    assert np.isclose(summary['effect_totals'].sel(effect='cost').item(), _DEMAND_ENERGY * 0.04)
-    assert summary['total_duration'].item() == 3.0
-
-    # It's a namespace, not a flat table: per-flow KPIs share `flow`, effect
-    # totals live on `effect`.
-    assert 'effect' in summary['effect_totals'].dims
-    for var in ('size', 'total_flow_hours', 'capacity_factor'):
-        assert summary[var].dims == ('flow',)
-
-    flow = 'grid(elec)'
-    size = summary['size'].sel(flow=flow).item()
-    tfh = summary['total_flow_hours'].sel(flow=flow).item()
-    cf = summary['capacity_factor'].sel(flow=flow).item()
-
-    assert size == 200
-    assert np.isclose(tfh, _DEMAND_ENERGY)
-    # Capacity factor is the dimensionless quotient, in [0, 1].
-    assert 0 <= cf <= 1
-    assert np.isclose(cf, _DEMAND_ENERGY / (200 * 3))
+def _reported(result, name):
+    return read(result, name, 'expression')
 
 
-def test_unsized_flow_has_nan_size_but_real_throughput():
-    """An unsized flow reports NaN size/CF, yet its throughput stays visible."""
-    stats = _solve(Flow(carrier='elec', effects_per_flow_hour={'cost': 0.04})).stats  # size=None
-    flow = 'grid(elec)'
+def test_the_headline_quantities_of_a_sized_flow():
+    result = _solve(Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04}))
 
-    assert np.isnan(stats.resolved_sizes.sel(flow=flow).item())
-    assert np.isnan(stats.capacity_factor.sel(flow=flow).item())
-    # The design point: throughput is real even when size is unknown.
-    assert np.isclose(stats.total_flow_hours.sel(flow=flow).item(), _DEMAND_ENERGY)
+    assert np.isclose(read(result, 'effect_total').sel(effect='cost').item(), _DEMAND_ENERGY * 0.04)
+    assert _reported(result, 'total_duration').item() == 3.0
+    assert _reported(result, 'size').sel(flow=_GRID).item() == 200
+    assert np.isclose(_reported(result, 'flow_hours').sel(flow=_GRID).item(), _DEMAND_ENERGY)
+    assert np.isclose(_reported(result, 'capacity_factor').sel(flow=_GRID).item(), _DEMAND_ENERGY / (200 * 3)), (
+        'energy carried over running at full size throughout'
+    )
 
 
-def test_resolved_sizes_fills_in_invested_size():
-    """For an invested flow, resolved_sizes uses the optimized size, and CF follows."""
-    # A per-size cost makes the solver pick the smallest feasible size (the peak).
+def test_an_unsized_flow_reads_size_zero_but_real_throughput():
+    """An expression has a value everywhere, so no size reads 0 and its capacity factor is infinite."""
+    result = _solve(Flow(carrier='elec', effects_per_flow_hour={'cost': 0.04}))
+
+    assert _reported(result, 'size').sel(flow=_GRID).item() == 0
+    assert np.isinf(_reported(result, 'capacity_factor').sel(flow=_GRID).item())
+    assert np.isclose(_reported(result, 'flow_hours').sel(flow=_GRID).item(), _DEMAND_ENERGY)
+
+
+def test_a_decided_size_is_the_size_the_solver_chose():
+    """A per-size cost makes the solver pick the smallest feasible size: the peak."""
     sizing = Sizing(size_min=0, size_max=500, effects_per_size={'cost': 1.0})
     result = _solve(Flow(carrier='elec', size=sizing, effects_per_flow_hour={'cost': 0.04}))
-    stats = result.stats
-    flow = 'grid(elec)'
 
-    invested = result.sizes.sel(flow=flow).item()
-    resolved = stats.resolved_sizes.sel(flow=flow).item()
-    # data.flows.size is NaN for invested flows; resolved_sizes fills from the solution.
-    assert np.isnan(result.data.flows.size.sel(flow=flow).item())
-    assert np.isfinite(resolved)
-    assert np.isclose(resolved, invested)
-    assert np.isclose(resolved, 80)  # peak demand
-
-    cf = stats.capacity_factor.sel(flow=flow).item()
-    assert np.isclose(cf, _DEMAND_ENERGY / (resolved * 3))
+    size = _reported(result, 'size').sel(flow=_GRID).item()
+    assert np.isclose(size, read(result, 'chosen_size').sel(flow=_GRID).item())
+    assert np.isclose(size, 80), 'the peak demand'
+    assert np.isclose(_reported(result, 'capacity_factor').sel(flow=_GRID).item(), _DEMAND_ENERGY / (size * 3))
 
 
 def test_capacity_factor_is_horizon_independent():
-    """Scaling every timestep duration leaves CF unchanged while throughput scales."""
+    """Scaling every timestep duration leaves the capacity factor unchanged while throughput scales."""
 
     def source():
         return Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
-    flow = 'grid(elec)'
+    short = _solve(source(), dt=[1.0, 1.0, 1.0])
+    long = _solve(source(), dt=[2.0, 2.0, 2.0])
 
-    short = _solve(source(), dt=[1.0, 1.0, 1.0]).stats
-    long = _solve(source(), dt=[2.0, 2.0, 2.0]).stats
-
-    # Throughput and horizon both double...
-    assert np.isclose(long.total_duration.item(), 2 * short.total_duration.item())
+    assert np.isclose(_reported(long, 'total_duration').item(), 2 * _reported(short, 'total_duration').item())
     assert np.isclose(
-        long.total_flow_hours.sel(flow=flow).item(),
-        2 * short.total_flow_hours.sel(flow=flow).item(),
+        _reported(long, 'flow_hours').sel(flow=_GRID).item(),
+        2 * _reported(short, 'flow_hours').sel(flow=_GRID).item(),
     )
-    # ...but the dimensionless capacity factor does not change.
     assert np.isclose(
-        long.capacity_factor.sel(flow=flow).item(),
-        short.capacity_factor.sel(flow=flow).item(),
+        _reported(long, 'capacity_factor').sel(flow=_GRID).item(),
+        _reported(short, 'capacity_factor').sel(flow=_GRID).item(),
     )
 
 
-def test_stats_summary_with_storage():
-    """With storages, `summary` adds capacity and relative mean level on `storage`."""
+def test_a_storage_reports_its_capacity_and_mean_level():
     source = Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': [0.1, 0.9, 0.1]})
     demand = Flow(carrier='elec', size=50, fixed_relative_profile=[0.5, 0.5, 0.5])
     storage = Storage(
         id='batt', charging=Flow(carrier='elec', size=80), discharging=Flow(carrier='elec', size=80), capacity=80
     )
-
     result = optimize(
         timesteps=ts(3),
         carriers=[Carrier(id='elec')],
@@ -130,22 +99,9 @@ def test_stats_summary_with_storage():
         ports=[Port(id='grid', imports=[source]), Port(id='load', exports=[demand])],
         storages=[storage],
     )
-    stats = result.stats
-    summary = stats.summary
 
-    assert 'capacity' in summary
-    assert 'relative_mean_level' in summary
-    assert summary['capacity'].dims == ('storage',)
-    assert summary['relative_mean_level'].dims == ('storage',)
-
-    assert summary['capacity'].sel(storage='batt').item() == 80
-
-    # relative_mean_level is the dt-weighted mean level over capacity, in [0, 1].
-    rml = stats.relative_mean_level.sel(storage='batt').item()
-    assert 0 <= rml <= 1
-
-    dims = result.data.dims
-    expected = float(
-        (result.storage_levels * dims.dt * dims.weights).sum('time').sel(storage='batt') / stats.total_duration / 80
-    )
-    assert np.isclose(rml, expected)
+    assert _reported(result, 'capacity').sel(storage='batt').item() == 80
+    level = read(result, 'level').sel(storage='batt')
+    mean = _reported(result, 'relative_mean_level').sel(storage='batt').item()
+    assert 0 <= mean <= 1
+    assert np.isclose(mean, float(level.sum('time')) / 3 / 80), 'the step-weighted mean level over the capacity'

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any, Literal, NamedTuple, override
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from fluxopt.types import PiecewiseMethod, Variate
+from fluxopt.types import Variate, variate_out_of_range
 
-# Element models hold arbitrary xarray/numpy/pandas values (Variate) and
-# IdList containers; pydantic validates ids/scalars/structure while passing
-# those through by isinstance.
-_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
+# Element models hold arbitrary xarray/numpy/pandas values (Variate);
+# pydantic validates ids/scalars/structure while passing those through by
+# isinstance.
+_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
 class Element(BaseModel):
@@ -81,9 +81,9 @@ class Sizing(Element):
     See: docs/math/sizing.md
     """
 
-    size_min: float
+    size_min: float = Field(ge=0)
     """Minimum capacity if invested."""
-    size_max: float
+    size_max: float = Field(ge=0)
     """Maximum capacity."""
     mandatory: bool = True
     """If True, must be built (no binary indicator)."""
@@ -91,6 +91,14 @@ class Sizing(Element):
     """Effect cost per unit size (e.g. €/MW)."""
     effects_fixed: dict[str, Variate] = Field(default_factory=dict)
     """Fixed effect cost if built (optional only)."""
+
+    @model_validator(mode='after')
+    def _bounds_are_ordered(self) -> Sizing:
+        """An empty range is a typo, not a model."""
+        if self.size_max < self.size_min:
+            msg = f'size_max ({self.size_max}) is below size_min ({self.size_min})'
+            raise ValueError(msg)
+        return self
 
 
 class Investment(Element):
@@ -101,15 +109,15 @@ class Investment(Element):
     Size is decided once — no growth or partial retirement.
     """
 
-    size_min: float
+    size_min: float = Field(ge=0)
     """Minimum capacity if built."""
-    size_max: float
+    size_max: float = Field(ge=0)
     """Maximum capacity."""
     mandatory: bool = True
     """If True, must build exactly once; if False, may build at most once."""
-    lifetime: int | None = None
+    lifetime: int | None = Field(default=None, gt=0)
     """Periods active after build; None = forever."""
-    prior_size: float = 0.0
+    prior_size: float = Field(default=0.0, ge=0)
     """Pre-existing capacity available from period 0."""
     effects_per_size_at_build: dict[str, Variate] = Field(default_factory=dict)
     """One-time per-MW costs charged in the build period."""
@@ -119,6 +127,14 @@ class Investment(Element):
     """Recurring per-MW costs charged every active period."""
     effects_fixed_recurring: dict[str, Variate] = Field(default_factory=dict)
     """Recurring fixed costs charged every active period."""
+
+    @model_validator(mode='after')
+    def _bounds_are_ordered(self) -> Investment:
+        """An empty range is a typo, not a model."""
+        if self.size_max < self.size_min:
+            msg = f'size_max ({self.size_max}) is below size_min ({self.size_min})'
+            raise ValueError(msg)
+        return self
 
 
 class Status(Element):
@@ -130,18 +146,30 @@ class Status(Element):
     See: docs/math/status.md
     """
 
-    uptime_min: float | None = None  # [h]
+    uptime_min: float | None = Field(default=None, ge=0)  # [h]
     """Minimum consecutive on-hours."""
-    uptime_max: float | None = None  # [h]
+    uptime_max: float | None = Field(default=None, ge=0)  # [h]
     """Maximum consecutive on-hours."""
-    downtime_min: float | None = None  # [h]
+    downtime_min: float | None = Field(default=None, ge=0)  # [h]
     """Minimum consecutive off-hours."""
-    downtime_max: float | None = None  # [h]
+    downtime_max: float | None = Field(default=None, ge=0)  # [h]
     """Maximum consecutive off-hours."""
     effects_per_running_hour: dict[str, Variate] = Field(default_factory=dict)
     """Effect cost per running hour."""
     effects_per_startup: dict[str, Variate] = Field(default_factory=dict)
     """Effect cost per startup event."""
+
+    @model_validator(mode='after')
+    def _durations_are_ordered(self) -> Status:
+        """An empty window is a typo, not a model."""
+        for lo, hi, what in (
+            (self.uptime_min, self.uptime_max, 'uptime'),
+            (self.downtime_min, self.downtime_max, 'downtime'),
+        ):
+            if lo is not None and hi is not None and hi < lo:
+                msg = f'{what}_max ({hi}) is below {what}_min ({lo})'
+                raise ValueError(msg)
+        return self
 
 
 class Flow(Element):
@@ -157,7 +185,7 @@ class Flow(Element):
 
     ``short_id`` must be unique within a component.  The system-global
     qualified id ``component(short_id)`` is derived at build time and
-    appears as the ``flow`` coordinate in ``ModelData`` and results; the
+    appears as the ``flow`` label in the sources and results; the
     flow itself is never modified. Storage resolves colliding short_ids
     to ``charge`` / ``discharge`` at that point.
 
@@ -299,9 +327,8 @@ class Effect(Element):
     """
     contribution_from: dict[str, Variate] = Field(default_factory=dict)
     """Cross-effect factors ``{source_effect: factor}``.
-    Scalar factors apply identically to both domains. Time-varying factors
-    apply per-timestep in the temporal domain and are rejected at build time
-    when the source effect carries lump (sizing/fixed) contributions.
+    Scalar or per-period values, applied identically to both domains. A factor
+    that varies over time is refused; charge a time-varying price on the flows.
     """
     period_weights: list[float] | None = None  # ω[p] — scales total across periods
     """Per-period weights ω for total aggregation;
@@ -400,7 +427,20 @@ class Storage(Element):
 
     @override
     def model_post_init(self, __context: Any) -> None:
-        """Validate carrier match and status/size requirements."""
+        """Validate physical ranges, carrier match, and status/size requirements."""
+        if isinstance(self.capacity, (int, float)) and self.capacity < 0:
+            msg = f'Storage {self.id!r}: capacity is negative ({self.capacity})'
+            raise ValueError(msg)
+        for name, low, high, low_open in (
+            ('eta_charge', 0.0, 1.0, True),
+            ('eta_discharge', 0.0, 1.0, True),
+            ('relative_loss_per_hour', 0.0, 1.0, False),
+        ):
+            bad = variate_out_of_range(getattr(self, name), low=low, high=high, low_open=low_open)
+            if bad is not None:
+                span = f'({low}, {high}]' if low_open else f'[{low}, {high}]'
+                msg = f'Storage {self.id!r}: {name} must be in {span}, got {bad}'
+                raise ValueError(msg)
         if self.charging.carrier != self.discharging.carrier:
             msg = (
                 f'Storage {self.id!r}: charging carrier {self.charging.carrier!r} '
@@ -439,9 +479,8 @@ _CurveTuple = tuple[str, 'list[Variate]'] | tuple[str, 'list[Variate]', Literal[
 class PiecewiseConversion(Element):
     """Piecewise-linear conversion linking N flows.
 
-    Wraps :func:`linopy.piecewise.add_piecewise_formulation`. All flows
-    share interpolation weights — every operating point lies on the same
-    piece of the curve.
+    All flows share interpolation weights, so every operating point lies on
+    the same piece of the curve.
 
     Two input forms:
 
@@ -467,11 +506,6 @@ class PiecewiseConversion(Element):
     tuples. Need >=2 flows; all breakpoint lists must share the same
     length (>=2). At most one tuple may carry a non-equality bound,
     and only when exactly two flows are present.
-    """
-    method: PiecewiseMethod = 'auto'
-    """Formulation. ``"auto"`` picks LP (2 flows + bounded +
-    matching convexity), else incremental (monotonic) or sos2.
-    Override with ``"sos2"`` / ``"incremental"`` / ``"lp"``.
     """
     status: Status | None = None
     """Component-level on/off behavior gating the curve."""
@@ -509,9 +543,6 @@ class PiecewiseConversion(Element):
             raise ValueError(msg)
         if nonequal and len(flows_pts_bounds) > 2:
             msg = f'Inequality bounds require exactly 2 flows, got {len(flows_pts_bounds)}'
-            raise ValueError(msg)
-        if self.method == 'lp' and not nonequal:
-            msg = "method='lp' requires one flow with bound '<=' or '>='"
             raise ValueError(msg)
 
     def _iter_normalized(

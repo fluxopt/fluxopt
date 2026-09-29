@@ -7,9 +7,9 @@ config) and ``ProfileRef`` references to time-series; the actual series are
 supplied at solve time via ``profiles`` (``system.optimize(profiles=...)``) and
 resolved into arrays just before the model is built.
 
-The FlowSystem has no modeling behavior of its own — ``.optimize()`` runs the existing
-pipeline (:meth:`ModelData.build` → :class:`FlowSystemModel`). Declaration (the system)
-and use (building/solving) stay separate.
+The FlowSystem has no modeling behavior of its own: :meth:`FlowSystem.sources`
+builds the tables bound to the math program, and ``.optimize()`` solves them.
+Declaration (the system) and use (building/solving) stay separate.
 """
 
 from __future__ import annotations
@@ -17,29 +17,27 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from fluxopt.components import Converter, Port
 from fluxopt.elements import Carrier, Effect, Storage
-from fluxopt.model import FlowSystemModel
-from fluxopt.model_data import ModelData
 from fluxopt.schema import from_dict, to_dict
-from fluxopt.types import IdList, ProfileRef, Timesteps
+from fluxopt.types import ProfileRef, Timesteps, normalize_timesteps
 from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Mapping
     from pathlib import Path
 
-    from fluxopt.results import Result
+    import specsolve
 
-_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True)
+_PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
 def _resolve_refs(obj: Any, profiles: Mapping[str, Any]) -> Any:
     """Recursively replace every ``ProfileRef`` in *obj* with a resolved array.
 
-    Walks element dataclasses, dicts, lists, and ``IdList`` containers,
+    Walks element dataclasses, dicts and lists,
     mutating in place. Non-container leaves (scalars, arrays) pass through.
 
     Args:
@@ -55,10 +53,6 @@ def _resolve_refs(obj: Any, profiles: Mapping[str, Any]) -> Any:
     if isinstance(obj, list):
         for i, value in enumerate(obj):
             obj[i] = _resolve_refs(value, profiles)
-        return obj
-    if isinstance(obj, IdList):
-        for item in obj:
-            _resolve_refs(item, profiles)
         return obj
     if isinstance(obj, BaseModel):
         for name in type(obj).model_fields:
@@ -83,7 +77,7 @@ def _collect_profile_refs(obj: Any, path: str, out: list[tuple[str, ProfileRef]]
     elif isinstance(obj, dict):
         for key, value in obj.items():
             _collect_profile_refs(value, f'{path}[{key!r}]', out)
-    elif isinstance(obj, (list, IdList)):
+    elif isinstance(obj, list):
         for i, value in enumerate(obj):
             _collect_profile_refs(value, f'{path}[{i}]', out)
     elif isinstance(obj, BaseModel):
@@ -142,6 +136,18 @@ class FlowSystem(BaseModel):
     """Integer period labels for multi-period optimization."""
     period_weights: list[float] | None = None
     """Explicit weights per period. Inferred from gaps if None."""
+
+    @field_validator('timesteps', mode='before')
+    @classmethod
+    def _timestamps_only(cls, value: Any) -> Any:
+        """Refuse numbered steps before pydantic reads a number as seconds since 1970.
+
+        ISO strings pass through to pydantic's own parsing, which is how a
+        dumped system loads again.
+        """
+        if not (isinstance(value, list) and value and all(isinstance(t, str) for t in value)):
+            normalize_timesteps(value)
+        return value
 
     @model_validator(mode='after')
     def _validate_references(self) -> FlowSystem:
@@ -203,71 +209,101 @@ class FlowSystem(BaseModel):
             out.setdefault(ref.dataset, set()).add(ref.variable)
         return out
 
-    def build_model(self, profiles: Mapping[str, Any] | None = None) -> FlowSystemModel:
-        """Materialize an unbuilt solver model from this declaration.
+    def spec(self) -> Any:
+        """The equations this system is solved as, before any number is bound.
 
-        Resolves ``ProfileRef`` references (on a copy — the system stays
-        reusable across different ``profiles``), builds the ``ModelData``, and
-        returns a :class:`FlowSystemModel` carrying this system's
-        :attr:`objective`. Call ``build()`` on the result to inspect the linopy
-        model before solving, or ``optimize()`` to build and solve in one step.
+        A :class:`mathspec.Spec`, composed from the fragments under
+        :data:`fluxopt.math.PROGRAM`, with the piecewise special-ordered sets
+        written out as binaries so every solver takes it. Read it, typeset it (``mathspec.to_latex``), or
+        extend it — ``mathspec.override`` it with a patch, or ``merge`` a
+        fragment of your own onto the shipped ones — and solve the result
+        with :func:`specsolve.solve` against :meth:`sources`.
+        """
+        from fluxopt.math import program
+
+        return program().expand('sos')
+
+    def sources(self, profiles: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """The numbers :meth:`spec` is bound to, one table per declared name.
+
+        Every parameter, relation and dimension the spec declares, keyed by
+        the timestamps, years and ids the elements were written with. Edit a
+        table, or add one for a declaration of your own, and hand the dict to
+        :func:`specsolve.solve`: the spec's ``assumptions:`` check whatever
+        arrives.
 
         Args:
-            profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
-                holding the referenced variables. Required if the system uses
-                any ``ProfileRef`` — see :meth:`required_profiles`.
+            profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or
+                mapping) holding the referenced variables. Required if the
+                system uses any ``ProfileRef`` — see :meth:`required_profiles`.
 
         Raises:
             KeyError: If any ``ProfileRef`` cannot be resolved from *profiles*;
                 lists every unresolvable ref with its element/field path.
         """
+        from fluxopt.math import build_sources
+
         refs: list[tuple[str, ProfileRef]] = []
         for group in (self.carriers, self.effects, self.ports, self.converters, self.storages):
             _collect_profile_refs(group, '', refs)
         _check_profiles_cover(refs, profiles or {})
-
-        carriers, effects, ports, converters, storages = (
-            # No refs → nothing to substitute, so no copy or walk needed.
-            (self.carriers, self.effects, self.ports, self.converters, self.storages)
-            if not refs
-            else copy.deepcopy((self.carriers, self.effects, self.ports, self.converters, self.storages))
-        )
+        # Resolved on a copy, so the system stays reusable across profiles.
+        groups = (self.carriers, self.effects, self.ports, self.converters, self.storages)
         if refs:
-            for group in (carriers, effects, ports, converters, storages):
+            groups = copy.deepcopy(groups)
+            for group in groups:
                 _resolve_refs(group, profiles or {})
-
-        data = ModelData.build(
-            self.timesteps,
-            carriers,
-            effects,
-            ports,
-            converters,
-            storages,
-            self.dt,
+        carriers, effects, ports, converters, storages = groups
+        return build_sources(
+            timesteps=self.timesteps,
+            carriers=carriers,
+            effects=effects,
+            ports=ports,
+            objective=self.objective,
+            converters=converters,
+            storages=storages,
+            dt=self.dt,
             periods=self.periods,
             period_weights=self.period_weights,
         )
-        return FlowSystemModel(data, objective=self.objective)
 
     def optimize(
         self,
         profiles: Mapping[str, Any] | None = None,
         *,
         solver: str = 'highs',
-        customize: Callable[[FlowSystemModel], None] | None = None,
-        **kwargs: Any,
-    ) -> Result:
-        """Resolve profile references, build the model, and solve.
+        archive: str | Path | None = None,
+        **solver_options: Any,
+    ) -> specsolve.Result:
+        """Solve :meth:`spec` against :meth:`sources`.
 
-        Shorthand for ``build_model(profiles).optimize(...)``.
+        The same as ``specsolve.solve(system.spec(), system.sources(profiles))``.
+        A solver other than HiGHS gets the piecewise sets as special-ordered
+        sets, which it takes natively.
 
         Args:
             profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
                 holding the referenced variables. Required if the system uses
                 any ``ProfileRef``.
-            solver: Solver backend name.
-            customize: Callback to modify the linopy model between build and
-                solve; receives the built ``FlowSystemModel`` (use ``model.m``).
-            **kwargs: Passed through to ``linopy.Model.solve()``.
+            solver: Solver name — ``highs``, or ``gurobi`` with specsolve's extra.
+            archive: Where specsolve writes the spec, its data and the answer,
+                as a ``.zip`` or a directory; ``specsolve.load_archive`` reads
+                it back.
+            **solver_options: Passed to the solver verbatim, in its own vocabulary.
+
+        Returns:
+            specsolve's result: ``objective``, ``to_dataarray(name)`` for a
+            variable and ``to_dataarray(name, kind='expression')`` for a
+            reported expression such as ``flow_hours`` or ``priced_flow_hour``.
         """
-        return self.build_model(profiles).optimize(customize=customize, solver=solver, **kwargs)
+        import specsolve
+
+        from fluxopt.math import program
+
+        return specsolve.solve(
+            self.spec() if solver == 'highs' else program(),
+            self.sources(profiles),
+            solver,
+            solver_options=solver_options or None,
+            archive=archive,
+        )

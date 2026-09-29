@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, Protocol, get_args, overload, override, runtime_checkable
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pydantic import BaseModel, ConfigDict, GetCoreSchemaHandler
-from pydantic_core import core_schema
+from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping
+    from collections.abc import Mapping
 
 
 class ProfileRef(BaseModel):
@@ -22,7 +21,7 @@ class ProfileRef(BaseModel):
     :class:`xr.DataArray` with :meth:`resolve` before building the model.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra='forbid')
 
     dataset: str
     """Id of the dataset holding the profile (a key into ``profiles``)."""
@@ -64,122 +63,43 @@ the field itself; ``as_dataarray`` enforces that user input only uses dims the
 caller declared in *coords*.
 """
 
-type Timesteps = list[datetime] | list[int] | pd.DatetimeIndex | pd.Index
+type Timesteps = list[datetime] | pd.DatetimeIndex
 
 # -- Internal types (after normalization) ------------------------------
-type TimeIndex = pd.DatetimeIndex | pd.Index
-
-# -- Piecewise formulation method (mirrors linopy.add_piecewise_formulation) --
-type PiecewiseMethod = Literal['auto', 'sos2', 'incremental', 'lp']
+type TimeIndex = pd.DatetimeIndex
 
 
-@runtime_checkable
-class Identified(Protocol):
-    @property
-    def id(self) -> str: ...
+def variate_out_of_range(
+    value: Variate,
+    *,
+    low: float,
+    high: float,
+    low_open: bool = False,
+) -> float | None:
+    """The first value outside ``[low, high]``, or None if all of them are in.
 
-
-class IdList[T: Identified]:
-    """Frozen, ordered container with access by id (str) or position (int).
-
-    Supports concatenation via ``+``.
-
-    Args:
-        items: Elements to store. Must have unique ids.
-
-    Raises:
-        ValueError: On duplicate ids.
-    """
-
-    __slots__ = ('_by_id', '_items')
-
-    def __init__(self, items: Iterable[T]) -> None:
-        self._items: tuple[T, ...] = tuple(items)
-        self._by_id: dict[str, T] = {}
-        for item in self._items:
-            if item.id in self._by_id:
-                raise ValueError(f"Duplicate id: '{item.id}'")
-            self._by_id[item.id] = item
-
-    @overload
-    def __getitem__(self, key: str) -> T: ...
-    @overload
-    def __getitem__(self, key: int) -> T: ...
-    def __getitem__(self, key: str | int) -> T:
-        if isinstance(key, str):
-            return self._by_id[key]
-        return self._items[key]
-
-    def __iter__(self) -> Iterator[T]:
-        return iter(self._items)
-
-    def __len__(self) -> int:
-        return len(self._items)
-
-    def __contains__(self, key: object) -> bool:
-        if isinstance(key, str):
-            return key in self._by_id
-        return key in self._items
-
-    def __add__(self, other: IdList[T]) -> IdList[T]:
-        return IdList([*self._items, *other._items])
-
-    @override
-    def __repr__(self) -> str:
-        return f'IdList({list(self._items)!r})'
-
-    @classmethod
-    def __get_pydantic_core_schema__(cls, source: Any, handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
-        """Validate from a list (or existing IdList) and serialize to a list."""
-        args = get_args(source)
-        item_schema = handler.generate_schema(args[0]) if args else core_schema.any_schema()
-        list_schema = core_schema.list_schema(item_schema)
-
-        def _coerce(value: object) -> IdList[Any]:
-            return value if isinstance(value, IdList) else IdList(value)  # type: ignore[arg-type]
-
-        return core_schema.no_info_after_validator_function(
-            _coerce,
-            core_schema.union_schema([core_schema.is_instance_schema(IdList), list_schema]),
-            serialization=core_schema.plain_serializer_function_ser_schema(
-                list, return_schema=list_schema, when_used='always'
-            ),
-        )
-
-
-def fast_concat(arrays: list[xr.DataArray], dim: pd.Index) -> xr.DataArray:
-    """Stack DataArrays along a new leading dimension.
-
-    Drop-in replacement for ``xr.concat`` when all slices already share the
-    same dims, shape, and coords. Skips alignment, deepcopy, and reindex —
-    just stacks the underlying numpy arrays.
+    A :data:`Variate` is a scalar, a series, or a :class:`ProfileRef` that
+    names numbers living somewhere else. The first two can be checked where
+    they are written, which is what this is for; a ``ProfileRef`` cannot,
+    because its values arrive when profiles are resolved — so it reads as in
+    range here and is checked again once it is real
+    (``docs/design/validation-layers.md``).
 
     Args:
-        arrays: DataArrays with identical dims, shape, and coords.
-        dim: Index for the new leading dimension.
+        value: The declared value.
+        low: Lower bound.
+        high: Upper bound.
+        low_open: Whether *low* itself is excluded.
 
-    Raises:
-        ValueError: If *arrays* is empty or any slice has a different shape or dims than the first.
+    Returns:
+        An offending value, or None.
     """
-    if not arrays:
-        raise ValueError("fast_concat: 'arrays' must not be empty")
-    first = arrays[0]
-    expected_shape = first.shape
-    expected_dims = first.dims
-    for i, a in enumerate(arrays[1:], 1):
-        if a.shape != expected_shape:
-            raise ValueError(f'fast_concat: slice {i} shape {a.shape} != expected {expected_shape}')
-        if a.dims != expected_dims:
-            raise ValueError(f'fast_concat: slice {i} dims {a.dims} != expected {expected_dims}')
-    data = np.array([a.values for a in arrays])
-    name = str(dim.name)
-    dims = [name, *expected_dims]
-    coords: dict[str, object] = {name: dim}
-    for d in expected_dims:
-        key = str(d)
-        if key in first.coords:
-            coords[key] = first.coords[key]
-    return xr.DataArray(data, dims=dims, coords=coords)
+    if isinstance(value, ProfileRef):
+        return None
+    values = np.atleast_1d(np.asarray(value, dtype=float))
+    below = values <= low if low_open else values < low
+    bad = values[below | (values > high)]
+    return float(bad[0]) if bad.size else None
 
 
 def as_dataarray(
@@ -194,8 +114,8 @@ def as_dataarray(
     Pipeline: ``convert → validate dims → validate coord values → broadcast``.
 
     See :data:`Variate` for accepted inputs. Pandas inputs (``Series``,
-    ``DataFrame``) follow the same convention as ``linopy.as_dataarray``: the
-    axis ``name`` attribute selects the corresponding target dim. For
+    ``DataFrame``): the axis ``name`` attribute selects the corresponding
+    target dim. For
     ``ndarray``/``list``, the dim is selected by length (must be unambiguous).
     For ``DataArray``, dims must be a subset of *coords* and coord values must
     match exactly — alignment errors are surfaced loudly, not silently masked.
@@ -232,7 +152,7 @@ def as_dataarray(
     if isinstance(value, xr.DataArray):
         da = value
     elif isinstance(value, (pd.Series, pd.DataFrame)):
-        # Mirror linopy: pandas axes already carry coords; use axis.name as dim.
+        # Pandas axes already carry coords; use axis.name as dim.
         # Fall back to length-matching only when no axis is named.
         named = [a.name for a in value.axes if a.name is not None]
         if len(named) == value.ndim:
@@ -314,39 +234,30 @@ def _from_unnamed_1d(arr: np.ndarray, coord_idx: dict[str, pd.Index], name: str,
 
 
 def normalize_timesteps(timesteps: Timesteps) -> TimeIndex:
-    """Normalize user-provided timesteps to an internal time index.
+    """Normalize user-provided timesteps to a datetime index.
 
     Args:
-        timesteps: Datetime objects, integers, or a DatetimeIndex.
-
-    Returns:
-        A datetime index for datetime inputs, or an integer index for integer inputs.
+        timesteps: Datetime objects, or a DatetimeIndex.
 
     Raises:
-        ValueError: If timesteps are not strictly monotonically increasing.
+        TypeError: If a timestep is not a timestamp. Numbered steps are
+            written as ``pd.date_range('2020-01-01', periods=n, freq='h')``.
+        ValueError: If timesteps are empty, not strictly monotonically
+            increasing, or contain duplicates.
     """
     if len(timesteps) == 0:
         raise ValueError('Timesteps must not be empty')
 
-    if isinstance(timesteps, pd.DatetimeIndex):
-        idx: TimeIndex = timesteps
-    elif isinstance(timesteps, pd.Index):
-        if isinstance(timesteps, pd.RangeIndex) or pd.api.types.is_integer_dtype(timesteps.dtype):
-            idx = timesteps
-        elif pd.api.types.is_datetime64_any_dtype(timesteps.dtype):
-            idx = pd.DatetimeIndex(timesteps)
-        else:
-            raise TypeError(f'Unsupported pd.Index dtype: {timesteps.dtype}. Use datetime or integer index.')
-    elif not isinstance(timesteps, list):
-        raise TypeError(f'Unsupported Timesteps type: {type(timesteps)}')
-    elif isinstance(timesteps[0], datetime):
+    stamped_index = isinstance(timesteps, pd.Index) and pd.api.types.is_datetime64_any_dtype(timesteps.dtype)
+    stamped_list = isinstance(timesteps, list) and all(isinstance(t, datetime) for t in timesteps)
+    if stamped_index or stamped_list:
         idx = pd.DatetimeIndex(timesteps)
-    elif type(timesteps[0]) is int:
-        idx = pd.Index(timesteps)
-        if not pd.api.types.is_integer_dtype(idx.dtype):
-            raise TypeError('Integer timesteps contain non-integer values')
     else:
-        raise TypeError(f'Unsupported timestep element type: {type(timesteps[0])}. Use datetime or int.')
+        found = timesteps.dtype if isinstance(timesteps, pd.Index) else type(timesteps[0]).__name__
+        raise TypeError(
+            f'Timesteps must be timestamps, got {found}. '
+            "For numbered steps, pass pd.date_range('2020-01-01', periods=n, freq='h')."
+        )
 
     if len(idx) > 1 and not idx.is_monotonic_increasing:
         raise ValueError('Timesteps must be strictly monotonically increasing')
@@ -358,10 +269,8 @@ def normalize_timesteps(timesteps: Timesteps) -> TimeIndex:
 def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> xr.DataArray:
     """Compute dt (hours) for each timestep as a DataArray.
 
-    When dt is None, auto-derives from timesteps:
-    - Datetime: consecutive differences in hours; first = second (forward-looking).
-    - Integer: 1.0 for all.
-    - Single timestep: 1.0.
+    When dt is None, it is the consecutive differences in hours, the first
+    step taking the second's; a single timestep lasts 1.0.
 
     Args:
         timesteps: Time index.
@@ -384,11 +293,6 @@ def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> xr.DataA
     if n <= 1:
         return xr.DataArray(np.ones(n), dims=['time'], coords={'time': timesteps}, name='dt')
 
-    if not isinstance(timesteps, pd.DatetimeIndex):
-        # Integer timesteps: default to 1.0
-        return xr.DataArray(np.ones(n), dims=['time'], coords={'time': timesteps}, name='dt')
-
-    # Datetime: derive from diff in hours
     diffs = np.diff(timesteps.values) / np.timedelta64(1, 'h')
     dt_values = np.empty(n)
     dt_values[0] = diffs[0]

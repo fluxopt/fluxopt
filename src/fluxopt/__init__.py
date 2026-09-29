@@ -1,4 +1,4 @@
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 from fluxopt.components import Converter, Port
@@ -14,12 +14,8 @@ from fluxopt.elements import (
     Storage,
 )
 from fluxopt.flow_system import FlowSystem
-from fluxopt.model import FlowSystemModel
-from fluxopt.model_data import Dims, ModelData
-from fluxopt.results import Result
 from fluxopt.schema import all_element_schemas, element_schema, from_dict, to_dict
 from fluxopt.types import (
-    IdList,
     ProfileRef,
     TimeIndex,
     Timesteps,
@@ -41,10 +37,9 @@ def optimize(
     period_weights: list[float] | None = None,
     profiles: Mapping[str, Any] | None = None,
     solver: str = 'highs',
-    customize: Callable[[FlowSystemModel], None] | None = None,
-    **kwargs: Any,
-) -> Result:
-    """Build data, build model, optimize, return results.
+    **solver_options: Any,
+) -> Any:
+    """Declare a system and solve it: :meth:`FlowSystem.optimize` in one call.
 
     Args:
         timesteps: Time index for the optimization horizon.
@@ -65,10 +60,11 @@ def optimize(
         profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
             holding referenced time series. Required if any element uses a
             ``ProfileRef``.
-        solver: Solver backend name.
-        customize: Optional callback to modify the linopy model between build and solve.
-            Receives the built FlowSystemModel; use ``model.m`` to add variables/constraints.
-        **kwargs: Passed through to ``linopy.Model.solve()``.
+        solver: Solver name — ``highs``, or ``gurobi`` with specsolve's extra.
+        **solver_options: Passed to the solver verbatim, in its own vocabulary.
+
+    Returns:
+        specsolve's result; see :meth:`FlowSystem.optimize`.
     """
     system = FlowSystem(
         timesteps=timesteps,
@@ -82,25 +78,20 @@ def optimize(
         periods=periods,
         period_weights=period_weights,
     )
-    return system.optimize(profiles, customize=customize, solver=solver, **kwargs)
+    return system.optimize(profiles, solver=solver, **solver_options)
 
 
 __all__ = [
     'PENALTY_EFFECT_ID',
     'Carrier',
     'Converter',
-    'Dims',
     'Effect',
     'Flow',
     'FlowSystem',
-    'FlowSystemModel',
-    'IdList',
     'Investment',
-    'ModelData',
     'PiecewiseConversion',
     'Port',
     'ProfileRef',
-    'Result',
     'Sizing',
     'Status',
     'Storage',

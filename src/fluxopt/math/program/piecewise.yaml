@@ -1,0 +1,98 @@
+# The lambda formulation, written out rather than declared: the `piecewise:`
+# block takes a static list of links, and fluxopt's curves vary in how many
+# flows they tie together. Here a link is a *row* — one per curve flow, keyed
+# on `flow` — so arity is data like everything else.
+description: A converter's flows may follow a piecewise-linear curve.
+
+dimensions:
+  time: {dtype: datetime}
+  period: {dtype: int}
+  converter: {dtype: str}
+  flow: {dtype: str}
+  status_entity: {dtype: str}
+  # Breakpoint index of a piecewise curve. The dimension is the widest
+  # curve in the system; narrower ones mask their tail away.
+  bp: {dtype: int}
+
+relations:
+  # The curve a flow is a link of. A flow of no curve has no row.
+  curve_of: {key: flow, values: converter}
+  # A curve's own on/off decision, where its component has one. A curve with
+  # a row is gated.
+  pw_status_of: {key: converter, values: status_entity}
+
+parameters:
+  # The breakpoints a curve has. Curves of different width share one `bp`
+  # axis, so a narrower curve is false past its end.
+  pw_bp_present: {dims: [converter, bp], dtype: bool}
+  # How a link meets its curve: '==' pinned to it, '<=' below it, '>=' above.
+  link_sense: {dims: [flow], dtype: str}
+  pw_bp_value: {dims: [flow, bp, time]}            # this link's breakpoint values
+  pw_ref: {dims: [flow]}                           # 1 on the link availability scales
+  pw_avail_bound: {dims: [converter, time, period]}  # availability * widest breakpoint
+
+variables:
+  # Convex-combination weights over the breakpoints of each curve.
+  lam:
+    dims: [converter, bp, time, period]
+    where: "pw_bp_present"
+    bounds: {lower: 0, upper: 1}
+
+expressions:
+  # A curve with its own on/off decision is on where that decision is; any
+  # other curve is always on.
+  curve_on:
+    dims: [converter, time, period]
+    cases:
+      gated:
+        when: "pw_status_of"
+        expression: at(running, by=pw_status_of, over=status_entity, into=converter)
+    otherwise: 1
+    description: Whether a curve operates in a step.
+
+given:
+  variables:
+    rate: {dims: [flow, time, period]}
+    running: {dims: [status_entity, time, period], domain: binary}
+
+# The restriction that makes the weights a piecewise curve rather than any
+# convex combination: at most two nonzero, and those two adjacent. A set
+# rather than binaries and an adjacency row, because that is what it is —
+# one declaration covering every curve whatever its width, sign or gating,
+# and no assumption that a curve's breakpoints are contiguous.
+sos:
+  on_one_segment:
+    variable: lam
+    along: bp
+    type: 2
+    description: The operating point lies on one segment of the curve.
+
+constraints:
+  # --- one convexity row per curve, one link row per curve flow.
+  pw_convexity:
+    dims: [converter, time, period]
+    where: "count(pw_bp_present, over=bp) >= 1"
+    expression: sum(lam, over=bp) == curve_on
+
+  # A link is a row keyed on the flow, so a curve ties as many flows as it has.
+  pw_link_equal:
+    dims: [flow, time, period]
+    where: "link_sense == '=='"
+    expression: rate == sum(at(lam, by=curve_of, over=converter, into=flow) * pw_bp_value, over=bp)
+
+  pw_link_upper:
+    dims: [flow, time, period]
+    where: "link_sense == '<='"
+    expression: rate <= sum(at(lam, by=curve_of, over=converter, into=flow) * pw_bp_value, over=bp)
+
+  pw_link_lower:
+    dims: [flow, time, period]
+    where: "link_sense == '>='"
+    expression: rate >= sum(at(lam, by=curve_of, over=converter, into=flow) * pw_bp_value, over=bp)
+
+  # Availability scales the envelope rather than the curve, so it bounds the
+  # reference link instead of moving the breakpoints.
+  pw_availability:
+    dims: [converter, time, period]
+    where: "count(pw_bp_present, over=bp) >= 1"
+    expression: sum(rate * pw_ref, by=curve_of, over=flow, into=converter) <= pw_avail_bound * curve_on

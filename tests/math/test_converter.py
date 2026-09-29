@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import ts
+from conftest import read, ts
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port, optimize
 
@@ -29,7 +29,7 @@ class TestBoiler:
             converters=[Converter.boiler('boiler', eta, fuel, heat_flow)],
         )
 
-        gas_rates = result.flow_rate('boiler(gas)').values
+        gas_rates = read(result, 'rate').sel(flow='boiler(gas)').values
         for gas_rate, h in zip(gas_rates, heat_demand, strict=False):
             assert gas_rate == pytest.approx(h / eta, abs=1e-6)
 
@@ -84,9 +84,9 @@ class TestCHP:
             converters=[Converter.chp('chp', eta_el, eta_th, fuel_flow, elec_flow, heat_flow)],
         )
 
-        gas_rates = result.flow_rate('chp(gas)').values
-        elec_rates = result.flow_rate('chp(elec)').values
-        heat_rates = result.flow_rate('chp(heat)').values
+        gas_rates = read(result, 'rate').sel(flow='chp(gas)').values
+        elec_rates = read(result, 'rate').sel(flow='chp(elec)').values
+        heat_rates = read(result, 'rate').sel(flow='chp(heat)').values
 
         for gas_rate, elec_rate, heat_rate in zip(gas_rates, elec_rates, heat_rates, strict=False):
             assert elec_rate == pytest.approx(gas_rate * eta_el, abs=1e-6)
