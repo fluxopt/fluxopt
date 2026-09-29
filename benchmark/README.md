@@ -10,9 +10,11 @@ One `benchmark()` suite, served by [CodSpeed] in CI and [pytest-benchmem] locall
 - `systems.py` — feature archetypes (`multi_node`, `status`, `piecewise`,
   `effects`, `sizing`) + `(n, timesteps)` scale tiers. Deterministic.
 - `test_build.py` — the feature matrix at one scale, and a multi_node scaling curve.
-- `test_reference.py` — the realistic reference systems bundled in the package
-  (`fluxopt.benchmark`, also behind `python -m fluxopt.benchmark`) at a quarter
-  year. Skips on fluxopt versions that predate the module.
+- `reference.py` — the realistic reference systems, and the command that times
+  them at a full year (`uv run python reference.py`, see `docs/benchmark.md`).
+- `test_reference.py` — the reference systems at a quarter year.
+- `test_reference_cli.py` — smoke tests for `reference.py`; not benchmarks, so
+  CodSpeed deselects them and only the CI smoke run executes them.
 
 ## Pinned, standalone env
 
@@ -62,6 +64,10 @@ solver-model size — via `--columns`, e.g.
 `timesteps/periods/components/flows/effects/series/variables/nonzeros/constraints`
 (pytest-benchmem >= 0.4.12).
 
+The suite, reference systems included, comes from your checkout and only
+fluxopt changes per ref. A ref whose element API differs from the checkout's
+therefore fails rather than compares; for such a pair, switch branches instead.
+
 Sweep resolves one fresh venv per ref (no lockfile — it can't, the dependency
 set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
 `--pin <spec>` to hold individual dependencies still.
@@ -81,7 +87,7 @@ git switch -
 uv run benchmem compare base.json head.json
 ```
 
-Both flows run the whole suite — archetypes, IO, and the realistic reference
+Both flows run the whole suite — archetypes and the realistic reference
 systems. On PRs, the `benchmark-hint` workflow runs `test_reference.py` the
 same way and posts the numbers as a sticky comment.
 
