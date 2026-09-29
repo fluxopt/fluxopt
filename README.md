@@ -88,6 +88,25 @@ flow hours, carrier balance, capacity factor, storage mean level, and each
 contribution with its cross-effects charged (`priced_*`). `archive=` writes
 the spec, its sources and the answer; `specsolve.load_archive` reads them back.
 
+## The whole API
+
+<!--public-api-start-->
+Twenty-two names — that is all of it. Everything else under `fluxopt.*` is
+implementation detail and may change without a deprecation cycle. A solve
+answers with specsolve's `Result`, which fluxopt returns but does not re-export.
+
+| Group | Names |
+|-------|-------|
+| **Entry points** | `optimize` · `FlowSystem` |
+| **Elements** | `Carrier` · `Effect` · `Flow` · `Port` · `Converter` · `Storage` |
+| **Modifiers** | `Sizing` · `Status` · `Investment` · `PiecewiseConversion` |
+| **Data & types** | `TimeIndex` · `Timesteps` · `Variate` · `ProfileRef` · `as_dataarray` |
+| **Schema & IO** | `element_schema` · `all_element_schemas` · `from_dict` · `to_dict` · `PENALTY_EFFECT_ID` |
+
+A test pins this list against `fluxopt.__all__`, so widening the surface is a
+deliberate, reviewed change rather than an accident of a new import.
+<!--public-api-end-->
+
 ## Roadmap
 
 fluxopt is evolving into a family of packages with a lean core and optional companions:
