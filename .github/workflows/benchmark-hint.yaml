@@ -23,37 +23,45 @@ jobs:
       contents: read
       pull-requests: write # sticky comment
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # hatch-vcs
-      - uses: astral-sh/setup-uv@v7
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
         with:
-          enable-cache: true
+          locked: true
+          cache: true
+          environments: bench
       - name: Run reference benchmarks (pytest-benchmem)
         working-directory: benchmark
         run: |
-          uv sync --frozen
-          uv run --no-sync pytest test_reference.py --benchmark-only --benchmark-memory \
+          pixi run -e bench pytest test_reference.py --benchmark-only --benchmark-memory \
             --benchmark-json "$RUNNER_TEMP/run.json"
       - name: Report the numbers
         working-directory: benchmark
+        # A branch name is whatever the PR author typed, so it reaches the
+        # script as data, never as `${{ }}` spliced into it.
+        env:
+          REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           {
             echo '### Benchmark hint'
             echo ''
             echo '`benchmark/test_reference.py` under [pytest-benchmem](https://github.com/fluxopt/pytest-benchmem) — quarter-year horizon; peak = memray allocator high-water, as on CodSpeed. The label columns are each model'\''s size: the temporal grid (timesteps × periods), element stats (components/flows/effects/series) and the measured solver model (variables/binaries/constraints). Shared-runner walltime is noisy: a hint, not a gate.'
             echo ''
-            uv run --no-sync benchmem compare "$RUNNER_TEMP/run.json" \
+            pixi run -e bench benchmem compare "$RUNNER_TEMP/run.json" \
               --format md --stat mean --group-by func \
               --columns time,peak,extra:timesteps,extra:periods,extra:components,extra:flows,extra:effects,extra:series,extra:variables,extra:binaries,extra:constraints
             echo ''
             echo '<details>'
-            echo '<summary>Replicate locally / compare against ${{ github.event.pull_request.base.ref }}</summary>'
+            echo "<summary>Replicate locally / compare against ${BASE_REF}</summary>"
             echo ''
             echo '```bash'
             echo "uvx --from 'pytest-benchmem[plot]' benchmem sweep fluxopt \\"
-            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.base.ref }} \'
-            echo '    git+https://github.com/${{ github.repository }}@${{ github.event.pull_request.head.ref }} \'
+            echo "    git+https://github.com/${REPO}@${BASE_REF} \\"
+            echo "    git+https://github.com/${REPO}@${HEAD_REF} \\"
             echo '    --suite benchmark/ --memory'
             echo "uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json"
             echo '```'

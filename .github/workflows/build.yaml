@@ -1,0 +1,40 @@
+name: Build
+# Builds and checks the wheel on every pull request and push to main, and for
+# release.yaml, which calls it after tagging and publishes what it uploads.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # hatch-vcs derives the version from `git describe`, so the tags have
+          # to be here. A shallow clone builds a 0.0.1.dev-something wheel.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
+        with:
+          locked: true
+          # Off, deliberately: this job publishes the artifact a tag ships, and
+          # a restored cache is writable by any job that can populate it.
+          cache: false
+      # `[tool.hatch.version] source = "vcs"` reads the version off the tag,
+      # so the tag and the wheel cannot disagree.
+      - name: Build project
+        run: pixi run build-wheel
+      - name: Check package
+        run: pixi run check-wheel
+      - name: Upload package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: artifact
+          path: dist/*

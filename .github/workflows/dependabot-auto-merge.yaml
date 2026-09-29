@@ -10,19 +10,23 @@ permissions:
 jobs:
   auto-merge:
     name: Auto-merge patch
-    if: github.actor == 'dependabot[bot]'
+    # The PR's author, not `github.actor`: the actor is whoever triggered this
+    # run, and anyone who pushes to a Dependabot branch becomes it.
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-24.04
     steps:
-      - uses: dependabot/fetch-metadata@v2
+      - uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
         id: metadata
 
       - name: Generate app token
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          # The token approves the PR and nothing else.
+          permission-pull-requests: write
 
       - name: Approve PR
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'

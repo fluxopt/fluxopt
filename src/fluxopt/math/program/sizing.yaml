@@ -3,23 +3,23 @@
 description: A flow's size may be a decision, and what building it costs.
 
 dimensions:
-  time: {dtype: datetime}
-  period: {dtype: int}
-  effect: {dtype: str}
-  flow: {dtype: str}
+  time: { dtype: datetime }
+  period: { dtype: int }
+  effect: { dtype: str }
+  flow: { dtype: str }
 
 parameters:
-  has_sizing: {dims: [flow], dtype: bool}
+  has_sizing: { dims: [flow], dtype: bool }
   # Whether the build decision is already taken. Serves both mechanisms: a
   # flow's size is a `Sizing` or an `Investment`, never both, so the two
   # never claim the same row.
-  mandatory: {dims: [flow], dtype: bool}
+  mandatory: { dims: [flow], dtype: bool }
   # The size a flow may be built to. Shared by both mechanisms for the same
   # reason `mandatory` is.
-  size_min: {dims: [flow]}
-  size_max: {dims: [flow]}
-  effects_per_size: {dims: [flow, effect, period]}
-  effects_fixed: {dims: [flow, effect, period]}
+  size_min: { dims: [flow] }
+  size_max: { dims: [flow] }
+  effects_per_size: { dims: [flow, effect, period] }
+  effects_fixed: { dims: [flow, effect, period] }
 
 variables:
   # Investment flows share this variable — `size` is the capacity available in
@@ -27,7 +27,7 @@ variables:
   chosen_size:
     dims: [flow, period]
     where: "has_sizing OR has_invest"
-    bounds: {lower: 0, upper: size_max}
+    bounds: { lower: 0, upper: size_max }
 
   # Every sized flow has one, not only the optional ones: a mandatory build
   # is the same decision already taken, and pinning it to 1 is cheaper than a
@@ -60,10 +60,10 @@ expressions:
 
 given:
   parameters:
-    has_invest: {dims: [flow], dtype: bool}
-    size_bound: {dims: [flow]}
+    has_invest: { dims: [flow], dtype: bool }
+    size_bound: { dims: [flow] }
   expressions:
-    direct_lump: {dims: [effect, period], term: sizing_costs}
+    direct_lump: { dims: [effect, period], term: sizing_costs }
 
 constraints:
   # A mandatory build is the same decision already taken, so the size rows

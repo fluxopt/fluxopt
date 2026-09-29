@@ -10,33 +10,33 @@
 description: Every effect is the sum of what the features charge to it.
 
 dimensions:
-  time: {dtype: datetime}
-  period: {dtype: int}
-  effect: {dtype: str}
+  time: { dtype: datetime }
+  period: { dtype: int }
+  effect: { dtype: str }
   # The effect a share is taken from. Same labels as `effect`; a second axis
   # so one effect can be read at another.
-  source: {dtype: str}
+  source: { dtype: str }
 
 relations:
-  same: {key: source, values: effect}
+  same: { key: source, values: effect }
 
 parameters:
   # objective weight x period weight, folded data-side
-  objective_weight: {dims: [effect, period]}
+  objective_weight: { dims: [effect, period] }
   # effect limits: per period, and across periods (weighted)
-  periodic_min: {dims: [effect, period]}
-  periodic_max: {dims: [effect, period]}
-  total_min: {dims: [effect]}
-  total_max: {dims: [effect]}
-  period_weight: {dims: [effect, period]}
+  periodic_min: { dims: [effect, period] }
+  periodic_max: { dims: [effect, period] }
+  total_min: { dims: [effect] }
+  total_max: { dims: [effect] }
+  period_weight: { dims: [effect, period] }
   # One unit charged directly to `source` adds `share` of it to `effect`,
   # through every chain of `contribution_from`: (I - C)^-1 - I.
-  share: {dims: [effect, source, period]}
+  share: { dims: [effect, source, period] }
 
 variables:
   effect_total:
     dims: [effect, period]
-    bounds: {lower: null, upper: null}
+    bounds: { lower: null, upper: null }
 
 expressions:
   direct_step:
@@ -57,7 +57,7 @@ expressions:
 
 given:
   parameters:
-    time_weight: {dims: [time]}
+    time_weight: { dims: [time] }
 
 constraints:
   effect_accounting:

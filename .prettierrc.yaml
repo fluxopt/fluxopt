@@ -1,0 +1,6 @@
+singleQuote: false
+bracketSpacing: true
+printWidth: 200
+endOfLine: "auto"
+tabWidth: 2
+proseWrap: "preserve"

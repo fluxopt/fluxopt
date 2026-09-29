@@ -8,7 +8,7 @@ environment:
 
 ```console
 $ cd benchmark
-$ uv run python reference.py
+$ pixi run -e bench python reference.py
 fluxopt 0.9.0 — build-pipeline benchmark
 Python 3.13.2 · Darwin arm64 · 8 CPUs
 8760 hourly timesteps (1.0 years)
@@ -76,10 +76,10 @@ several effects, and cross-effect couplings (CO₂ priced into cost at
 ## Options
 
 ```console
-$ uv run python reference.py district_heating   # a single system
-$ uv run python reference.py --timesteps 720    # one month instead of a year
-$ uv run python reference.py --solve            # also time the HiGHS solve
-$ uv run python reference.py --json             # machine-readable output
+$ pixi run -e bench python reference.py district_heating   # a single system
+$ pixi run -e bench python reference.py --timesteps 720    # one month instead of a year
+$ pixi run -e bench python reference.py --solve            # also time the HiGHS solve
+$ pixi run -e bench python reference.py --json             # machine-readable output
 ```
 
 The solve is excluded by default: solver time depends on HiGHS, not on
@@ -152,7 +152,7 @@ Reproduce (per-period steps × 16 periods; fluxopt's `--timesteps` budget is
 the product):
 
 ```console
-$ uv run --directory benchmark python reference.py stress --timesteps 8752 --json    # 547×16
+$ pixi run -e bench python benchmark/reference.py stress --timesteps 8752 --json    # 547×16
 $ uv run --no-project --with 'flixopt==7.2.3' \
     python benchmark/flixopt_stress.py --timesteps 547 --periods 16
 ```

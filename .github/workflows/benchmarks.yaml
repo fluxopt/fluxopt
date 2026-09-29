@@ -5,7 +5,7 @@ name: CodSpeed
 # main. Walltime: bare-metal macro runner, main + the maintainer-gated
 # `trigger:benchmark` label only.
 #
-# The benchmark env is pinned (benchmark/uv.lock, `uv sync --frozen`) so the
+# The benchmark env is pixi's `bench` environment, pinned by pixi.lock, so the
 # dashboard tracks fluxopt's code, not upstream dependency releases.
 
 on:
@@ -29,20 +29,20 @@ jobs:
       contents: read # actions/checkout
       id-token: write # OIDC auth with CodSpeed — no token secret
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # hatch-vcs
-      - uses: astral-sh/setup-uv@v7
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
         with:
-          enable-cache: true
-      - name: Sync pinned benchmark env
-        working-directory: benchmark
-        run: uv sync --frozen
+          locked: true
+          cache: true
+          environments: bench
       - name: Run benchmarks under CodSpeed (memory)
-        uses: CodSpeedHQ/action@v5
+        uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
         with:
           mode: memory
-          run: cd benchmark && uv run --no-sync pytest . --codspeed
+          run: pixi run -e bench bench-codspeed
 
   walltime:
     name: Walltime (macro runner)
@@ -57,17 +57,17 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # hatch-vcs
-      - uses: astral-sh/setup-uv@v7
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
         with:
-          enable-cache: true
-      - name: Sync pinned benchmark env
-        working-directory: benchmark
-        run: uv sync --frozen
+          locked: true
+          cache: true
+          environments: bench
       - name: Run benchmarks under CodSpeed (walltime)
-        uses: CodSpeedHQ/action@v5
+        uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
         with:
           mode: walltime
-          run: cd benchmark && uv run --no-sync pytest . --codspeed
+          run: pixi run -e bench bench-codspeed

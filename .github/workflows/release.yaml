@@ -1,27 +1,89 @@
 name: Release
 
+# A release is a merged pull request that puts a version heading, such as
+# `## 0.2.0 (2026-10-01)`, above everything else in CHANGELOG.md. On that
+# merge this workflow tags the commit, opens the GitHub release with the
+# section as its notes, builds the wheel from the tag and publishes it to PyPI.
+# Every other push to main finds no untagged version and does nothing.
+# See RELEASING.md.
+
 on:
   push:
     branches: [main]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  release-please:
-    name: Release Please
+  tag:
+    name: Tag the version the changelog names
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.pending.outputs.version }}
     steps:
-      - uses: actions/create-github-app-token@v3
-        id: app-token
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          client-id: ${{ secrets.APP_CLIENT_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          # The tags are what tells a new version from one already released.
+          fetch-depth: 0
+          persist-credentials: false
 
-      - uses: googleapis/release-please-action@v5
-        id: release
+      - id: pending
+        name: Read the version to release
+        run: echo "version=$(python3 -m tools.changelog pending)" >> "$GITHUB_OUTPUT"
+
+      # `gh release create --target` makes the tag on the server, at the
+      # commit this run is for. A pre-release version is marked as one, so it
+      # never shows as the latest release.
+      - name: Tag and open the GitHub release
+        if: steps.pending.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.pending.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 -m tools.changelog notes "$VERSION" > notes.md
+          flags=()
+          if [[ "$VERSION" =~ (a|b|rc)[0-9]+$ ]]; then flags+=(--prerelease); fi
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --notes-file notes.md "${flags[@]}"
+
+  build:
+    needs: tag
+    if: needs.tag.outputs.version != ''
+    uses: ./.github/workflows/build.yaml
+
+  publish:
+    name: Publish to PyPI
+    needs: [tag, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The trusted publisher on PyPI names this workflow and this environment.
+    # A required reviewer on the environment is the last point a release can
+    # be stopped: PyPI never takes a version twice.
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          token: ${{ steps.app-token.outputs.token }}
-          config-file: .release-please-config.json
-          manifest-file: .release-please-manifest.json
+          name: artifact
+          path: dist
+
+      - name: Check the wheel is the tagged version
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          ls dist
+          test -f "dist/fluxopt-${VERSION}-py3-none-any.whl"
+          test -f "dist/fluxopt-${VERSION}.tar.gz"
+
+      - name: Publish package on PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

@@ -3,61 +3,61 @@
 description: A storage carries a level from one step to the next.
 
 dimensions:
-  time: {dtype: datetime}
-  period: {dtype: int}
-  effect: {dtype: str}
-  storage: {dtype: str}
-  flow: {dtype: str}
+  time: { dtype: datetime }
+  period: { dtype: int }
+  effect: { dtype: str }
+  storage: { dtype: str }
+  flow: { dtype: str }
   # The two ports of a storage. A flow on the charge port fills it, a flow on
   # the discharge port empties it.
-  side: {dtype: str}
+  side: { dtype: str }
 
 relations:
   # The storage and the port a flow is on. A flow on no storage has no row.
-  port_of: {key: flow, values: [storage, side]}
+  port_of: { key: flow, values: [storage, side] }
 
 parameters:
   # A storage whose capacity is given rather than decided.
-  given_capacity: {dims: [storage]}
+  given_capacity: { dims: [storage] }
   # What one unit of rate on a port does to the level in a step:
   # eta_c * dt on the charge port, -dt / eta_d on the discharge port.
-  storage_coeff: {dims: [storage, side, time]}
-  retention: {dims: [storage, time]}       # (1 - loss) ** dt
+  storage_coeff: { dims: [storage, side, time] }
+  retention: { dims: [storage, time] } # (1 - loss) ** dt
   # `relative_level_* * capacity`, folded data-side for the same reason
   # `rate_min` is, and dense for the same reason: a storage whose capacity is
   # a variable is bounded 0..inf here, and the relative pair does the work.
-  level_min: {dims: [storage, time]}
-  level_max: {dims: [storage, time]}
-  is_cyclic: {dims: [storage], dtype: bool}
+  level_min: { dims: [storage, time] }
+  level_max: { dims: [storage, time] }
+  is_cyclic: { dims: [storage], dtype: bool }
   # Carries a period axis so a rolling-horizon fold can collapse `time`
   # alone: a carry reduces exactly one dimension, and the level it copies
   # forward is per period.
-  prior_level: {dims: [storage, period]}
+  prior_level: { dims: [storage, period] }
 
   # End-of-horizon bounds and charge/discharge exclusion.
-  final_level_min: {dims: [storage]}
-  final_level_max: {dims: [storage]}
-  prevent_simultaneous: {dims: [storage], dtype: bool}
+  final_level_min: { dims: [storage] }
+  final_level_max: { dims: [storage] }
+  prevent_simultaneous: { dims: [storage], dtype: bool }
 
   # Storage sizing.
-  has_capacity_sizing: {dims: [storage], dtype: bool}
-  capacity_mandatory: {dims: [storage], dtype: bool}
-  capacity_min: {dims: [storage]}
-  capacity_max: {dims: [storage]}
-  relative_level_min: {dims: [storage, time]}
-  relative_level_max: {dims: [storage, time]}
-  effects_per_capacity: {dims: [storage, effect, period]}
-  effects_fixed_capacity: {dims: [storage, effect, period]}
+  has_capacity_sizing: { dims: [storage], dtype: bool }
+  capacity_mandatory: { dims: [storage], dtype: bool }
+  capacity_min: { dims: [storage] }
+  capacity_max: { dims: [storage] }
+  relative_level_min: { dims: [storage, time] }
+  relative_level_max: { dims: [storage, time] }
+  effects_per_capacity: { dims: [storage, effect, period] }
+  effects_fixed_capacity: { dims: [storage, effect, period] }
 
 variables:
   level:
     dims: [storage, time, period]
-    bounds: {lower: level_min, upper: level_max}
+    bounds: { lower: level_min, upper: level_max }
 
   chosen_capacity:
     dims: [storage, period]
     where: "has_capacity_sizing"
-    bounds: {lower: 0, upper: capacity_max}
+    bounds: { lower: 0, upper: capacity_max }
 
   capacity_built:
     dims: [storage, period]
@@ -123,12 +123,12 @@ expressions:
 
 given:
   parameters:
-    size_bound: {dims: [flow]}
-    dt: {dims: [time]}
+    size_bound: { dims: [flow] }
+    dt: { dims: [time] }
   variables:
-    rate: {dims: [flow, time, period]}
+    rate: { dims: [flow, time, period] }
   expressions:
-    direct_lump: {dims: [effect, period], term: storage_costs}
+    direct_lump: { dims: [effect, period], term: storage_costs }
 
 constraints:
   storage_balance:

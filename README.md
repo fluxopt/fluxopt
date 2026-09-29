@@ -22,6 +22,7 @@ Includes the [HiGHS](https://highs.dev/) solver out of the box.
 ## Quick Start
 
 <!--quickstart-start-->
+
 ```python
 # A gas boiler covers a heat demand, minimizing fuel cost
 from datetime import datetime
@@ -49,6 +50,7 @@ result = optimize(
 print(f'Total cost: {result.objective:.2f}')
 print(result.to_dataarray('rate').squeeze('period', drop=True))
 ```
+
 <!--quickstart-end-->
 
 ## One API, three levels of control
@@ -107,12 +109,12 @@ Companion packages depend on core — core has no knowledge of companions.
 
 ### Companion packages
 
-| Package | Role | Versioning · Tier | `fluxopt` pin | Status |
-|---------|------|-------------------|---------------|--------|
-| `fluxopt-plot` | Result visualization (Plotly) | Semver · Experimental — method signatures may change | Tight (`>=A.B,<A.C`), validated per release | Scaffolded — [docs](https://fbumann.github.io/fluxopt-plot/latest/) · [#51](https://github.com/FBumann/fluxopt/issues/51) |
-| `fluxopt-yaml` | Declarative model loader (YAML + CSV → `Element`s) | Semver · Experimental — YAML schema may change | Tight (`>=A.B,<A.C`), validated per release | Scaffolded — [docs](https://fbumann.github.io/fluxopt-yaml/latest/) · [#52](https://github.com/FBumann/fluxopt/issues/52) |
-| `fluxopt-tsam` | Time series aggregation — input pre-processing, possibly result disaggregation | Semver · Experimental — round-trip schema may evolve | **Undecided** — depends on whether representative-period primitives live in core (→ loose) or in this package (→ tight) | Planned |
-| `fluxopt-marimo` | Interactive exploration & dashboards (marimo apps) | CalVer (`YYYY.MM.PATCH`) · Experimental — apps are templates | Tight (`>=A.B,<A.C`), validated per release | Planned |
+| Package          | Role                                                                           | Versioning · Tier                                            | `fluxopt` pin                                                                                                           | Status                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `fluxopt-plot`   | Result visualization (Plotly)                                                  | Semver · Experimental — method signatures may change         | Tight (`>=A.B,<A.C`), validated per release                                                                             | Scaffolded — [docs](https://fbumann.github.io/fluxopt-plot/latest/) · [#51](https://github.com/FBumann/fluxopt/issues/51) |
+| `fluxopt-yaml`   | Declarative model loader (YAML + CSV → `Element`s)                             | Semver · Experimental — YAML schema may change               | Tight (`>=A.B,<A.C`), validated per release                                                                             | Scaffolded — [docs](https://fbumann.github.io/fluxopt-yaml/latest/) · [#52](https://github.com/FBumann/fluxopt/issues/52) |
+| `fluxopt-tsam`   | Time series aggregation — input pre-processing, possibly result disaggregation | Semver · Experimental — round-trip schema may evolve         | **Undecided** — depends on whether representative-period primitives live in core (→ loose) or in this package (→ tight) | Planned                                                                                                                   |
+| `fluxopt-marimo` | Interactive exploration & dashboards (marimo apps)                             | CalVer (`YYYY.MM.PATCH`) · Experimental — apps are templates | Tight (`>=A.B,<A.C`), validated per release                                                                             | Planned                                                                                                                   |
 
 Tight-pinned companions release on every `fluxopt` minor; validation is
 automated via scheduled CI. `fluxopt-tsam`'s pin policy is blocked on an
@@ -124,17 +126,17 @@ round-trip behavior (tight pin).
 
 Cross-cutting work not tied to a single companion package:
 
-| Milestone | Description | Status | Issue |
-|-----------|-------------|--------|-------|
-| ReadTheDocs migration | Automatic versioned docs from git tags | Planned | [#53](https://github.com/FBumann/fluxopt/issues/53) |
+| Milestone               | Description                                           | Status  | Issue                                               |
+| ----------------------- | ----------------------------------------------------- | ------- | --------------------------------------------------- |
+| ReadTheDocs migration   | Automatic versioned docs from git tags                | Planned | [#53](https://github.com/FBumann/fluxopt/issues/53) |
 | Remove plotly from core | Keep core lean — plotting deps in `fluxopt-plot` only | Planned | [#54](https://github.com/FBumann/fluxopt/issues/54) |
 
 ### Stability Tiers
 
-| Component | Tier | Policy |
-|-----------|------|--------|
-| Core modeling API | **Stable** | Semver. Deprecation warnings before removal. |
-| Stats accessor | **Semi-stable** | Breaking changes allowed between minor versions with changelog entry. |
+| Component         | Tier            | Policy                                                                |
+| ----------------- | --------------- | --------------------------------------------------------------------- |
+| Core modeling API | **Stable**      | Semver. Deprecation warnings before removal.                          |
+| Stats accessor    | **Semi-stable** | Breaking changes allowed between minor versions with changelog entry. |
 
 Companion packages have their own stability policies — see the table above.
 
@@ -142,14 +144,17 @@ See [#47](https://github.com/FBumann/fluxopt/issues/47) for the full architectur
 
 ## Development
 
-Requires [uv](https://docs.astral.sh/uv/) and Python >= 3.12.
+Requires [pixi](https://pixi.sh). It installs Python and every tool from
+`pixi.lock`.
 
 ```bash
-uv sync --group dev      # Install deps
-uv run pytest -v         # Run tests
-uv run ruff check .      # Lint
-uv run ruff format .     # Format
+pixi run pre-commit-install  # Lint every commit
+pixi run test                # Run tests
+pixi run lint                # Lint, format and type-check
+pixi run ci                  # Everything CI checks
 ```
+
+See [CONTRIBUTING](.github/CONTRIBUTING.md) and [RELEASING](RELEASING.md).
 
 ## License
 

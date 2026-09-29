@@ -11,24 +11,23 @@ One `benchmark()` suite, served by [CodSpeed] in CI and [pytest-benchmem] locall
   `effects`, `sizing`) + `(n, timesteps)` scale tiers. Deterministic.
 - `test_build.py` — the feature matrix at one scale, and a multi_node scaling curve.
 - `reference.py` — the realistic reference systems, and the command that times
-  them at a full year (`uv run python reference.py`, see `docs/benchmark.md`).
+  them at a full year (`pixi run -e bench python reference.py`, see `docs/benchmark.md`).
 - `test_reference.py` — the reference systems at a quarter year.
 - `test_reference_cli.py` — smoke tests for `reference.py`; not benchmarks, so
   CodSpeed deselects them and only the CI smoke run executes them.
 
-## Pinned, standalone env
+## Pinned env
 
-This directory is its own small uv project (`pyproject.toml` + committed
-`uv.lock`) — the **one** pinned environment in the repo; the root keeps regular,
-unpinned resolution. A pinned bench env keeps the CodSpeed dashboard tracking
-fluxopt's code, not upstream dependency releases. Dependabot bumps `uv.lock`
-monthly (`.github/dependabot.yml`).
+The suite runs in pixi's `bench` environment, pinned by `pixi.lock` like every
+other environment in the repo, so the CodSpeed dashboard tracks fluxopt's code,
+not upstream dependency releases. `.github/workflows/update-lockfiles.yaml`
+refreshes the lock monthly. `pytest.ini` makes this directory the suite's
+rootdir.
 
 ```bash
 cd benchmark
-uv sync                          # or --frozen to enforce the lock exactly
-uv run pytest . --codspeed                        # CodSpeed (walltime)
-uv run pytest . --codspeed --codspeed-mode memory # CodSpeed (memory / heap)
+pixi run -e bench pytest . --codspeed                        # CodSpeed (walltime)
+pixi run -e bench pytest . --codspeed --codspeed-mode memory # CodSpeed (memory / heap)
 ```
 
 ## CI — CodSpeed
@@ -75,16 +74,16 @@ set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
 ## Or: switch branches
 
 Zero extra installs — run the suite on each branch in the pinned env
-(`uv run` re-syncs the editable fluxopt after every switch; needs a clean
+(fluxopt is installed editable, so each switch is picked up; needs a clean
 tree):
 
 ```bash
 cd benchmark
-uv run pytest . --benchmark-only --benchmark-memory --benchmark-json head.json
+pixi run -e bench pytest . --benchmark-only --benchmark-memory --benchmark-json head.json
 git switch main
-uv run pytest . --benchmark-only --benchmark-memory --benchmark-json base.json
+pixi run -e bench pytest . --benchmark-only --benchmark-memory --benchmark-json base.json
 git switch -
-uv run benchmem compare base.json head.json
+pixi run -e bench benchmem compare base.json head.json
 ```
 
 Both flows run the whole suite — archetypes and the realistic reference
@@ -105,9 +104,9 @@ Measured numbers and methodology: `docs/benchmark.md`.
 Peak-memory number next to the timings, plus a flamegraph of where it goes:
 
 ```bash
-uv run pytest . --benchmark-only --benchmark-memory
-uv run pytest . --benchmark-only --benchmark-memory --benchmark-memory-profile profiles/
-uv run benchmem flamegraph profiles/ --worst peak --open
+pixi run -e bench pytest . --benchmark-only --benchmark-memory
+pixi run -e bench pytest . --benchmark-only --benchmark-memory --benchmark-memory-profile profiles/
+pixi run -e bench benchmem flamegraph profiles/ --worst peak --open
 ```
 
 [CodSpeed]: https://codspeed.io
