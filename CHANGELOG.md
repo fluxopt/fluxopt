@@ -7,6 +7,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/fluxopt/blob
 
 ## Upcoming version
 
+- docs: the site says what fluxopt, mathspec and specsolve each do, and prints the math the solver reads ([#364](https://github.com/fluxopt/fluxopt/pull/364))
 - refactor!: fluxopt takes and returns polars tables, and depends on neither pandas nor xarray ([#363](https://github.com/fluxopt/fluxopt/pull/363))
 - docs: the site is built by zensical, and the notebooks are executed into its pages ([#360](https://github.com/fluxopt/fluxopt/pull/360))
 - refac!: land the spec/specsolve stack (#274 … #357) in one merge ([#358](https://github.com/fluxopt/fluxopt/pull/358))
