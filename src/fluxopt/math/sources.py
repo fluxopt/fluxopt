@@ -27,6 +27,8 @@ from fluxopt.types import as_dataarray, compute_dt, normalize_timesteps
 from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fluxopt.components import Converter, Port
     from fluxopt.elements import Carrier, Effect, Investment, Sizing, Status, Storage, _BoundFlow
     from fluxopt.types import Timesteps
@@ -625,7 +627,7 @@ def _storages(storages: list[Storage], horizon: _Horizon) -> dict[str, Any]:
     sized = [(s.id, s.capacity) for s in storages if isinstance(s.capacity, Sizing)]
     sized_ids = [i for i, _ in sized]
 
-    def per_step(pick: Any) -> pl.DataFrame:
+    def per_step(pick: Callable[[Storage], Any]) -> pl.DataFrame:
         blocks = [horizon.on_time(pick(s)) for s in storages]
         return _per_step({'storage': ids}, blocks, horizon, {'storage': _STR}).select(['storage', 'time', 'value'])
 
