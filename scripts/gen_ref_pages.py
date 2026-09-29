@@ -10,11 +10,6 @@ from pathlib import Path
 import mkdocs_gen_files
 
 INTERNAL_MODULES = {
-    'fluxopt.benchmark',
-    'fluxopt.constraints',
-    'fluxopt.contract',
-    'fluxopt.contributions',
-    'fluxopt.effect_terms',
     'fluxopt.validation',
 }
 

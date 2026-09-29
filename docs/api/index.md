@@ -26,6 +26,5 @@ Importing from the module a name happens to live in — `fluxopt.elements.Flow`
 ## Module pages
 
 The pages below document the modules backing the public surface. Modules that
-are not listed (validation, contracts, constraint builders, the benchmark
-harness) are implementation detail: they carry no compatibility guarantee and
-are intentionally left out of this reference.
+are not listed (`fluxopt.validation`) are implementation detail: they carry no
+compatibility guarantee and are intentionally left out of this reference.

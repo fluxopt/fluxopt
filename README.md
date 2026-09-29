@@ -91,15 +91,16 @@ the spec, its sources and the answer; `specsolve.load_archive` reads them back.
 ## The whole API
 
 <!--public-api-start-->
-Twenty-seven names — that is all of it. Everything else under `fluxopt.*` is
-implementation detail and may change without a deprecation cycle.
+Twenty-two names — that is all of it. Everything else under `fluxopt.*` is
+implementation detail and may change without a deprecation cycle. A solve
+answers with specsolve's `Result`, which fluxopt returns but does not re-export.
 
 | Group | Names |
 |-------|-------|
-| **Entry points** | `optimize` · `FlowSystem` · `FlowSystemModel` · `ModelData` · `Result` |
+| **Entry points** | `optimize` · `FlowSystem` |
 | **Elements** | `Carrier` · `Effect` · `Flow` · `Port` · `Converter` · `Storage` |
 | **Modifiers** | `Sizing` · `Status` · `Investment` · `PiecewiseConversion` |
-| **Data & types** | `Dims` · `TimeIndex` · `Timesteps` · `Variate` · `ProfileRef` · `IdList` · `as_dataarray` |
+| **Data & types** | `TimeIndex` · `Timesteps` · `Variate` · `ProfileRef` · `as_dataarray` |
 | **Schema & IO** | `element_schema` · `all_element_schemas` · `from_dict` · `to_dict` · `PENALTY_EFFECT_ID` |
 
 A test pins this list against `fluxopt.__all__`, so widening the surface is a
