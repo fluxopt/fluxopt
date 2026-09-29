@@ -1,5 +1,7 @@
 # Converters
 
+> The program states this in [converters](program/converters.md) and [piecewise](program/piecewise.md).
+
 A `Converter` couples its input and output flows. fluxopt offers two
 conversion modes: a **linear** form (coefficients fixed against the
 operating point — they may still vary in time) and a

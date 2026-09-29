@@ -85,14 +85,16 @@ plotly = ">=6"
 # zensical builds Markdown only, so each notebook is executed and written as
 # its page first. A cell that raises fails the build.
 docs-notebooks = "python -m tools.notebooks"
+# Each fragment of the math, printed by mathspec as a page of its own.
+docs-program = "python -m tools.program_pages"
 [feature.docs.tasks.docs-serve]
 cmd = "zensical serve"
-depends-on = ["docs-notebooks"]
+depends-on = ["docs-notebooks", "docs-program"]
 [feature.docs.tasks.docs-build]
 # `--strict` turns every warning into a failure, so this catches a dead
 # cross-link and an anchor that stopped resolving.
 cmd = "zensical build --strict"
-depends-on = ["docs-notebooks"]
+depends-on = ["docs-notebooks", "docs-program"]
 
 # The benchmark suite, pinned by pixi.lock like everything else, so the CodSpeed
 # dashboard tracks fluxopt's code rather than upstream releases. Its own

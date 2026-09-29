@@ -1,0 +1,26 @@
+# The symbols the generated program pages print, taken from the notation
+# page (docs/math/notation.md). A name not listed here prints as mathspec
+# derives it from the name in the fragment.
+notation: latex
+dimensions:
+  time: { index: t, set: "\\mathcal{T}" }
+  period: { index: p, set: "\\mathcal{P}" }
+  flow: { index: f, set: "\\mathcal{F}" }
+  carrier: { index: c, set: "\\mathcal{C}" }
+  storage: { index: s, set: "\\mathcal{S}" }
+  effect: { index: k, set: "\\mathcal{K}" }
+  source: { index: j, set: "\\mathcal{J}" }
+names:
+  rate: P
+  level: E
+  effect_step: "\\Phi^{\\text{temporal}}"
+  effect_lump: "\\Phi^{\\text{lump}}"
+  effect_total: "\\Phi"
+  chosen_size: S
+  size_built: y
+  chosen_capacity: S
+  capacity_built: y
+  running: "\\sigma"
+  startup: "\\tau^{+}"
+  shutdown: "\\tau^{-}"
+  dt: "\\Delta t"

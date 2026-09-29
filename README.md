@@ -2,7 +2,7 @@
 
 <!--- --8<-- [start:intro] -->
 
-Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) — detailed dispatch, scaled to multi period planning.
+Energy system models from components: fluxopt writes them into tables for its math, which [mathspec](https://github.com/energy-models/mathspec) states and [specsolve](https://github.com/fluxopt/lpspec) solves — detailed dispatch, scaled to multi-period planning.
 
 [![PyPI](https://img.shields.io/pypi/v/fluxopt)](https://pypi.org/project/fluxopt/)
 [![Downloads](https://img.shields.io/pypi/dm/fluxopt)](https://pypi.org/project/fluxopt/)
@@ -21,17 +21,17 @@ Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) �
   `Converter`, `Storage` and `Effect` — clear separation of physics, costs,
   and topology.
   [API →](https://fluxopt.readthedocs.io/en/latest/api/)
-- **Math as a file.** The model is a declared spec, the numbers are tables,
-  and results come back as polars tables — solved by specsolve.
-  [fluxopt.math →](https://fluxopt.readthedocs.io/en/latest/api/math/)
+- **Math as a file.** The math is YAML that mathspec checks and prints, the
+  numbers are polars tables, and specsolve solves the two together.
+  [How it works →](https://fluxopt.readthedocs.io/en/latest/how-it-works/)
 - **Sizing & status.** Capacity optimization and on/off behavior as
   first-class concerns, not bolt-ons.
   [Sizing →](https://fluxopt.readthedocs.io/en/latest/math/sizing/)
 - **HiGHS out of the box.** Open-source MIP solver bundled. Swap in another
   solver with `solver=`.
   [Quickstart →](https://fluxopt.readthedocs.io/en/latest/notebooks/01-quickstart/)
-- **Math, documented.** Every constraint has a formulation page with
-  notation, derivation, and the line of code that emits it.
+- **Math, documented.** Every feature has a page that explains its
+  formulation, and a page that prints the exact math the solver reads.
   [Notation →](https://fluxopt.readthedocs.io/en/latest/math/notation/)
 - **Companion ecosystem.** Lean core, optional companions for plotting, YAML
   loading, and (planned) interactive marimo apps.

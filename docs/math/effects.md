@@ -1,5 +1,7 @@
 # Effect Tracking & Bounding
 
+> The program states this in [effects](program/effects.md) and [reporting](program/reporting.md).
+
 ## Overview
 
 Effects represent quantities that are tracked across the optimization horizon (e.g.,

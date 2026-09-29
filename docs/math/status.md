@@ -1,5 +1,7 @@
 # Status (On/Off Constraints)
 
+> The program states this in [status](program/status.md).
+
 ## Overview
 
 Status adds binary on/off behavior to flows. The core variables are a binary

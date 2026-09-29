@@ -175,7 +175,7 @@
   mask-image: url("icons/cube-outline.svg");
 }
 
-.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/api/math/"])::before {
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/how-it-works/"])::before {
   content: "";
   mask-image: url("icons/chart-line.svg");
 }

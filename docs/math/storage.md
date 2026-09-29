@@ -1,5 +1,7 @@
 # Storage Dynamics
 
+> The program states this in [storage](program/storage.md).
+
 ## Charge Balance
 
 The stored energy evolves over time according to charging, discharging, and
