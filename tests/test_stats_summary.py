@@ -45,12 +45,16 @@ def test_the_headline_quantities_of_a_sized_flow():
     )
 
 
-def test_an_unsized_flow_reads_size_zero_but_real_throughput():
-    """An expression has a value everywhere, so no size reads 0 and its capacity factor is infinite."""
+def test_an_unsized_flow_reads_size_zero_and_has_no_capacity_factor():
+    """No size reads 0, and a share of running at size 0 is not a number: the capacity factor has no row.
+
+    specsolve 0.2.1 leaves a quotient absent where its divisor is zero
+    (fluxopt/specsolve#1776); before, this read ``inf``.
+    """
     result = _solve(Flow(carrier='elec', effects_per_flow_hour={'cost': 0.04}))
 
     assert _reported(result, 'size').sel(flow=_GRID).item() == 0
-    assert np.isinf(_reported(result, 'capacity_factor').sel(flow=_GRID).item())
+    assert _GRID not in _reported(result, 'capacity_factor').labels('flow')
     assert np.isclose(_reported(result, 'flow_hours').sel(flow=_GRID).item(), _DEMAND_ENERGY)
 
 
@@ -105,3 +109,26 @@ def test_a_storage_reports_its_capacity_and_mean_level():
     mean = _reported(result, 'relative_mean_level').sel(storage='batt').item()
     assert 0 <= mean <= 1
     assert np.isclose(mean, float(level.sum()) / 3 / 80), 'the step-weighted mean level over the capacity'
+
+
+def test_a_storage_built_at_zero_has_no_mean_level():
+    """A storage the solver builds at capacity 0 reports that capacity, and no mean level over it."""
+    source = Flow(carrier='elec', size=100, effects_per_flow_hour={'cost': 0.1})
+    demand = Flow(carrier='elec', size=50, fixed_relative_profile=[0.5, 0.5, 0.5])
+    storage = Storage(
+        id='batt',
+        charging=Flow(carrier='elec', size=80),
+        discharging=Flow(carrier='elec', size=80),
+        capacity=Sizing(size_min=0, size_max=80, effects_per_size={'cost': 1.0}),
+    )
+    result = optimize(
+        timesteps=ts(3),
+        carriers=[Carrier(id='elec')],
+        effects=[Effect(id='cost')],
+        objective='cost',
+        ports=[Port(id='grid', imports=[source]), Port(id='load', exports=[demand])],
+        storages=[storage],
+    )
+
+    assert np.isclose(_reported(result, 'capacity').sel(storage='batt').item(), 0), 'a flat price buys no storage'
+    assert 'batt' not in _reported(result, 'relative_mean_level').labels('storage')

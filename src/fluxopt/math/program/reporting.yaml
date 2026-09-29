@@ -27,10 +27,10 @@ expressions:
     description: How long the horizon is, weighted.
   capacity_factor:
     expression: flow_hours / (size * total_duration)
-    description: What each flow carries, as a share of running at its size throughout.
+    description: What each flow carries, as a share of running at its size throughout; none where the size is 0.
   relative_mean_level:
     expression: sum(level * dt * time_weight, over=time) / (total_duration * capacity)
-    description: The mean level of each storage, as a share of its capacity.
+    description: The mean level of each storage, as a share of its capacity; none where the capacity is 0.
   # Each contribution again, with what it charges through `contribution_from`
   # added: CO2 priced into cost is charged to the flow that emitted it.
   priced_flow_hour:

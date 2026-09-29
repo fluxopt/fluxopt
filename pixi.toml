@@ -17,10 +17,13 @@ pyyaml = ">=6.0"
 
 [pypi-dependencies]
 fluxopt = { path = ".", editable = true }
-# Pinned to commits: the composed math needs mathspec's composition
+# specsolve 0.2.1 is the first release with the three wrong-answer fixes the
+# math relies on (a parameter beside an absent variable in a sum, a sum as a
+# divisor, a quotient over a zero divisor).
+specsolve = "==0.2.1"
+# Pinned to a commit: the composed math needs mathspec's composition
 # (energy-models/mathspec#732) and its empty sum (#742), which no release
-# carries yet, and specsolve's main is the first engine on mathspec 0.2.
-specsolve = { git = "https://github.com/fluxopt/lpspec.git", rev = "e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2" }
+# carries yet.
 mathspec = { git = "https://github.com/energy-models/mathspec", rev = "0b0e4b0aa218ba38059615bc1af085bc10b80cda" }
 
 [feature.test.dependencies]

@@ -23,12 +23,13 @@ classifiers = [
 ]
 dependencies = [
   "highspy>=1.13.1,!=1.14.*", # 1.14.x has MIP presolve bug producing wrong results (ERGO-Code/HiGHS#2975)
-  # specsolve and mathspec are pinned to commits in pixi.toml, which is where
+  # pixi.toml pins specsolve to a release and mathspec to a commit, and is where
   # the development environment comes from.
   #
   # The modeling layer. fluxopt's math is the fragments in `math/program/`; specsolve
   # (formerly lpspec) validates it, lowers it and streams it to the solver.
-  "specsolve",
+  # 0.2.1 fixes three wrong answers (fluxopt/specsolve#1776, #1779, #1784).
+  "specsolve>=0.2.1",
   # The language half of specsolve, extracted to its own package so a consumer
   # that only declares and typesets math need not take an engine. fluxopt is
   # that consumer as well as an engine one: `FlowSystem.spec()` hands a
