@@ -1,5 +1,7 @@
 # fluxopt
 
+<!--- --8<-- [start:intro] -->
+
 Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) — detailed dispatch, scaled to multi period planning.
 
 [![PyPI](https://img.shields.io/pypi/v/fluxopt)](https://pypi.org/project/fluxopt/)
@@ -8,8 +10,34 @@ Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) �
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
+<!--- --8<-- [end:intro] -->
+
 > **Early development** — the API may change between releases.
 > Planned features and progress are tracked in [Issues](https://github.com/FBumann/fluxopt/issues).
+
+<!--- --8<-- [start:benefits] -->
+
+- **Composable elements.** Build models from `Carrier`, `Flow`, `Port`,
+  `Converter`, `Storage` and `Effect` — clear separation of physics, costs,
+  and topology.
+  [API →](https://fluxopt.readthedocs.io/en/latest/api/)
+- **Math as a file.** The model is a declared spec, the numbers are tables,
+  and results come back as `xr.DataArray` — solved by specsolve.
+  [fluxopt.math →](https://fluxopt.readthedocs.io/en/latest/api/math/)
+- **Sizing & status.** Capacity optimization and on/off behavior as
+  first-class concerns, not bolt-ons.
+  [Sizing →](https://fluxopt.readthedocs.io/en/latest/math/sizing/)
+- **HiGHS out of the box.** Open-source MIP solver bundled. Swap in another
+  solver with `solver=`.
+  [Quickstart →](https://fluxopt.readthedocs.io/en/latest/notebooks/01-quickstart/)
+- **Math, documented.** Every constraint has a formulation page with
+  notation, derivation, and the line of code that emits it.
+  [Notation →](https://fluxopt.readthedocs.io/en/latest/math/notation/)
+- **Companion ecosystem.** Lean core, optional companions for plotting, YAML
+  loading, and (planned) interactive marimo apps.
+  [Roadmap →](https://github.com/FBumann/fluxopt#roadmap)
+
+<!--- --8<-- [end:benefits] -->
 
 ## Installation
 
@@ -21,7 +49,7 @@ Includes the [HiGHS](https://highs.dev/) solver out of the box.
 
 ## Quick Start
 
-<!-- --8<-- [start:quickstart] -->
+<!--- --8<-- [start:quickstart] -->
 
 ```python
 # A gas boiler covers a heat demand, minimizing fuel cost
@@ -51,9 +79,11 @@ print(f'Total cost: {result.objective:.2f}')
 print(result.to_dataarray('rate').squeeze('period', drop=True))
 ```
 
-<!-- --8<-- [end:quickstart] -->
+<!--- --8<-- [end:quickstart] -->
 
 ## One API, three levels of control
+
+<!--- --8<-- [start:levels] -->
 
 Every level answers with specsolve's `Result`; each one only adds control —
 pick the lowest rung that does the job.
@@ -89,6 +119,8 @@ Read an answer with `result.to_dataarray("rate")` for a variable, or
 flow hours, carrier balance, capacity factor, storage mean level, and each
 contribution with its cross-effects charged (`priced_*`). `archive=` writes
 the spec, its sources and the answer; `specsolve.load_archive` reads them back.
+
+<!--- --8<-- [end:levels] -->
 
 ## Roadmap
 

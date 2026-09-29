@@ -1,6 +1,6 @@
 """System-level structural validation, shared by every entry path.
 
-:func:`validate_system` is the single source of truth for "is this set of
+`validate_system` is the single source of truth for "is this set of
 elements a coherent system": unique ids, resolvable carrier and effect
 references, and node membership. ``FlowSystem`` runs it at construction,
 and ``build_sources`` runs it before building a table — so the declarative

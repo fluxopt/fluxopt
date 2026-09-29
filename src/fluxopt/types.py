@@ -18,7 +18,7 @@ class ProfileRef(BaseModel):
     A serializable stand-in for an inline ``Variate`` array: the profile lives
     in a data file / dataset and is named here, so structural definitions
     round-trip to YAML/JSON without inlining 8760-point series. Resolve it to a
-    :class:`xr.DataArray` with :meth:`resolve` before building the model.
+    [`xr.DataArray`][xarray.DataArray] with [`resolve`][fluxopt.ProfileRef.resolve] before building the model.
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -78,7 +78,7 @@ def variate_out_of_range(
 ) -> float | None:
     """The first value outside ``[low, high]``, or None if all of them are in.
 
-    A :data:`Variate` is a scalar, a series, or a :class:`ProfileRef` that
+    A [`Variate`][fluxopt.Variate] is a scalar, a series, or a [`ProfileRef`][fluxopt.ProfileRef] that
     names numbers living somewhere else. The first two can be checked where
     they are written, which is what this is for; a ``ProfileRef`` cannot,
     because its values arrive when profiles are resolved — so it reads as in
@@ -113,7 +113,7 @@ def as_dataarray(
 
     Pipeline: ``convert → validate dims → validate coord values → broadcast``.
 
-    See :data:`Variate` for accepted inputs. Pandas inputs (``Series``,
+    See [`Variate`][fluxopt.Variate] for accepted inputs. Pandas inputs (``Series``,
     ``DataFrame``): the axis ``name`` attribute selects the corresponding
     target dim. For
     ``ndarray``/``list``, the dim is selected by length (must be unambiguous).

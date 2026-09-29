@@ -1,5 +1,6 @@
 site_name: fluxopt
 site_description: Energy system optimization with specsolve
+site_url: https://fluxopt.readthedocs.io/en/latest/
 repo_url: https://github.com/FBumann/fluxopt
 repo_name: FBumann/fluxopt
 edit_uri: edit/main/docs/
@@ -51,16 +52,22 @@ nav:
 theme:
   palette:
     - media: "(prefers-color-scheme)"
+      primary: custom
+      accent: custom
       toggle:
         icon: lucide/sun-moon
         name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
+      primary: custom
+      accent: custom
       toggle:
         icon: lucide/sun
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: custom
+      accent: custom
       toggle:
         icon: lucide/moon
         name: Switch to system preference
@@ -86,6 +93,7 @@ theme:
     - search.share
     - content.code.copy
     - content.code.select
+    - content.tooltips
     - content.action.edit
 
 markdown_extensions:
@@ -146,6 +154,9 @@ plugins:
             show_symbol_type_toc: true
             show_source: true
             parameter_headings: true
+
+extra_css:
+  - stylesheets/extras.css
 
 extra_javascript:
   - javascripts/mathjax.js

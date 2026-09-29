@@ -5,8 +5,8 @@ JSON Schema for each type and round-trip instances to plain dicts. This is the
 machine-readable contract behind a future config front-end, GUI, or
 LLM-assisted authoring surface.
 
-Structural round-trip (:func:`to_dict` / :func:`from_dict`) preserves ids,
-scalars, nested elements, and :class:`~fluxopt.types.ProfileRef` references.
+Structural round-trip ([`to_dict`][fluxopt.to_dict] / [`from_dict`][fluxopt.from_dict]) preserves ids,
+scalars, nested elements, and [`ProfileRef`][fluxopt.ProfileRef] references.
 Inline array-valued ``Variate`` fields (raw time-series) do *not* serialize —
 use a ``ProfileRef`` instead, so profiles live in data files rather than in the
 config (see ``docs/design/config-and-pydantic-direction.md``). Such fields also
@@ -105,7 +105,7 @@ def to_dict(element: object) -> dict[str, Any]:
 
 
 def from_dict[T](element_type: type[T], data: Mapping[str, Any]) -> T:
-    """Reconstruct an element from a dict produced by :func:`to_dict`.
+    """Reconstruct an element from a dict produced by [`to_dict`][fluxopt.to_dict].
 
     Args:
         element_type: The element class to build (e.g. ``Flow``).

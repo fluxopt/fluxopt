@@ -1,13 +1,13 @@
 """``FlowSystem`` — the declarative top of the element layer.
 
 A ``FlowSystem`` is an inert, validated description of a flow system: the
-same lists you would pass to :func:`fluxopt.optimize`, gathered into one object
+same lists you would pass to [`fluxopt.optimize`][fluxopt.optimize], gathered into one object
 that round-trips to dict/YAML. It carries *structure* (components, effects,
 config) and ``ProfileRef`` references to time-series; the actual series are
 supplied at solve time via ``profiles`` (``system.optimize(profiles=...)``) and
 resolved into arrays just before the model is built.
 
-The FlowSystem has no modeling behavior of its own: :meth:`FlowSystem.sources`
+The FlowSystem has no modeling behavior of its own: [`FlowSystem.sources`][fluxopt.FlowSystem.sources]
 builds the tables bound to the math program, and ``.optimize()`` solves them.
 Declaration (the system) and use (building/solving) stay separate.
 """
@@ -42,7 +42,7 @@ def _resolve_refs(obj: Any, profiles: Mapping[str, Any]) -> Any:
 
     Args:
         obj: The value or element to walk.
-        profiles: Mapping passed to :meth:`ProfileRef.resolve`.
+        profiles: Mapping passed to [`ProfileRef.resolve`][fluxopt.ProfileRef.resolve].
     """
     if isinstance(obj, ProfileRef):
         return obj.resolve(profiles)
@@ -91,7 +91,7 @@ def _check_profiles_cover(refs: list[tuple[str, ProfileRef]], profiles: Mapping[
     """Raise one comprehensive error if any ref cannot be resolved.
 
     Args:
-        refs: ``(path, ref)`` pairs from :func:`_collect_profile_refs`.
+        refs: ``(path, ref)`` pairs from `_collect_profile_refs`.
         profiles: The solve-time profile supply.
 
     Raises:
@@ -198,7 +198,7 @@ class FlowSystem(BaseModel):
         """Enumerate the external data this system needs, as ``{dataset: variables}``.
 
         The contract a ``profiles`` supply must cover before
-        :meth:`build_model` / :meth:`optimize` can run. Empty when every value
+        `build_model` / [`optimize`][fluxopt.FlowSystem.optimize] can run. Empty when every value
         is inline.
         """
         refs: list[tuple[str, ProfileRef]] = []
@@ -212,30 +212,30 @@ class FlowSystem(BaseModel):
     def spec(self) -> Any:
         """The equations this system is solved as, before any number is bound.
 
-        A :class:`mathspec.Spec`, composed from the fragments under
-        :data:`fluxopt.math.PROGRAM`, with the piecewise special-ordered sets
+        A `mathspec.Spec`, composed from the fragments under
+        [`fluxopt.math.PROGRAM`][fluxopt.math.PROGRAM], with the piecewise special-ordered sets
         written out as binaries so every solver takes it. Read it, typeset it (``mathspec.to_latex``), or
         extend it — ``mathspec.override`` it with a patch, or ``merge`` a
         fragment of your own onto the shipped ones — and solve the result
-        with :func:`specsolve.solve` against :meth:`sources`.
+        with `specsolve.solve` against [`sources`][fluxopt.FlowSystem.sources].
         """
         from fluxopt.math import program
 
         return program().expand('sos')
 
     def sources(self, profiles: Mapping[str, Any] | None = None) -> dict[str, Any]:
-        """The numbers :meth:`spec` is bound to, one table per declared name.
+        """The numbers [`spec`][fluxopt.FlowSystem.spec] is bound to, one table per declared name.
 
         Every parameter, relation and dimension the spec declares, keyed by
         the timestamps, years and ids the elements were written with. Edit a
         table, or add one for a declaration of your own, and hand the dict to
-        :func:`specsolve.solve`: the spec's ``assumptions:`` check whatever
+        `specsolve.solve`: the spec's ``assumptions:`` check whatever
         arrives.
 
         Args:
             profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or
                 mapping) holding the referenced variables. Required if the
-                system uses any ``ProfileRef`` — see :meth:`required_profiles`.
+                system uses any ``ProfileRef`` — see [`required_profiles`][fluxopt.FlowSystem.required_profiles].
 
         Raises:
             KeyError: If any ``ProfileRef`` cannot be resolved from *profiles*;
@@ -275,7 +275,7 @@ class FlowSystem(BaseModel):
         archive: str | Path | None = None,
         **solver_options: Any,
     ) -> specsolve.Result:
-        """Solve :meth:`spec` against :meth:`sources`.
+        """Solve [`spec`][fluxopt.FlowSystem.spec] against [`sources`][fluxopt.FlowSystem.sources].
 
         The same as ``specsolve.solve(system.spec(), system.sources(profiles))``.
         A solver other than HiGHS gets the piecewise sets as special-ordered
