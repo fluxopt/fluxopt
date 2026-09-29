@@ -1,5 +1,7 @@
 # Carrier Balance
 
+> The program states this in [flows](program/flows.md).
+
 ## Formulation
 
 Every carrier \(b\) must be balanced at every timestep — total outflow equals total inflow:

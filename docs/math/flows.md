@@ -1,6 +1,8 @@
 # Flows
 
-A flow represents energy transfer on a bus. Each flow \(f\) has a non-negative
+> The program states this in [flows](program/flows.md), [envelope](program/envelope.md) and [ramps](program/ramps.md).
+
+A flow represents energy transfer on a carrier. Each flow \(f\) has a non-negative
 rate variable \(P_{f,t}\) bounded by an optional nominal capacity \(\bar{\mathrm{P}}_f\).
 
 ## Bounds
@@ -25,7 +27,8 @@ to a profile scaled by the capacity:
 P_{f,t} = \bar{\mathrm{P}}_f \cdot \pi_{f,t} \quad \forall \, f, t
 \]
 
-Implemented by setting both bounds equal to the profile value.
+The program states it as its own constraint, `rate_envelope_fixed` in
+[envelope](program/envelope.md).
 
 ## Aggregate Bounds
 

@@ -5,13 +5,19 @@ build-backend = "hatchling.build"
 [project]
 name = "fluxopt"
 dynamic = ["version"]
-description = "Energy system optimization with lpspec — progressive modeling, from simple to complex."
+description = "Energy system models from components, as tables for math that mathspec states and specsolve solves."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Felix Bumann", email = "felixbumann387@gmail.com" }]
 maintainers = [{ name = "Felix Bumann", email = "felixbumann387@gmail.com" }]
-keywords = ["optimization", "energy systems", "lpspec", "linear programming"]
+keywords = [
+  "optimization",
+  "energy systems",
+  "linear programming",
+  "mathspec",
+  "specsolve",
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Programming Language :: Python :: 3.12",

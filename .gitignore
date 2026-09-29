@@ -28,3 +28,5 @@ htmlcov/
 
 # Written by `python -m tools.notebooks` from the notebook beside each one.
 docs/notebooks/**/*.md
+# Written by `python -m tools.program_pages` from the fragments of the math.
+docs/math/program/

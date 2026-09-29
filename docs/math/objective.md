@@ -1,5 +1,7 @@
 # Objective Function
 
+> The program states this in [effects](program/effects.md).
+
 ## Formulation
 
 The model minimizes the total value of the designated objective effect \(k^*\)

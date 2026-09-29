@@ -1,7 +1,9 @@
 # Notation
 
 This page defines the canonical symbols used throughout the mathematical formulation.
-Each symbol maps to a specific field or variable in the code.
+Each symbol maps to a field of an element, or to a name in the program's YAML
+fragments. The [program pages](program/flows.md) print the fragments in the
+same symbols, which `docs/math/symbols.yaml` lists.
 
 ## Sets & Indices
 
@@ -10,7 +12,7 @@ Each symbol maps to a specific field or variable in the code.
 | \(t \in \mathcal{T}\) | Timesteps | `time` dimension |
 | \(p \in \mathcal{P}\) | Periods (multi-period only) | `period` dimension |
 | \(f \in \mathcal{F}\) | Flows | `flow` dimension |
-| \(b \in \mathcal{B}\) | Buses | `bus` dimension |
+| \(c \in \mathcal{C}\) | Carriers | `carrier` dimension |
 | \(s \in \mathcal{S}\) | Storages | `storage` dimension |
 | \(k \in \mathcal{K}\) | Effects (cost, CO₂, …) | `effect` dimension |
 | \(j \in \mathcal{K}\) | Source effect (cross-effect) | `source_effect` dimension |
@@ -132,7 +134,7 @@ parameter that bounds it.
 | Overbar / underbar | Bound (paired with the variable's letter) | \(\bar{\mathrm{P}}\) (upper bound on \(P\)), \(\underline{\mathrm{P}}\) (lower bound) |
 | Lowercase variant | Relative bound (fraction of size/capacity) | \(\bar{\mathrm{p}}_{f,t}\), \(\underline{\mathrm{p}}_{f,t}\) (fraction of \(\bar{\mathrm{P}}_f\)); \(\bar{\mathrm{e}}_s\), \(\underline{\mathrm{e}}_s\) (fraction of \(\bar{\mathrm{E}}_s\)) |
 | Greek | Parameters with established physical meaning | \(\eta\) (efficiency), \(\delta\) (loss), \(\pi\) (profile), \(\gamma\) (per-size cost) |
-| Subscripts | Indexing | \(f\) (flow), \(t\) (time), \(s\) (storage), \(b\) (bus), \(k\) (effect), \(j\) (source effect) |
+| Subscripts | Indexing | \(f\) (flow), \(t\) (time), \(s\) (storage), \(c\) (carrier), \(k\) (effect), \(j\) (source effect) |
 | Superscripts | Qualification | \(\eta^{\text{c}}\) (charge), \(\eta^{\text{d}}\) (discharge) |
 
 Greek letters render with their conventional shape regardless of `\mathrm{}`,

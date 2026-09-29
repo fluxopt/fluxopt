@@ -1,5 +1,7 @@
 # Sizing (Investment Optimization)
 
+> The program states this in [sizing](program/sizing.md) and [investment](program/investment.md).
+
 ## Overview
 
 Sizing introduces a capacity decision variable \(S\) that replaces the fixed
