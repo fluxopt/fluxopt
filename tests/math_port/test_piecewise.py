@@ -1,17 +1,17 @@
 """Mathematical correctness tests for piecewise-linear conversion.
 
-Wraps :func:`linopy.piecewise.add_piecewise_formulation`. The new API
-auto-selects between LP (convex/concave 2-flow inequality), incremental
-(monotonic), and SOS2 formulations.
+The curve is an SOS2 set on its interpolation weights, one formulation for
+every curve shape.
 """
 
 import warnings
 
 import numpy as np
 import pytest
+from conftest import read
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, PiecewiseConversion, Port, Status
+from fluxopt import Carrier, Converter, Effect, Flow, FlowSystem, PiecewiseConversion, Port, Status
 
 from .conftest import ts
 
@@ -51,10 +51,6 @@ class TestPiecewiseConversionValidation:
             PiecewiseConversion(
                 points=[('A', [0, 1], '>='), ('B', [0, 1]), ('C', [0, 1])],
             )
-
-    def test_lp_requires_bound(self):
-        with pytest.raises(ValueError, match="method='lp' requires"):
-            PiecewiseConversion(points={'A': [0, 1], 'B': [0, 1]}, method='lp')
 
     def test_no_duplicate_flows(self):
         with pytest.raises(ValueError, match='duplicate flow'):
@@ -117,8 +113,8 @@ class TestPiecewise:
             ],
         )
         # heat=5 at t=1 → fuel = 5/0.9 ≈ 5.555 → cost = 5.555 * 1
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 5.0 / 0.9, rtol=1e-5)
-        assert_allclose(result.solution['flow--rate'].sel(flow='Boiler(fuel)').values[1], 5.0 / 0.9, atol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 5.0 / 0.9, rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='Boiler(fuel)').values[1], 5.0 / 0.9, atol=1e-5)
 
     def test_segment_selection_picks_efficient_region(self, optimize):
         """Solver picks the more-efficient segment when demand fits.
@@ -152,10 +148,10 @@ class TestPiecewise:
             )
 
         result_low = _run(20.0)
-        assert_allclose(result_low.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
+        assert_allclose(read(result_low, 'effect_total').sel(effect='cost').item(), 20.0, rtol=1e-5)
 
         result_high = _run(50.0)
-        assert_allclose(result_high.effect_totals.sel(effect='cost').item(), 65.0, rtol=1e-5)
+        assert_allclose(read(result_high, 'effect_total').sel(effect='cost').item(), 65.0, rtol=1e-5)
 
     def test_three_flow_chp_joint(self, optimize):
         """3-flow CHP curve with shared interpolation weights.
@@ -189,8 +185,8 @@ class TestPiecewise:
             ],
         )
         # At t=0: Power=10 → on segment [(0,0,0)-(30,10,15)] → fuel=30, heat=15
-        assert_allclose(result.solution['flow--rate'].sel(flow='CHP(fuel)').values[0], 30.0, atol=1e-5)
-        assert_allclose(result.solution['flow--rate'].sel(flow='CHP(Heat)').values[0], 15.0, atol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='CHP(fuel)').values[0], 30.0, atol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='CHP(Heat)').values[0], 15.0, atol=1e-5)
 
     def test_time_varying_breakpoints(self, optimize):
         """Breakpoints can vary per timestep (e.g. ambient-dependent COP)."""
@@ -224,7 +220,7 @@ class TestPiecewise:
         )
         # At t=0: heat=20 needs fuel=40 (slope 0.5). At t=1: heat=20 needs fuel=20 (slope 1.0).
         # Total cost = 40 + 20 = 60.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 60.0, rtol=1e-5)
 
 
 class TestPiecewiseStatus:
@@ -253,9 +249,9 @@ class TestPiecewiseStatus:
         )
         # Startup cost is high — solver may keep on=1 throughout (free at boundaries).
         # Either way, Heat must be exactly 5 at t=1 and 0 at t=0,2.
-        heat = result.solution['flow--rate'].sel(flow='Boiler(Heat)').values
-        fuel = result.solution['flow--rate'].sel(flow='Boiler(fuel)').values
-        on = result.solution['component--on'].sel(component='Boiler').values
+        heat = read(result, 'rate').sel(flow='Boiler(Heat)').values
+        fuel = read(result, 'rate').sel(flow='Boiler(fuel)').values
+        on = read(result, 'running').rename(status_entity='component').sel(component='Boiler').values
         assert_allclose(heat, [0, 5, 0], atol=1e-5)
         # Status gating: when on=0, every curve flow is pinned to bp_0 (zero here).
         for t in range(3):
@@ -290,21 +286,20 @@ class TestPiecewiseStatus:
         )
         # Running cost is high — solver must keep on=0 except at t=1 (forced by demand).
         # fuel at t=1 = 5/0.9. Cost = fuel*1 + 100 * (one running hour).
-        on = result.solution['component--on'].sel(component='Boiler').values
+        on = read(result, 'running').rename(status_entity='component').sel(component='Boiler').values
         assert_allclose(on, [0, 1, 0], atol=1e-5)
         expected_cost = 5.0 / 0.9 + 100.0
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), expected_cost, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), expected_cost, rtol=1e-5)
 
 
 class TestRedundantStatusWarning:
     """Warn when PiecewiseConversion has Status alongside an all-flows-zero breakpoint."""
 
     def _build_with_curve(self, curve: PiecewiseConversion):
-        """Build ModelData with a single piecewise converter using `curve`."""
-        from fluxopt.model_data import ModelData
-
-        return ModelData.build(
+        """The sources of a single piecewise converter using `curve`."""
+        return FlowSystem(
             timesteps=ts(3),
+            objective='cost',
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
             effects=[Effect(id='cost')],
             ports=[
@@ -319,7 +314,7 @@ class TestRedundantStatusWarning:
                     conversion=curve,
                 )
             ],
-        )
+        ).sources()
 
     def test_warns_when_zero_breakpoint_with_status(self):
         """Curve with (0, 0) first breakpoint AND Status -> warn."""
@@ -334,7 +329,6 @@ class TestRedundantStatusWarning:
         """All-zero point anywhere in the curve (not just first) -> warn (SOS2 allows non-monotonic)."""
         curve = PiecewiseConversion(
             points={'fuel': [50, 0, 100], 'Heat': [45, 0, 70]},
-            method='sos2',
             status=Status(effects_per_startup={'cost': 1}),
         )
         with pytest.warns(UserWarning, match=r'Boiler.*\(0, \.\.\., 0\) breakpoint'):

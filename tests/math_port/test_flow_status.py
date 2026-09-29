@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from conftest import assert_off_blocks, assert_on_blocks
+from conftest import assert_off_blocks, assert_on_blocks, read
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port, Status
@@ -55,7 +55,7 @@ class TestFlowStatus:
             ],
         )
         # fuel = (10+10)/0.5 = 40, startups = 2, cost = 40 + 200 = 240
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 240.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 240.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='active_hours_min/max not supported — issue #16')
     def test_active_hours_max(self, optimize):
@@ -118,9 +118,9 @@ class TestFlowStatus:
         )
         # Boiler on t=0,1 and t=3,4. Off at t=2 → backup.
         # Boiler fuel: (5+10+18+12)/0.5 = 90. Backup fuel: 20/0.2 = 100. Total = 190.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 190.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 190.0, rtol=1e-5)
         assert_allclose(
-            result.solution['flow--on'].sel(flow='Boiler(Heat)').values,
+            read(result, 'running').rename(status_entity='flow').sel(flow='Boiler(Heat)').values,
             [1, 1, 0, 1, 1],
             atol=1e-5,
         )
@@ -176,9 +176,11 @@ class TestFlowStatus:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 60.0, rtol=1e-5)
         # Verify boiler off at t=2
-        assert_allclose(result.solution['flow--on'].sel(flow='Boiler(Heat)').values[2], 0.0, atol=1e-5)
+        assert_allclose(
+            read(result, 'running').rename(status_entity='flow').sel(flow='Boiler(Heat)').values[2], 0.0, atol=1e-5
+        )
 
     def test_effects_per_active_hour(self, optimize):
         """Proves: effects_per_running_hour adds a cost for each hour a unit is on.
@@ -223,7 +225,7 @@ class TestFlowStatus:
             ],
         )
         # fuel=20, active_hour_cost=2*50=100, total=120
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 120.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='active_hours_min/max not supported — issue #16')
     def test_active_hours_min(self, optimize):
@@ -286,10 +288,10 @@ class TestFlowStatus:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # Verify downtime_max: no two consecutive off-hours
-        status = result.solution['flow--on'].sel(flow='ExpBoiler(Heat)').values
+        status = read(result, 'running').rename(status_entity='flow').sel(flow='ExpBoiler(Heat)').values
         assert_off_blocks(status, max_length=1, skip_leading=False)
         # ExpBoiler on 2h @20/0.5=40 fuel/h, CheapBoiler off hours @20/1.0=20 fuel/h. Total=60.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 60.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='startup_limit not supported — issue #17')
     def test_startup_limit(self, optimize):
@@ -351,10 +353,10 @@ class TestFlowStatus:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # Verify no more than 2 consecutive on-hours
-        status = result.solution['flow--on'].sel(flow='CheapBoiler(Heat)').values
+        status = read(result, 'running').rename(status_entity='flow').sel(flow='CheapBoiler(Heat)').values
         assert_on_blocks(status, max_length=2)
         # Cheap: 4*10 = 40 fuel. Backup @1h: 10/0.5 = 20 fuel. Total = 60.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 60.0, rtol=1e-5)
 
 
 class TestPreviousFlowRate:
@@ -405,7 +407,7 @@ class TestPreviousFlowRate:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # Forced ON at t=0 (relative_min=10), cost=10.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 10.0, rtol=1e-5)
 
     def test_previous_flow_rate_scalar_off_no_carry_over(self, optimize):
         """Proves: prior_rates=[0] means unit was OFF before t=0, so no uptime_min carry-over.
@@ -448,7 +450,7 @@ class TestPreviousFlowRate:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 0.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 0.0, rtol=1e-5)
 
     def test_previous_flow_rate_array_uptime_satisfied_vs_partial(self, optimize):
         """Proves: prior array length affects uptime carry-over calculation.
@@ -493,7 +495,7 @@ class TestPreviousFlowRate:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # With 2h uptime history, uptime_min=2 is satisfied → can be off at t=0 → cost=0
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 0.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 0.0, rtol=1e-5)
 
     def test_previous_flow_rate_array_partial_uptime_forces_continuation(self, optimize):
         """Proves: prior array with partial uptime forces continuation.
@@ -542,7 +544,7 @@ class TestPreviousFlowRate:
         # prior_rates=[0, 10]: consecutive uptime = 1 hour
         # uptime_min=3: needs 2 more hours → forced on at t=0, t=1 with relative_min=10
         # cost = 2 * 10 = 20
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 20.0, rtol=1e-5)
 
     def test_previous_flow_rate_array_downtime_min_carry_over(self, optimize):
         """Proves: prior array affects downtime_min carry-over.
@@ -597,7 +599,7 @@ class TestPreviousFlowRate:
         # downtime_min=3: needs 2 more off hours → CheapBoiler off t=0,t=1
         # ExpensiveBoiler covers t=0,t=1: 2*20/0.5 = 80. CheapBoiler covers t=2: 20.
         # Total = 100
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 100.0, rtol=1e-5)
 
     def test_previous_flow_rate_array_longer_history(self, optimize):
         """Proves: longer prior arrays correctly track consecutive hours.
@@ -647,4 +649,4 @@ class TestPreviousFlowRate:
         # prior_rates=[0, 10, 20, 30]: consecutive uptime from end = 3 hours
         # uptime_min=4: needs 1 more → forced on at t=0 with relative_min=10
         # cost = 10
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 10.0, rtol=1e-5)

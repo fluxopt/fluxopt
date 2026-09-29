@@ -6,6 +6,7 @@ grid buy/sell exclusion. Transmission is not yet supported.
 
 import numpy as np
 import pytest
+from conftest import read
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port, Storage
@@ -72,7 +73,7 @@ class TestHeatPump:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 20.0, rtol=1e-5)
 
     def test_heatpump_variable_cop(self, optimize):
         """Proves: HeatPump accepts time-varying COP array.
@@ -105,7 +106,7 @@ class TestHeatPump:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 15.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 15.0, rtol=1e-5)
 
 
 @pytest.mark.skip(reason='cooling_tower factory not implemented — issue #252')
@@ -144,7 +145,7 @@ class TestPower2Heat:
                 )
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0 / 0.9, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 40.0 / 0.9, rtol=1e-5)
 
 
 class TestHeatPumpWithSource:
@@ -178,8 +179,8 @@ class TestHeatPumpWithSource:
                 )
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
-        assert_allclose(result.flow_rate('HP(source)').values, [20, 20], rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 20.0, rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='HP(source)').values, [20, 20], rtol=1e-5)
 
 
 class TestSourceAndSink:
@@ -213,7 +214,7 @@ class TestSourceAndSink:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
-        buy = result.flow_rate('GridConnection(buy)').values
-        sell = result.flow_rate('GridConnection(sell)').values
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 10.0, rtol=1e-5)
+        buy = read(result, 'rate').sel(flow='GridConnection(buy)').values
+        sell = read(result, 'rate').sel(flow='GridConnection(sell)').values
         assert not ((buy > 1e-5) & (sell > 1e-5)).any(), f'Simultaneous buy/sell: buy={buy}, sell={sell}'

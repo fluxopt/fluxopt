@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from conftest import ts
 from pydantic import ValidationError
 
 from fluxopt import Carrier, Converter, Effect, Flow, FlowSystem, Port
 
 _BASE = {
-    'timesteps': [0, 1],
+    'timesteps': ts(2),
     'carriers': [Carrier(id='Heat')],
     'effects': [Effect(id='cost')],
     'objective': 'cost',

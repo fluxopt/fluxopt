@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from conftest import read
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, Storage
@@ -49,7 +50,7 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 20.0, rtol=1e-5)
 
     def test_storage_losses(self, optimize):
         """Proves: relative_loss_per_hour correctly reduces stored energy over time.
@@ -90,7 +91,7 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 100.0, rtol=1e-5)
 
     def test_storage_eta_charge_discharge(self, optimize):
         """Proves: eta_charge and eta_discharge are both applied to the energy flow.
@@ -131,7 +132,7 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 100.0, rtol=1e-5)
 
     def test_storage_soc_bounds(self, optimize):
         """Proves: relative_level_max caps how much energy can be stored.
@@ -173,7 +174,7 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 1050.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 1050.0, rtol=1e-5)
 
     def test_storage_invest_capacity(self, optimize):
         """Proves: Sizing on capacity correctly sizes the storage.
@@ -214,8 +215,8 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.storage_capacities.sel(storage='Battery').item(), 50.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
+        assert_allclose(read(result, 'chosen_capacity').sel(storage='Battery').item(), 50.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 100.0, rtol=1e-5)
 
     def test_storage_relative_level_min(self, optimize):
         """Proves: relative_level_min enforces a minimum SOC at all times.
@@ -248,7 +249,7 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 1050.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 1050.0, rtol=1e-5)
 
     def test_storage_cyclic_level(self, optimize):
         """Proves: cyclic=True ties the free prior level to the final level, preventing free energy extraction.
@@ -278,7 +279,7 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 50.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 50.0, rtol=1e-5)
 
     def test_storage_minimal_final_level(self, optimize):
         """Proves: final_level_min forces the storage to retain at least the
@@ -310,7 +311,7 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 60.0, rtol=1e-5)
 
     def test_prevent_simultaneous_charge_and_discharge(self, optimize):
         """Proves: prevent_simultaneous=True forbids charging and discharging
@@ -347,9 +348,9 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 20.0, rtol=1e-5)
-        charge = result.flow_rate('Battery(charge)').values
-        discharge = result.flow_rate('Battery(discharge)').values
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 20.0, rtol=1e-5)
+        charge = read(result, 'rate').sel(flow='Battery(charge)').values
+        discharge = read(result, 'rate').sel(flow='Battery(discharge)').values
         simul = (charge > 1e-5) & (discharge > 1e-5)
         assert not simul.any(), f'Simultaneous charge/discharge: charge={charge}, discharge={discharge}'
 
@@ -383,7 +384,7 @@ class TestStorage:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 40.0, rtol=1e-5)
 
     def _optimize_final_level(self, optimize, *, demand, prices, prior_level, dump=False, **storage_kwargs):
         """Two-timestep grid/demand system for the final-level override tests.
@@ -434,7 +435,7 @@ class TestStorage:
             relative_level_min=np.array([0, 0]),
             final_level_min=50,
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 3050.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 3050.0, rtol=1e-5)
 
     def test_storage_relative_rate_max_final_level(self, optimize):
         """Proves: final_level_max caps the final level alongside a time-varying relative_level_max array.
@@ -463,7 +464,7 @@ class TestStorage:
         result = self._optimize_final_level(
             optimize, demand=[0, 80], prices=[1, 100], prior_level=50, final_level_min=50
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 3050.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 3050.0, rtol=1e-5)
 
     def test_storage_relative_rate_max_final_level_scalar(self, optimize):
         """Proves: final_level_max works when relative_level_max is a scalar (default=1, no time dimension).

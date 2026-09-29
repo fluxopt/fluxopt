@@ -1,0 +1,163 @@
+# Build timing over periods: a unit is built once, in one period, and stays
+# alive for its lifetime. It shares `size` with sizing: `size` is the capacity
+# available in a period, whichever mechanism decided it.
+description: A flow may be built in one period and kept alive for its lifetime.
+
+dimensions:
+  period: {dtype: int}
+  # The period a unit was built in. Same labels as `period`; a separate axis
+  # so a build decision can be summed into the periods it keeps alive.
+  build_period: {dtype: int}
+  effect: {dtype: str}
+  flow: {dtype: str}
+
+parameters:
+  has_invest: {dims: [flow], dtype: bool}
+  prior_capacity: {dims: [flow]}
+  has_prior_capacity: {dims: [flow], dtype: bool}
+  # 1 where a build in `build_period` is still within lifetime in `period`
+  lifetime_window: {dims: [flow, period, build_period]}
+  # 1 where pre-existing capacity is still active
+  prior_capacity_active: {dims: [flow, period]}
+  # At-build effects land in the period the unit was built in, not in every
+  # period, so these carry both axes and are non-zero only on the diagonal.
+  effects_per_size_at_build: {dims: [flow, effect, period, build_period]}
+  effects_fixed_at_build: {dims: [flow, effect, period, build_period]}
+  effects_per_size_recurring: {dims: [flow, effect, period]}
+  effects_fixed_recurring: {dims: [flow, effect, period]}
+
+variables:
+  invest_size:
+    dims: [flow]
+    where: "has_invest"
+    bounds: {lower: 0, upper: size_max}
+
+  invest_build:
+    dims: [flow, build_period]
+    where: "has_invest"
+    domain: binary
+
+  invest_active:
+    dims: [flow, period]
+    where: "has_invest"
+    domain: binary
+
+  invest_size_at_build:
+    dims: [flow, build_period]
+    where: "has_invest"
+    bounds: {lower: 0, upper: size_max}
+
+expressions:
+  builds:
+    expression: sum(invest_build, over=build_period)
+    description: How many times a flow is built over the horizon.
+  contribution_invest_per_size_at_build:
+    expression: invest_size_at_build * effects_per_size_at_build
+    description: What the built size costs, charged to the period it was built in.
+  contribution_invest_fixed_at_build:
+    expression: invest_build * effects_fixed_at_build
+    description: What the build decision costs, charged where it happened.
+  contribution_invest_per_size_recurring:
+    expression: chosen_size * effects_per_size_recurring
+    description: What keeping the size costs, every period it is alive.
+  contribution_invest_fixed_recurring:
+    expression: invest_active * effects_fixed_recurring
+    description: What keeping the unit costs, every period it is alive.
+  investment_costs:
+    expression: >-
+      sum(sum(contribution_invest_per_size_at_build, over=build_period), over=flow)
+      + sum(sum(contribution_invest_fixed_at_build, over=build_period), over=flow)
+      + sum(contribution_invest_per_size_recurring, over=flow)
+      + sum(contribution_invest_fixed_recurring, over=flow)
+    description: What building and keeping the investments adds to each effect.
+
+given:
+  parameters:
+    mandatory: {dims: [flow], dtype: bool}
+    size_min: {dims: [flow]}
+    size_max: {dims: [flow]}
+  variables:
+    chosen_size: {dims: [flow, period]}
+  expressions:
+    direct_lump: {dims: [effect, period], term: investment_costs}
+
+constraints:
+  # --- build at most once (exactly once when mandatory); never when capacity
+  # already exists from before the horizon.
+  invest_build_mandatory:
+    dims: [flow]
+    where: "has_invest AND mandatory AND NOT has_prior_capacity"
+    expression: builds == 1
+
+  invest_build_optional:
+    dims: [flow]
+    where: "has_invest AND NOT mandatory AND NOT has_prior_capacity"
+    expression: builds <= 1
+
+  invest_build_prior:
+    dims: [flow]
+    where: "has_invest AND has_prior_capacity"
+    expression: builds == 0
+
+  invest_active_logic:
+    dims: [flow, period]
+    where: "has_invest"
+    expression: >-
+      invest_active - sum(invest_build * lifetime_window, over=build_period)
+      == prior_capacity_active
+
+  invest_size_prior:
+    dims: [flow]
+    where: "has_invest AND has_prior_capacity"
+    expression: invest_size == prior_capacity
+
+  # A mandatory build is pinned above, so one pair of size rows serves both.
+  invest_size_min:
+    dims: [flow]
+    where: "has_invest AND NOT has_prior_capacity"
+    expression: invest_size >= size_min * builds
+
+  invest_size_max:
+    dims: [flow]
+    where: "has_invest AND NOT has_prior_capacity"
+    expression: invest_size <= size_max * builds
+
+  # --- size == invest_size when active, 0 when not (big-M).
+  invest_size_link_active:
+    dims: [flow, period]
+    where: "has_invest"
+    expression: chosen_size - size_max * invest_active <= 0
+
+  invest_size_link_max:
+    dims: [flow, period]
+    where: "has_invest"
+    expression: chosen_size - invest_size <= 0
+
+  invest_size_link_min:
+    dims: [flow, period]
+    where: "has_invest"
+    expression: chosen_size - invest_size - size_max * invest_active >= 0 - size_max
+
+  # --- size_at_build == invest_size * build, linearised.
+  invest_sab_build:
+    dims: [flow, build_period]
+    where: "has_invest"
+    expression: invest_size_at_build - size_max * invest_build <= 0
+
+  invest_sab_max:
+    dims: [flow, build_period]
+    where: "has_invest"
+    expression: invest_size_at_build - invest_size <= 0
+
+  invest_sab_min:
+    dims: [flow, build_period]
+    where: "has_invest"
+    expression: >-
+      invest_size_at_build - invest_size - size_max * invest_build
+      >= 0 - size_max
+
+assumptions:
+  prior_capacity_is_not_negative:
+    holds: "prior_capacity >= 0"
+    where: "prior_capacity"
+    description: what was built before the horizon is a size, and a size is not negative

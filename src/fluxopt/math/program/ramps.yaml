@@ -1,0 +1,59 @@
+# P_t - P_{t-1} <= r * dt * S, relaxed by S at a start-up for a gated flow.
+# Periods are independent, so the first step has no row.
+description: How fast a flow's rate may change from one step to the next.
+
+dimensions:
+  time: {dtype: datetime}
+  period: {dtype: int}
+  flow: {dtype: str}
+  status_entity: {dtype: str}
+
+relations:
+  status_of: {key: flow, values: status_entity}
+
+parameters:
+  # r+ * dt, per unit of size. A flow with a ramp has a row, a ramp of 0
+  # included; a flow without one has none.
+  ramp_up_coeff: {dims: [flow, time, period]}
+  ramp_down_coeff: {dims: [flow, time, period]}
+
+given:
+  parameters:
+    size_bound: {dims: [flow]}
+  variables:
+    rate: {dims: [flow, time, period]}
+    startup: {dims: [status_entity, time, period], domain: binary}
+    shutdown: {dims: [status_entity, time, period], domain: binary}
+  expressions:
+    size: {dims: [flow, period]}
+
+expressions:
+  # A gated flow may jump from zero to its minimum in the step it starts, so
+  # the step it starts in is released by the most it could carry.
+  startup_release:
+    dims: [flow, time, period]
+    cases:
+      gated:
+        when: "status_of"
+        expression: size_bound * at(startup, by=status_of, over=status_entity, into=flow)
+    otherwise: 0
+    description: How far a start-up relaxes the ramp-up limit.
+  shutdown_release:
+    dims: [flow, time, period]
+    cases:
+      gated:
+        when: "status_of"
+        expression: size_bound * at(shutdown, by=status_of, over=status_entity, into=flow)
+    otherwise: 0
+    description: How far a shut-down relaxes the ramp-down limit.
+
+constraints:
+  ramp_up:
+    dims: [flow, time, period]
+    where: "ramp_up_coeff AND position(time) != 0"
+    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_coeff * size + startup_release
+
+  ramp_down:
+    dims: [flow, time, period]
+    where: "ramp_down_coeff AND position(time) != 0"
+    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_coeff * size + shutdown_release

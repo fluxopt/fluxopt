@@ -39,7 +39,7 @@ The **temporal** domain accumulates flow contributions, running costs,
 startup costs, and cross-effect contributions per timestep:
 
 \[
-\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f} \mathrm{c}_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{flow}} + \underbrace{\sum_{f} \mathrm{r}_{f,k,t} \cdot \sigma_{f,t} \cdot \Delta t_t}_{\text{running}} + \underbrace{\sum_{f} \mathrm{u}_{f,k,t} \cdot \tau^+_{f,t}}_{\text{startup}} + \underbrace{\sum_{j} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect}}
+\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f} \mathrm{c}_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{flow}} + \underbrace{\sum_{f} \mathrm{r}_{f,k,t} \cdot \sigma_{f,t} \cdot \Delta t_t}_{\text{running}} + \underbrace{\sum_{f} \mathrm{u}_{f,k,t} \cdot \tau^+_{f,t}}_{\text{startup}} + \underbrace{\sum_{j} \alpha_{k,j} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect}}
 \]
 
 The **lump** domain accumulates sizing costs, fixed costs, one-time costs, and cross-effect contributions:
@@ -57,13 +57,13 @@ full formulations of each term.
 |---|---|---|
 | \(k^*\) | Objective effect | `optimize(objective='cost')` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow.effects_per_flow_hour) |
-| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\omega_{k,p}\) | Period weight | [`Effect.period_weights`](../api/fluxopt/elements.md#fluxopt.elements.Effect.period_weights) (fallback: [`optimize(period_weights=...)`](../api/fluxopt/index.md#fluxopt.optimize(period_weights))) |
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Temporal (per-timestep) effect expression | folded into totals at build |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
-| \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Temporal (per-timestep) effect expression | `effect_step` in the program |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect expression (sizing + one-time costs) | `effect_lump[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
 
 See [Notation](notation.md) for the full symbol table.
 

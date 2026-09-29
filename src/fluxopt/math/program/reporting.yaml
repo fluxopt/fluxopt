@@ -1,0 +1,93 @@
+# What a solution is read as. Nothing here is a constraint: every name is
+# evaluated against a solve, and none of them reaches the solver.
+description: The quantities a result is reported in.
+
+dimensions:
+  time: {dtype: datetime}
+  period: {dtype: int}
+  build_period: {dtype: int}
+  flow: {dtype: str}
+  storage: {dtype: str}
+  status_entity: {dtype: str}
+  effect: {dtype: str}
+  source: {dtype: str}
+
+relations:
+  same: {key: source, values: effect}
+
+expressions:
+  step_flow_hours:
+    expression: rate * dt
+    description: What each flow carries in a step, as energy.
+  carrier_balance:
+    expression: rate * carrier_sign
+    description: Each flow's signed share of its carrier; it sums to zero per carrier and step.
+  total_duration:
+    expression: sum(dt * time_weight, over=time)
+    description: How long the horizon is, weighted.
+  capacity_factor:
+    expression: flow_hours / (size * total_duration)
+    description: What each flow carries, as a share of running at its size throughout.
+  relative_mean_level:
+    expression: sum(level * dt * time_weight, over=time) / (total_duration * capacity)
+    description: The mean level of each storage, as a share of its capacity.
+  # Each contribution again, with what it charges through `contribution_from`
+  # added: CO2 priced into cost is charged to the flow that emitted it.
+  priced_flow_hour:
+    expression: contribution_flow_hour + sum(share * at(contribution_flow_hour, by=same, over=effect, into=source), over=source)
+    description: What each flow's throughput charges per step, cross-effects included.
+  priced_running:
+    expression: contribution_running + sum(share * at(contribution_running, by=same, over=effect, into=source), over=source)
+    description: What being on charges per step, cross-effects included.
+  priced_startup:
+    expression: contribution_startup + sum(share * at(contribution_startup, by=same, over=effect, into=source), over=source)
+    description: What each start charges, cross-effects included.
+  priced_flow_per_size:
+    expression: contribution_flow_per_size + sum(share * at(contribution_flow_per_size, by=same, over=effect, into=source), over=source)
+    description: What a flow's built size charges, cross-effects included.
+  priced_flow_fixed:
+    expression: contribution_flow_fixed + sum(share * at(contribution_flow_fixed, by=same, over=effect, into=source), over=source)
+    description: What deciding to build a flow charges, cross-effects included.
+  priced_storage_per_capacity:
+    expression: contribution_storage_per_capacity + sum(share * at(contribution_storage_per_capacity, by=same, over=effect, into=source), over=source)
+    description: What a storage's built capacity charges, cross-effects included.
+  priced_storage_fixed:
+    expression: contribution_storage_fixed + sum(share * at(contribution_storage_fixed, by=same, over=effect, into=source), over=source)
+    description: What deciding to build a storage charges, cross-effects included.
+  priced_invest_per_size_at_build:
+    expression: contribution_invest_per_size_at_build + sum(share * at(contribution_invest_per_size_at_build, by=same, over=effect, into=source), over=source)
+    description: What the built size charges where it was built, cross-effects included.
+  priced_invest_fixed_at_build:
+    expression: contribution_invest_fixed_at_build + sum(share * at(contribution_invest_fixed_at_build, by=same, over=effect, into=source), over=source)
+    description: What the build decision charges where it happened, cross-effects included.
+  priced_invest_per_size_recurring:
+    expression: contribution_invest_per_size_recurring + sum(share * at(contribution_invest_per_size_recurring, by=same, over=effect, into=source), over=source)
+    description: What keeping the size charges, cross-effects included.
+  priced_invest_fixed_recurring:
+    expression: contribution_invest_fixed_recurring + sum(share * at(contribution_invest_fixed_recurring, by=same, over=effect, into=source), over=source)
+    description: What keeping the unit charges, cross-effects included.
+
+given:
+  parameters:
+    dt: {dims: [time]}
+    time_weight: {dims: [time]}
+    carrier_sign: {dims: [flow]}
+    share: {dims: [effect, source, period]}
+  variables:
+    rate: {dims: [flow, time, period]}
+    level: {dims: [storage, time, period]}
+  expressions:
+    capacity: {dims: [storage, period]}
+    size: {dims: [flow, period]}
+    flow_hours: {dims: [flow, period]}
+    contribution_flow_hour: {dims: [flow, effect, time, period]}
+    contribution_running: {dims: [status_entity, effect, time, period]}
+    contribution_startup: {dims: [status_entity, effect, time, period]}
+    contribution_flow_per_size: {dims: [flow, effect, period]}
+    contribution_flow_fixed: {dims: [flow, effect, period]}
+    contribution_storage_per_capacity: {dims: [storage, effect, period]}
+    contribution_storage_fixed: {dims: [storage, effect, period]}
+    contribution_invest_per_size_at_build: {dims: [flow, effect, period, build_period]}
+    contribution_invest_fixed_at_build: {dims: [flow, effect, period, build_period]}
+    contribution_invest_per_size_recurring: {dims: [flow, effect, period]}
+    contribution_invest_fixed_recurring: {dims: [flow, effect, period]}

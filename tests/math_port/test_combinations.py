@@ -7,7 +7,7 @@ tests miss.
 
 import numpy as np
 import pytest
-from conftest import assert_off_blocks, assert_on_blocks
+from conftest import assert_off_blocks, assert_on_blocks, read
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, PiecewiseConversion, Port, Sizing, Status
@@ -50,8 +50,8 @@ class TestPiecewiseWithInvestment:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.sizes.sel(flow='Converter(Heat)').item(), 40.0, rtol=1e-4)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 140.0, rtol=1e-4)
+        assert_allclose(read(result, 'chosen_size').sel(flow='Converter(Heat)').item(), 40.0, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 140.0, rtol=1e-4)
 
     @pytest.mark.skip(reason='piecewise investment effects not supported — issue #26')
     def test_piecewise_invest_cost_with_optional_skip(self, optimize):
@@ -90,8 +90,8 @@ class TestPiecewiseWithStatus:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.solution['flow--rate'].sel(flow='Converter(fuel)').values[1], 45.0, rtol=1e-4)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 290.0, rtol=1e-4)
+        assert_allclose(read(result, 'rate').sel(flow='Converter(fuel)').values[1], 45.0, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 290.0, rtol=1e-4)
 
     def test_piecewise_minimum_load_with_status(self, optimize):
         """Proves: Piecewise gap enforces minimum load, interacting with status on/off.
@@ -119,8 +119,8 @@ class TestPiecewiseWithStatus:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 115.0, rtol=1e-4)
-        conv_heat = result.solution['flow--rate'].sel(flow='Converter(Heat)').values[0]
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 115.0, rtol=1e-4)
+        conv_heat = read(result, 'rate').sel(flow='Converter(Heat)').values[0]
         assert conv_heat < 1e-5, f'Converter should be off at t=0 (demand < min_load), got {conv_heat}'
 
     def test_piecewise_no_zero_point_with_status(self, optimize):
@@ -151,9 +151,9 @@ class TestPiecewiseWithStatus:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         expected_fuel_t1 = 20 + (25 / 30) * 40
-        fuel = result.solution['flow--rate'].sel(flow='Converter(fuel)').values
+        fuel = read(result, 'rate').sel(flow='Converter(fuel)').values
         assert_allclose(fuel[1], expected_fuel_t1, rtol=1e-4)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 25.0 + expected_fuel_t1, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 25.0 + expected_fuel_t1, rtol=1e-4)
         assert fuel[0] < 1e-5  # OFF at t=0 despite no zero point in the curve
 
     def test_piecewise_no_zero_point_startup_cost(self, optimize):
@@ -186,8 +186,8 @@ class TestPiecewiseWithStatus:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         expected_fuel = 30 + (20 / 40) * 50
-        assert_allclose(result.solution['flow--rate'].sel(flow='Converter(fuel)').values[1], expected_fuel, rtol=1e-4)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 2 * expected_fuel + 400, rtol=1e-4)
+        assert_allclose(read(result, 'rate').sel(flow='Converter(fuel)').values[1], expected_fuel, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 2 * expected_fuel + 400, rtol=1e-4)
 
 
 class TestPiecewiseThreeSegments:
@@ -224,8 +224,8 @@ class TestPiecewiseThreeSegments:
         Demand=40 falls in seg3: fuel = 30 + (40-25)/(55-25) * (60-30) = 45, cost = 2*45 = 90.
         """
         result = self._run_three_segment(optimize, 40.0)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 90.0, rtol=1e-4)
-        assert_allclose(result.solution['flow--rate'].sel(flow='Converter(fuel)').values[0], 45.0, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 90.0, rtol=1e-4)
+        assert_allclose(read(result, 'rate').sel(flow='Converter(fuel)').values[0], 45.0, rtol=1e-4)
 
     def test_three_segment_low_load_selection(self, optimize):
         """Proves: With 3 segments, low demand correctly uses segment 1.
@@ -233,7 +233,7 @@ class TestPiecewiseThreeSegments:
         Demand=5 falls in seg1 (1:1): fuel = 5, cost = 2*5 = 10; other segments' ratios would differ.
         """
         result = self._run_three_segment(optimize, 5.0)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 10.0, rtol=1e-4)
 
     def test_three_segment_mid_load_selection(self, optimize):
         """Proves: With 3 segments, mid demand correctly uses segment 2.
@@ -242,7 +242,7 @@ class TestPiecewiseThreeSegments:
         """
         result = self._run_three_segment(optimize, 18.0)
         expected_fuel = 10 + (8 / 15) * 20
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 2 * expected_fuel, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 2 * expected_fuel, rtol=1e-4)
 
 
 class TestStatusWithEffects:
@@ -297,9 +297,9 @@ class TestStatusWithEffects:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert result.effect_totals.sel(effect='CO2').item() <= 60.0 + 1e-5
+        assert read(result, 'effect_total').sel(effect='CO2').item() <= 60.0 + 1e-5
         # Verify only 1 startup (continuous operation)
-        on = result.solution['flow--on'].sel(flow='Boiler(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Boiler(Heat)').values
         startups = sum(1 for i in range(len(on)) if on[i] > 0.5 and (i == 0 or on[i - 1] < 0.5))
         assert startups <= 1, f'Expected ≤1 startup, got {startups}: on={on}'
 
@@ -349,8 +349,8 @@ class TestStatusWithEffects:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 60.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 10.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 60.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='CO2').item(), 10.0, rtol=1e-5)
 
 
 class TestInvestWithRelativeMinimum:
@@ -408,10 +408,10 @@ class TestInvestWithRelativeMinimum:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 50.0, rtol=1e-4)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 125.0, rtol=1e-4)
+        assert_allclose(read(result, 'chosen_size').sel(flow='Boiler(Heat)').item(), 50.0, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 125.0, rtol=1e-4)
         # Verify boiler is OFF at t=0
-        assert result.solution['flow--on'].sel(flow='Boiler(Heat)').values[0] < 0.5
+        assert read(result, 'running').rename(status_entity='flow').sel(flow='Boiler(Heat)').values[0] < 0.5
 
 
 class TestConversionWithTimeVaryingEffects:
@@ -455,7 +455,7 @@ class TestConversionWithTimeVaryingEffects:
                 ),
             ],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 100.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 100.0, rtol=1e-5)
 
     def test_effects_per_flow_hour_with_dual_output_conversion(self, optimize):
         """Proves: effects_per_flow_hour applied to individual flows of a multi-output
@@ -508,8 +508,8 @@ class TestConversionWithTimeVaryingEffects:
             carriers=[Carrier(id='Elec'), Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # Per ts: fuel=100, elec=40. costs: 100-80=20. CO2: 50-12=38. Total: costs=40, CO2=76.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 76.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 40.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='CO2').item(), 76.0, rtol=1e-5)
 
 
 @pytest.mark.skip(reason='piecewise investment effects not supported — issue #26')
@@ -577,7 +577,7 @@ class TestStatusWithMultipleConstraints:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        on = result.solution['flow--on'].sel(flow='CheapBoiler(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='CheapBoiler(Heat)').values
 
         # Verify uptime_min: each on-block is ≥2 hours
         assert_on_blocks(on, min_length=2)
@@ -586,7 +586,7 @@ class TestStatusWithMultipleConstraints:
         assert_off_blocks(on, min_length=2)
 
         # Pattern [off,on,on,on,on,on]: CheapBoiler 5h=100, Backup 1h*20/0.5=40. Total=140.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 140.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 140.0, rtol=1e-5)
 
 
 class TestEffectsWithConversion:
@@ -620,8 +620,8 @@ class TestEffectsWithConversion:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 270.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='CO2').item(), 10.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 270.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='CO2').item(), 10.0, rtol=1e-5)
 
     def test_effect_maximum_with_status_contribution(self, optimize):
         """Proves: Effect maximum correctly accounts for contributions from
@@ -672,7 +672,7 @@ class TestEffectsWithConversion:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert result.effect_totals.sel(effect='CO2').item() <= 20.0 + 1e-5
+        assert read(result, 'effect_total').sel(effect='CO2').item() <= 20.0 + 1e-5
 
 
 class TestInvestWithEffects:
@@ -712,6 +712,6 @@ class TestInvestWithEffects:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert result.effect_totals.sel(effect='CO2').item() <= 50.0 + 1e-5
-        assert_allclose(result.sizes.sel(flow='InvestBoiler(Heat)').item(), 25.0, rtol=1e-4)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 95.0, rtol=1e-4)
+        assert read(result, 'effect_total').sel(effect='CO2').item() <= 50.0 + 1e-5
+        assert_allclose(read(result, 'chosen_size').sel(flow='InvestBoiler(Heat)').item(), 25.0, rtol=1e-4)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 95.0, rtol=1e-4)

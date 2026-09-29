@@ -17,26 +17,21 @@ class TestNormalizeTimesteps:
         assert isinstance(result, pd.DatetimeIndex)
         assert len(result) == 3
 
-    def test_int_list(self):
-        result = normalize_timesteps([0, 1, 2])
-        assert list(result) == [0, 1, 2]
-        assert result.dtype == np.int64
-
-    def test_string_list_rejected(self):
-        with pytest.raises(TypeError, match='Use datetime or int'):
-            normalize_timesteps(['t0', 't1', 't2'])
-
-    def test_float_list_rejected(self):
-        with pytest.raises(TypeError, match='Use datetime or int'):
-            normalize_timesteps([1.0, 2.0, 3.0])
-
-    def test_bool_list_rejected(self):
-        with pytest.raises(TypeError, match='Use datetime or int'):
-            normalize_timesteps([False, True])
-
-    def test_mixed_int_float_rejected(self):
-        with pytest.raises(TypeError, match='non-integer'):
-            normalize_timesteps([1, 2.0, 3])
+    @pytest.mark.parametrize(
+        'timesteps',
+        [
+            pytest.param([0, 1, 2], id='int-list'),
+            pytest.param(pd.Index([0, 1, 2], dtype=np.int64), id='int-index'),
+            pytest.param(pd.RangeIndex(3), id='range-index'),
+            pytest.param(['t0', 't1', 't2'], id='string-list'),
+            pytest.param([1.0, 2.0, 3.0], id='float-list'),
+            pytest.param([False, True], id='bool-list'),
+            pytest.param([datetime(2024, 1, 1), 1], id='mixed'),
+        ],
+    )
+    def test_anything_but_timestamps_is_refused(self, timesteps):
+        with pytest.raises(TypeError, match=r'must be timestamps.*pd\.date_range'):
+            normalize_timesteps(timesteps)
 
     def test_pandas_datetimeindex(self):
         idx = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(3)])
@@ -52,17 +47,9 @@ class TestNormalizeTimesteps:
         with pytest.raises(ValueError, match='monotonically increasing'):
             normalize_timesteps([datetime(2024, 1, 1, 2), datetime(2024, 1, 1, 0)])
 
-    def test_non_monotonic_ints_rejected(self):
-        with pytest.raises(ValueError, match='monotonically increasing'):
-            normalize_timesteps([3, 1, 2])
-
     def test_duplicate_datetimes_rejected(self):
         with pytest.raises(ValueError, match='duplicates'):
             normalize_timesteps([datetime(2024, 1, 1), datetime(2024, 1, 1)])
-
-    def test_duplicate_ints_rejected(self):
-        with pytest.raises(ValueError, match='duplicates'):
-            normalize_timesteps([1, 1, 2])
 
 
 class TestComputeDt:
@@ -81,11 +68,6 @@ class TestComputeDt:
         with pytest.raises(ValueError, match='dt length'):
             compute_dt(ts, [1.0, 2.0, 3.0])
 
-    def test_auto_int_defaults_to_1(self):
-        ts = pd.Index([0, 1, 2], dtype=np.int64)
-        result = compute_dt(ts, None)
-        assert list(result.values) == [1.0, 1.0, 1.0]
-
     def test_auto_datetime_hourly(self):
         ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(4)])
         result = compute_dt(ts, None)
@@ -100,11 +82,6 @@ class TestComputeDt:
         ts = pd.DatetimeIndex(dts)
         result = compute_dt(ts, None)
         assert list(result.values) == [1.0, 1.0, 3.0]
-
-    def test_single_timestep(self):
-        ts = pd.Index([0], dtype=np.int64)
-        result = compute_dt(ts, None)
-        assert list(result.values) == [1.0]
 
     def test_single_datetime_timestep(self):
         ts = pd.DatetimeIndex([datetime(2024, 1, 1)])
