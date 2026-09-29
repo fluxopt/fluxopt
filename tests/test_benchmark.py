@@ -13,19 +13,19 @@ from fluxopt.benchmark import SYSTEMS, main, measure
 
 @pytest.mark.parametrize('name', list(SYSTEMS))
 def test_reference_system_builds(name):
-    """Each reference system builds through Elements -> ModelData -> linopy at a small horizon."""
+    """Each reference system builds through Elements -> sources -> specsolve at a small horizon."""
     row = measure(name, timesteps=48)
     assert row['model'] == name
     assert row['variables'] > 0
     assert row['constraints'] > 0
-    assert row['binaries'] >= 0
+    assert row['nonzeros'] > 0
     assert row['components'] > 0
     assert row['flows'] > 0
     assert row['effects'] > 0
     assert row['series'] > 0
     assert row['time'] > 0
     assert row['periods'] >= 1
-    assert all(row[key] >= 0 for key in ('elements_s', 'data_s', 'build_s'))
+    assert all(row[key] >= 0 for key in ('elements_s', 'sources_s', 'build_s'))
     assert 'solve_s' not in row
 
 

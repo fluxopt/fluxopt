@@ -17,10 +17,11 @@ API mapping (flixopt -> fluxopt):
 from __future__ import annotations
 
 import pytest
-from conftest import ts, waste
+import xarray as xr
+from conftest import read, ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Status, Storage, optimize
+from fluxopt import Carrier, Converter, Effect, Flow, Investment, Port, Status, Storage, optimize
 
 # ---------------------------------------------------------------------------
 # Bus balance & dispatch
@@ -47,8 +48,8 @@ class TestBusBalance:
             ],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
-        src1 = result.flow_rate('Src1(Heat)').values
-        src2 = result.flow_rate('Src2(Heat)').values
+        src1 = read(result, 'rate').sel(flow='Src1(Heat)').values
+        src2 = read(result, 'rate').sel(flow='Src2(Heat)').values
         assert_allclose(src1, [20, 20], rtol=1e-5)
         assert_allclose(src2, [10, 10], rtol=1e-5)
 
@@ -149,7 +150,7 @@ class TestEffects:
             ],
         )
         assert_allclose(result.objective, 60.0, rtol=1e-5)
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 15.0, rtol=1e-5)
 
     def test_effect_maximum(self):
@@ -170,7 +171,7 @@ class TestEffects:
             ],
         )
         assert_allclose(result.objective, 65.0, rtol=1e-5)
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 15.0, rtol=1e-5)
 
     def test_effect_minimum(self):
@@ -191,7 +192,7 @@ class TestEffects:
                 waste('Heat'),
             ],
         )
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 25.0, rtol=1e-5)
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
@@ -214,7 +215,7 @@ class TestEffects:
             ],
         )
         assert_allclose(result.objective, 52.0, rtol=1e-5)
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 12.0, rtol=1e-5)
 
     def test_effect_minimum_temporal(self):
@@ -234,7 +235,7 @@ class TestEffects:
                 waste('Heat'),
             ],
         )
-        co2 = float(result.effect_totals.sel(effect='CO2').values)
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').values)
         assert_allclose(co2, 25.0, rtol=1e-5)
         assert_allclose(result.objective, 25.0, rtol=1e-5)
 
@@ -343,91 +344,31 @@ class TestEffects:
             periods=[2020, 2025],
             period_weights=[1, 1],
         )
-        co2 = float(result.effect_totals.sel(effect='CO2').sum().item())
+        co2 = float(read(result, 'effect_total').sel(effect='CO2').sum().item())
         # Total CO2 (weighted by [1,1]) <= 20.
         assert co2 <= 20 + 1e-5
         assert_allclose(result.objective, 70.0, rtol=1e-5)
 
     @pytest.mark.parametrize(
-        ('chain_effects', 'lump_effect'),
+        'factor',
         [
-            pytest.param([Effect(id='co2')], 'co2', id='direct'),
-            pytest.param([Effect(id='co2', contribution_from={'pe': 0.2}), Effect(id='pe')], 'pe', id='transitive'),
+            pytest.param([1.0, 2.0], id='a list over the timesteps'),
+            pytest.param(xr.DataArray([1.0, 2.0], dims=['time']), id='an array over time'),
         ],
     )
-    def test_effect_time_varying_contribution_into_lump_bearing_raises(self, chain_effects, lump_effect):
-        """Time-varying contribution_from is rejected when the source effect has lump contributions.
-
-        Sizing on the source creates the lump contribution — directly on co2, or
-        on pe with a scalar chain co2 <- pe (the check follows chains).
-        """
-        source = Flow(
-            carrier='Heat',
-            effects_per_flow_hour={lump_effect: 1},
-            size=Sizing(size_min=10, size_max=10, mandatory=True, effects_per_size={lump_effect: 1.0}),
-        )
-        with pytest.raises(ValueError, match='ill-defined'):
+    def test_effect_time_varying_contribution_is_refused(self, factor):
+        """A cross-effect factor is one value per period, and the refusal names the flow-side rewrite."""
+        with pytest.raises(ValueError, match=r"varies over time.*effects_per_flow_hour=\{'cost': price \* factor\}"):
             optimize(
                 ts(2),
                 carriers=[Carrier(id='Heat')],
-                effects=[Effect(id='cost', contribution_from={'co2': [1.0, 2.0]}), *chain_effects],
+                effects=[Effect(id='cost', contribution_from={'co2': factor}), Effect(id='co2')],
                 objective='cost',
                 ports=[
                     Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5])]),
-                    Port(id='Source', imports=[source]),
+                    Port(id='Source', imports=[Flow(carrier='Heat', effects_per_flow_hour={'co2': 1})]),
                 ],
             )
-
-    def test_effect_time_varying_contribution_without_lump(self):
-        """Time-varying contribution_from is fine when the source effect is purely temporal.
-
-        co2 = [5, 5] per timestep, factor = [1, 2] -> cost = 5*1 + 5*2 = 15.
-        """
-        result = optimize(
-            ts(2),
-            carriers=[Carrier(id='Heat')],
-            effects=[
-                Effect(id='cost', contribution_from={'co2': [1.0, 2.0]}),
-                Effect(id='co2'),
-            ],
-            objective='cost',
-            ports=[
-                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5])]),
-                Port(id='Source', imports=[Flow(carrier='Heat', effects_per_flow_hour={'co2': 1})]),
-            ],
-        )
-        assert_allclose(result.objective, 15.0, rtol=1e-5)
-
-    def test_effect_constant_contribution_does_not_warn(self):
-        """A constant contribution_from must not trip the time-varying warning (mean != value in float)."""
-        import warnings
-
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter('always')
-            optimize(
-                ts(3),
-                carriers=[Carrier(id='Heat')],
-                effects=[
-                    Effect(id='cost', contribution_from={'co2': 0.045}),
-                    Effect(id='co2'),
-                ],
-                objective='cost',
-                ports=[
-                    Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[5, 5, 5])]),
-                    Port(
-                        id='Source',
-                        imports=[
-                            Flow(
-                                carrier='Heat',
-                                effects_per_flow_hour={'co2': 1},
-                                size=Sizing(size_min=10, size_max=10, mandatory=True, effects_per_size={'co2': 1.0}),
-                            ),
-                        ],
-                    ),
-                ],
-            )
-        msgs = [str(w.message) for w in caught]
-        assert not any('averaged over time' in m for m in msgs), f'Unexpected warning: {msgs}'
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +399,7 @@ class TestFlowConstraints:
             converters=[Converter.boiler('Boiler', 1.0, fuel, thermal)],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
-        flow = result.flow_rate('Boiler(Heat)').values
+        flow = read(result, 'rate').sel(flow='Boiler(Heat)').values
         assert all(f >= 40.0 - 1e-5 for f in flow), f'Flow below relative_rate_min: {flow}'
 
     def test_relative_rate_max(self):
@@ -482,7 +423,7 @@ class TestFlowConstraints:
             ],
         )
         assert_allclose(result.objective, 200.0, rtol=1e-5)
-        flow = result.flow_rate('CheapSrc(Heat)').values
+        flow = read(result, 'rate').sel(flow='CheapSrc(Heat)').values
         assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_rate_max: {flow}'
 
     def test_flow_hours_max_per_period(self):
@@ -511,7 +452,7 @@ class TestFlowConstraints:
             period_weights=[1, 1],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
-        cheap = result.flow_rate('CheapSrc(Heat)')
+        cheap = read(result, 'rate').sel(flow='CheapSrc(Heat)')
         for p in (2020, 2025):
             per_period = float(cheap.sel(period=p).values.sum())
             assert per_period <= 15.0 + 1e-5, f'CheapSrc above flow_hours_max in period {p}: {per_period}'
@@ -598,8 +539,67 @@ class TestFlowConstraints:
             ],
         )
         assert_allclose(result.objective, 140.0, rtol=1e-5)
-        cheap = result.flow_rate('CheapSrc(Heat)').values
+        cheap = read(result, 'rate').sel(flow='CheapSrc(Heat)').values
         assert cheap[1] - cheap[0] <= 20.0 + 1e-5, f'Ramp-up violated: {cheap}'
+
+    def test_ramp_up_limits_an_invested_flow(self):
+        """A ramp holds on a flow whose size an investment decides.
+
+        The same system as the fixed-size case, with CheapSrc built to exactly
+        100 by a mandatory investment: t1 <= 30 again, so cost = 140.
+
+        Was wrong: the allowance travelled as `r * dt * size` with the fixed
+        size, and an invested flow has none, so `ramp_up_limit` had no row for
+        it and the build refused the system with a DataError.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 50])]),
+                Port(
+                    id='CheapSrc',
+                    imports=[
+                        Flow(
+                            carrier='Heat',
+                            size=Investment(size_min=100, size_max=100),
+                            ramp_up_per_hour=0.2,
+                            effects_per_flow_hour={'cost': 1},
+                        )
+                    ],
+                ),
+                Port(id='ExpensiveSrc', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+            periods=[2020],
+            period_weights=[1],
+        )
+        assert_allclose(result.objective, 140.0, rtol=1e-5)
+
+    def test_a_ramp_of_zero_holds_the_rate(self):
+        """A ramp of 0 is a ramp: the rate may not rise at all.
+
+        CheapSrc (size=100, ramp_up=0), cost 1. Demand=[10,50]. Cheap stays at
+        10, so Expensive covers 40 at t1: cost = 10 + 10 + 40*5 = 220.
+
+        Sensitivity: a ramp read as absent lets Cheap cover all -> cost=60.
+        """
+        result = optimize(
+            ts(2),
+            carriers=[Carrier(id='Heat')],
+            effects=[Effect(id='cost')],
+            objective='cost',
+            ports=[
+                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 50])]),
+                Port(
+                    id='CheapSrc',
+                    imports=[Flow(carrier='Heat', size=100, ramp_up_per_hour=0.0, effects_per_flow_hour={'cost': 1})],
+                ),
+                Port(id='ExpensiveSrc', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
+            ],
+        )
+        assert_allclose(result.objective, 220.0, rtol=1e-5)
 
     def test_ramp_down_limits_decrease(self):
         """ramp_down_per_hour caps the rate decrease between timesteps.
@@ -625,7 +625,7 @@ class TestFlowConstraints:
             ],
         )
         assert_allclose(result.objective, 80.0, rtol=1e-5)
-        src = result.flow_rate('Src(Heat)').values
+        src = read(result, 'rate').sel(flow='Src(Heat)').values
         assert src[0] - src[1] <= 20.0 + 1e-5, f'Ramp-down violated: {src}'
 
     def test_ramp_requires_size(self):
@@ -700,7 +700,7 @@ class TestFlowConstraints:
             ],
         )
         assert_allclose(result.objective, 150.0, rtol=1e-5)
-        unit = result.flow_rate('Unit(Heat)').values
+        unit = read(result, 'rate').sel(flow='Unit(Heat)').values
         assert unit[2] - unit[1] <= 20.0 + 1e-5, f'Ramp violated between running steps: {unit}'
 
     def test_ramp_with_component_status(self):

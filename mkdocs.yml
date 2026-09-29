@@ -1,5 +1,5 @@
 site_name: fluxopt
-site_description: Energy system optimization with linopy
+site_description: Energy system optimization with specsolve
 repo_url: https://github.com/FBumann/fluxopt
 repo_name: FBumann/fluxopt
 edit_uri: edit/main/docs/
@@ -144,7 +144,6 @@ plugins:
             - https://numpy.org/doc/stable/objects.inv
             - https://docs.xarray.dev/en/stable/objects.inv
             - https://pandas.pydata.org/docs/objects.inv
-            - https://linopy.readthedocs.io/en/latest/objects.inv
           options:
             extensions:
               - griffe_pydantic:

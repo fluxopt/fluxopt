@@ -1,0 +1,27 @@
+# A flow belongs to exactly one component, so the (converter, flow) matrix
+# collapses to a lookup plus a coefficient keyed on flow.
+description: A converter's linear equations tie the rates of its flows.
+
+dimensions:
+  time: {dtype: datetime}
+  period: {dtype: int}
+  converter: {dtype: str}
+  eq_idx: {dtype: int}
+  flow: {dtype: str}
+
+relations:
+  converter_of: {key: flow, values: converter}
+
+parameters:
+  conversion_factor: {dims: [flow, eq_idx, time]}
+  conversion_active: {dims: [converter, eq_idx], dtype: bool}   # the equations a converter states
+
+given:
+  variables:
+    rate: {dims: [flow, time, period]}
+
+constraints:
+  conversion:
+    dims: [converter, eq_idx, time, period]
+    where: "conversion_active"
+    expression: sum(rate * conversion_factor, by=converter_of, over=flow, into=converter) == 0

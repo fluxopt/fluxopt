@@ -24,29 +24,30 @@ See [Objective](objective.md) for how the domains are weighted in the objective.
 Each effect accumulates contributions from all flows at each timestep:
 
 \[
-\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f \in \mathcal{F}} \mathrm{c}_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{direct flow contributions}} + \underbrace{\sum_{j \in \mathcal{K}} \alpha_{k,j,t} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect contributions}} \quad \forall \, k, t
+\Phi_{k,t}^{\text{temporal}} = \underbrace{\sum_{f \in \mathcal{F}} \mathrm{c}_{f,k,t} \cdot P_{f,t} \cdot \Delta t_t}_{\text{direct flow contributions}} + \underbrace{\sum_{j \in \mathcal{K}} \alpha_{k,j} \cdot \Phi_{j,t}^{\text{temporal}}}_{\text{cross-effect contributions}} \quad \forall \, k, t
 \]
 
 The coefficient \(\mathrm{c}_{f,k,t}\) specifies how much of effect \(k\) is produced per
 flow-hour of flow \(f\) (e.g., €/MWh for cost, kg/MWh for emissions).
 
-The cross-effect factor \(\alpha_{k,j,t}\) can be time-varying or constant
-(both via `contribution_from`).
+The cross-effect factor \(\alpha_{k,j}\) comes from `contribution_from`. It is
+a constant, or one value per period; it does not vary over time.
 
-\(\Phi_{k,t}^{\text{temporal}}\) is an **expression**, not a solver variable:
-no per-timestep effect variables exist in the model. The recursive definition
-above has the closed form
+\(\Phi_{k,t}^{\text{temporal}}\) is an **expression** (`effect_step` in the
+program), not a solver variable: no per-timestep effect variables exist in
+the model. The recursive definition above has the closed form
 
 \[
-\boldsymbol{\Phi}_t^{\text{temporal}} = (I - A_t)^{-1} \, \boldsymbol{D}_t
+\boldsymbol{\Phi}_t^{\text{temporal}} = (I - A)^{-1} \, \boldsymbol{D}_t
+= \boldsymbol{D}_t + \left((I - A)^{-1} - I\right) \boldsymbol{D}_t
 \]
 
-where \(A_t = [\alpha_{k,j,t}]\) and \(\boldsymbol{D}_t\) collects the direct
-contributions — the Leontief inverse is computed numerically at build time and
-multi-level chains (e.g., PE → CO₂ → cost) substitute inline. The expression is
-summed over time directly into the total (see below); per-timestep effect
-series in results are reconstructed post-solve from flow rates and
-coefficients.
+where \(A = [\alpha_{k,j}]\) and \(\boldsymbol{D}_t\) collects the direct
+contributions. The chained share \((I - A)^{-1} - I\) is computed from the
+data and bound as `share`, so multi-level chains (e.g., PE → CO₂ → cost) reach
+the model as one factor each. The coefficients \(\mathrm{c}_{f,k,t}\) are
+bound as the user declared them, and `effect_step` can be evaluated per
+timestep after the solve.
 
 ## Lump Domain
 
@@ -62,10 +63,10 @@ where the direct investment term is:
 \Phi_k^{\text{invest,direct}} = \sum_{f} \gamma_{f,k} \cdot S_f + \sum_{f} \phi_{f,k} \cdot y_f + \sum_{s} \gamma_{s,k} \cdot S_s + \sum_{s} \phi_{s,k} \cdot y_s
 \]
 
-Because \(\Phi_k^{\text{lump}}\) is a **variable** (not an expression), the
-solver resolves multi-level chains correctly: if PE has sizing costs
-and CO₂ depends on PE and cost depends on CO₂, the chain propagates through the
-lump domain just as it does through the temporal domain.
+\(\Phi_k^{\text{lump}}\) is an expression of the same form: if PE has sizing
+costs and CO₂ depends on PE and cost depends on CO₂, the chain propagates
+through the lump domain just as it does through the temporal domain, with
+the same `share`.
 
 ## Cross-Effect Contributions
 
@@ -73,15 +74,13 @@ An effect can include a weighted fraction of another effect's value via
 `contribution_from`. This enables patterns like carbon pricing (CO₂ → cost)
 or transitive chains (PE → CO₂ → cost).
 
-The factor \(\alpha_{k,j}\) from `contribution_from` accepts either a scalar
-or a `Variate`:
+The factor \(\alpha_{k,j}\) from `contribution_from` is a scalar, or one value
+per period. It applies identically to both domains, because one number means
+the same thing per timestep and for a one-time cost.
 
-- **Scalar**: applied identically to both temporal and lump domains.
-- **Variate** (time-varying): applied per-timestep in the temporal domain.
-  Rejected at build time when the source effect carries lump (sizing/fixed)
-  contributions — a per-timestep factor has no meaning for one-time
-  quantities. Use a scalar factor, or move the lump share into a separate
-  effect with a scalar factor.
+A factor that varies over time is refused. To charge an hourly carbon price,
+put it on the flows that emit: `effects_per_flow_hour={'cost': price * factor}`
+beside the flow's `co2` coefficient.
 
 If you need different cross-effect factors for the two domains, split into
 separate effects.
@@ -146,21 +145,18 @@ typically encode the period duration so the aggregate is a true physical sum.
 
 This is useful for emission caps or budget constraints.
 
-Per-timestep effect bounds do not exist: nothing binds effects per timestep,
-which is what allows the temporal domain to stay expression-only (temporal
-closure — see `docs/design/model-data-tree.md` §2.5).
+Per-timestep effect bounds do not exist: nothing binds effects per timestep.
 
 ## Parameters
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect expression (folded into totals at build) | reconstructed in results |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect variable (sizing + one-time costs) | `effect--lump[effect(, period)]` |
-| \(\Phi_{k(,p)}\) | Total effect variable | `effect--total[effect(, period)]` |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect expression | `effect_step[effect, time(, period)]` in the program |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect expression (sizing + one-time costs) | `effect_lump[effect(, period)]` |
+| \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`](../api/fluxopt/elements.md#fluxopt.elements.Flow.effects_per_flow_hour) |
-| \(\alpha_{k,j,t}\) | Cross-effect contribution factor (time-varying) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) (Variate) |
-| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) (scalar) |
-| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
+| \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar or per period) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) |
+| \(P_{f,t}\) | Flow rate variable | `rate[flow, time]` |
 | \(\Delta t_t\) | Timestep duration | dt |
 | \(\mathrm{w}_t\) | Timestep weight | weights |
 | \(\bar{\Phi}_k\) | Maximum aggregate (weighted sum across periods) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.total_max) |

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import ts
+from conftest import read, ts
 
 from fluxopt import Carrier, Effect, Flow, Port, Storage, optimize
 
@@ -29,8 +29,8 @@ class TestStorage:
             storages=[battery],
         )
 
-        charge = result.flow_rate('battery(charge)').values
-        discharge = result.flow_rate('battery(discharge)').values
+        charge = read(result, 'rate').sel(flow='battery(charge)').values
+        discharge = read(result, 'rate').sel(flow='battery(discharge)').values
 
         # Should charge in cheap hours (t0, t2) and discharge in expensive (t1, t3)
         assert charge[0] > 0  # t0: cheap
@@ -69,9 +69,9 @@ class TestStorage:
             storages=[battery],
         )
 
-        cs = result.storage_level('battery')
-        charge_t0 = float(result.flow_rate('battery(charge)').values[0])
-        discharge_t0 = float(result.flow_rate('battery(discharge)').values[0])
+        cs = read(result, 'level').sel(storage='battery')
+        charge_t0 = float(read(result, 'rate').sel(flow='battery(charge)').values[0])
+        discharge_t0 = float(read(result, 'rate').sel(flow='battery(discharge)').values[0])
         # End-of-period: level[0] = prior * decay + charge[0] * eta_c * dt - discharge[0] * dt / eta_d
         # With prior=0, dt=1, eta=1, loss=0: level[0] = charge[0] - discharge[0]
         expected = 0.0 + charge_t0 - discharge_t0
@@ -101,9 +101,9 @@ class TestStorage:
             storages=[battery],
         )
 
-        cs = result.storage_level('battery')
-        charge = result.flow_rate('battery(charge)').values
-        discharge = result.flow_rate('battery(discharge)').values
+        cs = read(result, 'level').sel(storage='battery')
+        charge = read(result, 'rate').sel(flow='battery(charge)').values
+        discharge = read(result, 'rate').sel(flow='battery(discharge)').values
 
         # End-of-period: level[0] = initial * decay + charge[0] - discharge[0]
         # Cyclic: initial = level[-1]. With dt=1, eta=1, loss=0:
@@ -140,12 +140,12 @@ class TestStorage:
         )
 
         # With charging efficiency, stored energy = charge_rate * eta_c
-        cs = result.storage_level('battery')
+        cs = read(result, 'level').sel(storage='battery')
         # Check balance between period 1 and period 2 (both observable):
         # level[2] = level[1] * decay + charge[2] * eta_c * dt - discharge[2] * dt / eta_d
         # With dt=1, loss=0, eta_d=1: level[2] = level[1] + charge[2] * eta_c - discharge[2]
-        charge_t2 = float(result.flow_rate('battery(charge)').values[2])
-        discharge_t2 = float(result.flow_rate('battery(discharge)').values[2])
+        charge_t2 = float(read(result, 'rate').sel(flow='battery(charge)').values[2])
+        discharge_t2 = float(read(result, 'rate').sel(flow='battery(discharge)').values[2])
         cs_t1 = float(cs.values[1])
         cs_t2 = float(cs.values[2])
         expected_cs_t2 = cs_t1 + charge_t2 * eta_c - discharge_t2

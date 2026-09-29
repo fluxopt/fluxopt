@@ -1,0 +1,154 @@
+# Whatever carries an on/off decision: a flow with its own Status, or a
+# component whose Status governs several flows at once. One dimension,
+# because the two differ only in which rows read the binary.
+description: An on/off decision, its durations, and what running and starting cost.
+
+dimensions:
+  time: {dtype: datetime}
+  period: {dtype: int}
+  effect: {dtype: str}
+  flow: {dtype: str}
+  status_entity: {dtype: str}
+  # The two states a decision can hold. Downtime is uptime with the state
+  # inverted, so every duration rule is written once over `state`.
+  state: {dtype: str}
+
+relations:
+  # The decision a flow's rate answers to: itself where the flow carries its
+  # own Status, its component where a component's Status governs it, absent
+  # where nothing gates it. `at()` reads the binary back through it.
+  status_of: {key: flow, values: status_entity}
+
+parameters:
+  # A flow is gated where `status_of` has a row for it. Every parameter here
+  # is the decision's own, so it sits on `status_entity` and is stated once
+  # for both kinds.
+  initial_status: {dims: [status_entity]}
+  # Per state: whether the entity bounds how long it stays in it, the least
+  # it must, the ceiling of the duration counter (the declared maximum, or
+  # the big-M where none is declared), the big-M itself (horizon plus any
+  # prior run), how long it was in the state before the horizon, and whether
+  # that prior run is shorter than the minimum and so must continue.
+  has_duration: {dims: [status_entity, state], dtype: bool}
+  duration_min: {dims: [status_entity, state]}
+  duration_upper: {dims: [status_entity, state]}
+  duration_big_m: {dims: [status_entity, state]}
+  previous_duration: {dims: [status_entity, state]}
+  forced_at_start: {dims: [status_entity, state], dtype: bool}
+  effects_per_running_hour: {dims: [status_entity, effect, time, period]}   # running effects * dt
+  effects_per_startup: {dims: [status_entity, effect, time, period]}        # startup effects
+
+variables:
+  # No `where:` — membership of `status_entity` is the mask. An entity is in
+  # the dimension because it carries a Status; there is no second way to say so.
+  running:
+    dims: [status_entity, time, period]
+    domain: binary
+
+  startup:
+    dims: [status_entity, time, period]
+    domain: binary
+
+  shutdown:
+    dims: [status_entity, time, period]
+    domain: binary
+
+  # How long the entity has been in the state, accumulating dt while in it.
+  duration:
+    dims: [status_entity, state, time, period]
+    where: "has_duration"
+    bounds: {lower: 0, upper: duration_upper}
+
+expressions:
+  running_before:
+    dims: [status_entity, time, period]
+    cases:
+      first:
+        when: "position(time) == 0"
+        expression: initial_status
+    otherwise: shift(running, along=time, offset=1)
+    description: Whether the decision was on in the step before.
+  in_state:
+    dims: [status_entity, state, time, period]
+    cases:
+      on:
+        when: "state == 'on'"
+        expression: running
+    otherwise: 1 - running
+    description: Whether the decision is in the state.
+  stay_ends:
+    dims: [status_entity, state, time, period]
+    cases:
+      on:
+        when: "state == 'on'"
+        expression: running - shift(running, along=time, offset=-1)
+    otherwise: shift(running, along=time, offset=-1) - running
+    description: 1 where a stay in the state ends after this step.
+  contribution_running:
+    expression: running * effects_per_running_hour
+    description: What being on costs, per timestep, for whatever carries the decision.
+  contribution_startup:
+    expression: startup * effects_per_startup
+    description: What each start costs, at the step it happens.
+  status_costs:
+    expression: sum(contribution_running, over=status_entity) + sum(contribution_startup, over=status_entity)
+    description: What running and starting add to each effect in a step.
+
+given:
+  parameters:
+    dt: {dims: [time]}
+  expressions:
+    direct_step: {dims: [effect, time, period], term: status_costs}
+
+constraints:
+  # The first step has a row only where the state before the horizon is known.
+  status_transition:
+    dims: [status_entity, time, period]
+    where: "position(time) != 0 OR initial_status"
+    expression: startup - shutdown == running - running_before
+
+  status_exclusive:
+    dims: [status_entity, time, period]
+    expression: startup + shutdown <= 1
+
+  # --- big-M duration tracking: the duration accumulates dt while in the state.
+  duration_gate:
+    dims: [status_entity, state, time, period]
+    where: "has_duration"
+    expression: duration <= duration_big_m * in_state
+
+  duration_accum_max:
+    dims: [status_entity, state, time, period]
+    where: "has_duration AND position(time) != 0"
+    expression: duration <= shift(duration, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
+
+  duration_accum_min:
+    dims: [status_entity, state, time, period]
+    where: "has_duration AND position(time) != 0"
+    expression: >-
+      duration >= shift(duration, along=time, offset=1) + shift(dt, along=time, offset=1, edge=0)
+      + (in_state - 1) * duration_big_m
+
+  # A stay that ends after this step has lasted at least the minimum.
+  duration_min_run:
+    dims: [status_entity, state, time, period]
+    where: "has_duration AND duration_min AND position(time) != -1"
+    expression: duration >= duration_min * stay_ends
+
+  # --- carry-over from before the horizon: duration[0] = in_state[0] *
+  # (previous + dt[0]), and a prior stay shorter than the minimum continues.
+  duration_carryover:
+    dims: [status_entity, state, time, period]
+    where: "position(time) == 0 AND previous_duration"
+    expression: duration == in_state * (previous_duration + dt)
+
+  status_forced:
+    dims: [status_entity, state, time, period]
+    where: "position(time) == 0 AND forced_at_start"
+    expression: in_state >= 1
+
+assumptions:
+  durations_are_ordered:
+    holds: "duration_min >= 0 AND duration_min <= duration_upper"
+    where: "duration_min"
+    description: a minimum stay is not negative, and does not exceed the most the counter may reach

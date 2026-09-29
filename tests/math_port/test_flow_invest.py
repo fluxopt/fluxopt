@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from conftest import read
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port, Sizing, Status
@@ -58,8 +59,8 @@ class TestFlowInvest:
         )
         # size = 50 (peak), invest cost = 10 + 50*1 = 60, fuel = 80
         # total = 140
-        assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 50.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 140.0, rtol=1e-5)
+        assert_allclose(read(result, 'chosen_size').sel(flow='Boiler(Heat)').item(), 50.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 140.0, rtol=1e-5)
 
     def test_invest_optional_not_built(self, optimize):
         """Proves: Optional investment is correctly skipped when the fixed investment
@@ -109,9 +110,9 @@ class TestFlowInvest:
             ],
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
-        assert_allclose(result.solution['flow--size_indicator'].sel(flow='InvestBoiler(Heat)').item(), 0.0, atol=1e-5)
+        assert_allclose(read(result, 'size_built').sel(flow='InvestBoiler(Heat)').item(), 0.0, atol=1e-5)
         # All demand served by CheapBoiler: fuel = 20/0.5 = 40
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 40.0, rtol=1e-5)
 
     def test_invest_minimum_size(self, optimize):
         """Proves: Sizing size_min forces the invested capacity to be
@@ -155,9 +156,9 @@ class TestFlowInvest:
             ],
         )
         # Must invest at least 100, cost_per_size=1 → invest=100
-        assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 100.0, rtol=1e-5)
+        assert_allclose(read(result, 'chosen_size').sel(flow='Boiler(Heat)').item(), 100.0, rtol=1e-5)
         # fuel=20, invest=100 → total=120
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 120.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 120.0, rtol=1e-5)
 
     def test_invest_fixed_size(self, optimize):
         """Proves: size_min==size_max creates a binary invest-or-not decision at exactly the
@@ -207,10 +208,10 @@ class TestFlowInvest:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # size must be exactly 80 (not optimized to 30)
-        assert_allclose(result.sizes.sel(flow='FixedBoiler(Heat)').item(), 80.0, rtol=1e-5)
-        assert_allclose(result.solution['flow--size_indicator'].sel(flow='FixedBoiler(Heat)').item(), 1.0, atol=1e-5)
+        assert_allclose(read(result, 'chosen_size').sel(flow='FixedBoiler(Heat)').item(), 80.0, rtol=1e-5)
+        assert_allclose(read(result, 'size_built').sel(flow='FixedBoiler(Heat)').item(), 1.0, atol=1e-5)
         # fuel=60 (all from FixedBoiler @eta=1), invest=10, total=70
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 70.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 70.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='piecewise investment effects not supported — issue #26')
     def test_piecewise_invest_cost(self, optimize):
@@ -279,9 +280,9 @@ class TestFlowInvest:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # mandatory=True forces ExpensiveBoiler to be built, size=10 (minimum needed)
-        assert_allclose(result.sizes.sel(flow='ExpensiveBoiler(Heat)').item(), 10.0, rtol=1e-5)
+        assert_allclose(read(result, 'chosen_size').sel(flow='ExpensiveBoiler(Heat)').item(), 10.0, rtol=1e-5)
         # invest=1000+10*1=1010, fuel from ExpensiveBoiler=20 (eta=1.0), total=1030
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 1030.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 1030.0, rtol=1e-5)
 
     def test_invest_not_mandatory_skips_when_uneconomical(self, optimize):
         """Proves: mandatory=False (default) allows optimizer to skip investment
@@ -331,11 +332,9 @@ class TestFlowInvest:
             carriers=[Carrier(id='Gas'), Carrier(id='Heat')],
         )
         # mandatory=False allows skipping uneconomical investment
-        assert_allclose(
-            result.solution['flow--size_indicator'].sel(flow='ExpensiveBoiler(Heat)').item(), 0.0, atol=1e-5
-        )
+        assert_allclose(read(result, 'size_built').sel(flow='ExpensiveBoiler(Heat)').item(), 0.0, atol=1e-5)
         # CheapBoiler covers all: fuel = 20/0.5 = 40
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 40.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 40.0, rtol=1e-5)
 
     @pytest.mark.skip(reason='retirement effects not supported — issue #18')
     def test_invest_effects_of_retirement(self, optimize):
@@ -412,8 +411,8 @@ class TestFlowInvestWithStatus:
         )
         # size=20 (peak), invest=10+20=30, fuel=40, 2 startups=100
         # total = 30 + 40 + 100 = 170
-        assert_allclose(result.sizes.sel(flow='Boiler(Heat)').item(), 20.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 170.0, rtol=1e-5)
+        assert_allclose(read(result, 'chosen_size').sel(flow='Boiler(Heat)').item(), 20.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 170.0, rtol=1e-5)
 
     def test_invest_with_uptime_min(self, optimize):
         """Proves: Invested unit respects uptime_min constraint.
@@ -468,10 +467,10 @@ class TestFlowInvestWithStatus:
         # uptime_min=2: runs continuously t=0,1,2
         # fuel = 20 + 10 + 20 = 50
         # total = 20 (invest) + 50 (fuel) = 70
-        assert_allclose(result.sizes.sel(flow='InvestBoiler(Heat)').item(), 20.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 70.0, rtol=1e-5)
+        assert_allclose(read(result, 'chosen_size').sel(flow='InvestBoiler(Heat)').item(), 20.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 70.0, rtol=1e-5)
         # Verify InvestBoiler runs all 3 hours due to uptime_min
-        status = result.solution['flow--on'].sel(flow='InvestBoiler(Heat)').values
+        status = read(result, 'running').rename(status_entity='flow').sel(flow='InvestBoiler(Heat)').values
         assert_allclose(status, [1, 1, 1], atol=1e-5)
 
     @pytest.mark.skip(reason='active_hours_min/max not supported — issue #16')
