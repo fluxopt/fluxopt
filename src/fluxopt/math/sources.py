@@ -1,6 +1,6 @@
 """fluxopt's math program, and the tables a system binds to it.
 
-:data:`PROGRAM` is the math, one YAML fragment per feature. :func:`build_sources`
+[`PROGRAM`][fluxopt.math.PROGRAM] is the math, one YAML fragment per feature. [`build_sources`][fluxopt.math.build_sources]
 builds, straight from the elements, every table the program declares: one
 function per feature, each returning the tables it owns, keyed by the labels
 the elements were written with — the timestamp (or step number), the period
@@ -34,12 +34,13 @@ if TYPE_CHECKING:
 #: The directory holding fluxopt's math, one YAML fragment per feature.
 #: Shipped as package data.
 PROGRAM = Path(__file__).with_name('program')
+"""The directory of YAML fragments that mathspec composes into fluxopt's spec."""
 
 
 def program() -> Any:
     """fluxopt's math, composed from its fragments, loaded and checked.
 
-    A :class:`mathspec.Spec`. Each file under :data:`PROGRAM` states one
+    A `mathspec.Spec`. Each file under [`PROGRAM`][fluxopt.math.PROGRAM] states one
     feature and loads on its own; ``effects.yaml`` declares the two halves of
     the ledger as sums, and every feature adds its own term to them, so
     ``merge`` writes the ledger. The engine verbs come from specsolve.
@@ -876,7 +877,7 @@ def build_sources(
     periods: Any = None,
     period_weights: list[float] | None = None,
 ) -> dict[str, Any]:
-    """Every table :data:`PROGRAM` is bound to, for a system of resolved elements.
+    """Every table [`PROGRAM`][fluxopt.math.PROGRAM] is bound to, for a system of resolved elements.
 
     Raises:
         UnsupportedFeatureError: If the system uses a feature the program does

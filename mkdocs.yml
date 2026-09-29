@@ -1,5 +1,6 @@
 site_name: fluxopt
 site_description: Energy system optimization with specsolve
+site_url: https://fluxopt.readthedocs.io/en/latest/
 repo_url: https://github.com/FBumann/fluxopt
 repo_name: FBumann/fluxopt
 edit_uri: edit/main/docs/
@@ -14,19 +15,21 @@ validation:
 
 nav:
   - Home: index.md
+  # The tutorial and example pages are written by `python -m tools.notebooks`
+  # from the notebooks beside them, which `docs-build` runs first.
   - Tutorials:
-      - 1. Quickstart: notebooks/01-quickstart.ipynb
-      - 2. Storage: notebooks/02-storage.ipynb
-      - 3. Status: notebooks/03-status.ipynb
-      - 4. Piecewise: notebooks/04-piecewise.ipynb
-      - 5. Effects: notebooks/05-effects.ipynb
-      - 6. Sizing: notebooks/06-sizing.ipynb
-      - 7. Multi-Period: notebooks/07-multi-period.ipynb
-      - 8. Investment: notebooks/08-investment.ipynb
+      - 1. Quickstart: notebooks/01-quickstart.md
+      - 2. Storage: notebooks/02-storage.md
+      - 3. Status: notebooks/03-status.md
+      - 4. Piecewise: notebooks/04-piecewise.md
+      - 5. Effects: notebooks/05-effects.md
+      - 6. Sizing: notebooks/06-sizing.md
+      - 7. Multi-Period: notebooks/07-multi-period.md
+      - 8. Investment: notebooks/08-investment.md
   - Examples:
-      - Heat System with Storage: notebooks/examples/heat-system.ipynb
-      - Multi-Node Heat: notebooks/examples/multi-node-heat.ipynb
-      - Investment: notebooks/examples/investment.ipynb
+      - Heat System with Storage: notebooks/examples/heat-system.md
+      - Multi-Node Heat: notebooks/examples/multi-node-heat.md
+      - Investment: notebooks/examples/investment.md
   - Math:
       - Notation: math/notation.md
       - Objective: math/objective.md
@@ -37,46 +40,46 @@ nav:
       - Effects: math/effects.md
       - Sizing: math/sizing.md
       - Status: math/status.md
-  - API Reference: api/
+  # One page per module that declares an `__all__`: the public surface, not
+  # every module under src/.
+  - API Reference:
+      - fluxopt: api/index.md
+      - fluxopt.math: api/math.md
   - Benchmark: benchmark.md
   - Contributing: contributing.md
   - Changelog: changelog.md
 
 theme:
-  name: material
-  language: en
-
-  # logo: assets/logo.svg       # placeholder — text-only header for now
-  # favicon: assets/favicon.png
-
   palette:
-    # Dark first = default for new visitors (no auto/system-pref entry).
-    # Icon represents the CURRENT scheme — moon when active is dark,
-    # sun when active is light. The `name` describes the toggle action.
-    - scheme: slate
+    - media: "(prefers-color-scheme)"
       primary: custom
       accent: custom
       toggle:
-        icon: material/brightness-4
+        icon: lucide/sun-moon
         name: Switch to light mode
-    - scheme: default
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: custom
       accent: custom
       toggle:
-        icon: material/brightness-7
+        icon: lucide/sun
         name: Switch to dark mode
-
-  font:
-    text: Roboto
-    code: JetBrains Mono
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: lucide/moon
+        name: Switch to system preference
 
   icon:
     repo: fontawesome/brands/github
 
   features:
     - header.autohide
-    # navigation.instant left off — MathJax fails to re-typeset on
-    # no-math → math swaps, and no documented reset recipe fixes it.
+    # navigation.instant left off: it swaps the document without a reload, so
+    # neither MathJax nor the scripts inside a plotly figure would run on a page
+    # reached by a click.
     - navigation.tracking
     - navigation.tabs
     - navigation.tabs.sticky
@@ -84,56 +87,40 @@ theme:
     - navigation.indexes
     - navigation.top
     - navigation.footer
+    - navigation.path
     - toc.follow
-    - search.suggest
     - search.highlight
     - search.share
     - content.code.copy
     - content.code.select
-    - content.tabs.link
+    - content.tooltips
+    - content.action.edit
 
 markdown_extensions:
   - admonition
   - attr_list
-  - def_list
-  - footnotes
   - md_in_html
   - tables
   - toc:
       permalink: true
   - pymdownx.highlight:
       anchor_linenums: true
-      use_pygments: true
   - pymdownx.inlinehilite
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.superfences
-  - pymdownx.details
-  - pymdownx.tabbed:
-      alternate_style: true
   - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+      emoji_index: zensical.extensions.emoji.twemoji
+      emoji_generator: zensical.extensions.emoji.to_svg
+  # `check_paths` so a renamed include fails the build rather than rendering
+  # as nothing. `docs/index.md` pulls the quickstart out of the README, and
+  # `docs/changelog.md` and `docs/contributing.md` are whole files.
+  - pymdownx.snippets:
+      check_paths: true
 
 plugins:
   - search
-  - include-markdown
-
-  - gen-files:
-      scripts:
-        - scripts/gen_ref_pages.py
-
-  - literate-nav:
-      nav_file: SUMMARY.md
-
-  - mkdocs-jupyter:
-      include_source: true
-      execute: true
-      remove_tag_config:
-        remove_input_tags: ["hide-input"]
-        remove_all_outputs_tags: ["hide-output"]
-        remove_cell_tags: ["hide-cell"]
-
+  - autorefs
   - mkdocstrings:
       default_handler: python
       handlers:
@@ -152,8 +139,9 @@ plugins:
             docstring_section_style: table
             members_order: source
             show_if_no_docstring: false
-            heading_level: 1
-            show_root_heading: true
+            heading_level: 2
+            show_root_heading: false
+            show_root_toc_entry: false
             show_signature: true
             show_signature_annotations: true
             signature_crossrefs: true
@@ -168,7 +156,11 @@ plugins:
             parameter_headings: true
 
 extra_css:
-  - stylesheets/extra.css
+  - stylesheets/extras.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 extra:
   social:
@@ -179,12 +171,7 @@ extra:
       link: https://pypi.org/project/fluxopt/
       name: fluxopt on PyPI
 
-extra_javascript:
-  - javascripts/mathjax.js
-  - javascripts/notebook-prompts.js
-  - javascripts/notebook-download.js
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
-
 watch:
   - src/fluxopt
-  - docs
+  - README.md
+  - CHANGELOG.md

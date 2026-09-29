@@ -26,7 +26,7 @@ over \(t\) in the API — see [Indexing Convention](notation.md#indexing-convent
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\mathrm{a}_{f,i}\) | Conversion coefficient | [`Converter.conversion_factors`](../api/fluxopt/components.md#fluxopt.components.Converter.conversion_factors) |
+| \(\mathrm{a}_{f,i}\) | Conversion coefficient | [`Converter.conversion_factors`][fluxopt.Converter.conversion_factors] |
 | \(i\) | Equation index within a converter | row in `conversion_factors` |
 | \(P_{f,t}\) | Flow rate variable | `rate[flow, time]` |
 
@@ -151,8 +151,8 @@ where \(f^{\star}\) is the first flow in the curve.
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(\mathrm{b}_{f,k}\) | Breakpoint values per flow | [`PiecewiseConversion.points`](../api/fluxopt/elements.md#fluxopt.elements.PiecewiseConversion.points) |
+| \(\mathrm{b}_{f,k}\) | Breakpoint values per flow | [`PiecewiseConversion.points`][fluxopt.PiecewiseConversion.points] |
 | \(\lambda_{k,t}\) | Interpolation weights | variable `lam` |
 | \(\diamond_f\) | Curve relation | tuple bound `'=='` / `'<='` / `'>='` |
-| \(\sigma_{c,t}\) | On/off binary | [`PiecewiseConversion.status`](../api/fluxopt/elements.md#fluxopt.elements.PiecewiseConversion.status) |
-| \(\alpha_t\) | Availability scaling | [`PiecewiseConversion.availability`](../api/fluxopt/elements.md#fluxopt.elements.PiecewiseConversion.availability) |
+| \(\sigma_{c,t}\) | On/off binary | [`PiecewiseConversion.status`][fluxopt.PiecewiseConversion.status] |
+| \(\alpha_t\) | Availability scaling | [`PiecewiseConversion.availability`][fluxopt.PiecewiseConversion.availability] |

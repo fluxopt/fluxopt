@@ -25,3 +25,6 @@ htmlcov/
 
 # pytest-benchmark / benchmem sweep output
 .benchmarks/
+
+# Written by `python -m tools.notebooks` from the notebook beside each one.
+docs/notebooks/**/*.md

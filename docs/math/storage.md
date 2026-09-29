@@ -93,15 +93,15 @@ size, or the sizing/investment maximum). Both flows must therefore be sized.
 | \(E_{s,t}\) | Stored energy variable | `level[storage, time]` |
 | \(P^{\text{c}}_{s,t}\) | Charging flow rate | `rate[charge_flow, time]` |
 | \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `rate[discharge_flow, time]` |
-| \(\bar{\mathrm{E}}_s\) | Storage capacity | [`Storage.capacity`](../api/fluxopt/elements.md#fluxopt.elements.Storage.capacity) |
-| \(\eta^{\text{c}}_s\) | Charging efficiency | [`Storage.eta_charge`](../api/fluxopt/elements.md#fluxopt.elements.Storage.eta_charge) |
-| \(\eta^{\text{d}}_s\) | Discharging efficiency | [`Storage.eta_discharge`](../api/fluxopt/elements.md#fluxopt.elements.Storage.eta_discharge) |
-| \(\delta_s\) | Self-discharge rate | [`Storage.relative_loss_per_hour`](../api/fluxopt/elements.md#fluxopt.elements.Storage.relative_loss_per_hour) |
-| \(\underline{\mathrm{e}}_s\) | Relative min SOC | [`Storage.relative_level_min`](../api/fluxopt/elements.md#fluxopt.elements.Storage.relative_level_min) |
-| \(\bar{\mathrm{e}}_s\) | Relative max SOC | [`Storage.relative_level_max`](../api/fluxopt/elements.md#fluxopt.elements.Storage.relative_level_max) |
-| \(\underline{\mathrm{E}}^{\text{end}}_s\) | Min final level [MWh] | [`Storage.final_level_min`](../api/fluxopt/elements.md#fluxopt.elements.Storage.final_level_min) |
-| \(\bar{\mathrm{E}}^{\text{end}}_s\) | Max final level [MWh] | [`Storage.final_level_max`](../api/fluxopt/elements.md#fluxopt.elements.Storage.final_level_max) |
-| \(b_{s,t}\) | Charging indicator binary | [`Storage.prevent_simultaneous`](../api/fluxopt/elements.md#fluxopt.elements.Storage.prevent_simultaneous) |
+| \(\bar{\mathrm{E}}_s\) | Storage capacity | [`Storage.capacity`][fluxopt.Storage.capacity] |
+| \(\eta^{\text{c}}_s\) | Charging efficiency | [`Storage.eta_charge`][fluxopt.Storage.eta_charge] |
+| \(\eta^{\text{d}}_s\) | Discharging efficiency | [`Storage.eta_discharge`][fluxopt.Storage.eta_discharge] |
+| \(\delta_s\) | Self-discharge rate | [`Storage.relative_loss_per_hour`][fluxopt.Storage.relative_loss_per_hour] |
+| \(\underline{\mathrm{e}}_s\) | Relative min SOC | [`Storage.relative_level_min`][fluxopt.Storage.relative_level_min] |
+| \(\bar{\mathrm{e}}_s\) | Relative max SOC | [`Storage.relative_level_max`][fluxopt.Storage.relative_level_max] |
+| \(\underline{\mathrm{E}}^{\text{end}}_s\) | Min final level [MWh] | [`Storage.final_level_min`][fluxopt.Storage.final_level_min] |
+| \(\bar{\mathrm{E}}^{\text{end}}_s\) | Max final level [MWh] | [`Storage.final_level_max`][fluxopt.Storage.final_level_max] |
+| \(b_{s,t}\) | Charging indicator binary | [`Storage.prevent_simultaneous`][fluxopt.Storage.prevent_simultaneous] |
 | \(\Delta t_t\) | Timestep duration | dt |
 
 See [Notation](notation.md) for the full symbol table.

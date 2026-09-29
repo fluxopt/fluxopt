@@ -1,0 +1,236 @@
+/* --- Syntax highlighting: Monokai Light + Monokai Dark ---
+ *
+ * Light = darkened-Monokai variant (dark hues on light bg for readability);
+ * Dark = classic Monokai. Python is what most of this site's code blocks are,
+ * so the string and keyword colours are the ones worth checking after an edit.
+ * Every colour holds 4.5:1 on its code background.
+ */
+
+:root,
+[data-md-color-scheme="default"] {
+  --md-code-fg-color: #272822;
+  --md-code-bg-color: #fafafa;
+
+  --md-code-hl-keyword-color: #d11f72; /* darkened pink */
+  --md-code-hl-string-color: #7f7100; /* mustard yellow */
+  --md-code-hl-number-color: #6f42c1; /* purple */
+  --md-code-hl-function-color: #457e04; /* green */
+  --md-code-hl-comment-color: #75715e; /* olive-gray */
+  --md-code-hl-name-color: #272822; /* default text */
+  --md-code-hl-operator-color: #d11f72; /* pink */
+  --md-code-hl-punctuation-color: #272822;
+  --md-code-hl-constant-color: #6f42c1; /* purple — None, True, False */
+  --md-code-hl-special-color: #457e04; /* green — decorators */
+  --md-code-hl-variable-color: #c14d00; /* burnt orange */
+  --md-code-hl-generic-color: #272822;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-code-fg-color: #f8f8f2;
+  /* Slate's hue, desaturated to a grey that stands off the page. */
+  --md-code-bg-color: hsla(var(--md-hue), 6%, 18%, 1);
+
+  --md-code-hl-keyword-color: #fb5d95; /* hot pink */
+  --md-code-hl-string-color: #e6db74; /* yellow */
+  --md-code-hl-number-color: #ae81ff; /* purple */
+  --md-code-hl-function-color: #a6e22e; /* green */
+  --md-code-hl-comment-color: #9b9682; /* olive-gray */
+  --md-code-hl-name-color: #f8f8f2; /* default text */
+  --md-code-hl-operator-color: #fb5d95; /* pink */
+  --md-code-hl-punctuation-color: #f8f8f2;
+  --md-code-hl-constant-color: #ae81ff; /* purple — None, True, False */
+  --md-code-hl-special-color: #a6e22e; /* green — decorators */
+  --md-code-hl-variable-color: #fd971f; /* orange */
+  --md-code-hl-generic-color: #f8f8f2;
+}
+
+/* --- Palette: one sky hue, as primary and accent ---
+ * In the modern variant the primary colour paints links, the primary button and
+ * the progress bar; the accent paints hover, focus and the active navigation
+ * entry. The primary is the shade that rests, the accent the one that answers
+ * the pointer. Links hold 4.5:1 on either background, and the dark scheme puts
+ * dark text on its light button.
+ */
+
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: #0369a1; /* sky-700 */
+  --md-primary-fg-color--light: #0284c7; /* sky-600 */
+  --md-primary-fg-color--dark: #075985; /* sky-800 */
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+}
+
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: #0284c7; /* sky-600 */
+  --md-accent-fg-color--transparent: #0284c71a;
+  --md-accent-bg-color: #ffffff;
+  --md-accent-bg-color--light: #ffffffb3;
+}
+
+[data-md-color-scheme="slate"][data-md-color-primary="custom"] {
+  --md-primary-fg-color: #38bdf8; /* sky-400 */
+  --md-primary-fg-color--light: #7dd3fc; /* sky-300 */
+  --md-primary-fg-color--dark: #0ea5e9; /* sky-500 */
+  --md-primary-bg-color: #0f172a; /* slate-900 */
+  --md-primary-bg-color--light: #0f172ab3;
+}
+
+[data-md-color-scheme="slate"][data-md-color-accent="custom"] {
+  --md-accent-fg-color: #7dd3fc; /* sky-300 */
+  --md-accent-fg-color--transparent: #7dd3fc26;
+}
+
+/* --- Landing page --- */
+
+/* Centered hero: tagline, badges, CTA buttons */
+.md-typeset .hero {
+  max-width: 42rem;
+  margin: 2rem auto 1rem;
+  text-align: center;
+}
+
+.md-typeset .hero h1 {
+  margin-bottom: 0.6rem;
+  font-size: 2.6rem;
+  font-weight: 700;
+}
+
+.md-typeset .hero p {
+  font-size: 1.1rem;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Badge row: tight, centered, no paragraph spacing */
+.md-typeset .hero p:has(img) {
+  margin: 0.6rem 0 1.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+}
+
+.md-typeset .hero img {
+  margin: 0;
+}
+
+/* Landing-page content (cards, code, etc.) — narrower than full grid */
+.md-typeset .landing {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.md-typeset .landing h2 {
+  text-align: center;
+  margin: 2.4rem 0 1rem;
+}
+
+/* Button row spacing — scoped to the landing hero where button rows appear */
+.md-typeset .hero .md-button + .md-button {
+  margin-left: 0.5rem;
+}
+
+/* Benefit cards: the README bullet's bold lead-in is the card's title, and its
+ * one link covers the whole card, since the README cannot carry card markup. */
+.md-typeset .landing .grid.cards {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+}
+
+.md-typeset .landing .grid.cards > ul > li {
+  position: relative;
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .landing .grid.cards > ul > li > strong:first-child {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--md-default-fg-color);
+  font-size: 0.9rem;
+}
+
+.md-typeset .landing .grid.cards > ul > li > a:last-child {
+  display: block;
+  margin-top: 0.6rem;
+  font-weight: 700;
+}
+
+.md-typeset .landing .grid.cards > ul > li > a:last-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* A card's icon is chosen by where its link points, so reordering the README
+ * list cannot move an icon onto another card. */
+.md-typeset .landing .grid.cards > ul > li::before {
+  display: block;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-bottom: 0.6rem;
+  background-color: var(--md-accent-fg-color);
+  mask: center / contain no-repeat;
+}
+
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/api/"])::before {
+  content: "";
+  mask-image: url("icons/cube-outline.svg");
+}
+
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/api/math/"])::before {
+  content: "";
+  mask-image: url("icons/chart-line.svg");
+}
+
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/math/sizing/"])::before {
+  content: "";
+  mask-image: url("icons/tune.svg");
+}
+
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/notebooks/01-quickstart/"])::before {
+  content: "";
+  mask-image: url("icons/rocket-launch.svg");
+}
+
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="/math/notation/"])::before {
+  content: "";
+  mask-image: url("icons/book-open-page-variant.svg");
+}
+
+.md-typeset .landing .grid.cards > ul > li:has(> a[href$="#roadmap"])::before {
+  content: "";
+  mask-image: url("icons/puzzle.svg");
+}
+
+/* --- Anchor target highlight ---
+ * When the URL has a #hash, the matching element gets :target. Flash the
+ * background once on arrival so it's obvious where the page jumped to — the
+ * language reference and the ceiling are long, and most arrivals are deep
+ * links. */
+.md-content :target {
+  animation: target-flash 1.5s ease-in-out;
+  scroll-margin-top: 4rem;
+}
+
+@keyframes target-flash {
+  0%,
+  100% {
+    background-color: transparent;
+    box-shadow: -0.4rem 0 0 0 transparent;
+  }
+  25%,
+  65% {
+    background-color: color-mix(in srgb, var(--md-accent-fg-color) 30%, transparent);
+    box-shadow: -0.4rem 0 0 0 color-mix(in srgb, var(--md-accent-fg-color) 70%, transparent);
+  }
+  45% {
+    background-color: transparent;
+    box-shadow: -0.4rem 0 0 0 transparent;
+  }
+}
+
+/* --- Python API --- */
+
+/* API indentation. */
+div.doc-contents:not(.first) {
+  padding-left: 25px;
+  border-left: 4px solid var(--md-default-fg-color--lightest);
+}

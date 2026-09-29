@@ -101,7 +101,6 @@ extend-fixable = ["B", "SIM", "RUF", "C4", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
-"scripts/**/*.py" = ["T201", "RUF003"]
 "tools/**/*.py" = ["T201"]                              # a command says what it found
 "benchmark/reference.py" = ["T201"]
 "benchmark/flixopt_stress.py" = ["T201"]

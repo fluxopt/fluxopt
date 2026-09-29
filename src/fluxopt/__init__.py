@@ -39,7 +39,7 @@ def optimize(
     solver: str = 'highs',
     **solver_options: Any,
 ) -> Any:
-    """Declare a system and solve it: :meth:`FlowSystem.optimize` in one call.
+    """Declare a system and solve it: [`FlowSystem.optimize`][fluxopt.FlowSystem.optimize] in one call.
 
     Args:
         timesteps: Time index for the optimization horizon.
@@ -64,7 +64,7 @@ def optimize(
         **solver_options: Passed to the solver verbatim, in its own vocabulary.
 
     Returns:
-        specsolve's result; see :meth:`FlowSystem.optimize`.
+        specsolve's result; see [`FlowSystem.optimize`][fluxopt.FlowSystem.optimize].
     """
     system = FlowSystem(
         timesteps=timesteps,
