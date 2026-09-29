@@ -8,7 +8,7 @@ hide:
 
 # fluxopt
 
-Energy system optimization with [linopy](https://github.com/PyPSA/linopy) — detailed dispatch, scaled to multi-period planning.
+Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) — detailed dispatch, scaled to multi-period planning.
 
 [![PyPI](https://img.shields.io/pypi/v/fluxopt)](https://pypi.org/project/fluxopt/)
 [![Downloads](https://img.shields.io/pypi/dm/fluxopt)](https://pypi.org/project/fluxopt/)
@@ -33,11 +33,11 @@ Energy system optimization with [linopy](https://github.com/PyPSA/linopy) — de
 
     Build models from `Flow`, `Bus`, `Converter`, `Storage`, and `Effect` — clear separation of physics, costs, and topology.
 
--   :material-chart-line: __xarray-native__
+-   :material-chart-line: __Math as a file__
 
     ---
 
-    Time series, parameters, and results as `xr.Dataset` — vectorized constraints via [linopy](https://github.com/PyPSA/linopy).
+    The model is a declared spec, the numbers are tables, and results come back as `xr.DataArray` — solved by [specsolve](https://github.com/fluxopt/lpspec).
 
 -   :material-tune: __Sizing & status__
 
@@ -49,7 +49,7 @@ Energy system optimization with [linopy](https://github.com/PyPSA/linopy) — de
 
     ---
 
-    Open-source MIP solver bundled. Swap in Gurobi, CPLEX, or any linopy-supported backend.
+    Open-source MIP solver bundled. Swap in another solver with `solver=`.
 
 -   :material-book-open-page-variant: __Math, documented__
 

@@ -59,18 +59,6 @@ bounds [MWh] on the level at the last timestep, per period:
 They compose with `cyclic` (the prior level is then bounded too, since
 \(E_{s,t_0} = E_{s,t_{\text{end}}}\)).
 
-## Episode Boundaries
-
-The charge balance is a chain — it links each timestep to its predecessor,
-which is only physical while timesteps are genuinely consecutive. In
-multi-period models the time axis jumps between periods, so each period is
-an independent *episode*: the recursion never links a period's first
-timestep to the previous period's last. The initial condition
-(`prior_level`) and the cyclic condition apply per episode — \(t_0\) and
-\(t_{\text{end}}\) above are each episode's first and last timestep. With a
-single period there is exactly one episode and the classic reading applies
-unchanged.
-
 ## Simultaneous Charge & Discharge
 
 With \(\eta^{\text{c}} \cdot \eta^{\text{d}} < 1\), charging and discharging
@@ -102,9 +90,9 @@ size, or the sizing/investment maximum). Both flows must therefore be sized.
 
 | Symbol | Description | Reference |
 |---|---|---|
-| \(E_{s,t}\) | Stored energy variable | `storage--level[storage, time]` |
-| \(P^{\text{c}}_{s,t}\) | Charging flow rate | `flow--rate[charge_flow, time]` |
-| \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `flow--rate[discharge_flow, time]` |
+| \(E_{s,t}\) | Stored energy variable | `level[storage, time]` |
+| \(P^{\text{c}}_{s,t}\) | Charging flow rate | `rate[charge_flow, time]` |
+| \(P^{\text{d}}_{s,t}\) | Discharging flow rate | `rate[discharge_flow, time]` |
 | \(\bar{\mathrm{E}}_s\) | Storage capacity | [`Storage.capacity`](../api/fluxopt/elements.md#fluxopt.elements.Storage.capacity) |
 | \(\eta^{\text{c}}_s\) | Charging efficiency | [`Storage.eta_charge`](../api/fluxopt/elements.md#fluxopt.elements.Storage.eta_charge) |
 | \(\eta^{\text{d}}_s\) | Discharging efficiency | [`Storage.eta_discharge`](../api/fluxopt/elements.md#fluxopt.elements.Storage.eta_discharge) |

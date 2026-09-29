@@ -1,0 +1,109 @@
+# Every flow has a rate, and every carrier balances over the flows on it.
+#
+# Every relation is a lookup out of `flow`, read by sum(by=) — topology is
+# rows in an index table, never an adjacency matrix. Sparsity is carried by
+# row absence: a parameter keeps its declared rank, its table only holds live
+# entries.
+description: Flows, the carrier balance, and what a flow's throughput costs.
+
+dimensions:
+  time: {dtype: datetime}
+  period: {dtype: int}
+  carrier: {dtype: str}
+  effect: {dtype: str}
+  flow: {dtype: str}
+
+relations:
+  carrier_of: {key: flow, values: carrier}
+
+parameters:
+  dt: {dims: [time]}                       # timestep duration [h]
+  # Aggregation weight per timestep; multiplies where the sum happens.
+  time_weight: {dims: [time]}
+
+  # Absolute bounds. `rel_bound * size`, folded data-side, because `bounds:`
+  # takes a bare parameter name — no product can be written there.
+  rate_min: {dims: [flow, time, period]}
+  rate_max: {dims: [flow, time, period]}
+  # The largest rate a flow could ever carry: its fixed size, or the maximum
+  # it could be sized to. A big-M wherever a binary has to release a rate.
+  size_bound: {dims: [flow]}
+  carrier_sign: {dims: [flow]}
+
+  # The envelope as fractions of the size, for every flow whose rate is
+  # scaled by one. Stated once and multiplied where it is read.
+  is_bounded: {dims: [flow], dtype: bool}
+  is_profile: {dims: [flow], dtype: bool}
+  relative_rate_min: {dims: [flow, time, period]}
+  relative_rate_max: {dims: [flow, time, period]}
+  fixed_relative_profile: {dims: [flow, time, period]}
+
+  # coeff * dt: what a step at this rate charges.
+  effects_per_flow_hour: {dims: [flow, effect, time, period]}
+
+  # The horizon's total, bounded per period. `dt * time_weight` is what makes
+  # the sum energy rather than a count of steps.
+  flow_hours_min: {dims: [flow, period]}
+  flow_hours_max: {dims: [flow, period]}
+  # A load factor bounds the flow hours as a share of the size: lambda * T.
+  load_factor_min: {dims: [flow, period]}
+  load_factor_max: {dims: [flow, period]}
+
+variables:
+  rate:
+    dims: [flow, time, period]
+    bounds: {lower: rate_min, upper: rate_max}
+
+expressions:
+  # Every contribution is named before it is summed, and keeps the entity it
+  # came from. `time_weight` multiplies in the ledger rather than in the
+  # coefficient, so a contribution reads as the physical per-step quantity.
+  contribution_flow_hour:
+    expression: rate * effects_per_flow_hour
+    description: What each flow's throughput contributes, per timestep.
+  flow_hours:
+    expression: sum(rate * dt * time_weight, over=time)
+    description: The energy a flow carries in a period.
+  flow_hour_costs:
+    expression: sum(contribution_flow_hour, over=flow)
+    description: What the flows' throughput adds to each effect in a step.
+
+given:
+  expressions:
+    direct_step: {dims: [effect, time, period], term: flow_hour_costs}
+    size: {dims: [flow, period]}
+
+constraints:
+  carrier_balance:
+    dims: [carrier, time, period]
+    expression: sum(rate * carrier_sign, by=carrier_of, over=flow, into=carrier) == 0
+
+  flow_hours_lower:
+    dims: [flow, period]
+    where: "flow_hours_min"
+    expression: flow_hours >= flow_hours_min
+
+  flow_hours_upper:
+    dims: [flow, period]
+    where: "flow_hours_max"
+    expression: flow_hours <= flow_hours_max
+
+  load_factor_lower:
+    dims: [flow, period]
+    where: "load_factor_min"
+    expression: flow_hours >= load_factor_min * size
+
+  load_factor_upper:
+    dims: [flow, period]
+    where: "load_factor_max"
+    expression: flow_hours <= load_factor_max * size
+
+assumptions:
+  rate_floor_is_not_negative:
+    holds: "relative_rate_min >= 0"
+    where: "relative_rate_min"
+    description: a flow runs forward; a negative floor would let it run backward
+  rate_bounds_do_not_cross:
+    holds: "relative_rate_min <= relative_rate_max"
+    where: "relative_rate_min"
+    description: a floor above the ceiling leaves no rate to choose

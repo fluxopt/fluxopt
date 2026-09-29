@@ -28,7 +28,7 @@ over \(t\) in the API — see [Indexing Convention](notation.md#indexing-convent
 |---|---|---|
 | \(\mathrm{a}_{f,i}\) | Conversion coefficient | [`Converter.conversion_factors`](../api/fluxopt/components.md#fluxopt.components.Converter.conversion_factors) |
 | \(i\) | Equation index within a converter | row in `conversion_factors` |
-| \(P_{f,t}\) | Flow rate variable | `flow--rate[flow, time]` |
+| \(P_{f,t}\) | Flow rate variable | `rate[flow, time]` |
 
 See [Notation](notation.md) for the full symbol table.
 
@@ -106,8 +106,8 @@ point on the curve:
 \sum_{k} \lambda_{k,t} = 1, \qquad \lambda_{k,t} \ge 0
 \]
 
-with at most two adjacent weights non-zero (SOS2 condition for a contiguous
-curve, enforced by `linopy.add_piecewise_formulation`).
+with at most two adjacent weights non-zero: an SOS2 set on \(\lambda\) along
+the breakpoints.
 
 For each curve flow \(f\), the rate is the corresponding weighted breakpoint
 sum:
@@ -120,23 +120,15 @@ where the relation \(\diamond_f \in \{=, \le, \ge\}\) is set per flow via the
 optional third tuple element. The default is equality (`==`); at most one
 flow may carry an inequality sign, and only with exactly two flows.
 
-### Methods
-
-`linopy` auto-dispatches the formulation:
-
-| Method | When | Aux variables |
-|---|---|---|
-| `lp` | Two flows, one bounded, matching-curvature curve | None — pure tangent-line constraints |
-| `incremental` | Strictly monotonic breakpoints | One binary per piece |
-| `sos2` | Otherwise | One \(\lambda\) per breakpoint, SOS2 |
-
-Override with `method="sos2"` / `"incremental"` / `"lp"` if needed.
+`FlowSystem.spec()` writes the set out as binaries (`expand('sos')`), so
+every solver takes it; `optimize` hands a solver other than HiGHS the set as
+declared.
 
 ### Status gating
 
 When `PiecewiseConversion.status` is set, the curve is gated by the converter's
-on/off binary \(\sigma_{c,t}\) (see [Status](status.md)) passed as `active=` to
-the linopy formulation:
+on/off binary \(\sigma_{c,t}\) (see [Status](status.md)): the weights sum to
+\(\sigma_{c,t}\) instead of 1.
 
 - All-equality curves: \(\sigma_{c,t} = 0\) forces every \(\lambda\) to zero,
   which pins all curve flows to \(\mathrm{b}_{f,0}\) (typically zero).
@@ -160,7 +152,7 @@ where \(f^{\star}\) is the first flow in the curve.
 | Symbol | Description | Reference |
 |---|---|---|
 | \(\mathrm{b}_{f,k}\) | Breakpoint values per flow | [`PiecewiseConversion.points`](../api/fluxopt/elements.md#fluxopt.elements.PiecewiseConversion.points) |
-| \(\lambda_{k,t}\) | Interpolation weights | linopy auxiliaries |
+| \(\lambda_{k,t}\) | Interpolation weights | variable `lam` |
 | \(\diamond_f\) | Curve relation | tuple bound `'=='` / `'<='` / `'>='` |
 | \(\sigma_{c,t}\) | On/off binary | [`PiecewiseConversion.status`](../api/fluxopt/elements.md#fluxopt.elements.PiecewiseConversion.status) |
 | \(\alpha_t\) | Availability scaling | [`PiecewiseConversion.availability`](../api/fluxopt/elements.md#fluxopt.elements.PiecewiseConversion.availability) |

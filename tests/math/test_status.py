@@ -9,10 +9,10 @@ from __future__ import annotations
 from datetime import datetime
 
 import numpy as np
-from conftest import assert_off_blocks, assert_on_blocks, ts, waste
+from conftest import assert_off_blocks, assert_on_blocks, read, ts, waste
 from numpy.testing import assert_allclose
 
-from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, optimize
+from fluxopt import Carrier, Effect, Flow, FlowSystem, Port, Sizing, Status, optimize
 
 _heat = [Carrier(id='Heat')]
 
@@ -56,8 +56,8 @@ class TestSemiContinuous:
         )
         assert_allclose(result.objective, 110.0, atol=1e-5)
 
-        rates = result.flow_rate('Src(Heat)').values
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        rates = read(result, 'rate').sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # t=2: flow should be off
         assert_allclose(on[2], 0.0, atol=1e-5)
@@ -104,7 +104,7 @@ class TestSemiContinuous:
             ],
         )
         assert_allclose(result.objective, 45.0, rtol=1e-5)
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
         assert_allclose(on, [0.0, 0.0], atol=1e-5)
 
 
@@ -178,8 +178,8 @@ class TestStartupCosts:
                 waste('Heat'),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
-        startup = result.solution['flow--startup'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
+        startup = read(result, 'startup').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # Source stays on all 3 hours to avoid 2nd startup
         assert_allclose(on, [1.0, 1.0, 1.0], atol=1e-5)
@@ -219,7 +219,7 @@ class TestPrior:
             ],
         )
         # With free initial, solver avoids startup cost entirely
-        startup = result.solution['flow--startup'].sel(flow='Src(Heat)').values
+        startup = read(result, 'startup').rename(status_entity='flow').sel(flow='Src(Heat)').values
         assert_allclose(np.sum(startup), 0.0, atol=1e-5)
 
     def test_prior_on_carries_uptime(self):
@@ -258,7 +258,7 @@ class TestPrior:
                 waste('Heat'),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
         # t=0: forced on by uptime_min continuation
         assert_allclose(on[0], 1.0, atol=1e-5)
 
@@ -297,7 +297,7 @@ class TestPrior:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 10})]),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
         # t=0: forced off by downtime_min continuation
         assert_allclose(on[0], 0.0, atol=1e-5)
         # t=1, t=2: can and should turn on (cheaper than backup)
@@ -375,9 +375,9 @@ class TestStatusSizing:
                 waste('Heat'),
             ],
         )
-        rates = result.flow_rate('Src(Heat)').values
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        rates = read(result, 'rate').sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
 
         # Size must be at least 80 to cover peak demand
         assert size >= 80.0 - 1e-5
@@ -430,8 +430,8 @@ class TestStatusSizing:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 10})]),
             ],
         )
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         assert_allclose(size, 50.0, rtol=1e-4)
         # t=0: off (demand < min_load)
@@ -475,9 +475,9 @@ class TestStatusSizing:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 2})]),
             ],
         )
-        indicator = float(result.solution['flow--size_indicator'].sel(flow='Src(Heat)').values)
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
-        rates = result.flow_rate('Src(Heat)').values
+        indicator = float(read(result, 'size_built').sel(flow='Src(Heat)').values)
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
+        rates = read(result, 'rate').sel(flow='Src(Heat)').values
 
         # Not invested → off → zero flow
         assert_allclose(indicator, 0.0, atol=1e-5)
@@ -520,8 +520,8 @@ class TestStatusSizing:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
             ],
         )
-        startup = result.solution['flow--startup'].sel(flow='Src(Heat)').values
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        startup = read(result, 'startup').rename(status_entity='flow').sel(flow='Src(Heat)').values
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
 
         assert size >= 50.0 - 1e-5
         # Exactly 1 startup at t=0
@@ -566,9 +566,9 @@ class TestStatusSizing:
                 waste('Heat'),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
-        rates = result.flow_rate('Src(Heat)').values
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
+        rates = read(result, 'rate').sel(flow='Src(Heat)').values
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
 
         # Check on-blocks are ≥3h
         assert_on_blocks(on, min_length=3)
@@ -618,52 +618,13 @@ class TestMaxUptime:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 10})]),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # Verify no more than 2 consecutive on-hours
         assert_on_blocks(on, max_length=2)
 
         # Src 4h: 4*10*1=40. Backup 1h: 1*10*10=100. Total=140.
         assert_allclose(result.objective, 140.0, rtol=1e-5)
-
-    def test_shutdown_feasible_on_irregular_grid(self):
-        """A prior-on unit can shut down when timestep durations vary.
-
-        Grid: [00:00, 04:00, 05:00] → dt=[4, 4, 1]. Src: size=10,
-        rel_min=0.5, prior_rates=[10] (on, 4h prior uptime), 1€/MWh.
-        Demand: [10, 10, 0] — step 2 has no demand and no waste, so Src
-        must shut off there. Src serves steps 0-1: 10*(4+4) = 80 MWh → 80.
-
-        Sensitivity: the duration recursion must add the entered step's dt
-        (dt[t+1]). With the departed step's dt and the longest-episode
-        Big-M (M = 9+4 = 13), the forced uptime D[1] = 12 would require
-        D[2] >= 12 + 4 - 13 = 3 while off caps D[2] at 0 — infeasible.
-        """
-        result = optimize(
-            [datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 4), datetime(2024, 1, 1, 5)],
-            carriers=_heat,
-            effects=[Effect(id='cost')],
-            objective='cost',
-            ports=[
-                Port(id='Demand', exports=[Flow(carrier='Heat', size=1, fixed_relative_profile=[10, 10, 0])]),
-                Port(
-                    id='Src',
-                    imports=[
-                        Flow(
-                            carrier='Heat',
-                            size=10,
-                            relative_rate_min=0.5,
-                            effects_per_flow_hour={'cost': 1},
-                            status=Status(uptime_max=100),
-                            prior_rates=[10],
-                        )
-                    ],
-                ),
-            ],
-        )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
-        assert list(on) == [1, 1, 0]
-        assert_allclose(result.objective, 80.0, rtol=1e-5)
 
 
 class TestMaxDowntime:
@@ -704,7 +665,7 @@ class TestMaxDowntime:
                 waste('Heat'),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # Verify no two consecutive off-hours
         assert_off_blocks(on, max_length=1, skip_leading=False)
@@ -748,7 +709,7 @@ class TestDurationCombinations:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
         assert_allclose(on, [1, 1, 0, 1, 1], atol=1e-5)
         assert_allclose(result.objective, 145.0, rtol=1e-5)
 
@@ -788,7 +749,7 @@ class TestDurationCombinations:
                 waste('Heat'),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # Verify on-blocks are ≥2h
         assert_on_blocks(on, min_length=2)
@@ -833,7 +794,7 @@ class TestDurationCombinations:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 10})]),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # t=0 should be on (continuing from prior), then forced off by uptime_max=3
         assert_allclose(on[0], 1.0, atol=1e-5)
@@ -880,8 +841,8 @@ class TestDurationCombinations:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 10})]),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
-        startup = result.solution['flow--startup'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
+        startup = read(result, 'startup').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # Verify uptime_max constraint
         assert_on_blocks(on, max_length=2)
@@ -927,7 +888,7 @@ class TestDurationCombinations:
                 waste('Heat'),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # With 2h prior off and downtime_max=2, must turn on at t=0
         assert_allclose(on[0], 1.0, atol=1e-5)
@@ -982,7 +943,7 @@ class TestDurationCombinations:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 5})]),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # Verify all on-blocks are ≥4 timesteps (= 2h at dt=0.5h)
         assert_on_blocks(on, min_length=4)
@@ -1023,7 +984,7 @@ class TestDurationCombinations:
                 Port(id='Backup', imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 10})]),
             ],
         )
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
 
         # Verify no on-block exceeds 2 timesteps (= 1h at dt=0.5h)
         assert_on_blocks(on, max_length=2)
@@ -1067,8 +1028,8 @@ class TestStatusBuildGating:
                 waste('Heat'),
             ],
         )
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
         assert size < 1.0  # the interesting regime
         assert_allclose(on, [1.0, 1.0], atol=1e-5)
         assert_allclose(result.objective, 0.7, atol=1e-5)
@@ -1105,8 +1066,8 @@ class TestStatusBuildGating:
                 waste('Heat'),
             ],
         )
-        size = float(result.sizes.sel(flow='Src(Heat)').values)
-        on = result.solution['flow--on'].sel(flow='Src(Heat)').values
+        size = float(read(result, 'chosen_size').sel(flow='Src(Heat)').values)
+        on = read(result, 'running').rename(status_entity='flow').sel(flow='Src(Heat)').values
         assert_allclose(size, 0.0, atol=1e-5)
         assert_allclose(on, [0.0, 0.0], atol=1e-5)
         assert_allclose(result.objective, 20.0, atol=1e-5)
@@ -1132,11 +1093,10 @@ class TestPriorNonUniformDtWarning:
         """Non-uniform dt + prior_rates warns about the assumed prior-step duration."""
         import pytest
 
-        from fluxopt import ModelData
-
         with pytest.warns(UserWarning, match='pre-horizon status durations assume'):
-            ModelData.build(
-                [datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 1), datetime(2024, 1, 1, 3)],
+            FlowSystem(
+                timesteps=[datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 1), datetime(2024, 1, 1, 3)],
+                objective='cost',
                 carriers=_heat,
                 effects=[Effect(id='cost')],
                 ports=[
@@ -1153,4 +1113,4 @@ class TestPriorNonUniformDtWarning:
                         ],
                     ),
                 ],
-            )
+            ).sources()

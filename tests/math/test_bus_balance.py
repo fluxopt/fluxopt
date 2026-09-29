@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import ts
+from conftest import read, ts
 
 from fluxopt import Carrier, Effect, Flow, Port, optimize
 
@@ -22,7 +22,7 @@ class TestBusBalance:
             ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[sink_flow])],
         )
 
-        source_rates = result.flow_rate('grid(elec)').values
+        source_rates = read(result, 'rate').sel(flow='grid(elec)').values
         for actual, expected in zip(source_rates, demand, strict=False):
             assert actual == pytest.approx(expected, abs=1e-6)
 
@@ -62,8 +62,8 @@ class TestBusBalance:
             ],
         )
 
-        cheap_rates = result.flow_rate('cheap_src(elec)').values
-        exp_rates = result.flow_rate('exp_src(elec)').values
+        cheap_rates = read(result, 'rate').sel(flow='cheap_src(elec)').values
+        exp_rates = read(result, 'rate').sel(flow='exp_src(elec)').values
         for rate in cheap_rates:
             assert rate == pytest.approx(50.0, abs=1e-6)
         for rate in exp_rates:

@@ -5,7 +5,7 @@ from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Converter, Effect, Flow, Port
 
-from .conftest import ts, waste
+from .conftest import read, ts, waste
 
 
 class TestFlowConstraints:
@@ -51,9 +51,9 @@ class TestFlowConstraints:
         )
         # Must produce at least 40 (relative_rate_min=0.4 * size=100)
         # cost = 2 * 40 = 80 (vs 60 without the constraint)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 80.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 80.0, rtol=1e-5)
         # Verify flow rate is at least 40
-        flow = result.flow_rate('Boiler(Heat)').values
+        flow = read(result, 'rate').sel(flow='Boiler(Heat)').values
         assert all(f >= 40.0 - 1e-5 for f in flow), f'Flow below relative_rate_min: {flow}'
 
     def test_relative_rate_max(self, optimize):
@@ -95,9 +95,9 @@ class TestFlowConstraints:
         # CheapSrc capped at 50 (relative_rate_max=0.5 * size=100): 2 * 50 * 1 = 100
         # ExpensiveSrc covers remaining 10 each timestep: 2 * 10 * 5 = 100
         # Total = 200
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 200.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 200.0, rtol=1e-5)
         # Verify CheapSrc flow rate is at most 50
-        flow = result.flow_rate('CheapSrc(Heat)').values
+        flow = read(result, 'rate').sel(flow='CheapSrc(Heat)').values
         assert all(f <= 50.0 + 1e-5 for f in flow), f'Flow above relative_rate_max: {flow}'
 
     def test_flow_hours_max(self, optimize):
@@ -125,8 +125,8 @@ class TestFlowConstraints:
             ],
         )
         # CheapSrc: 30 * 1 = 30. ExpensiveSrc: 30 * 5 = 150. Total = 180.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 180.0, rtol=1e-5)
-        cheap_total = result.flow_rate('CheapSrc(Heat)').values.sum()
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 180.0, rtol=1e-5)
+        cheap_total = read(result, 'rate').sel(flow='CheapSrc(Heat)').values.sum()
         assert cheap_total <= 30.0 + 1e-5, f'CheapSrc above flow_hours_max: {cheap_total}'
 
     def test_flow_hours_min(self, optimize):
@@ -153,8 +153,8 @@ class TestFlowConstraints:
             ],
         )
         # ExpensiveSrc: 40 * 5 = 200. CheapSrc: 20 * 1 = 20. Total = 220.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 220.0, rtol=1e-5)
-        expensive_total = result.flow_rate('ExpensiveSrc(Heat)').values.sum()
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 220.0, rtol=1e-5)
+        expensive_total = read(result, 'rate').sel(flow='ExpensiveSrc(Heat)').values.sum()
         assert expensive_total >= 40.0 - 1e-5, f'ExpensiveSrc below flow_hours_min: {expensive_total}'
 
     def test_load_factor_max(self, optimize):
@@ -181,8 +181,8 @@ class TestFlowConstraints:
             ],
         )
         # CheapSrc: 50 * 1 = 50. ExpensiveSrc: 30 * 5 = 150. Total = 200.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 200.0, rtol=1e-5)
-        cheap_total = result.flow_rate('CheapSrc(Heat)').values.sum()
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 200.0, rtol=1e-5)
+        cheap_total = read(result, 'rate').sel(flow='CheapSrc(Heat)').values.sum()
         assert cheap_total <= 50.0 + 1e-5, f'CheapSrc above load_factor_max: {cheap_total}'
 
     def test_load_factor_min(self, optimize):
@@ -209,6 +209,6 @@ class TestFlowConstraints:
             ],
         )
         # ExpensiveSrc: 60 * 5 = 300. CheapSrc: 0. Total = 300.
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 300.0, rtol=1e-5)
-        expensive_total = result.flow_rate('ExpensiveSrc(Heat)').values.sum()
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 300.0, rtol=1e-5)
+        expensive_total = read(result, 'rate').sel(flow='ExpensiveSrc(Heat)').values.sum()
         assert expensive_total >= 60.0 - 1e-5, f'ExpensiveSrc below load_factor_min: {expensive_total}'
