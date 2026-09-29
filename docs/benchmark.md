@@ -152,7 +152,7 @@ Reproduce (per-period steps × 16 periods; fluxopt's `--timesteps` budget is
 the product):
 
 ```console
-$ python -m fluxopt.benchmark stress --timesteps 8752 --json    # 547×16
+$ uv run --directory benchmark python reference.py stress --timesteps 8752 --json    # 547×16
 $ uv run --no-project --with 'flixopt==7.2.3' \
     python benchmark/flixopt_stress.py --timesteps 547 --periods 16
 ```

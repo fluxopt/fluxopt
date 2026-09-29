@@ -23,7 +23,7 @@ Run against the pinned comparison version with uv:
 
     uv run --no-project --with 'flixopt==7.2.3' python benchmark/flixopt_stress.py --timesteps 547 --periods 16
 
-The fluxopt side of the comparison is `python -m fluxopt.benchmark stress
+The fluxopt side of the comparison is `python benchmark/reference.py stress
 --timesteps <n*16>` (its --timesteps budget is split across the 16 periods).
 Measured numbers and methodology: docs/benchmark.md, "Comparison with flixopt".
 """
