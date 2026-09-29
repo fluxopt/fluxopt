@@ -32,26 +32,22 @@ result = optimize(
     carriers=[Carrier(id='gas'), Carrier(id='heat')],
     effects=[Effect(id='cost')],
     ports=[
-        Port(id='grid', imports=[
-            Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        ]),
-        Port(id='demand', exports=[
-            Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        ])
+        Port(id='grid', imports=[Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})]),
+        Port(id='demand', exports=[Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])]),
     ],
     converters=[
         Converter.boiler(
             'boiler',
             thermal_efficiency=0.9,
             fuel_flow=Flow(carrier='gas', size=300),
-            thermal_flow=Flow(carrier='heat', size=200)
+            thermal_flow=Flow(carrier='heat', size=200),
         )
     ],
     objective='cost',
 )
 
-print(f"Total cost: {result.objective:.2f}")
-print(result.to_dataarray("rate").squeeze("period", drop=True))
+print(f'Total cost: {result.objective:.2f}')
+print(result.to_dataarray('rate').squeeze('period', drop=True))
 ```
 <!--quickstart-end-->
 
@@ -68,9 +64,9 @@ system. Time series can stay out of the structure as `ProfileRef`s and be
 supplied at solve time via `profiles`:
 
 ```python
-system = fx.FlowSystem.from_yaml("system.yaml")   # or FlowSystem(...) in Python
-result = system.optimize(profiles={"load": demand_ds}, archive="run.zip")
-system.to_yaml("system.yaml")                     # round-trips
+system = fx.FlowSystem.from_yaml('system.yaml')  # or FlowSystem(...) in Python
+result = system.optimize(profiles={'load': demand_ds}, archive='run.zip')
+system.to_yaml('system.yaml')  # round-trips
 ```
 
 **3. Spec and sources** — the system is a mathspec spec and the tables bound to
@@ -79,8 +75,8 @@ it. Read, typeset or extend the spec, edit any table, and solve with specsolve:
 ```python
 import mathspec, specsolve
 
-spec = mathspec.override(system.spec(), {"my cap": "my_cap.yaml"})
-sources = system.sources(profiles={"load": demand_ds}) | {"grid_cap": caps}
+spec = mathspec.override(system.spec(), {'my cap': 'my_cap.yaml'})
+sources = system.sources(profiles={'load': demand_ds}) | {'grid_cap': caps}
 result = specsolve.solve(spec, sources)
 ```
 
