@@ -32,25 +32,21 @@ result = optimize(
     carriers=[Carrier(id='gas'), Carrier(id='heat')],
     effects=[Effect(id='cost')],
     ports=[
-        Port(id='grid', imports=[
-            Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        ]),
-        Port(id='demand', exports=[
-            Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        ])
+        Port(id='grid', imports=[Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})]),
+        Port(id='demand', exports=[Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])]),
     ],
     converters=[
         Converter.boiler(
             'boiler',
             thermal_efficiency=0.9,
             fuel_flow=Flow(carrier='gas', size=300),
-            thermal_flow=Flow(carrier='heat', size=200)
+            thermal_flow=Flow(carrier='heat', size=200),
         )
     ],
     objective='cost',
 )
 
-print(f"Total cost: {result.objective:.2f}")
+print(f'Total cost: {result.objective:.2f}')
 print(result.flow_rates)
 ```
 <!--quickstart-end-->
@@ -68,22 +64,22 @@ system. Time series can stay out of the structure as `ProfileRef`s and be
 supplied at solve time via `profiles`:
 
 ```python
-spec = fx.FlowSystem.from_yaml("system.yaml")   # or FlowSystem(...) in Python
-result = spec.optimize(profiles={"load": demand_ds})
-spec.to_yaml("system.yaml")                     # round-trips
+spec = fx.FlowSystem.from_yaml('system.yaml')  # or FlowSystem(...) in Python
+result = spec.optimize(profiles={'load': demand_ds})
+spec.to_yaml('system.yaml')  # round-trips
 ```
 
 **3. Inspectable** — materialize the solver model without solving, inspect or
 extend the underlying linopy model, retarget the objective, then solve:
 
 ```python
-model = spec.build_model(profiles={"load": demand_ds})   # unbuilt FlowSystemModel
+model = spec.build_model(profiles={'load': demand_ds})  # unbuilt FlowSystemModel
 model.build()
-model.m.add_constraints(...)                             # full linopy access
+model.m.add_constraints(...)  # full linopy access
 result = model.solve()
 
-model.objective = {"cost": 1, "co2": 50}                 # retarget…
-model.build()                                            # …and rebuild
+model.objective = {'cost': 1, 'co2': 50}  # retarget…
+model.build()  # …and rebuild
 ```
 
 For a one-off tweak, stay on level 1/2 and pass
@@ -93,11 +89,11 @@ For a one-off tweak, stay on level 1/2 and pass
 them before modeling:
 
 ```python
-data = fx.ModelData.build(...)                  # or ModelData.load(path)
+data = fx.ModelData.build(...)  # or ModelData.load(path)
 data.flows.fixed_profile = data.flows.fixed_profile.with_columns(
-    pl.when(pl.col("flow") == "demand(heat)").then(0.7).otherwise(pl.col("value")).alias("value")
+    pl.when(pl.col('flow') == 'demand(heat)').then(0.7).otherwise(pl.col('value')).alias('value')
 )
-result = fx.FlowSystemModel(data, objective="cost").optimize()
+result = fx.FlowSystemModel(data, objective='cost').optimize()
 ```
 
 Results close the loop: `result.flow_rates`, `result.effect_totals`,
