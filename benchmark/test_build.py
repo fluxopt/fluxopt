@@ -1,9 +1,9 @@
 """Build-pipeline benchmarks — one ``benchmark()`` suite for CodSpeed and benchmem.
 
-Run from this pinned, standalone project (``cd benchmark``)::
+Run in pixi's pinned ``bench`` environment (``cd benchmark``)::
 
-    uv run pytest . --codspeed                        # CodSpeed
-    uv run pytest . --benchmark-only --benchmark-memory  # local memory (benchmem)
+    pixi run -e bench pytest . --codspeed                        # CodSpeed
+    pixi run -e bench pytest . --benchmark-only --benchmark-memory  # local memory (benchmem)
 
 See benchmark/README.md.
 """

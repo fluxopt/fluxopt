@@ -4,39 +4,39 @@
 description: An on/off decision, its durations, and what running and starting cost.
 
 dimensions:
-  time: {dtype: datetime}
-  period: {dtype: int}
-  effect: {dtype: str}
-  flow: {dtype: str}
-  status_entity: {dtype: str}
+  time: { dtype: datetime }
+  period: { dtype: int }
+  effect: { dtype: str }
+  flow: { dtype: str }
+  status_entity: { dtype: str }
   # The two states a decision can hold. Downtime is uptime with the state
   # inverted, so every duration rule is written once over `state`.
-  state: {dtype: str}
+  state: { dtype: str }
 
 relations:
   # The decision a flow's rate answers to: itself where the flow carries its
   # own Status, its component where a component's Status governs it, absent
   # where nothing gates it. `at()` reads the binary back through it.
-  status_of: {key: flow, values: status_entity}
+  status_of: { key: flow, values: status_entity }
 
 parameters:
   # A flow is gated where `status_of` has a row for it. Every parameter here
   # is the decision's own, so it sits on `status_entity` and is stated once
   # for both kinds.
-  initial_status: {dims: [status_entity]}
+  initial_status: { dims: [status_entity] }
   # Per state: whether the entity bounds how long it stays in it, the least
   # it must, the ceiling of the duration counter (the declared maximum, or
   # the big-M where none is declared), the big-M itself (horizon plus any
   # prior run), how long it was in the state before the horizon, and whether
   # that prior run is shorter than the minimum and so must continue.
-  has_duration: {dims: [status_entity, state], dtype: bool}
-  duration_min: {dims: [status_entity, state]}
-  duration_upper: {dims: [status_entity, state]}
-  duration_big_m: {dims: [status_entity, state]}
-  previous_duration: {dims: [status_entity, state]}
-  forced_at_start: {dims: [status_entity, state], dtype: bool}
-  effects_per_running_hour: {dims: [status_entity, effect, time, period]}   # running effects * dt
-  effects_per_startup: {dims: [status_entity, effect, time, period]}        # startup effects
+  has_duration: { dims: [status_entity, state], dtype: bool }
+  duration_min: { dims: [status_entity, state] }
+  duration_upper: { dims: [status_entity, state] }
+  duration_big_m: { dims: [status_entity, state] }
+  previous_duration: { dims: [status_entity, state] }
+  forced_at_start: { dims: [status_entity, state], dtype: bool }
+  effects_per_running_hour: { dims: [status_entity, effect, time, period] } # running effects * dt
+  effects_per_startup: { dims: [status_entity, effect, time, period] } # startup effects
 
 variables:
   # No `where:` — membership of `status_entity` is the mask. An entity is in
@@ -57,7 +57,7 @@ variables:
   duration:
     dims: [status_entity, state, time, period]
     where: "has_duration"
-    bounds: {lower: 0, upper: duration_upper}
+    bounds: { lower: 0, upper: duration_upper }
 
 expressions:
   running_before:
@@ -96,9 +96,9 @@ expressions:
 
 given:
   parameters:
-    dt: {dims: [time]}
+    dt: { dims: [time] }
   expressions:
-    direct_step: {dims: [effect, time, period], term: status_costs}
+    direct_step: { dims: [effect, time, period], term: status_costs }
 
 constraints:
   # The first step has a row only where the state before the horizon is known.

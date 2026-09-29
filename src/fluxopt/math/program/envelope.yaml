@@ -5,13 +5,13 @@
 description: A flow's rate within its envelope, a share of its size.
 
 dimensions:
-  time: {dtype: datetime}
-  period: {dtype: int}
-  flow: {dtype: str}
-  status_entity: {dtype: str}
+  time: { dtype: datetime }
+  period: { dtype: int }
+  flow: { dtype: str }
+  status_entity: { dtype: str }
 
 relations:
-  status_of: {key: flow, values: status_entity}
+  status_of: { key: flow, values: status_entity }
 
 expressions:
   envelope_size:
@@ -25,22 +25,22 @@ expressions:
 
 given:
   parameters:
-    is_bounded: {dims: [flow], dtype: bool}
-    is_profile: {dims: [flow], dtype: bool}
-    size_bound: {dims: [flow]}
-    mandatory: {dims: [flow], dtype: bool}
-    size_min: {dims: [flow]}
-    size_max: {dims: [flow]}
-    relative_rate_min: {dims: [flow, time, period]}
-    relative_rate_max: {dims: [flow, time, period]}
-    fixed_relative_profile: {dims: [flow, time, period]}
+    is_bounded: { dims: [flow], dtype: bool }
+    is_profile: { dims: [flow], dtype: bool }
+    size_bound: { dims: [flow] }
+    mandatory: { dims: [flow], dtype: bool }
+    size_min: { dims: [flow] }
+    size_max: { dims: [flow] }
+    relative_rate_min: { dims: [flow, time, period] }
+    relative_rate_max: { dims: [flow, time, period] }
+    fixed_relative_profile: { dims: [flow, time, period] }
   variables:
-    rate: {dims: [flow, time, period]}
-    running: {dims: [status_entity, time, period], domain: binary}
-    chosen_size: {dims: [flow, period]}
-    size_built: {dims: [flow, period], domain: binary}
+    rate: { dims: [flow, time, period] }
+    running: { dims: [status_entity, time, period], domain: binary }
+    chosen_size: { dims: [flow, period] }
+    size_built: { dims: [flow, period], domain: binary }
   expressions:
-    size: {dims: [flow, period]}
+    size: { dims: [flow, period] }
 
 constraints:
   # The rows exist where the size scales the rate at all: a gated flow, or a

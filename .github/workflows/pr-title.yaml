@@ -1,30 +1,93 @@
-name: PR Title
+name: PR title
+
+# The squash subject becomes a commit on main. The PR adds its title to
+# CHANGELOG.md by hand, and its type decides whether it owes that line. Nothing
+# writes the changelog on merge. See RELEASING.md.
+#
+# Both the PR title and, when a PR has exactly one commit, that commit's own
+# title are validated: GitHub's default `squash_merge_commit_title` is
+# COMMIT_OR_PR_TITLE, so which of the two lands on main depends on the commit
+# count. Checking both means whichever GitHub picks has been checked. (Setting
+# the repo to PR_TITLE makes it unconditionally the PR title; this check stays
+# correct either way.)
 
 on:
-  push:
-    branches: ["release-please--**"]
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    # `synchronize` is here because this check is meant to be **required**, and a
+    # required check is evaluated against the head commit. Skipping the push
+    # event does not mean "reuse the previous result" — it means the new head has
+    # *no* result, and GitHub waits for one that will never arrive. The PR is
+    # then blocked with nothing to click on: not a failing check, an absent one,
+    # which is indistinguishable from CI hanging.
+    #
+    # Dropping it saves a job per push, and that is sound while the check is
+    # advisory. Once it gates merges, an unreported run cannot be waited out.
+    # Cost: one ~5s job per push, billed as a minute.
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
-  validate:
-    name: Validate conventional commit format
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    permissions:
-      pull-requests: read
+  conventional:
+    name: Conventional commit subject
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: amannn/action-semantic-pull-request@v6
-        with:
-          types: |
-            feat
-            fix
-            refac
-            test
-            docs
-            chore
-            ci
-            build
-            perf
+      - name: Validate the subject that will land on main
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+        run: |
+          set -euo pipefail
+
+          # keep in sync with the type table in AGENTS.md and CONTRIBUTING.md
+          TYPES='feat|fix|perf|refactor|docs|chore|test|ci|build|style|revert'
+          # type, optional (scope), optional ! for breaking, ": ", then a subject
+          PATTERN="^(${TYPES})(\([a-z0-9._/-]+\))?!?: .+"
+
+          fail=0
+
+          check() {
+            local what="$1" subject="$2"
+            if [[ ! "$subject" =~ $PATTERN ]]; then
+              echo "::error::${what} is not a conventional commit subject: ${subject}"
+              fail=1
+              return
+            fi
+            if (( ${#subject} > 72 )); then
+              echo "::warning::${what} is ${#subject} chars; git and the GitHub UI truncate around 72."
+            fi
+            echo "ok: ${what} — ${subject}"
+          }
+
+          # A one-commit PR is squashed with that commit's own title, so both
+          # the PR title and that title are checked.
+          titles=("PR title|${PR_TITLE}")
+          if [[ "$COMMIT_COUNT" == "1" ]]; then
+            only=$(gh api "repos/${REPO}/pulls/${NUMBER}/commits" --jq '.[0].commit.message')
+            titles+=("the single commit's title|$(head -1 <<<"$only")")
+          fi
+
+          for entry in "${titles[@]}"; do
+            check "${entry%%|*}" "${entry#*|}"
+          done
+
+          if (( fail )); then
+            cat <<'MSG'
+
+          Expected: <type>[(scope)][!]: <subject>
+
+            types    feat, fix, perf, refactor, docs, chore, test, ci, build, style, revert
+            examples feat(storage): a storage may bound its final level
+                     fix(flow): flow-hour aggregates weigh each timestep by its duration
+                     docs: the sizing tutorial compares two investment horizons
+
+          Fix the PR title — no need to rewrite the branch. Edits re-run this check.
+          MSG
+            exit 1
+          fi

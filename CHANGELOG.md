@@ -1,5 +1,28 @@
 # Changelog
 
+Each pull request adds its line under `## Upcoming version`. A release pull
+request renames that heading to the version and the day, such as
+`## 0.2.0 (2026-10-01)`, and edits the section into the release notes. Merging
+it releases that version ([RELEASING.md](https://github.com/fluxopt/fluxopt/blob/main/RELEASING.md)).
+
+## Upcoming version
+
+- refac!: land the spec/specsolve stack (#274 … #357) in one merge ([#358](https://github.com/fluxopt/fluxopt/pull/358))
+- docs(benchmark): measured comparison with flixopt on the stress system ([#271](https://github.com/fluxopt/fluxopt/pull/271))
+- perf(effects): fold Leontief inverse into term coefficients, not expressions ([#270](https://github.com/fluxopt/fluxopt/pull/270))
+- feat(benchmark): add abstract multi-period stress reference system ([#260](https://github.com/fluxopt/fluxopt/pull/260))
+- fix(effects)!: reject time-varying contribution_from into lump-bearing sources ([#258](https://github.com/fluxopt/fluxopt/pull/258))
+- feat: user-runnable benchmark with realistic reference systems ([#257](https://github.com/fluxopt/fluxopt/pull/257))
+- refac: unify system validation across all entry paths ([#248](https://github.com/fluxopt/fluxopt/pull/248))
+- fix(status): correct build gating, reject profile combo, warn on prior-dt assumption ([#251](https://github.com/fluxopt/fluxopt/pull/251))
+- refac: derive effect math from a single term declaration ([#249](https://github.com/fluxopt/fluxopt/pull/249))
+- refac: extract cross-layer data contract (dims, variables, BoundType) ([#247](https://github.com/fluxopt/fluxopt/pull/247))
+- refac!: derive qualified flow ids at build time ([#246](https://github.com/fluxopt/fluxopt/pull/246))
+- docs: point agents at gh label list for labeling ([#245](https://github.com/fluxopt/fluxopt/pull/245))
+- docs: add AGENTS.md contribution guide ([#244](https://github.com/fluxopt/fluxopt/pull/244))
+- feat!: drop effect rate bounds, collapse temporal domain, nest data-model containers ([#242](https://github.com/fluxopt/fluxopt/pull/242))
+- refac!: objective API rework — build_model, guards, rename ([#223](https://github.com/fluxopt/fluxopt/pull/223))
+
 ## [0.1.0](https://github.com/fluxopt/fluxopt/compare/v0.0.8...v0.1.0) (2026-07-21)
 
 

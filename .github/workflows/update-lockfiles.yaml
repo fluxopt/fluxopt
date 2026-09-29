@@ -1,0 +1,36 @@
+name: Update lockfiles
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 5 1 * *
+
+jobs:
+  pixi-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
+        with:
+          run-install: false
+      - name: Update lockfiles
+        run: |
+          pixi update --json --no-install | pixi exec pixi-diff-to-markdown >> diff.md
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # A conventional subject, because pr-title.yml checks it. A lockfile
+          # refresh is `build`, which adds no line to the changelog.
+          commit-message: "build(deps): update the pixi lockfile"
+          title: "build(deps): update the pixi lockfile"
+          body-path: diff.md
+          branch: update-pixi
+          base: main
+          labels: dependencies
+          delete-branch: true
+          add-paths: pixi.lock

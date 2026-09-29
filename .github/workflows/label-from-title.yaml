@@ -1,6 +1,9 @@
 name: Label from title
 
-on:
+# `pull_request_target` so a fork's PR can be labelled, which needs a write
+# token. Safe here: nothing is checked out, and the title reaches the script
+# through `env`, never spliced into it.
+on: # zizmor: ignore[dangerous-triggers]
   issues:
     types: [opened, edited, reopened]
   pull_request_target:

@@ -4,33 +4,33 @@
 description: A flow may be built in one period and kept alive for its lifetime.
 
 dimensions:
-  period: {dtype: int}
+  period: { dtype: int }
   # The period a unit was built in. Same labels as `period`; a separate axis
   # so a build decision can be summed into the periods it keeps alive.
-  build_period: {dtype: int}
-  effect: {dtype: str}
-  flow: {dtype: str}
+  build_period: { dtype: int }
+  effect: { dtype: str }
+  flow: { dtype: str }
 
 parameters:
-  has_invest: {dims: [flow], dtype: bool}
-  prior_capacity: {dims: [flow]}
-  has_prior_capacity: {dims: [flow], dtype: bool}
+  has_invest: { dims: [flow], dtype: bool }
+  prior_capacity: { dims: [flow] }
+  has_prior_capacity: { dims: [flow], dtype: bool }
   # 1 where a build in `build_period` is still within lifetime in `period`
-  lifetime_window: {dims: [flow, period, build_period]}
+  lifetime_window: { dims: [flow, period, build_period] }
   # 1 where pre-existing capacity is still active
-  prior_capacity_active: {dims: [flow, period]}
+  prior_capacity_active: { dims: [flow, period] }
   # At-build effects land in the period the unit was built in, not in every
   # period, so these carry both axes and are non-zero only on the diagonal.
-  effects_per_size_at_build: {dims: [flow, effect, period, build_period]}
-  effects_fixed_at_build: {dims: [flow, effect, period, build_period]}
-  effects_per_size_recurring: {dims: [flow, effect, period]}
-  effects_fixed_recurring: {dims: [flow, effect, period]}
+  effects_per_size_at_build: { dims: [flow, effect, period, build_period] }
+  effects_fixed_at_build: { dims: [flow, effect, period, build_period] }
+  effects_per_size_recurring: { dims: [flow, effect, period] }
+  effects_fixed_recurring: { dims: [flow, effect, period] }
 
 variables:
   invest_size:
     dims: [flow]
     where: "has_invest"
-    bounds: {lower: 0, upper: size_max}
+    bounds: { lower: 0, upper: size_max }
 
   invest_build:
     dims: [flow, build_period]
@@ -45,7 +45,7 @@ variables:
   invest_size_at_build:
     dims: [flow, build_period]
     where: "has_invest"
-    bounds: {lower: 0, upper: size_max}
+    bounds: { lower: 0, upper: size_max }
 
 expressions:
   builds:
@@ -73,13 +73,13 @@ expressions:
 
 given:
   parameters:
-    mandatory: {dims: [flow], dtype: bool}
-    size_min: {dims: [flow]}
-    size_max: {dims: [flow]}
+    mandatory: { dims: [flow], dtype: bool }
+    size_min: { dims: [flow] }
+    size_max: { dims: [flow] }
   variables:
-    chosen_size: {dims: [flow, period]}
+    chosen_size: { dims: [flow, period] }
   expressions:
-    direct_lump: {dims: [effect, period], term: investment_costs}
+    direct_lump: { dims: [effect, period], term: investment_costs }
 
 constraints:
   # --- build at most once (exactly once when mandatory); never when capacity

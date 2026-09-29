@@ -3,17 +3,17 @@
 description: The quantities a result is reported in.
 
 dimensions:
-  time: {dtype: datetime}
-  period: {dtype: int}
-  build_period: {dtype: int}
-  flow: {dtype: str}
-  storage: {dtype: str}
-  status_entity: {dtype: str}
-  effect: {dtype: str}
-  source: {dtype: str}
+  time: { dtype: datetime }
+  period: { dtype: int }
+  build_period: { dtype: int }
+  flow: { dtype: str }
+  storage: { dtype: str }
+  status_entity: { dtype: str }
+  effect: { dtype: str }
+  source: { dtype: str }
 
 relations:
-  same: {key: source, values: effect}
+  same: { key: source, values: effect }
 
 expressions:
   step_flow_hours:
@@ -69,25 +69,25 @@ expressions:
 
 given:
   parameters:
-    dt: {dims: [time]}
-    time_weight: {dims: [time]}
-    carrier_sign: {dims: [flow]}
-    share: {dims: [effect, source, period]}
+    dt: { dims: [time] }
+    time_weight: { dims: [time] }
+    carrier_sign: { dims: [flow] }
+    share: { dims: [effect, source, period] }
   variables:
-    rate: {dims: [flow, time, period]}
-    level: {dims: [storage, time, period]}
+    rate: { dims: [flow, time, period] }
+    level: { dims: [storage, time, period] }
   expressions:
-    capacity: {dims: [storage, period]}
-    size: {dims: [flow, period]}
-    flow_hours: {dims: [flow, period]}
-    contribution_flow_hour: {dims: [flow, effect, time, period]}
-    contribution_running: {dims: [status_entity, effect, time, period]}
-    contribution_startup: {dims: [status_entity, effect, time, period]}
-    contribution_flow_per_size: {dims: [flow, effect, period]}
-    contribution_flow_fixed: {dims: [flow, effect, period]}
-    contribution_storage_per_capacity: {dims: [storage, effect, period]}
-    contribution_storage_fixed: {dims: [storage, effect, period]}
-    contribution_invest_per_size_at_build: {dims: [flow, effect, period, build_period]}
-    contribution_invest_fixed_at_build: {dims: [flow, effect, period, build_period]}
-    contribution_invest_per_size_recurring: {dims: [flow, effect, period]}
-    contribution_invest_fixed_recurring: {dims: [flow, effect, period]}
+    capacity: { dims: [storage, period] }
+    size: { dims: [flow, period] }
+    flow_hours: { dims: [flow, period] }
+    contribution_flow_hour: { dims: [flow, effect, time, period] }
+    contribution_running: { dims: [status_entity, effect, time, period] }
+    contribution_startup: { dims: [status_entity, effect, time, period] }
+    contribution_flow_per_size: { dims: [flow, effect, period] }
+    contribution_flow_fixed: { dims: [flow, effect, period] }
+    contribution_storage_per_capacity: { dims: [storage, effect, period] }
+    contribution_storage_fixed: { dims: [storage, effect, period] }
+    contribution_invest_per_size_at_build: { dims: [flow, effect, period, build_period] }
+    contribution_invest_fixed_at_build: { dims: [flow, effect, period, build_period] }
+    contribution_invest_per_size_recurring: { dims: [flow, effect, period] }
+    contribution_invest_fixed_recurring: { dims: [flow, effect, period] }

@@ -3,29 +3,29 @@
 description: How fast a flow's rate may change from one step to the next.
 
 dimensions:
-  time: {dtype: datetime}
-  period: {dtype: int}
-  flow: {dtype: str}
-  status_entity: {dtype: str}
+  time: { dtype: datetime }
+  period: { dtype: int }
+  flow: { dtype: str }
+  status_entity: { dtype: str }
 
 relations:
-  status_of: {key: flow, values: status_entity}
+  status_of: { key: flow, values: status_entity }
 
 parameters:
   # r+ * dt, per unit of size. A flow with a ramp has a row, a ramp of 0
   # included; a flow without one has none.
-  ramp_up_coeff: {dims: [flow, time, period]}
-  ramp_down_coeff: {dims: [flow, time, period]}
+  ramp_up_coeff: { dims: [flow, time, period] }
+  ramp_down_coeff: { dims: [flow, time, period] }
 
 given:
   parameters:
-    size_bound: {dims: [flow]}
+    size_bound: { dims: [flow] }
   variables:
-    rate: {dims: [flow, time, period]}
-    startup: {dims: [status_entity, time, period], domain: binary}
-    shutdown: {dims: [status_entity, time, period], domain: binary}
+    rate: { dims: [flow, time, period] }
+    startup: { dims: [status_entity, time, period], domain: binary }
+    shutdown: { dims: [status_entity, time, period], domain: binary }
   expressions:
-    size: {dims: [flow, period]}
+    size: { dims: [flow, period] }
 
 expressions:
   # A gated flow may jump from zero to its minimum in the step it starts, so

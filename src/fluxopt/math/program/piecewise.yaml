@@ -5,38 +5,38 @@
 description: A converter's flows may follow a piecewise-linear curve.
 
 dimensions:
-  time: {dtype: datetime}
-  period: {dtype: int}
-  converter: {dtype: str}
-  flow: {dtype: str}
-  status_entity: {dtype: str}
+  time: { dtype: datetime }
+  period: { dtype: int }
+  converter: { dtype: str }
+  flow: { dtype: str }
+  status_entity: { dtype: str }
   # Breakpoint index of a piecewise curve. The dimension is the widest
   # curve in the system; narrower ones mask their tail away.
-  bp: {dtype: int}
+  bp: { dtype: int }
 
 relations:
   # The curve a flow is a link of. A flow of no curve has no row.
-  curve_of: {key: flow, values: converter}
+  curve_of: { key: flow, values: converter }
   # A curve's own on/off decision, where its component has one. A curve with
   # a row is gated.
-  pw_status_of: {key: converter, values: status_entity}
+  pw_status_of: { key: converter, values: status_entity }
 
 parameters:
   # The breakpoints a curve has. Curves of different width share one `bp`
   # axis, so a narrower curve is false past its end.
-  pw_bp_present: {dims: [converter, bp], dtype: bool}
+  pw_bp_present: { dims: [converter, bp], dtype: bool }
   # How a link meets its curve: '==' pinned to it, '<=' below it, '>=' above.
-  link_sense: {dims: [flow], dtype: str}
-  pw_bp_value: {dims: [flow, bp, time]}            # this link's breakpoint values
-  pw_ref: {dims: [flow]}                           # 1 on the link availability scales
-  pw_avail_bound: {dims: [converter, time, period]}  # availability * widest breakpoint
+  link_sense: { dims: [flow], dtype: str }
+  pw_bp_value: { dims: [flow, bp, time] } # this link's breakpoint values
+  pw_ref: { dims: [flow] } # 1 on the link availability scales
+  pw_avail_bound: { dims: [converter, time, period] } # availability * widest breakpoint
 
 variables:
   # Convex-combination weights over the breakpoints of each curve.
   lam:
     dims: [converter, bp, time, period]
     where: "pw_bp_present"
-    bounds: {lower: 0, upper: 1}
+    bounds: { lower: 0, upper: 1 }
 
 expressions:
   # A curve with its own on/off decision is on where that decision is; any
@@ -52,8 +52,8 @@ expressions:
 
 given:
   variables:
-    rate: {dims: [flow, time, period]}
-    running: {dims: [status_entity, time, period], domain: binary}
+    rate: { dims: [flow, time, period] }
+    running: { dims: [status_entity, time, period], domain: binary }
 
 # The restriction that makes the weights a piecewise curve rather than any
 # convex combination: at most two nonzero, and those two adjacent. A set

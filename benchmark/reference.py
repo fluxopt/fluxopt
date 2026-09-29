@@ -4,11 +4,11 @@ Run it from a checkout, in this directory's environment, to see how fast
 fluxopt's build pipeline (Elements → sources → specsolve model) is on your
 hardware::
 
-    uv run python reference.py                         # all systems, one hourly year
-    uv run python reference.py district_heating        # a single system
-    uv run python reference.py --timesteps 720         # one month instead of a year
-    uv run python reference.py --solve                 # also time the HiGHS solve
-    uv run python reference.py --json                  # machine-readable output
+    pixi run -e bench python reference.py                     # all systems, one hourly year
+    pixi run -e bench python reference.py district_heating    # a single system
+    pixi run -e bench python reference.py --timesteps 720     # one month instead of a year
+    pixi run -e bench python reference.py --solve             # also time the HiGHS solve
+    pixi run -e bench python reference.py --json              # machine-readable output
 
 The reference systems are realistic, readable models — constant and
 time-varying data, several effects and cross-effect couplings — so the numbers

@@ -1,48 +1,18 @@
+# pixi.lock is refreshed by .github/workflows/update-lockfiles.yaml, because
+# Dependabot has no pixi ecosystem. What is left for it is the actions.
 version: 2
-
 updates:
-  - package-ecosystem: "pip"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: monthly
     labels:
-      - "dependencies"
+      - dependencies
     commit-message:
-      prefix: "chore"
+      prefix: ci
     groups:
-      linting:
+      gh-actions:
         patterns:
-          - "ruff"
-          - "mypy"
-          - "pre-commit"
-          - "pandas-stubs"
-      testing:
-        patterns:
-          - "pytest*"
-      documentation:
-        patterns:
-          - "mkdocs*"
-          - "mike"
-          - "pymdown-extensions"
-          - "pygments"
-          - "markdown-include"
-          - "notebook"
-
-  # Bench-scoped lock (benchmark/uv.lock) — the one pinned env in the repo.
-  - package-ecosystem: "uv"
-    directory: "/benchmark"
-    schedule:
-      interval: "monthly"
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "chore"
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "ci"
+          - "*"
+    cooldown:
+      default-days: 7

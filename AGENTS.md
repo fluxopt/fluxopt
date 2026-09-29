@@ -47,17 +47,29 @@ must stay human and honest. Three rules:
 
 ## Development workflow
 
-- Manage the environment with [`uv`](https://docs.astral.sh/uv/) and work inside
-  the project virtualenv (`uv sync --group dev`).
-- Run the tests with `pytest`, lint and format with `ruff`, and type-check with
-  `pyrefly`. Run the tests after making changes and make sure they pass.
+- The environment is [pixi](https://pixi.sh)'s. Prefix every command with
+  `pixi run`; `pixi.lock` pins every tool.
+- `pixi run lint` before every commit: ruff, pyrefly, prettier, taplo, typos,
+  zizmor and nbstripout, the same jobs the lefthook pre-commit hook runs.
+- `pixi run ci` before every push. It is `lint`, `test`, `docs-build` and the
+  benchmark smoke test, and it is what CI runs.
+- After a change to `pixi.toml`, run `pixi lock`. Runtime dependencies are
+  mirrored in `pyproject.toml`; keep both lists in step.
 
 ## Project conventions
 
 - Branch off `main` for every change and open pull requests via the GitHub CLI
   (`gh`).
 - Use [Conventional Commits](https://www.conventionalcommits.org/) for all
-  commit messages and PR titles (`<type>: <short summary>`).
+  commit messages and PR titles (`<type>: <short summary>`). The types are
+  `feat`, `fix`, `perf`, `refactor`, `docs`, `chore`, `test`, `ci`, `build`,
+  `style` and `revert`.
+- Every `feat`, `fix`, `perf`, `refactor`, `docs` or `revert` PR adds its title
+  under `## Upcoming version` in `CHANGELOG.md`, with a link to the PR. The
+  label `no changelog` opts one out; only a maintainer sets it. A version
+  heading on top of that file releases on merge
+  ([RELEASING.md](RELEASING.md)), so write one only when told to cut a release.
+- The version comes from the git tag. Never write it into a file.
 - Write tests for new features and bug fixes under `tests/` as `test_*.py`.
 - Before adding a validation check, read
   [`docs/design/validation-layers.md`](docs/design/validation-layers.md) — it

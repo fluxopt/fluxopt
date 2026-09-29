@@ -1,0 +1,133 @@
+[workspace]
+name = "fluxopt"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "osx-64", "linux-64", "win-64"]
+
+# The runtime dependencies, mirrored from `[project.dependencies]` in
+# pyproject.toml, which stays the source of truth for what a PyPI install gets.
+# They are declared here as well so conda-forge, not PyPI, provides them. Keep
+# the two lists in step; the floors are argued for in pyproject.toml.
+[dependencies]
+python = ">=3.12"
+highspy = ">=1.13.1,!=1.14.*"
+numpy = ">=1.26"
+pandas = ">=2.1"
+polars = ">=1.30"
+pyarrow = ">=15"
+pydantic = ">=2.7"
+pyyaml = ">=6.0"
+xarray = ">=2024.1.0"
+
+[pypi-dependencies]
+fluxopt = { path = ".", editable = true }
+# Pinned to commits: the composed math needs mathspec's composition
+# (energy-models/mathspec#732) and its empty sum (#742), which no release
+# carries yet, and specsolve's main is the first engine on mathspec 0.2.
+specsolve = { git = "https://github.com/fluxopt/lpspec.git", rev = "e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2" }
+mathspec = { git = "https://github.com/energy-models/mathspec", rev = "0b0e4b0aa218ba38059615bc1af085bc10b80cda" }
+
+[feature.test.dependencies]
+pytest = ">=9"
+pytest-cov = ">=7"
+pytest-xdist = ">=3.8"
+# Pinned exactly, because the gate's *output* is the contract: a new release
+# that reports one more thing turns a green branch red without a commit.
+pyrefly = "==1.1.1"
+pandas-stubs = ">=3"
+[feature.test.tasks]
+# `-n auto` comes from `addopts` in pyproject.toml.
+test = "pytest"
+test-coverage = "pytest --cov=fluxopt --cov-report=xml --cov-report=term-missing"
+typecheck = "pyrefly check"
+
+[feature.build.dependencies]
+python = "*"
+hatchling = "*"
+# `--no-isolation` below means the backend is this environment, not one pip
+# builds on the fly, so the plugin that reads the version off the tag has to be
+# installed here or `source = "vcs"` has nothing to call.
+hatch-vcs = "*"
+python-build = "*"
+twine = ">=6"
+[feature.build.tasks]
+build-wheel = "python -m build --no-isolation ."
+check-wheel = "twine check dist/*"
+
+[feature.lint.dependencies]
+lefthook = "*"
+# Pinned exactly for the same reason as pyrefly above: `ruff format` decides
+# what formatted means, and a floating version means CI and the hook can
+# disagree about it.
+ruff = "==0.16.0"
+prettier = "*"
+taplo = "*"
+pre-commit-hooks = "*"
+typos = "*"
+zizmor = "*"
+nbstripout = "*"
+[feature.lint.tasks]
+pre-commit-install = "lefthook install"
+lint = "lefthook run pre-commit --all-files"
+
+[feature.docs.dependencies]
+mkdocs = ">=1.6"
+mkdocs-material = ">=9.7"
+mkdocs-include-markdown-plugin = ">=7"
+mkdocs-gen-files = ">=0.6"
+mkdocs-literate-nav = ">=0.6"
+mkdocstrings-python = ">=2"
+griffe-pydantic = ">=1.3"
+pymdown-extensions = ">=11"
+# `execute: true` in mkdocs.yml runs every notebook at build time, so the
+# kernel and what the notebooks plot with are docs dependencies.
+mkdocs-jupyter = ">=0.26"
+ipykernel = "*"
+plotly = ">=6"
+[feature.docs.tasks]
+docs-serve = "mkdocs serve"
+# `--strict` turns every warning into a failure, so this catches a dead
+# cross-link and an anchor that stopped resolving.
+docs-build = "mkdocs build --strict"
+
+# The benchmark suite, pinned by pixi.lock like everything else, so the CodSpeed
+# dashboard tracks fluxopt's code rather than upstream releases. Its own
+# environment, because memray has no Windows build.
+[feature.bench]
+platforms = ["osx-arm64", "osx-64", "linux-64"]
+[feature.bench.dependencies]
+pytest = ">=9"
+pytest-codspeed = ">=5"
+memray = ">=1.11"
+[feature.bench.pypi-dependencies]
+pytest-benchmem = { version = ">=0.4.12", extras = ["plot"] }
+[feature.bench.tasks]
+# Every benchmarked function runs once as a plain test, so API drift that breaks
+# the informational CodSpeed suites fails CI instead.
+bench-smoke = { cmd = "pytest . --benchmark-disable", cwd = "benchmark" }
+bench = { cmd = "pytest . --benchmark-only --benchmark-memory", cwd = "benchmark" }
+bench-codspeed = { cmd = "pytest . --codspeed", cwd = "benchmark" }
+
+# The whole gate, in the order a failure is cheapest to read. CI runs these as
+# separate steps so a red run names the one that broke; this is the same list
+# for anyone who wants to know before pushing.
+[tasks.ci]
+depends-on = [
+  "lint",
+  "test",
+  "docs-build",
+  { task = "bench-smoke", environment = "bench" },
+]
+
+[feature.py312.dependencies]
+python = "3.12.*"
+[feature.py313.dependencies]
+python = "3.13.*"
+[feature.py314.dependencies]
+python = "3.14.*"
+
+[environments]
+default = ["py312", "test", "build", "lint", "docs"]
+bench = ["py312", "bench"]
+py312 = ["py312", "test"]
+py313 = ["py313", "test"]
+py314 = ["py314", "test"]
