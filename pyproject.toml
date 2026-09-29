@@ -76,12 +76,12 @@ include = ["src/fluxopt/", "LICENSE", "README.md"]
 [dependency-groups]
 dev = [
     "pandas-stubs==3.0.3.260530",
-    "pre-commit==4.6.0",
+    "pre-commit==4.6.1",
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
     "pytest-xdist==3.8.0",
     "pyrefly==1.1.1",
-    "ruff==0.15.22",
+    "ruff==0.16.0",
 ]
 docs = [
     "plotly>=6",
@@ -142,6 +142,7 @@ extend-fixable = ["B", "SIM", "RUF", "C4", "UP"]
 "tests/**/*.py" = ["S101"]
 "scripts/**/*.py" = ["T201", "RUF003"]
 "src/fluxopt/benchmark.py" = ["T201"]
+"benchmark/flixopt_stress.py" = ["T201"]
 "docs/notebooks/*.ipynb" = ["T201", "RUF001", "RUF003"]
 
 [tool.ruff.format]
