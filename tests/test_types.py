@@ -3,26 +3,32 @@ from __future__ import annotations
 from datetime import datetime
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
-import xarray as xr
 
-from fluxopt.types import as_dataarray, compute_dt, normalize_timesteps
+from fluxopt.types import ProfileRef, align, compute_dt, normalize_timesteps
+
+TIME = pl.Series('time', [datetime(2024, 1, 1, h) for h in range(3)], dtype=pl.Datetime('us'))
+PERIOD = pl.Series('period', [2024, 2030], dtype=pl.Int64)
+FLOW = pl.Series('flow', ['a', 'b'])
 
 
 class TestNormalizeTimesteps:
     def test_datetime_list(self):
-        dts = [datetime(2024, 1, 1, h) for h in range(3)]
-        result = normalize_timesteps(dts)
-        assert isinstance(result, pd.DatetimeIndex)
+        result = normalize_timesteps([datetime(2024, 1, 1, h) for h in range(3)])
+        assert isinstance(result, pl.Series)
+        assert result.name == 'time'
         assert len(result) == 3
+
+    def test_polars_series(self):
+        series = pl.datetime_range(datetime(2024, 1, 1), datetime(2024, 1, 1, 2), '1h', eager=True)
+        assert normalize_timesteps(series).to_list() == TIME.to_list()
 
     @pytest.mark.parametrize(
         'timesteps',
         [
             pytest.param([0, 1, 2], id='int-list'),
-            pytest.param(pd.Index([0, 1, 2], dtype=np.int64), id='int-index'),
-            pytest.param(pd.RangeIndex(3), id='range-index'),
+            pytest.param(pl.Series([0, 1, 2]), id='int-series'),
             pytest.param(['t0', 't1', 't2'], id='string-list'),
             pytest.param([1.0, 2.0, 3.0], id='float-list'),
             pytest.param([False, True], id='bool-list'),
@@ -30,14 +36,8 @@ class TestNormalizeTimesteps:
         ],
     )
     def test_anything_but_timestamps_is_refused(self, timesteps):
-        with pytest.raises(TypeError, match=r'must be timestamps.*pd\.date_range'):
+        with pytest.raises(TypeError, match=r'must be timestamps.*pl\.datetime_range'):
             normalize_timesteps(timesteps)
-
-    def test_pandas_datetimeindex(self):
-        idx = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(3)])
-        result = normalize_timesteps(idx)
-        assert isinstance(result, pd.DatetimeIndex)
-        assert len(result) == 3
 
     def test_empty_list_rejected(self):
         with pytest.raises(ValueError, match='must not be empty'):
@@ -54,199 +54,121 @@ class TestNormalizeTimesteps:
 
 class TestComputeDt:
     def test_explicit_scalar(self):
-        ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(3)])
-        result = compute_dt(ts, 0.5)
-        assert list(result.values) == [0.5, 0.5, 0.5]
+        assert compute_dt(TIME, 0.5).tolist() == [0.5, 0.5, 0.5]
 
     def test_explicit_list(self):
-        ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(3)])
-        result = compute_dt(ts, [1.0, 2.0, 3.0])
-        assert list(result.values) == [1.0, 2.0, 3.0]
+        assert compute_dt(TIME, [1.0, 2.0, 3.0]).tolist() == [1.0, 2.0, 3.0]
 
-    def test_explicit_list_wrong_length(self):
-        ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(2)])
-        with pytest.raises(ValueError, match='dt length'):
-            compute_dt(ts, [1.0, 2.0, 3.0])
+    def test_explicit_list_of_the_wrong_length(self):
+        with pytest.raises(ValueError, match='does not match'):
+            compute_dt(TIME[:2], [1.0, 2.0, 3.0])
 
-    def test_auto_datetime_hourly(self):
-        ts = pd.DatetimeIndex([datetime(2024, 1, 1, h) for h in range(4)])
-        result = compute_dt(ts, None)
-        assert list(result.values) == [1.0, 1.0, 1.0, 1.0]
+    def test_derived_from_the_steps(self):
+        assert compute_dt(TIME, None).tolist() == [1.0, 1.0, 1.0]
 
-    def test_auto_datetime_irregular(self):
-        dts = [
-            datetime(2024, 1, 1, 0),
-            datetime(2024, 1, 1, 1),
-            datetime(2024, 1, 1, 4),
-        ]
-        ts = pd.DatetimeIndex(dts)
-        result = compute_dt(ts, None)
-        assert list(result.values) == [1.0, 1.0, 3.0]
+    def test_uneven_steps_take_the_gap_to_the_next(self):
+        time = pl.Series('time', [datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 1), datetime(2024, 1, 1, 4)])
+        assert compute_dt(time, None).tolist() == [1.0, 1.0, 3.0], 'the first step takes the second one'
 
-    def test_single_datetime_timestep(self):
-        ts = pd.DatetimeIndex([datetime(2024, 1, 1)])
-        result = compute_dt(ts, None)
-        assert list(result.values) == [1.0]
+    def test_single_step_lasts_an_hour(self):
+        assert compute_dt(TIME[:1], None).tolist() == [1.0]
 
 
-class TestAsDataArrayScalar:
-    def test_no_broadcast_returns_0dim(self):
-        result = as_dataarray(5.0, {'time': pd.RangeIndex(3)}, broadcast=False)
-        assert result.shape == ()
-        assert float(result) == 5.0
-        assert result.name == 'value'
-
-    def test_int_no_broadcast(self):
-        result = as_dataarray(3, {'time': pd.RangeIndex(3)}, broadcast=False)
-        assert result.shape == ()
-        assert float(result) == 3.0
-
-    def test_broadcast_single_coord(self):
-        idx = pd.RangeIndex(3)
-        result = as_dataarray(5.0, {'time': idx})
-        assert result.shape == (3,)
-        assert list(result.values) == [5.0, 5.0, 5.0]
-        assert result.dims == ('time',)
-
-    def test_broadcast_multi_coord(self):
-        flows = pd.Index(['gas', 'elec'])
-        time = pd.RangeIndex(4)
-        result = as_dataarray(2.0, {'flow': flows, 'time': time})
-        assert result.shape == (2, 4)
-        assert result.dims == ('flow', 'time')
-        np.testing.assert_array_equal(result.values, np.full((2, 4), 2.0))
-
-    def test_custom_name(self):
-        result = as_dataarray(1.0, {'t': [0, 1]}, name='cost')
-        assert result.name == 'cost'
-
-
-class TestAsDataArrayList:
-    def test_single_coord(self):
-        result = as_dataarray([1.0, 2.0, 3.0], {'time': pd.RangeIndex(3)})
-        assert result.dims == ('time',)
-        assert list(result.values) == [1.0, 2.0, 3.0]
-
-    def test_multi_coord_matches_correct_dim(self):
-        flows = pd.Index(['a', 'b'])
-        time = pd.RangeIndex(3)
-        result = as_dataarray([10.0, 20.0, 30.0], {'flow': flows, 'time': time}, broadcast=False)
-        assert result.dims == ('time',)
-        assert list(result.values) == [10.0, 20.0, 30.0]
-
-    def test_multi_coord_broadcast(self):
-        flows = pd.Index(['a', 'b'])
-        time = pd.RangeIndex(3)
-        result = as_dataarray([10.0, 20.0, 30.0], {'flow': flows, 'time': time})
-        assert result.dims == ('flow', 'time')
+class TestAlignScalar:
+    def test_fills_every_axis(self):
+        result = align(2.0, {'flow': FLOW, 'time': TIME})
         assert result.shape == (2, 3)
+        assert np.all(result == 2.0)
 
-    def test_broadcast_preserves_coord_order(self):
-        """Data matches 'time' but coords list it second — dims must follow coords order."""
-        time = pd.RangeIndex(3)
-        flows = pd.Index(['a', 'b'])
-        result = as_dataarray([1.0, 2.0, 3.0], {'time': time, 'flow': flows})
-        assert result.dims == ('time', 'flow')
-        assert result.shape == (3, 2)
+    def test_int(self):
+        assert align(3, {'time': TIME}).tolist() == [3.0, 3.0, 3.0]
+
+
+class TestAlign1d:
+    @pytest.mark.parametrize(
+        'value',
+        [
+            pytest.param([1.0, 2.0, 3.0], id='list'),
+            pytest.param(np.array([1.0, 2.0, 3.0]), id='ndarray'),
+            pytest.param(pl.Series([1.0, 2.0, 3.0]), id='series'),
+        ],
+    )
+    def test_matched_by_length(self, value):
+        assert align(value, {'time': TIME}).tolist() == [1.0, 2.0, 3.0]
+
+    def test_broadcast_over_the_other_axes(self):
+        result = align([10.0, 20.0, 30.0], {'flow': FLOW, 'time': TIME})
+        assert result.tolist() == [[10.0, 20.0, 30.0], [10.0, 20.0, 30.0]], 'axis order is the order of axes'
+
+    def test_time_wins_a_tie(self):
+        result = align([1.0, 2.0], {'time': TIME[:2], 'period': PERIOD})
+        assert result.tolist() == [[1.0, 1.0], [2.0, 2.0]]
 
     def test_ambiguous_length_raises(self):
-        c1 = pd.RangeIndex(3)
-        c2 = pd.Index(['a', 'b', 'c'])
-        with pytest.raises(ValueError, match='matches multiple coordinates'):
-            as_dataarray([1.0, 2.0, 3.0], {'x': c1, 'y': c2})
+        with pytest.raises(ValueError, match='several dimensions'):
+            align([1.0, 2.0], {'flow': FLOW, 'period': PERIOD})
 
     def test_no_match_raises(self):
-        with pytest.raises(ValueError, match='does not match any coordinate'):
-            as_dataarray([1.0, 2.0], {'time': pd.RangeIndex(5)})
+        with pytest.raises(ValueError, match='does not match any dimension'):
+            align([1.0, 2.0], {'time': TIME})
+
+    def test_two_dimensional_array_raises(self):
+        with pytest.raises(ValueError, match='must be 1-D'):
+            align(np.ones((3, 2)), {'time': TIME, 'period': PERIOD})
 
 
-class TestAsDataArrayNdarray:
-    def test_array(self):
-        arr = np.array([10.0, 20.0])
-        result = as_dataarray(arr, {'flow': pd.Index(['a', 'b'])})
-        assert result.dims == ('flow',)
-        assert list(result.values) == [10.0, 20.0]
+class TestAlignTable:
+    def test_tidy_table_on_two_axes(self):
+        table = pl.DataFrame(
+            {
+                'period': [2030, 2024, 2030, 2024, 2030, 2024],
+                'time': [t for t in TIME.to_list() for _ in range(2)],
+                'value': [1.0, 10.0, 2.0, 20.0, 3.0, 30.0],
+            }
+        )
+        result = align(table, {'time': TIME, 'period': PERIOD})
+        assert result.tolist() == [[10.0, 1.0], [20.0, 2.0], [30.0, 3.0]], 'rows land by label, not by position'
+
+    def test_broadcast_over_the_axes_it_has_no_column_for(self):
+        table = pl.DataFrame({'period': [2024, 2030], 'value': [1.0, 2.0]})
+        assert align(table, {'time': TIME, 'period': PERIOD}).tolist() == [[1.0, 2.0]] * 3
+
+    @pytest.mark.parametrize(
+        ('table', 'message'),
+        [
+            pytest.param(pl.DataFrame({'period': [2024, 2030]}), "needs a 'value' column", id='no-value'),
+            pytest.param(pl.DataFrame({'scenario': ['a'], 'value': [1.0]}), 'not dimensions here', id='foreign-column'),
+            pytest.param(
+                pl.DataFrame({'period': [2024, 2031], 'value': [1.0, 2.0]}),
+                'labels the model does not',
+                id='unknown-label',
+            ),
+            pytest.param(
+                pl.DataFrame({'period': [2024, 2024], 'value': [1.0, 2.0]}), 'repeats a combination', id='duplicate'
+            ),
+            pytest.param(pl.DataFrame({'period': [2024], 'value': [1.0]}), 'give a value for each', id='missing'),
+        ],
+    )
+    def test_a_table_that_does_not_fill_its_axes_is_refused(self, table, message):
+        with pytest.raises(ValueError, match=message):
+            align(table, {'time': TIME, 'period': PERIOD})
 
 
-class TestAsDataArraySeries:
-    def test_series(self):
-        s = pd.Series([4.0, 5.0, 6.0])
-        result = as_dataarray(s, {'time': pd.RangeIndex(3)})
-        assert result.dims == ('time',)
-        assert list(result.values) == [4.0, 5.0, 6.0]
+class TestAlignRefused:
+    def test_unresolved_profile_ref(self):
+        with pytest.raises(ValueError, match='Unresolved ProfileRef'):
+            align(ProfileRef(table='p', column='x'), {'time': TIME})
+
+    @pytest.mark.parametrize('value', [pytest.param({}, id='dict'), pytest.param(True, id='bool')])
+    def test_not_a_variate(self, value):
+        with pytest.raises(TypeError, match='Unsupported Variate type'):
+            align(value, {'time': TIME})
 
 
-class TestAsDataArrayDataArray:
-    def test_passthrough(self):
-        da = xr.DataArray([1.0, 2.0], dims=['time'], coords={'time': [0, 1]})
-        result = as_dataarray(da, {'time': pd.RangeIndex(2)})
-        assert result.name == 'value'
-        assert result.dims == ('time',)
-        assert list(result.values) == [1.0, 2.0]
-
-    def test_broadcast_expands_dims(self):
-        da = xr.DataArray([1.0, 2.0], dims=['time'], coords={'time': [0, 1]})
-        flows = pd.Index(['a', 'b', 'c'])
-        result = as_dataarray(da, {'flow': flows, 'time': pd.RangeIndex(2)})
-        assert result.dims == ('flow', 'time')
-        assert result.shape == (3, 2)
-
-    def test_broadcast_preserves_coord_order(self):
-        """Data has dim 'time' but coords list it first — dims must follow coords order."""
-        da = xr.DataArray([1.0, 2.0], dims=['time'], coords={'time': [0, 1]})
-        flows = pd.Index(['a', 'b', 'c'])
-        result = as_dataarray(da, {'time': pd.RangeIndex(2), 'flow': flows})
-        assert result.dims == ('time', 'flow')
-
-    def test_foreign_dims_raises(self):
-        """DataArray with dims not in coords raises ValueError."""
-        da = xr.DataArray([10.0, 20.0], dims=['sizing_flow'])
-        with pytest.raises(ValueError, match='not in target coords'):
-            as_dataarray(da, {'flow': pd.Index(['a', 'b'])})
-
-
-class TestAsDataArrayDataFrame:
-    def test_two_named_axes(self):
-        time = pd.RangeIndex(3, name='time')
-        period = pd.Index([2024, 2030], name='period')
-        df = pd.DataFrame([[10, 20], [11, 22], [12, 24]], index=time, columns=period)
-        result = as_dataarray(df, {'time': time, 'period': period})
-        assert result.dims == ('time', 'period')
-        assert result.shape == (3, 2)
-        np.testing.assert_array_equal(result.values, df.values.astype(float))
-
-    def test_unnamed_axis_raises(self):
-        df = pd.DataFrame([[1.0, 2.0], [3.0, 4.0]])  # no index/columns names
-        with pytest.raises(ValueError, match=r'axis\.name'):
-            as_dataarray(df, {'time': pd.RangeIndex(2), 'period': pd.Index([2024, 2030])})
-
-    def test_foreign_dim_raises(self):
-        time = pd.RangeIndex(2, name='time')
-        bad = pd.Index(['a', 'b'], name='flow')
-        df = pd.DataFrame([[1.0, 2.0], [3.0, 4.0]], index=time, columns=bad)
-        with pytest.raises(ValueError, match='not in target coords'):
-            as_dataarray(df, {'time': time, 'period': pd.Index([2024, 2030], name='period')})
-
-    def test_coord_mismatch_raises(self):
-        time = pd.RangeIndex(2, name='time')
-        period_user = pd.Index([2024, 2030], name='period')
-        period_model = pd.Index([2025, 2030], name='period')
-        df = pd.DataFrame([[1.0, 2.0], [3.0, 4.0]], index=time, columns=period_user)
-        with pytest.raises(ValueError, match='Coord mismatch'):
-            as_dataarray(df, {'time': time, 'period': period_model})
-
-
-class TestAsDataArrayMultiPeriod:
-    """Length-based disambiguation when multiple coords have equal length."""
-
-    def test_unnamed_1d_prefers_time(self):
-        time = pd.RangeIndex(2, name='time')
-        period = pd.Index([2024, 2030], name='period')
-        result = as_dataarray([10.0, 20.0], {'time': time, 'period': period}, broadcast=False)
-        assert result.dims == ('time',)
-
-
-class TestAsDataArrayUnsupported:
-    def test_dict_raises(self):
-        with pytest.raises(TypeError, match='Unsupported'):
-            as_dataarray({}, {'time': pd.RangeIndex(3)})
+class TestProfileRef:
+    def test_a_table_with_keys_resolves_to_a_tidy_table(self):
+        table = pl.DataFrame({'time': TIME, 'gas': [1.0, 2.0, 3.0], 'power': [0.0, 0.0, 0.0]})
+        resolved = ProfileRef(table='prices', column='gas').resolve({'prices': table})
+        assert isinstance(resolved, pl.DataFrame)
+        assert resolved.columns == ['time', 'value']
+        assert align(resolved, {'time': TIME}).tolist() == [1.0, 2.0, 3.0]

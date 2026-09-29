@@ -58,8 +58,7 @@ from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
-import xarray as xr
+import polars as pl
 from pydantic import BaseModel
 
 from fluxopt import (
@@ -522,15 +521,13 @@ def energy_transition(timesteps: int = HOURS_PER_YEAR) -> Elements:
     demand_growth = np.linspace(0.55, 1.0, len(periods))
     grid_decarbonization = np.linspace(1.0, 0.25, len(periods))
     elements = green_city(n)
-    time_index = pd.DatetimeIndex(elements['timesteps'], name='time')
-    period_index = pd.Index(periods, name='period')
 
-    def by_period(values: np.ndarray) -> xr.DataArray:
-        return xr.DataArray(values, dims=['period'], coords={'period': periods})
+    def by_period(values: np.ndarray) -> pl.DataFrame:
+        return pl.DataFrame({'period': periods, 'value': values})
 
-    def spread(profile: Any, per_period: np.ndarray) -> pd.DataFrame:
-        """Hourly profile times per-period factors → a (time, period) DataFrame."""
-        return pd.DataFrame(np.outer(np.asarray(profile), per_period), index=time_index, columns=period_index)
+    def spread(profile: Any, per_period: np.ndarray) -> pl.DataFrame:
+        """Hourly profile times per-period factors → a tidy (time, period, value) table."""
+        return _outer(elements['timesteps'], periods, np.asarray(profile, dtype=float), per_period)
 
     ports = {port.id: port for port in elements['ports']}
     for port_id in ('city_load', 'heat_network_north', 'heat_network_south'):
@@ -613,43 +610,41 @@ def stress(timesteps: int = HOURS_PER_YEAR) -> Elements:
     n_timesteps = max(24, timesteps // STRESS_PERIODS)
     n_periods = STRESS_PERIODS
     rng = np.random.default_rng(7)
-    time_index = pd.DatetimeIndex(_hourly_index(n_timesteps), name='time')
+    timesteps = _hourly_index(n_timesteps)
     years = _stress_years(n_periods)
-    periods = pd.Index(years, name='period')
     period_weights = [float(w) for w in np.diff(years)] + [4.0]
 
     # -- generated data --------------------------------------------------------------------
     hours = np.arange(n_timesteps)
     seasonal = 0.5 + 0.4 * np.cos(2 * np.pi * hours / 8760)
     daily = 0.1 * np.sin(2 * np.pi * hours / 24)
-    escalation = xr.DataArray([1.025 ** (y - years[0]) for y in years], coords=(periods,))
+    # Per-period values stay arrays: a stress horizon has at least 24 steps
+    # against 16 periods, so a length names its dim without ambiguity.
+    escalation = np.array([1.025 ** (y - years[0]) for y in years])
     npv = [float(1 / 1.035 ** (y - years[0])) for y in years]
 
-    def tprofile(base: float, amp: float = 0.2) -> xr.DataArray:
-        vals = base * (1 + amp * (seasonal - 0.5) + daily + 0.05 * rng.standard_normal(n_timesteps))
-        return xr.DataArray(vals, coords=(time_index,))
+    def tprofile(base: float, amp: float = 0.2) -> np.ndarray:
+        return base * (1 + amp * (seasonal - 0.5) + daily + 0.05 * rng.standard_normal(n_timesteps))
 
-    def tp_price(lo: float = 20, hi: float = 100) -> xr.DataArray:
-        return tprofile(float(rng.uniform(lo, hi))) * escalation  # (time, period)
+    def tp_price(lo: float = 20, hi: float = 100) -> pl.DataFrame:
+        return _outer(timesteps, years, tprofile(float(rng.uniform(lo, hi))), escalation)
 
-    def availability(floor: float = 0.05) -> xr.DataArray:
-        return xr.DataArray(
-            np.clip(0.4 + seasonal + 0.02 * rng.standard_normal(n_timesteps), floor, 1.0), coords=(time_index,)
-        )
+    def availability(floor: float = 0.05) -> np.ndarray:
+        return np.clip(0.4 + seasonal + 0.02 * rng.standard_normal(n_timesteps), floor, 1.0)
 
-    def tp_coeff() -> xr.DataArray:
-        return xr.DataArray(np.clip(tprofile(float(rng.uniform(1.5, 4.0)), 0.4).values, 1.2, 6.0), coords=(time_index,))
+    def tp_coeff() -> np.ndarray:
+        return np.clip(tprofile(float(rng.uniform(1.5, 4.0)), 0.4), 1.2, 6.0)
 
-    demand = xr.DataArray(
-        np.clip(seasonal + daily + 0.03 * rng.standard_normal(n_timesteps), 0.05, 1.0), coords=(time_index,)
-    ) * xr.DataArray([0.985**i for i in range(n_periods)], coords=(periods,))
+    demand_profile = np.clip(seasonal + daily + 0.03 * rng.standard_normal(n_timesteps), 0.05, 1.0)
+    decline = np.array([0.985**i for i in range(n_periods)])
+    demand = _outer(timesteps, years, demand_profile, decline)
     peak = float(rng.uniform(400, 600))
-    level_cap = xr.DataArray(np.clip(0.6 + 0.4 * seasonal, 0.3, 1.0), coords=(time_index,))
+    level_cap = np.clip(0.6 + 0.4 * seasonal, 0.3, 1.0)
 
-    def window(y0: int, y1: int) -> xr.DataArray:
-        return xr.DataArray([1.0 if y0 <= y <= y1 else 0.0 for y in years], coords=(periods,))
+    def window(y0: int, y1: int) -> np.ndarray:
+        return np.array([1.0 if y0 <= y <= y1 else 0.0 for y in years])
 
-    def lump_effects(y0: int) -> dict[str, xr.DataArray]:
+    def lump_effects(y0: int) -> dict[str, np.ndarray]:
         """Per-period lump arrays on a sizing: annualized + one-shot accounting pair,
         capacity credit and a small footprint term."""
         cost = float(rng.uniform(3e4, 3e6))
@@ -658,7 +653,7 @@ def stress(timesteps: int = HOURS_PER_YEAR) -> Elements:
         rate = 0.04
         af = rate * (1 + rate) ** amort / ((1 + rate) ** amort - 1)
         ann = window(y0, y0 + amort - 1) * cost * af
-        one = xr.DataArray([cost if y == y0 else 0.0 for y in years], coords=(periods,))
+        one = np.array([cost if y == y0 else 0.0 for y in years])
         return {
             'leaf_ba': ann,
             'leaf_ga': ann * funding,
@@ -699,7 +694,7 @@ def stress(timesteps: int = HOURS_PER_YEAR) -> Elements:
     ]
 
     # -- 30 effects: weighted chains, one negative cross factor, bounds, budgets ---------------
-    annual_demand = float(demand.isel(period=0).sum('time')) * peak
+    annual_demand = float(demand_profile.sum() * decline[0]) * peak
     effects = [
         Effect(
             id='cost',
@@ -745,7 +740,7 @@ def stress(timesteps: int = HOURS_PER_YEAR) -> Elements:
         Effect(
             id='net_x',
             unit='u',
-            periodic_max=xr.DataArray([999_999.0] * n_periods, coords=(periods,)),
+            periodic_max=np.full(n_periods, 999_999.0),
             contribution_from={'leaf_x': 1, 'leaf_xs': -1},
         ),
         Effect(id='leaf_x', unit='u'),
@@ -754,27 +749,25 @@ def stress(timesteps: int = HOURS_PER_YEAR) -> Elements:
         Effect(
             id='cap_min',
             unit='MW',
-            periodic_min=xr.DataArray([peak * 1.05 * 0.985**i for i in range(n_periods)], coords=(periods,)),
+            periodic_min=np.array([peak * 1.05 * 0.985**i for i in range(n_periods)]),
         ),
         Effect(
             id='share_min',
             unit='MWh',
-            periodic_min=xr.DataArray(
-                [annual_demand * min(0.6, 0.05 + 0.04 * i) * 0.1 for i in range(n_periods)], coords=(periods,)
-            ),
+            periodic_min=np.array([annual_demand * min(0.6, 0.05 + 0.04 * i) * 0.1 for i in range(n_periods)]),
         ),
         Effect(id='zone_max', unit='MW', periodic_max=8.0),
         Effect(
             id='quota_a',
             unit='h',
-            periodic_max=xr.DataArray([3000.0] * n_periods, coords=(periods,)),
+            periodic_max=np.full(n_periods, 3000.0),
             total_max=20_000.0,
             period_weights=[1.0] * n_periods,
         ),
         Effect(
             id='quota_b',
             unit='h',
-            periodic_max=xr.DataArray([3000.0] * n_periods, coords=(periods,)),
+            periodic_max=np.full(n_periods, 3000.0),
             total_max=10_000.0,
             period_weights=[1.0] * n_periods,
         ),
@@ -988,7 +981,7 @@ def stress(timesteps: int = HOURS_PER_YEAR) -> Elements:
             conversion=PiecewiseConversion(
                 points={'fuel': [50, 50], 'aux': [6.0, 0.5], 'out': [37, 43]},
                 status=Status(),
-                availability=xr.DataArray(avail, coords=(time_index,)),
+                availability=np.asarray(avail, dtype=float),
             ),
         )
     )
@@ -1043,7 +1036,10 @@ def stress(timesteps: int = HOURS_PER_YEAR) -> Elements:
                     Flow(
                         short_id='out',
                         carrier='k0',
-                        effects_per_flow_hour={'share_min': 1, 'leaf_m': 4 * (coeff - 1) / coeff * escalation},
+                        effects_per_flow_hour={
+                            'share_min': 1,
+                            'leaf_m': _outer(timesteps, years, 4 * (coeff - 1) / coeff, escalation),
+                        },
                         relative_rate_max=availability(),
                         size=Sizing(
                             size_min=0,
@@ -1205,7 +1201,7 @@ def stress(timesteps: int = HOURS_PER_YEAR) -> Elements:
         )
 
     return {
-        'timesteps': time_index,
+        'timesteps': timesteps,
         'carriers': carriers,
         'effects': effects,
         'ports': ports,
@@ -1225,16 +1221,27 @@ SYSTEMS: dict[str, Callable[[int], Elements]] = {
 }
 
 
+def _outer(timesteps: list[Any], periods: list[int], profile: np.ndarray, per_period: np.ndarray) -> pl.DataFrame:
+    """A time profile times a per-period factor, as a tidy ``(time, period, value)`` table."""
+    return pl.DataFrame(
+        {
+            'time': np.repeat(pl.Series(timesteps, dtype=pl.Datetime('us')).to_numpy(), len(periods)),
+            'period': np.tile(np.asarray(periods, dtype=np.int64), len(timesteps)),
+            'value': np.outer(profile, per_period).ravel(),
+        }
+    )
+
+
 def _count_time_series(value: Any, n_time: int) -> int:
     """Number of time-varying data arrays inside one element parameter value.
 
     Counts every array-valued leaf whose leading dimension is the time axis —
-    xarray objects by their ``time`` dim, plain arrays/lists/pandas objects by
+    tables by their ``time`` column, plain arrays, lists and series by
     length. Scalars, breakpoint lists and per-period arrays don't count.
     """
-    if isinstance(value, xr.DataArray):
-        return int('time' in value.dims)
-    if isinstance(value, (pd.Series, pd.DataFrame)):
+    if isinstance(value, pl.DataFrame):
+        return int('time' in value.columns)
+    if isinstance(value, pl.Series):
         return int(len(value) == n_time)
     if isinstance(value, np.ndarray):
         return int(bool(value.shape) and value.shape[0] == n_time)

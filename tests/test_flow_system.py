@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
+import polars as pl
 import pytest
-import xarray as xr
 from conftest import read, ts
 from numpy.testing import assert_allclose
 
@@ -56,28 +56,28 @@ class TestRoundTrip:
 
 
 class TestProfileRefResolution:
-    def _profiles(self, values: list[float]) -> dict[str, dict[str, xr.DataArray]]:
-        return {'load': {'demand': xr.DataArray(values, dims=['time'])}}
+    def _profiles(self, values: list[float]) -> dict[str, pl.DataFrame]:
+        return {'load': pl.DataFrame({'demand': values})}
 
     def test_ref_resolved_from_sources(self) -> None:
-        spec = _merit_order_spec(ProfileRef(dataset='load', variable='demand'))
+        spec = _merit_order_spec(ProfileRef(table='load', column='demand'))
         result = spec.optimize(profiles=self._profiles([30, 30]))
         assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 80.0, rtol=1e-5)
 
     def test_spec_reusable_across_sources(self) -> None:
         # Resolution runs on a copy, so the same spec solves with different data.
-        spec = _merit_order_spec(ProfileRef(dataset='load', variable='demand'))
-        c_low = spec.optimize(profiles=self._profiles([10, 10])).to_dataarray('effect_total').sel(effect='cost').item()
-        c_high = spec.optimize(profiles=self._profiles([30, 30])).to_dataarray('effect_total').sel(effect='cost').item()
+        spec = _merit_order_spec(ProfileRef(table='load', column='demand'))
+        c_low = read(spec.optimize(profiles=self._profiles([10, 10])), 'effect_total').sel(effect='cost').item()
+        c_high = read(spec.optimize(profiles=self._profiles([30, 30])), 'effect_total').sel(effect='cost').item()
         assert c_low == pytest.approx(20.0)  # Src1 @1 covers 10 for 2h
         assert c_high == pytest.approx(80.0)  # Src1 @1 x20 + Src2 @2 x10, for 2h
         # The spec itself still carries the ProfileRef (not consumed).
         ref = spec.to_dict()['ports'][0]['exports'][0]['fixed_relative_profile']
-        assert ref == {'dataset': 'load', 'variable': 'demand'}
+        assert ref == {'table': 'load', 'column': 'demand'}
 
     def test_missing_profiles_raises(self) -> None:
-        spec = _merit_order_spec(ProfileRef(dataset='load', variable='demand'))
-        with pytest.raises(KeyError, match='dataset'):
+        spec = _merit_order_spec(ProfileRef(table='load', column='demand'))
+        with pytest.raises(KeyError, match='table'):
             spec.optimize()
 
 
@@ -96,8 +96,8 @@ class TestBuildModel:
         assert 'constraints:' in math.to_yaml()
 
     def test_build_model_resolves_sources(self) -> None:
-        spec = _merit_order_spec(ProfileRef(dataset='load', variable='demand'))
-        profiles = {'load': {'demand': xr.DataArray([30.0, 30.0], dims=['time'])}}
+        spec = _merit_order_spec(ProfileRef(table='load', column='demand'))
+        profiles = {'load': pl.DataFrame({'demand': [30.0, 30.0]})}
         result = spec.optimize(profiles)
         assert read(result, 'effect_total').sel(effect='cost').item() == pytest.approx(80.0)
         # spec still carries the ref — resolution ran on a copy
@@ -117,14 +117,12 @@ class TestFreeOptimizeProfiles:
                 Port(
                     id='Demand',
                     exports=[
-                        Flow(
-                            carrier='Heat', size=1, fixed_relative_profile=ProfileRef(dataset='load', variable='demand')
-                        )
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=ProfileRef(table='load', column='demand'))
                     ],
                 ),
                 Port(id='Src', imports=[Flow(carrier='Heat', size=40, effects_per_flow_hour={'cost': 1})]),
             ],
-            profiles={'load': {'demand': xr.DataArray([30.0, 30.0], dims=['time'])}},
+            profiles={'load': pl.DataFrame({'demand': [30.0, 30.0]})},
         )
         assert read(result, 'effect_total').sel(effect='cost').item() == pytest.approx(60.0)
 
@@ -140,9 +138,7 @@ class TestProfileErgonomics:
                 Port(
                     id='Demand',
                     exports=[
-                        Flow(
-                            carrier='Heat', size=1, fixed_relative_profile=ProfileRef(dataset='load', variable='demand')
-                        )
+                        Flow(carrier='Heat', size=1, fixed_relative_profile=ProfileRef(table='load', column='demand'))
                     ],
                 ),
                 Port(
@@ -151,7 +147,7 @@ class TestProfileErgonomics:
                         Flow(
                             carrier='Heat',
                             size=40,
-                            effects_per_flow_hour={'cost': ProfileRef(dataset='market', variable='price')},
+                            effects_per_flow_hour={'cost': ProfileRef(table='market', column='price')},
                         )
                     ],
                 ),
@@ -165,12 +161,12 @@ class TestProfileErgonomics:
         assert _merit_order_spec([30, 30]).required_profiles() == {}
 
     def test_unresolvable_refs_reported_comprehensively(self) -> None:
-        # one dataset missing entirely, one variable missing — a single error names both, with paths
+        # one table missing entirely, one column missing — a single error names both, with paths
         spec = self._two_ref_spec()
         with pytest.raises(KeyError) as exc:
-            spec.optimize(profiles={'market': {'wrong_name': xr.DataArray([1.0, 1.0], dims=['time'])}})
+            spec.optimize(profiles={'market': pl.DataFrame({'wrong_name': [1.0, 1.0]})})
         msg = str(exc.value)
-        assert "dataset 'load' not supplied" in msg
-        assert "variable 'price' not in dataset 'market'" in msg
+        assert "table 'load' not supplied" in msg
+        assert "column 'price' not in table 'market'" in msg
         assert 'fixed_relative_profile' in msg  # element/field provenance
         assert 'effects_per_flow_hour' in msg

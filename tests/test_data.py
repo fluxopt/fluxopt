@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
-import xarray as xr
 from conftest import read, ts
 from pydantic import ValidationError
 from specsolve import DataError
@@ -97,7 +96,7 @@ class TestBuildValidation:
                         Flow(
                             carrier='elec',
                             size=100,
-                            relative_rate_min=ProfileRef(dataset='p', variable='floor'),
+                            relative_rate_min=ProfileRef(table='p', column='floor'),
                             status=Status(),
                         )
                     ],
@@ -106,7 +105,7 @@ class TestBuildValidation:
             ],
         )
         with pytest.raises(ValueError, match='on/off is indistinguishable'):
-            system.sources({'p': {'floor': xr.DataArray([0.3, 0.0, 0.3], dims=['time'])}})
+            system.sources({'p': pl.DataFrame({'floor': [0.3, 0.0, 0.3]})})
 
 
 class TestConvertersTable:
@@ -186,7 +185,7 @@ class TestFlowQualification:
         ]
 
     def test_flow_reused_across_components_gets_two_entries(self):
-        """One flow declaration placed in two components yields two dataset columns."""
+        """One flow declaration placed in two components yields two rows in the tables."""
         f = Flow(carrier='b', size=100)
         sources = _sources([Port(id='src', imports=[f]), Port(id='sink', exports=[f])])
         assert sources['flow']['flow'].to_list() == ['src(b)', 'sink(b)']
@@ -309,10 +308,15 @@ class TestCarrierBalance:
         )
         balance = read(system.optimize(), 'carrier_balance', 'expression')
         carrier_of = system.sources()['carrier_of']
-        carrier = dict(zip(carrier_of['flow'], carrier_of['carrier'], strict=True))
-        balance = balance.assign_coords(carrier=('flow', [carrier[str(f)] for f in balance.coords['flow'].values]))
         assert balance.sel(flow='src(elec)').values.tolist() == pytest.approx([50.0, 80.0, 60.0]), 'a source produces'
-        assert balance.groupby('carrier').sum().sel(carrier='elec').values.tolist() == pytest.approx([0.0] * 3)
+        per_carrier = (
+            balance.frame.join(carrier_of, on='flow')
+            .group_by('carrier', 'time')
+            .agg(pl.col('value').sum())
+            .filter(pl.col('carrier') == 'elec')
+            .sort('time')
+        )
+        assert per_carrier.get_column('value').to_list() == pytest.approx([0.0] * 3), 'each carrier balances'
 
 
 class TestMultiNodeCarrier:
@@ -434,10 +438,10 @@ class TestStorageRanges:
             effects=[Effect(id='cost')],
             objective='cost',
             ports=[Port(id='g', imports=[Flow(carrier='e', size=10, effects_per_flow_hour={'cost': 1.0})])],
-            storages=[self._storage(capacity=10, eta_charge=ProfileRef(dataset='p', variable='eta'))],
+            storages=[self._storage(capacity=10, eta_charge=ProfileRef(table='p', column='eta'))],
         )
         with pytest.raises(DataError, match='charging_efficiency_is_a_fraction'):
-            system.optimize({'p': {'eta': xr.DataArray([0.9, 0.9, 1.7], dims=['time'])}})
+            system.optimize({'p': pl.DataFrame({'eta': [0.9, 0.9, 1.7]})})
 
 
 class TestUnknownFieldsRefused:
@@ -450,7 +454,7 @@ class TestUnknownFieldsRefused:
             pytest.param(
                 lambda: PiecewiseConversion(points={'a': [0, 1], 'b': [0, 1]}, method='lp'), id='retired-method'
             ),
-            pytest.param(lambda: ProfileRef(dataset='d', variable='v', scale=2), id='profile-ref'),
+            pytest.param(lambda: ProfileRef(table='d', column='v', scale=2), id='profile-ref'),
             pytest.param(
                 lambda: FlowSystem(timesteps=ts(2), carriers=[], effects=[], ports=[], objective='cost', solver='x'),
                 id='flow-system',

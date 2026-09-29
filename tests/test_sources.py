@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 import mathspec as ms
 import numpy as np
-import pandas as pd
 import polars as pl
 import pytest
 import specsolve
@@ -126,9 +125,9 @@ def test_a_caller_s_own_relation_reaches_the_constraint_that_reads_it() -> None:
 
     spec = ms.override(system.spec(), {'regions': REGIONS})
     sources = system.sources() | {
-        'region': pd.DataFrame({'region': ['cheap']}),
-        'region_of': pd.DataFrame({'flow': ['north(heat)'], 'region': ['cheap']}),
-        'region_cap': pd.DataFrame({'region': ['cheap'], 'time': ts(2)[:1], 'period': [0], 'value': [1.0]}),
+        'region': pl.DataFrame({'region': ['cheap']}),
+        'region_of': pl.DataFrame({'flow': ['north(heat)'], 'region': ['cheap']}),
+        'region_cap': pl.DataFrame({'region': ['cheap'], 'time': ts(2)[:1], 'period': [0], 'value': [1.0]}),
     }
     result = specsolve.solve(spec, sources)
     assert read(result, 'effect_total').sel(effect='cost').item() == pytest.approx(20.0), 't0: 1 + 3 * 5; t1: 4'

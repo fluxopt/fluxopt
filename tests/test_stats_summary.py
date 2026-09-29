@@ -104,4 +104,4 @@ def test_a_storage_reports_its_capacity_and_mean_level():
     level = read(result, 'level').sel(storage='batt')
     mean = _reported(result, 'relative_mean_level').sel(storage='batt').item()
     assert 0 <= mean <= 1
-    assert np.isclose(mean, float(level.sum('time')) / 3 / 80), 'the step-weighted mean level over the capacity'
+    assert np.isclose(mean, float(level.sum()) / 3 / 80), 'the step-weighted mean level over the capacity'

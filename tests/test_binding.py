@@ -7,8 +7,10 @@ suites (`tests/math`, `tests/math_port`) are the gate.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 from conftest import read
 
@@ -41,7 +43,9 @@ def _system(n: int, periods: list[int] | None = None, co2_cap: float | None = CO
     elec_price = 60 + 25 * np.sin(2 * np.pi * hours / 24) + 3 * rng.standard_normal(n)
     return {
         **({'periods': periods} if periods else {}),
-        'timesteps': pd.date_range('2025-01-01', periods=n, freq='h'),
+        'timesteps': pl.datetime_range(
+            datetime(2025, 1, 1), datetime(2025, 1, 1) + timedelta(hours=n - 1), '1h', eager=True
+        ),
         'carriers': [Carrier(id='gas'), Carrier(id='elec'), Carrier(id='heat'), Carrier(id='ambient')],
         'effects': [
             Effect(id='cost', unit='EUR', contribution_from={'co2': 45.0}),

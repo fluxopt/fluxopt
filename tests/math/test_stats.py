@@ -21,7 +21,7 @@ class TestFlowHours:
                 Port(id='demand', exports=[Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])]),
             ],
         )
-        assert (read(result, 'step_flow_hours', 'expression') >= 0).all()
+        assert (read(result, 'step_flow_hours', 'expression').values >= 0).all()
 
     def test_total_flow_hours_matches_manual(self):
 

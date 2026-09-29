@@ -9,7 +9,7 @@ a file rather than by editing one.
 from __future__ import annotations
 
 import mathspec as ms
-import pandas as pd
+import polars as pl
 import pytest
 import specsolve
 from conftest import read, ts
@@ -75,7 +75,7 @@ def test_a_new_fragment_adds_to_the_ledger_without_editing_it() -> None:
     base = read(system.optimize(), 'effect_total').sel(effect='cost').item()
 
     math = ms.merge({**FRAGMENTS, 'grid_fee': GRID_FEE})
-    fee = pd.DataFrame({'flow': ['grid(elec)'], 'effect': ['cost'], 'value': [2.0]})
+    fee = pl.DataFrame({'flow': ['grid(elec)'], 'effect': ['cost'], 'value': [2.0]})
     charged = (
         read(specsolve.solve(math.expand('sos'), system.sources() | {'fee': fee}), 'effect_total')
         .sel(effect='cost')

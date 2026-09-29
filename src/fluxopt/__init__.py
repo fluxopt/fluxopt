@@ -1,6 +1,8 @@
 from collections.abc import Mapping
 from typing import Any
 
+import polars as pl
+
 from fluxopt.components import Converter, Port
 from fluxopt.elements import (
     PENALTY_EFFECT_ID,
@@ -20,7 +22,6 @@ from fluxopt.types import (
     TimeIndex,
     Timesteps,
     Variate,
-    as_dataarray,
 )
 
 
@@ -35,7 +36,7 @@ def optimize(
     dt: float | list[float] | None = None,
     periods: list[int] | None = None,
     period_weights: list[float] | None = None,
-    profiles: Mapping[str, Any] | None = None,
+    profiles: Mapping[str, pl.DataFrame] | None = None,
     solver: str = 'highs',
     **solver_options: Any,
 ) -> Any:
@@ -57,8 +58,8 @@ def optimize(
         dt: Timestep duration in hours. Auto-derived if None.
         periods: Integer period labels for multi-period optimization.
         period_weights: Explicit weights per period. Inferred from gaps if None.
-        profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
-            holding referenced time series. Required if any element uses a
+        profiles: Mapping from ``ProfileRef.table`` to a ``pl.DataFrame``
+            holding the referenced columns. Required if any element uses a
             ``ProfileRef``.
         solver: Solver name — ``highs``, or ``gurobi`` with specsolve's extra.
         **solver_options: Passed to the solver verbatim, in its own vocabulary.
@@ -99,7 +100,6 @@ __all__ = [
     'Timesteps',
     'Variate',
     'all_element_schemas',
-    'as_dataarray',
     'element_schema',
     'from_dict',
     'optimize',

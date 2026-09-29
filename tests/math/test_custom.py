@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import mathspec as ms
-import pandas as pd
+import polars as pl
 import pytest
 import specsolve
 from conftest import read, ts
@@ -70,8 +70,8 @@ class TestEditingTheMath:
         system = FlowSystem(**simple_system)
         spec = ms.override(system.spec(), {'grid cap': GRID_CAP})
         sources = system.sources() | {
-            'grid_cap': pd.DataFrame({'time': ts(3), 'value': [30.0, 30.0, 30.0]}),
-            'is_grid': pd.DataFrame({'flow': ['grid(elec)'], 'value': [True]}),
+            'grid_cap': pl.DataFrame({'time': ts(3), 'value': [30.0, 30.0, 30.0]}),
+            'is_grid': pl.DataFrame({'flow': ['grid(elec)'], 'value': [True]}),
         }
 
         result = specsolve.solve(spec, sources)

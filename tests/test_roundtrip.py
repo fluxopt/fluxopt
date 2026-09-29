@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
+import polars as pl
 import pytest
-import xarray as xr
 
 from fluxopt import (
     Carrier,
@@ -74,31 +74,30 @@ class TestRoundTrip:
 
 class TestProfileRef:
     def test_profileref_roundtrips_as_variate(self) -> None:
-        f = Flow(carrier='gas', effects_per_flow_hour={'cost': ProfileRef(dataset='prices', variable='gas')})
+        f = Flow(carrier='gas', effects_per_flow_hour={'cost': ProfileRef(table='prices', column='gas')})
         d = to_dict(f)
-        assert d['effects_per_flow_hour']['cost'] == {'dataset': 'prices', 'variable': 'gas'}
+        assert d['effects_per_flow_hour']['cost'] == {'table': 'prices', 'column': 'gas'}
         rebuilt = from_dict(Flow, d)
         assert isinstance(rebuilt.effects_per_flow_hour['cost'], ProfileRef)
 
     def test_resolve_pulls_from_sources(self) -> None:
-        ref = ProfileRef(dataset='prices', variable='gas')
-        da = xr.DataArray([1.0, 2.0, 3.0], dims=['time'])
-        resolved = ref.resolve({'prices': {'gas': da}})
-        assert list(resolved.values) == [1.0, 2.0, 3.0]
+        ref = ProfileRef(table='prices', column='gas')
+        resolved = ref.resolve({'prices': pl.DataFrame({'gas': [1.0, 2.0, 3.0]})})
+        assert resolved.to_list() == [1.0, 2.0, 3.0]
 
-    def test_resolve_missing_dataset_raises(self) -> None:
-        with pytest.raises(KeyError, match='dataset'):
-            ProfileRef(dataset='nope', variable='x').resolve({'prices': {}})
+    def test_resolve_missing_table_raises(self) -> None:
+        with pytest.raises(KeyError, match='table'):
+            ProfileRef(table='nope', column='x').resolve({'prices': pl.DataFrame()})
 
-    def test_resolve_missing_variable_raises(self) -> None:
-        with pytest.raises(KeyError, match='variable'):
-            ProfileRef(dataset='prices', variable='nope').resolve({'prices': {}})
+    def test_resolve_missing_column_raises(self) -> None:
+        with pytest.raises(KeyError, match='column'):
+            ProfileRef(table='prices', column='nope').resolve({'prices': pl.DataFrame()})
 
     def test_unresolved_ref_rejected_at_build(self) -> None:
-        from fluxopt import as_dataarray
+        from fluxopt.types import align
 
         with pytest.raises(ValueError, match='Unresolved ProfileRef'):
-            as_dataarray(ProfileRef(dataset='p', variable='x'), {'time': [0, 1, 2]})
+            align(ProfileRef(table='p', column='x'), {'time': pl.Series([0, 1, 2])})
 
 
 class TestInlineArraySerialization:

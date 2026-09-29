@@ -39,7 +39,7 @@ def test_a_table_carries_the_timestamps_and_the_years() -> None:
 @pytest.mark.parametrize('steps', [pytest.param([10, 20, 30], id='ints'), pytest.param([1.5, 2.5], id='floats')])
 def test_numbered_steps_are_refused_rather_than_read_as_1970(steps: list) -> None:
     """pydantic reads a number as seconds since 1970, which would bind 10 s steps as 0.003 h."""
-    with pytest.raises(TypeError, match=r'must be timestamps.*pd\.date_range'):
+    with pytest.raises(TypeError, match=r'must be timestamps.*pl\.datetime_range'):
         _system(steps)
 
 

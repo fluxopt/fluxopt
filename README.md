@@ -22,7 +22,7 @@ Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) �
   and topology.
   [API →](https://fluxopt.readthedocs.io/en/latest/api/)
 - **Math as a file.** The model is a declared spec, the numbers are tables,
-  and results come back as `xr.DataArray` — solved by specsolve.
+  and results come back as polars tables — solved by specsolve.
   [fluxopt.math →](https://fluxopt.readthedocs.io/en/latest/api/math/)
 - **Sizing & status.** Capacity optimization and on/off behavior as
   first-class concerns, not bolt-ons.
@@ -76,7 +76,7 @@ result = optimize(
 )
 
 print(f'Total cost: {result.objective:.2f}')
-print(result.to_dataarray('rate').squeeze('period', drop=True))
+print(result.primal('rate'))
 ```
 
 <!--- --8<-- [end:quickstart] -->
@@ -93,11 +93,12 @@ with fail-fast validation of ids and references.
 
 **2. Declarative** — gather the same arguments into a reusable, serializable
 system. Time series can stay out of the structure as `ProfileRef`s and be
-supplied at solve time via `profiles`:
+supplied at solve time via `profiles`, one polars table per `ProfileRef.table`:
 
 ```python
 system = fx.FlowSystem.from_yaml('system.yaml')  # or FlowSystem(...) in Python
-result = system.optimize(profiles={'load': demand_ds}, archive='run.zip')
+load = pl.read_csv('load.csv', try_parse_dates=True)  # columns: time, demand
+result = system.optimize(profiles={'load': load}, archive='run.zip')
 system.to_yaml('system.yaml')  # round-trips
 ```
 
@@ -108,14 +109,14 @@ it. Read, typeset or extend the spec, edit any table, and solve with specsolve:
 import mathspec, specsolve
 
 spec = mathspec.override(system.spec(), {'my cap': 'my_cap.yaml'})
-sources = system.sources(profiles={'load': demand_ds}) | {'grid_cap': caps}
+sources = system.sources(profiles={'load': load}) | {'grid_cap': caps}
 result = specsolve.solve(spec, sources)
 ```
 
 The spec's `assumptions:` check whatever tables arrive.
 
-Read an answer with `result.to_dataarray("rate")` for a variable, or
-`result.to_dataarray("flow_hours", kind="expression")` for a reported quantity:
+Read an answer as a tidy polars table: `result.primal("rate")` for a variable,
+or `result.evaluate("flow_hours")` for a reported quantity:
 flow hours, carrier balance, capacity factor, storage mean level, and each
 contribution with its cross-effects charged (`priced_*`). `archive=` writes
 the spec, its sources and the answer; `specsolve.load_archive` reads them back.
