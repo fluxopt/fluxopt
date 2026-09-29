@@ -1,8 +1,7 @@
 """Mathematical correctness tests for multi-period optimization."""
 
 import numpy as np
-import pandas as pd
-import xarray as xr
+import polars as pl
 from conftest import read, ts, waste
 from numpy.testing import assert_allclose
 
@@ -139,12 +138,12 @@ class TestMultiPeriod:
         Per-period cost: 2020→10*3=30, 2025→20*3=60. Total = 90.
         """
         timesteps = ts(3)
-        time_idx = pd.DatetimeIndex(timesteps, name='time')
-        periods = pd.Index([2020, 2025], name='period')
-        demand = pd.DataFrame(
-            np.array([[10, 20], [10, 20], [10, 20]], dtype=float),
-            index=time_idx,
-            columns=periods,
+        demand = pl.DataFrame(
+            {
+                'time': [t for t in timesteps for _ in range(2)],
+                'period': [2020, 2025] * 3,
+                'value': [10.0, 20.0] * 3,
+            }
         )
         result = optimize(
             timesteps=timesteps,
@@ -161,7 +160,7 @@ class TestMultiPeriod:
                     imports=[Flow(carrier='Heat', effects_per_flow_hour={'cost': 1})],
                 ),
             ],
-            periods=list(periods),
+            periods=[2020, 2025],
             period_weights=[1, 1],
         )
         assert_allclose(result.objective, 90.0, rtol=1e-5)
@@ -175,7 +174,7 @@ class TestMultiPeriod:
         Objective = 1*30 + 1*90 = 120.
         """
         periods = [2020, 2025]
-        cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
+        cost_by_period = pl.DataFrame({'period': periods, 'value': [1.0, 3.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -555,7 +554,7 @@ class TestPeriodVaryingEffects:
         2020: 1*10=10, 2025: 3*10=30. Weights=[1, 1]. Objective = 10 + 30 = 40.
         """
         periods = [2020, 2025]
-        cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
+        cost_by_period = pl.DataFrame({'period': periods, 'value': [1.0, 3.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -591,7 +590,7 @@ class TestPeriodVaryingEffects:
         Objective = 5 + 15 = 20.
         """
         periods = [2020, 2025]
-        cost_by_period = xr.DataArray([5.0, 15.0], dims=['period'], coords={'period': periods})
+        cost_by_period = pl.DataFrame({'period': periods, 'value': [5.0, 15.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -627,7 +626,7 @@ class TestPeriodVaryingEffects:
         2020: 1*10=10, 2025: 3*10=30. Weights=[1, 1]. Objective = 10 + 30 = 40.
         """
         periods = [2020, 2025]
-        om_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
+        om_by_period = pl.DataFrame({'period': periods, 'value': [1.0, 3.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -664,7 +663,7 @@ class TestPeriodVaryingEffects:
         Active in both periods. Weights=[1, 1]. Objective = 5 + 15 = 20.
         """
         periods = [2020, 2025]
-        cost_by_period = xr.DataArray([5.0, 15.0], dims=['period'], coords={'period': periods})
+        cost_by_period = pl.DataFrame({'period': periods, 'value': [5.0, 15.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -700,7 +699,7 @@ class TestPeriodVaryingEffects:
         Weights=[1, 1]. Objective = 100.
         """
         periods = [2020, 2025]
-        capex_by_period = xr.DataArray([10.0, 20.0], dims=['period'], coords={'period': periods})
+        capex_by_period = pl.DataFrame({'period': periods, 'value': [10.0, 20.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -738,7 +737,7 @@ class TestPeriodVaryingEffects:
         Weights=[1, 1]. Objective = 50.
         """
         periods = [2020, 2025]
-        capex_by_period = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
+        capex_by_period = pl.DataFrame({'period': periods, 'value': [50.0, 100.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -775,7 +774,7 @@ class TestPeriodVaryingEffects:
         Weights=[1, 1]. Objective = 3 + 9 = 12.
         """
         periods = [2020, 2025]
-        cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
+        cost_by_period = pl.DataFrame({'period': periods, 'value': [1.0, 3.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -813,7 +812,7 @@ class TestPeriodVaryingEffects:
         Weights=[1, 1]. Objective = 100 + 300 = 400.
         """
         periods = [2020, 2025]
-        cost_by_period = xr.DataArray([100.0, 300.0], dims=['period'], coords={'period': periods})
+        cost_by_period = pl.DataFrame({'period': periods, 'value': [100.0, 300.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -853,7 +852,7 @@ class TestPeriodVaryingEffects:
         Weights=[1, 1]. Objective = 1500 + 3000 = 4500.
         """
         periods = [2020, 2025]
-        carbon_price = xr.DataArray([50.0, 100.0], dims=['period'], coords={'period': periods})
+        carbon_price = pl.DataFrame({'period': periods, 'value': [50.0, 100.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],
@@ -889,7 +888,7 @@ class TestPeriodVaryingEffects:
         Weights=[1, 1]. Objective = 10 + 30 = 40.
         """
         periods = [2020, 2025]
-        cost_by_period = xr.DataArray([1.0, 3.0], dims=['period'], coords={'period': periods})
+        cost_by_period = pl.DataFrame({'period': periods, 'value': [1.0, 3.0]})
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='Heat')],

@@ -7,7 +7,6 @@ so specsolve checks it on whatever reaches the program: a resolved
 
 from __future__ import annotations
 
-import pandas as pd
 import polars as pl
 import pytest
 import specsolve as lpspec
@@ -82,7 +81,7 @@ def _bound() -> dict[str, object]:
 
 def _edit(table: object, value: float, side: str | None = None) -> pl.DataFrame:
     """The table with every value, or every value on one storage side, replaced."""
-    frame = pl.from_pandas(table) if isinstance(table, pd.DataFrame) else table
+    frame = table
     assert isinstance(frame, pl.DataFrame)
     hit = pl.lit(True) if side is None else pl.col('side') == side
     return frame.with_columns(pl.when(hit).then(pl.lit(value)).otherwise(pl.col('value')).alias('value'))

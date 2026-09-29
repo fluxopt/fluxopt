@@ -19,11 +19,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 import polars as pl
-import xarray as xr
 
-from fluxopt.types import as_dataarray, compute_dt, normalize_timesteps
+from fluxopt.types import align, compute_dt, normalize_timesteps
 from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
@@ -72,7 +70,7 @@ class _Horizon:
     """The time and period axes, and the values laid out on them."""
 
     #: The timestep labels, as the user gave them.
-    time: pd.Index
+    time: pl.Series
     #: Each timestep's duration [h].
     dt: np.ndarray
     #: The period labels, or ``[0]`` for a system that declares none.
@@ -95,24 +93,32 @@ class _Horizon:
     @property
     def time_series(self) -> pl.Series:
         """The time labels as a polars column."""
-        return pl.Series('time', self.time)
+        return self.time
+
+    @property
+    def period_series(self) -> pl.Series:
+        """The period labels as a polars column."""
+        return pl.Series('period', self.periods, dtype=_INT)
 
     def on_grid(self, value: Any) -> np.ndarray:
         """A value on the `(time, period)` grid, time-major and flattened."""
-        coords: dict[str, Any] = {'time': self.time}
+        axes = {'time': self.time}
         if self.has_periods:
-            coords['period'] = pd.Index(self.periods)
-        da = as_dataarray(value, coords)
-        arr = np.asarray(da.transpose(*coords).values, dtype=float).reshape(self.n_time, -1)
+            axes['period'] = self.period_series
+        arr = align(value, axes).reshape(self.n_time, -1)
         return np.broadcast_to(arr, (self.n_time, self.n_period)).ravel()
 
     def on_time(self, value: Any) -> np.ndarray:
         """A value per timestep."""
-        return np.broadcast_to(np.asarray(as_dataarray(value, {'time': self.time}).values, dtype=float), (self.n_time,))
+        return align(value, {'time': self.time})
 
     def per_period(self, value: Any, what: str) -> list[float]:
         """A value per period: a scalar broadcasts, a sequence names each period."""
-        arr = np.atleast_1d(np.asarray(value, dtype=float))
+        if isinstance(value, pl.DataFrame):
+            return [float(v) for v in align(value, {'period': self.period_series})]
+        arr = np.atleast_1d(
+            value.cast(pl.Float64).to_numpy() if isinstance(value, pl.Series) else np.asarray(value, dtype=float)
+        )
         if arr.size not in (1, self.n_period):
             raise ValueError(
                 f'{what} has {arr.size} values but the system has {self.n_period} period(s). '
@@ -122,7 +128,7 @@ class _Horizon:
 
     def grid(self, blocks: int) -> dict[str, Any]:
         """The `(time, period)` key columns for *blocks* whole grids stacked."""
-        time = np.repeat(np.asarray(self.time), self.n_period)
+        time = np.repeat(self.time.to_numpy(), self.n_period)
         period = np.tile(np.asarray(self.periods, dtype=np.int64), self.n_time)
         return {'time': np.tile(time, blocks), 'period': np.tile(period, blocks)}
 
@@ -134,13 +140,13 @@ def _horizon(
     timesteps: Timesteps, dt: float | list[float] | None, periods: Any, period_weights: list[float] | None
 ) -> _Horizon:
     time = normalize_timesteps(timesteps)
-    durations = np.asarray(compute_dt(time, dt).values, dtype=float)
+    durations = compute_dt(time, dt)
     if periods is None:
         return _Horizon(time=time, dt=durations, periods=[0], period_weight=None)
-    idx = pd.Index(periods, name='period')
-    if not np.issubdtype(idx.dtype, np.integer):  # pyrefly: ignore[bad-argument-type]
+    idx = periods.to_numpy() if isinstance(periods, pl.Series) else np.asarray(periods)
+    if not np.issubdtype(idx.dtype, np.integer):
         raise TypeError(f'periods must be integer, got {idx.dtype}')
-    if not idx.is_monotonic_increasing or not idx.is_unique:
+    if np.any(np.diff(idx) <= 0):
         raise ValueError('periods must be monotonically increasing and unique')
     if period_weights is not None:
         if len(period_weights) != len(idx):
@@ -149,7 +155,7 @@ def _horizon(
     elif len(idx) < 2:
         raise ValueError('period_weights is required when only one period is given')
     else:
-        gaps = np.diff(idx.to_numpy().astype(int))
+        gaps = np.diff(idx.astype(int))
         w = np.append(gaps, gaps[-1]).astype(float)
     if not np.all(np.isfinite(w)) or not np.all(w > 0):
         raise ValueError(f'period_weights must be positive and finite, got {w}')
@@ -179,7 +185,7 @@ def _per_step(
     """Blocks of one value per timestep, each keyed by one entry of *keys*, stacked into a table."""
     n = horizon.n_time
     columns: dict[str, Any] = {name: np.repeat(np.asarray(v), n) if v else [] for name, v in keys.items()}
-    columns['time'] = np.tile(np.asarray(horizon.time), len(values))
+    columns['time'] = np.tile(horizon.time.to_numpy(), len(values))
     columns['value'] = np.concatenate(values) if values else np.array([], dtype=float)
     return _frame(columns, {**schema, 'time': horizon.time_dtype(), 'value': _FLOAT})
 
@@ -740,10 +746,9 @@ def objective_weights(effect_ids: list[str], objective: str | dict[str, float]) 
 def _cross_effect_factor(factor: Any, horizon: _Horizon, effect: str, source: str) -> list[float]:
     """A `contribution_from` factor per period; a factor over time is refused with its rewrite."""
     what = f'Effect {effect!r} contribution_from {source!r}'
-    over_time = isinstance(factor, xr.DataArray | pd.Series | pd.DataFrame) and 'time' in (
-        factor.dims if isinstance(factor, xr.DataArray) else [factor.index.name, *getattr(factor, 'columns', [])]
-    )
-    if over_time or np.size(factor) not in (1, horizon.n_period):
+    over_time = isinstance(factor, pl.DataFrame) and 'time' in factor.columns
+    size = len(factor) if isinstance(factor, pl.DataFrame | pl.Series) else np.size(factor)
+    if over_time or size not in (1, horizon.n_period):
         raise ValueError(
             f'{what} varies over time; a cross-effect factor is a scalar or one value per period. '
             f'Charge a time-varying price on the flows instead: effects_per_flow_hour={{{effect!r}: price * factor}} '

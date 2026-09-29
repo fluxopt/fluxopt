@@ -35,18 +35,13 @@ dependencies = [
   # `Spec` to a caller who may only want to read or render it.
   "mathspec",
   "numpy>=1.26",
-  "pandas>=2.1",
-  # The interchange type with lpspec: parameter tables go in as tidy frames
-  # and results come back as them. Direct because fluxopt states schemas of
-  # its own — a column of labels no system happens to fill must still say it
-  # holds labels.
+  # The one table type: data goes in as polars frames, the tables bound to the
+  # spec are polars frames, and specsolve returns results as them. Direct
+  # because fluxopt states schemas of its own — a column of labels no system
+  # happens to fill must still say it holds labels.
   "polars>=1.30",
-  # What polars needs to read a pandas 3 frame: pandas 3 stores labels as
-  # Arrow strings, and `pl.from_pandas` refuses them without it.
-  "pyarrow>=15",
   "pydantic>=2.7",
   "pyyaml>=6.0",
-  "xarray>=2024.1.0",
 ]
 
 [project.urls]

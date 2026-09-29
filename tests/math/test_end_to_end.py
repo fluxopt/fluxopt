@@ -128,7 +128,7 @@ class TestEndToEnd:
         # flow_rate accessor
         sr = read(result, 'rate').sel(flow='grid(elec)')
         assert 'time' in sr.dims
-        assert len(sr) == 3
+        assert len(sr.values) == 3
 
         # effect_totals DataArray
         assert 'effect' in read(result, 'effect_total').dims

@@ -1,72 +1,86 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from math import prod
+from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
-import xarray as xr
+import polars as pl
 from pydantic import BaseModel, ConfigDict
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+#: The dimensions a [`Variate`][fluxopt.Variate] can vary over, in the order a
+#: tidy table's key columns are read.
+VARIATE_DIMS = ('time', 'period')
 
 
 class ProfileRef(BaseModel):
     """Reference to a time-series stored outside the model definition.
 
     A serializable stand-in for an inline ``Variate`` array: the profile lives
-    in a data file / dataset and is named here, so structural definitions
-    round-trip to YAML/JSON without inlining 8760-point series. Resolve it to a
-    [`xr.DataArray`][xarray.DataArray] with [`resolve`][fluxopt.ProfileRef.resolve] before building the model.
+    in a table and is named here, so structural definitions round-trip to
+    YAML/JSON without inlining 8760-point series. The table is supplied at
+    solve time through ``profiles``, and [`resolve`][fluxopt.ProfileRef.resolve]
+    reads the profile out of it.
     """
 
     model_config = ConfigDict(frozen=True, extra='forbid')
 
-    dataset: str
-    """Id of the dataset holding the profile (a key into ``profiles``)."""
-    variable: str
-    """Variable / column name within *dataset*."""
+    table: str
+    """Id of the table holding the profile (a key into ``profiles``)."""
+    column: str
+    """Column of that table holding the values."""
 
-    def resolve(self, profiles: Mapping[str, xr.Dataset | Mapping[str, xr.DataArray]]) -> xr.DataArray:
-        """Look up the referenced series in *profiles*.
+    def resolve(self, profiles: Mapping[str, pl.DataFrame]) -> pl.DataFrame | pl.Series:
+        """Look up the referenced profile in *profiles*.
 
         Args:
-            profiles: Mapping from dataset id to a dataset (or mapping) that
-                contains ``variable``.
+            profiles: Mapping from table id to a table. Its ``time`` and
+                ``period`` columns, where present, are the keys; every other
+                column is a profile.
+
+        Returns:
+            A tidy table of the keys and ``value`` when the table has key
+            columns, else the column itself, matched to the time axis by
+            length.
 
         Raises:
-            KeyError: If *dataset* or *variable* is absent from *profiles*.
+            KeyError: If *table* is absent from *profiles*, or *column* from the table.
         """
-        if self.dataset not in profiles:
-            raise KeyError(f'ProfileRef dataset {self.dataset!r} not in profiles {sorted(profiles)}')
-        ds = profiles[self.dataset]
-        try:
-            return xr.DataArray(ds[self.variable])
-        except KeyError as exc:
-            raise KeyError(f'ProfileRef variable {self.variable!r} not in dataset {self.dataset!r}') from exc
+        if self.table not in profiles:
+            raise KeyError(f'ProfileRef table {self.table!r} not in profiles {sorted(profiles)}')
+        table = profiles[self.table]
+        if self.column not in table.columns:
+            raise KeyError(f'ProfileRef column {self.column!r} not in table {self.table!r}')
+        keys = [c for c in VARIATE_DIMS if c in table.columns]
+        if not keys:
+            return table.get_column(self.column)
+        return table.select(*keys, pl.col(self.column).alias('value'))
 
 
 # -- User input types --------------------------------------------------
-type Variate = float | int | list[float] | np.ndarray | pd.Series | pd.DataFrame | xr.DataArray | ProfileRef
+type Variate = float | int | list[float] | np.ndarray | pl.Series | pl.DataFrame | ProfileRef
 """Any input that varies over a subset of the model's variate dims (``time``,
-optionally ``period``, eventually ``scenario``).
+optionally ``period``).
 
 - Scalar: broadcast to all variate dims.
-- 1-D (``list``/``ndarray``): matched to a coord by length (must be unambiguous).
-- 1-D (``pd.Series``): index name selects the dim if set; else matched by length.
-- 2-D (``pd.DataFrame``): ``index.name`` and ``columns.name`` must match target dims.
-- n-D (``xr.DataArray``): dims must be a subset of the target; coords must match exactly.
+- 1-D (``list``, ``np.ndarray``, ``pl.Series``): matched to a dim by length;
+  ``time`` wins a tie, and any other tie is refused.
+- Tidy table (``pl.DataFrame``): one column per dim it varies over, named
+  after it, and a ``value`` column. It holds each combination of labels
+  exactly once, and every label is one the model has.
 
 Per-field reach (which dims a particular field can vary over) is documented on
-the field itself; ``as_dataarray`` enforces that user input only uses dims the
-caller declared in *coords*.
+the field itself; the aligner enforces that user input only uses dims the
+caller declared.
 """
 
-type Timesteps = list[datetime] | pd.DatetimeIndex
+type Timesteps = list[datetime] | pl.Series
 
 # -- Internal types (after normalization) ------------------------------
-type TimeIndex = pd.DatetimeIndex
+type TimeIndex = pl.Series
 
 
 def variate_out_of_range(
@@ -78,12 +92,12 @@ def variate_out_of_range(
 ) -> float | None:
     """The first value outside ``[low, high]``, or None if all of them are in.
 
-    A [`Variate`][fluxopt.Variate] is a scalar, a series, or a [`ProfileRef`][fluxopt.ProfileRef] that
-    names numbers living somewhere else. The first two can be checked where
-    they are written, which is what this is for; a ``ProfileRef`` cannot,
-    because its values arrive when profiles are resolved — so it reads as in
-    range here and is checked again once it is real
-    (``docs/design/validation-layers.md``).
+    A [`Variate`][fluxopt.Variate] is a scalar, a series, a table, or a
+    [`ProfileRef`][fluxopt.ProfileRef] that names numbers living somewhere
+    else. The first three can be checked where they are written, which is what
+    this is for; a ``ProfileRef`` cannot, because its values arrive when
+    profiles are resolved — so it reads as in range here and is checked again
+    once it is real (``docs/design/validation-layers.md``).
 
     Args:
         value: The declared value.
@@ -96,178 +110,170 @@ def variate_out_of_range(
     """
     if isinstance(value, ProfileRef):
         return None
-    values = np.atleast_1d(np.asarray(value, dtype=float))
+    values = np.atleast_1d(_numbers(value))
     below = values <= low if low_open else values < low
     bad = values[below | (values > high)]
     return float(bad[0]) if bad.size else None
 
 
-def as_dataarray(
-    value: Variate,
-    coords: Mapping[str, Any],
-    *,
-    name: str = 'value',
-    broadcast: bool = True,
-) -> xr.DataArray:
-    """Convert a Variate to a DataArray aligned to given coordinates.
+def _numbers(value: Variate) -> np.ndarray:
+    """The numbers a Variate holds, in the order it holds them."""
+    if isinstance(value, pl.DataFrame):
+        if 'value' not in value.columns:
+            raise ValueError(f"A table Variate needs a 'value' column, got columns {value.columns}.")
+        return value.get_column('value').cast(pl.Float64).to_numpy()
+    if isinstance(value, pl.Series):
+        return value.cast(pl.Float64).to_numpy()
+    return np.asarray(value, dtype=float)
 
-    Pipeline: ``convert → validate dims → validate coord values → broadcast``.
 
-    See [`Variate`][fluxopt.Variate] for accepted inputs. Pandas inputs (``Series``,
-    ``DataFrame``): the axis ``name`` attribute selects the corresponding
-    target dim. For
-    ``ndarray``/``list``, the dim is selected by length (must be unambiguous).
-    For ``DataArray``, dims must be a subset of *coords* and coord values must
-    match exactly — alignment errors are surfaced loudly, not silently masked.
+def align(value: Variate, axes: Mapping[str, pl.Series]) -> np.ndarray:
+    """A Variate laid out on *axes*, as an array of shape ``len(axis)`` per axis.
+
+    See [`Variate`][fluxopt.Variate] for the accepted inputs. A scalar fills
+    the array, a 1-D value fills the one axis its length matches, and a tidy
+    table fills the axes it has columns for; the rest broadcast.
 
     Args:
-        value: Scalar, list, ndarray, Series, DataFrame, or DataArray.
-        coords: Target coordinates, e.g. ``{"time": idx, "period": pidx}``.
-            Used both as the reach declaration and as alignment targets.
-        name: Name for the resulting DataArray.
-        broadcast: Expand result to span all dimensions in *coords*.
+        value: The declared value.
+        axes: The target axes, in the order of the result's dimensions. They
+            are also the reach: a table column naming any other dim is
+            refused.
+
+    Raises:
+        ValueError: If *value* is an unresolved ``ProfileRef``, a 1-D value
+            whose length matches no axis or several, or a table with a foreign
+            column, a label the model does not have, a duplicate row, or a
+            missing combination.
+        TypeError: If *value* is not a Variate.
     """
     if isinstance(value, ProfileRef):
         raise ValueError(
-            f'Unresolved ProfileRef {value!r}: resolve it to an array via ProfileRef.resolve(profiles) '
-            f'before building the model.'
+            f'Unresolved ProfileRef {value!r}: resolve it via ProfileRef.resolve(profiles) before building the model.'
         )
-
-    coord_idx = {k: v if isinstance(v, pd.Index) else pd.Index(v) for k, v in coords.items()}
-
-    # --- scalar: 0-dim unless broadcast ---
+    shape = tuple(len(axis) for axis in axes.values())
+    if isinstance(value, bool) or not isinstance(value, (int, float, list, np.ndarray, pl.Series, pl.DataFrame)):
+        raise TypeError(f'Unsupported Variate type: {type(value).__name__}')
     if isinstance(value, (int, float)):
-        if not broadcast:
-            return xr.DataArray(float(value), name=name)
-        shape = tuple(len(v) for v in coord_idx.values())
-        return xr.DataArray(
-            np.full(shape, float(value)),
-            dims=list(coord_idx),
-            coords=coord_idx,
-            name=name,
+        return np.full(shape, float(value))
+    if isinstance(value, pl.DataFrame):
+        return _from_table(value, axes, shape)
+    arr = _numbers(value)
+    if arr.ndim != 1:
+        raise ValueError(
+            f'An array Variate must be 1-D (got ndim={arr.ndim}); '
+            f'pass a tidy pl.DataFrame with one column per dim and a value column instead.'
         )
+    return _from_1d(arr, axes, shape)
 
-    # --- 1) Convert to DataArray ---
-    da: xr.DataArray
-    if isinstance(value, xr.DataArray):
-        da = value
-    elif isinstance(value, (pd.Series, pd.DataFrame)):
-        # Pandas axes already carry coords; use axis.name as dim.
-        # Fall back to length-matching only when no axis is named.
-        named = [a.name for a in value.axes if a.name is not None]
-        if len(named) == value.ndim:
-            da = xr.DataArray(value)
-        elif value.ndim == 1 and not named:
-            return _from_unnamed_1d(np.asarray(value.values, dtype=float), coord_idx, name, broadcast)
-        else:
-            raise ValueError(
-                f'{type(value).__name__} requires axis.name set on every axis '
-                f'(got {[a.name for a in value.axes]!r}). '
-                f"Set e.g. df.index.name='time', df.columns.name='period'."
-            )
-    elif isinstance(value, np.ndarray):
-        if value.ndim != 1:
-            raise ValueError(
-                f'np.ndarray must be 1-D (got ndim={value.ndim}); pass an xr.DataArray '
-                f'or pd.DataFrame with named axes for higher-dim inputs.'
-            )
-        return _from_unnamed_1d(value, coord_idx, name, broadcast)
-    elif isinstance(value, list):
-        return _from_unnamed_1d(np.asarray(value, dtype=float), coord_idx, name, broadcast)
-    else:
-        raise TypeError(f'Unsupported Variate type: {type(value)}')
 
-    # --- 2) Validate dims are a subset of the target ---
-    foreign = [str(d) for d in da.dims if d not in coord_idx]
+def _from_1d(arr: np.ndarray, axes: Mapping[str, pl.Series], shape: tuple[int, ...]) -> np.ndarray:
+    """Length-match a 1-D array to one axis and broadcast it over the rest.
+
+    Tie-breaking: ``time`` wins over other dims when several match. A tidy
+    table names its dim and overrides this.
+    """
+    names = list(axes)
+    matches = [name for name in names if len(axes[name]) == len(arr)]
+    if not matches:
+        lengths = ', '.join(f'{name}({len(axis)})' for name, axis in axes.items())
+        raise ValueError(f'Length {len(arr)} does not match any dimension: {lengths}')
+    if len(matches) > 1 and 'time' not in matches:
+        raise ValueError(
+            f'Length {len(arr)} matches several dimensions: {matches}. '
+            f'Pass a tidy pl.DataFrame that names its dim to disambiguate.'
+        )
+    dim = 'time' if 'time' in matches else matches[0]
+    view = [1] * len(names)
+    view[names.index(dim)] = len(arr)
+    return np.broadcast_to(arr.reshape(view), shape).copy()
+
+
+def _from_table(table: pl.DataFrame, axes: Mapping[str, pl.Series], shape: tuple[int, ...]) -> np.ndarray:
+    """Place a tidy table's values on *axes*, broadcast over the dims it has no column for.
+
+    Every row lands on one cell: a label the axis does not have, a row
+    repeated, and a combination left out are each refused rather than read as
+    missing data.
+    """
+    if 'value' not in table.columns:
+        raise ValueError(f"A table Variate needs a 'value' column, got columns {table.columns}.")
+    dims = [c for c in table.columns if c != 'value']
+    foreign = [d for d in dims if d not in axes]
     if foreign:
         raise ValueError(
-            f'{type(value).__name__} has dims {foreign} not in target coords {list(coord_idx)}. '
-            f'Rename before calling as_dataarray().'
+            f'Table has columns {foreign} that are not dimensions here; its key columns must be among {list(axes)}.'
         )
-
-    # --- 3) Validate coord values match exactly (close the alignment gap) ---
-    for d in da.dims:
-        dim_name = str(d)
-        if d in da.coords and not pd.Index(da.coords[d].values).equals(coord_idx[dim_name]):
+    positions = table
+    for dim in dims:
+        axis = axes[dim]
+        index = pl.DataFrame({dim: axis, f'_{dim}': np.arange(len(axis))})
+        try:
+            positions = positions.with_columns(pl.col(dim).cast(axis.dtype))
+        except (pl.exceptions.InvalidOperationError, pl.exceptions.ComputeError) as exc:
             raise ValueError(
-                f'Coord mismatch on dim {dim_name!r}: input coord does not equal target. '
-                f"Use the same index as the model's {dim_name}."
-            )
-
-    da = da.rename(name)
-    if broadcast:
-        for dim, idx in coord_idx.items():
-            if dim not in da.dims:
-                da = da.expand_dims({dim: idx})
-        da = da.transpose(*coord_idx)
-    return da
-
-
-def _from_unnamed_1d(arr: np.ndarray, coord_idx: dict[str, pd.Index], name: str, broadcast: bool) -> xr.DataArray:
-    """Length-match an unnamed 1-D array to a single target coord.
-
-    Tie-breaking: ``time`` wins over other dims when multiple match. Pass a
-    named ``pd.Series`` or ``xr.DataArray`` to override.
-    """
-    arr = arr.astype(float)
-    n = len(arr)
-    matches = [k for k, v in coord_idx.items() if len(v) == n]
-    if len(matches) == 0:
-        lengths = ', '.join(f'{k}({len(v)})' for k, v in coord_idx.items())
-        raise ValueError(f'Length {n} does not match any coordinate: {lengths}')
-    if len(matches) > 1 and 'time' in matches:
-        dim = 'time'
-    elif len(matches) > 1:
+                f'Table column {dim!r} has dtype {table.schema[dim]}; the model labels it {axis.dtype}.'
+            ) from exc
+        positions = positions.join(index, on=dim, how='left')
+        unknown = positions.filter(pl.col(f'_{dim}').is_null()).get_column(dim).unique().to_list()
+        if unknown:
+            raise ValueError(f'Table has {dim} labels the model does not: {unknown[:5]}')
+    if dims and positions.select(dims).is_duplicated().any():
+        raise ValueError(f'Table repeats a combination of {dims}; each one appears once.')
+    expected = prod(len(axes[d]) for d in dims)
+    if table.height != expected:
         raise ValueError(
-            f'Length {n} matches multiple coordinates: {matches}. '
-            f'Pass an xr.DataArray, named pd.Series/DataFrame to disambiguate.'
+            f'Table has {table.height} rows but {dims} have {expected} combinations; give a value for each one.'
         )
-    else:
-        dim = matches[0]
-    da = xr.DataArray(arr, dims=[dim], coords={dim: coord_idx[dim]}, name=name)
-    if broadcast:
-        for d, idx in coord_idx.items():
-            if d not in da.dims:
-                da = da.expand_dims({d: idx})
-        da = da.transpose(*coord_idx)
-    return da
+    names = list(axes)
+    local = np.full(tuple(len(axes[d]) for d in dims), np.nan)
+    local[tuple(positions.get_column(f'_{d}').to_numpy() for d in dims)] = (
+        positions.get_column('value').cast(pl.Float64).to_numpy()
+    )
+    order = [d for d in names if d in dims]
+    local = np.transpose(local, [dims.index(d) for d in order])
+    view = [len(axes[n]) if n in dims else 1 for n in names]
+    return np.broadcast_to(local.reshape(view), shape).copy()
 
 
 def normalize_timesteps(timesteps: Timesteps) -> TimeIndex:
-    """Normalize user-provided timesteps to a datetime index.
+    """Normalize user-provided timesteps to a datetime column named ``time``.
 
     Args:
-        timesteps: Datetime objects, or a DatetimeIndex.
+        timesteps: Datetime objects, or a ``pl.Series`` of datetimes.
 
     Raises:
         TypeError: If a timestep is not a timestamp. Numbered steps are
-            written as ``pd.date_range('2020-01-01', periods=n, freq='h')``.
+            written as ``pl.datetime_range(datetime(2020, 1, 1), ..., '1h', eager=True)``.
         ValueError: If timesteps are empty, not strictly monotonically
             increasing, or contain duplicates.
     """
     if len(timesteps) == 0:
         raise ValueError('Timesteps must not be empty')
-
-    stamped_index = isinstance(timesteps, pd.Index) and pd.api.types.is_datetime64_any_dtype(timesteps.dtype)
-    stamped_list = isinstance(timesteps, list) and all(isinstance(t, datetime) for t in timesteps)
-    if stamped_index or stamped_list:
-        idx = pd.DatetimeIndex(timesteps)
+    if isinstance(timesteps, pl.Series):
+        if not timesteps.dtype.is_temporal() or timesteps.dtype == pl.Duration:
+            raise TypeError(
+                f'Timesteps must be timestamps, got {timesteps.dtype}. '
+                "For numbered steps, pass pl.datetime_range(datetime(2020, 1, 1), end, '1h', eager=True)."
+            )
+        time = timesteps.cast(pl.Datetime('us')).rename('time')
+    elif isinstance(timesteps, list) and all(isinstance(t, datetime) for t in timesteps):
+        time = pl.Series('time', timesteps, dtype=pl.Datetime('us'))
     else:
-        found = timesteps.dtype if isinstance(timesteps, pd.Index) else type(timesteps[0]).__name__
+        found = type(timesteps[0]).__name__
         raise TypeError(
             f'Timesteps must be timestamps, got {found}. '
-            "For numbered steps, pass pd.date_range('2020-01-01', periods=n, freq='h')."
+            "For numbered steps, pass pl.datetime_range(datetime(2020, 1, 1), end, '1h', eager=True)."
         )
-
-    if len(idx) > 1 and not idx.is_monotonic_increasing:
-        raise ValueError('Timesteps must be strictly monotonically increasing')
-    if not idx.is_unique:
+    if time.n_unique() != len(time):
         raise ValueError('Timesteps contain duplicates')
-    return idx
+    if len(time) > 1 and not time.is_sorted():
+        raise ValueError('Timesteps must be strictly monotonically increasing')
+    return time
 
 
-def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> xr.DataArray:
-    """Compute dt (hours) for each timestep as a DataArray.
+def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> np.ndarray:
+    """Each timestep's duration in hours.
 
     When dt is None, it is the consecutive differences in hours, the first
     step taking the second's; a single timestep lasts 1.0.
@@ -277,24 +283,15 @@ def compute_dt(timesteps: TimeIndex, dt: float | list[float] | None) -> xr.DataA
         dt: Override timestep duration. Validated against timesteps length.
     """
     n = len(timesteps)
-
     if dt is not None:
         if isinstance(dt, (int, float)):
-            values = np.full(n, float(dt))
-        elif isinstance(dt, list):
+            return np.full(n, float(dt))
+        if isinstance(dt, list):
             if len(dt) != n:
                 raise ValueError(f'dt length {len(dt)} does not match timesteps length {n}')
-            values = np.array(dt, dtype=float)
-        else:
-            raise TypeError(f'Unsupported dt type: {type(dt)}')
-        return xr.DataArray(values, dims=['time'], coords={'time': timesteps}, name='dt')
-
-    # Auto-derive
+            return np.array(dt, dtype=float)
+        raise TypeError(f'Unsupported dt type: {type(dt)}')
     if n <= 1:
-        return xr.DataArray(np.ones(n), dims=['time'], coords={'time': timesteps}, name='dt')
-
-    diffs = np.diff(timesteps.values) / np.timedelta64(1, 'h')
-    dt_values = np.empty(n)
-    dt_values[0] = diffs[0]
-    dt_values[1:] = diffs
-    return xr.DataArray(dt_values, dims=['time'], coords={'time': timesteps}, name='dt')
+        return np.ones(n)
+    diffs = np.diff(timesteps.to_numpy()) / np.timedelta64(1, 'h')
+    return np.concatenate([diffs[:1], diffs]).astype(float)

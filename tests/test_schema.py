@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import polars as pl
 import pytest
-import xarray as xr
 from pydantic import ValidationError
 
 from fluxopt import (
@@ -28,9 +28,9 @@ class TestValidation:
     def test_accepts_scalar_and_array_variate(self) -> None:
         f = Flow(carrier='gas', effects_per_flow_hour={'cost': 0.04})
         assert f.effects_per_flow_hour['cost'] == 0.04
-        da = xr.DataArray([1.0, 2.0], dims=['time'])
-        f2 = Flow(carrier='gas', effects_per_flow_hour={'cost': da})
-        assert isinstance(f2.effects_per_flow_hour['cost'], xr.DataArray)
+        series = pl.Series([1.0, 2.0])
+        f2 = Flow(carrier='gas', effects_per_flow_hour={'cost': series})
+        assert isinstance(f2.effects_per_flow_hour['cost'], pl.Series)
 
     def test_post_init_validation_still_runs(self) -> None:
         # __post_init__ guards survive the pydantic migration.

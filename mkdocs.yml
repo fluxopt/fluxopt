@@ -129,8 +129,7 @@ plugins:
           inventories:
             - https://docs.python.org/3/objects.inv
             - https://numpy.org/doc/stable/objects.inv
-            - https://docs.xarray.dev/en/stable/objects.inv
-            - https://pandas.pydata.org/docs/objects.inv
+            - https://docs.pola.rs/api/python/stable/objects.inv
           options:
             extensions:
               - griffe_pydantic:

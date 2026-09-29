@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from fluxopt.types import Variate, variate_out_of_range
 
-# Element models hold arbitrary xarray/numpy/pandas values (Variate);
+# Element models hold arbitrary numpy/polars values (Variate);
 # pydantic validates ids/scalars/structure while passing those through by
 # isinstance.
 _PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
@@ -57,7 +57,7 @@ class Carrier(Element):
     """Physical energy medium (electricity, heat, gas, …)."""
 
     id: str
-    """Unique identifier used as xarray coordinate."""
+    """Unique identifier, the label the tables use for this carrier."""
     nodes: list[str] = Field(default_factory=list)
     """Sub-nodes for multi-node balancing. Empty means single-node."""
     unit: str = 'MWh'

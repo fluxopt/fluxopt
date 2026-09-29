@@ -4,8 +4,8 @@ A ``FlowSystem`` is an inert, validated description of a flow system: the
 same lists you would pass to [`fluxopt.optimize`][fluxopt.optimize], gathered into one object
 that round-trips to dict/YAML. It carries *structure* (components, effects,
 config) and ``ProfileRef`` references to time-series; the actual series are
-supplied at solve time via ``profiles`` (``system.optimize(profiles=...)``) and
-resolved into arrays just before the model is built.
+supplied at solve time via ``profiles`` (``system.optimize(profiles=...)``), as
+polars tables, and resolved just before the tables are built.
 
 The FlowSystem has no modeling behavior of its own: [`FlowSystem.sources`][fluxopt.FlowSystem.sources]
 builds the tables bound to the math program, and ``.optimize()`` solves them.
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
 
+    import polars as pl
     import specsolve
 
 _PYDANTIC_CFG = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
@@ -87,7 +88,7 @@ def _collect_profile_refs(obj: Any, path: str, out: list[tuple[str, ProfileRef]]
             _collect_profile_refs(getattr(obj, name), f'{base}.{name}', out)
 
 
-def _check_profiles_cover(refs: list[tuple[str, ProfileRef]], profiles: Mapping[str, Any]) -> None:
+def _check_profiles_cover(refs: list[tuple[str, ProfileRef]], profiles: Mapping[str, pl.DataFrame]) -> None:
     """Raise one comprehensive error if any ref cannot be resolved.
 
     Args:
@@ -99,13 +100,10 @@ def _check_profiles_cover(refs: list[tuple[str, ProfileRef]], profiles: Mapping[
     """
     missing = []
     for path, ref in refs:
-        if ref.dataset not in profiles:
-            missing.append(f'{path}: dataset {ref.dataset!r} not supplied (have {sorted(profiles)})')
-        else:
-            try:
-                profiles[ref.dataset][ref.variable]
-            except KeyError:
-                missing.append(f'{path}: variable {ref.variable!r} not in dataset {ref.dataset!r}')
+        if ref.table not in profiles:
+            missing.append(f'{path}: table {ref.table!r} not supplied (have {sorted(profiles)})')
+        elif ref.column not in profiles[ref.table].columns:
+            missing.append(f'{path}: column {ref.column!r} not in table {ref.table!r}')
     if missing:
         raise KeyError('unresolvable ProfileRef(s):\n  ' + '\n  '.join(missing))
 
@@ -143,10 +141,11 @@ class FlowSystem(BaseModel):
         """Refuse numbered steps before pydantic reads a number as seconds since 1970.
 
         ISO strings pass through to pydantic's own parsing, which is how a
-        dumped system loads again.
+        dumped system loads again. A ``pl.Series`` is stored as its datetimes,
+        so the system serializes the same either way.
         """
         if not (isinstance(value, list) and value and all(isinstance(t, str) for t in value)):
-            normalize_timesteps(value)
+            return normalize_timesteps(value).to_list()
         return value
 
     @model_validator(mode='after')
@@ -195,10 +194,10 @@ class FlowSystem(BaseModel):
             yaml.safe_dump(self.to_dict(), fh, sort_keys=False)
 
     def required_profiles(self) -> dict[str, set[str]]:
-        """Enumerate the external data this system needs, as ``{dataset: variables}``.
+        """Enumerate the external data this system needs, as ``{table: columns}``.
 
         The contract a ``profiles`` supply must cover before
-        `build_model` / [`optimize`][fluxopt.FlowSystem.optimize] can run. Empty when every value
+        [`sources`][fluxopt.FlowSystem.sources] or [`optimize`][fluxopt.FlowSystem.optimize] can run. Empty when every value
         is inline.
         """
         refs: list[tuple[str, ProfileRef]] = []
@@ -206,7 +205,7 @@ class FlowSystem(BaseModel):
             _collect_profile_refs(group, '', refs)
         out: dict[str, set[str]] = {}
         for _, ref in refs:
-            out.setdefault(ref.dataset, set()).add(ref.variable)
+            out.setdefault(ref.table, set()).add(ref.column)
         return out
 
     def spec(self) -> Any:
@@ -223,7 +222,7 @@ class FlowSystem(BaseModel):
 
         return program().expand('sos')
 
-    def sources(self, profiles: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    def sources(self, profiles: Mapping[str, pl.DataFrame] | None = None) -> dict[str, Any]:
         """The numbers [`spec`][fluxopt.FlowSystem.spec] is bound to, one table per declared name.
 
         Every parameter, relation and dimension the spec declares, keyed by
@@ -233,9 +232,10 @@ class FlowSystem(BaseModel):
         arrives.
 
         Args:
-            profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or
-                mapping) holding the referenced variables. Required if the
-                system uses any ``ProfileRef`` — see [`required_profiles`][fluxopt.FlowSystem.required_profiles].
+            profiles: Mapping from ``ProfileRef.table`` to a ``pl.DataFrame``
+                holding the referenced columns, keyed by its ``time`` (and
+                ``period``) columns. Required if the system uses any
+                ``ProfileRef`` — see [`required_profiles`][fluxopt.FlowSystem.required_profiles].
 
         Raises:
             KeyError: If any ``ProfileRef`` cannot be resolved from *profiles*;
@@ -269,7 +269,7 @@ class FlowSystem(BaseModel):
 
     def optimize(
         self,
-        profiles: Mapping[str, Any] | None = None,
+        profiles: Mapping[str, pl.DataFrame] | None = None,
         *,
         solver: str = 'highs',
         archive: str | Path | None = None,
@@ -282,9 +282,10 @@ class FlowSystem(BaseModel):
         sets, which it takes natively.
 
         Args:
-            profiles: Mapping from ``ProfileRef.dataset`` to a dataset (or mapping)
-                holding the referenced variables. Required if the system uses
-                any ``ProfileRef``.
+            profiles: Mapping from ``ProfileRef.table`` to a ``pl.DataFrame``
+                holding the referenced columns, keyed by its ``time`` (and
+                ``period``) columns. Required if the system uses any
+                ``ProfileRef``.
             solver: Solver name — ``highs``, or ``gurobi`` with specsolve's extra.
             archive: Where specsolve writes the spec, its data and the answer,
                 as a ``.zip`` or a directory; ``specsolve.load_archive`` reads
@@ -292,9 +293,9 @@ class FlowSystem(BaseModel):
             **solver_options: Passed to the solver verbatim, in its own vocabulary.
 
         Returns:
-            specsolve's result: ``objective``, ``to_dataarray(name)`` for a
-            variable and ``to_dataarray(name, kind='expression')`` for a
-            reported expression such as ``flow_hours`` or ``priced_flow_hour``.
+            specsolve's result: ``objective``, ``primal(name)`` for a
+            variable and ``evaluate(name)`` for a reported expression such as
+            ``flow_hours`` or ``priced_flow_hour``, each a tidy polars table.
         """
         import specsolve
 

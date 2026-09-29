@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
+import polars as pl
 import pytest
-import xarray as xr
-from conftest import read, ts
+from conftest import Table, read, ts
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, Storage, optimize
 from fluxopt.components import Converter
@@ -22,39 +22,50 @@ LUMP = {
 }
 
 
-def _gathered(result, names: dict[str, str], prefix: str, grid: xr.DataArray) -> xr.DataArray:
-    """The named contributions summed onto *grid*, a zero `(contributor, effect[, time])` array."""
+def _gathered(result, names: dict[str, str], prefix: str, grid: pl.DataFrame) -> pl.DataFrame:
+    """The named contributions summed onto *grid*, a zero `(contributor, effect[, time], value)` table."""
+    keys = [c for c in grid.columns if c != 'value']
     total = grid
     for name, entity in names.items():
         if not len(result.evaluate(f'{prefix}_{name}')):
             continue
-        arr = read(result, f'{prefix}_{name}', 'expression').rename({entity: 'contributor'})
-        if 'build_period' in arr.dims:
-            arr = arr.sum('build_period')
-        total = total + arr.reindex_like(grid).fillna(0)
+        frame = read(result, f'{prefix}_{name}', 'expression').frame.rename({entity: 'contributor'})
+        frame = frame.group_by(keys).agg(pl.col('value').sum().alias('added'))
+        total = total.join(frame, on=keys, how='left').with_columns(
+            (pl.col('value') + pl.col('added').fill_null(0)).alias('value')
+        )
+        total = total.drop('added')
     return total
 
 
-def breakdown(result, *, priced: bool = True) -> xr.Dataset:
+def breakdown(result, *, priced: bool = True) -> dict[str, Table]:
     """What each flow and storage charges each effect: ``temporal`` per step, ``lump``, and their ``total``.
 
     Read off the program's own ``priced_*`` expressions, or ``contribution_*``
     for what each entity charges directly.
     """
     rate = read(result, 'rate')
-    contributors = [str(f) for f in rate.coords['flow'].values]
+    contributors = rate.labels('flow')
     if len(result.evaluate('level')):
-        contributors += [str(s) for s in read(result, 'level').coords['storage'].values]
-    effects = [str(e) for e in read(result, 'effect_total').coords['effect'].values]
-    grid = xr.DataArray(
-        np.zeros((len(contributors), len(effects))),
-        dims=['contributor', 'effect'],
-        coords={'contributor': contributors, 'effect': effects},
+        contributors += read(result, 'level').labels('storage')
+    effects = read(result, 'effect_total').labels('effect')
+    grid = pl.DataFrame({'contributor': contributors}).join(pl.DataFrame({'effect': effects}), how='cross')
+    grid = grid.with_columns(value=pl.lit(0.0))
+    over_time = grid.join(pl.DataFrame({'time': rate.labels('time')}), how='cross').select(
+        'contributor', 'effect', 'time', 'value'
     )
     prefix = 'priced' if priced else 'contribution'
-    temporal = _gathered(result, TEMPORAL, prefix, grid.expand_dims(time=rate.coords['time'].values).copy())
-    lump = _gathered(result, LUMP, prefix, grid.copy())
-    return xr.Dataset({'temporal': temporal, 'lump': lump, 'total': temporal.sum('time') + lump})
+    temporal = Table(_gathered(result, TEMPORAL, prefix, over_time))
+    lump = _gathered(result, LUMP, prefix, grid)
+    total = temporal.sum('time').frame.join(lump, on=['contributor', 'effect'], suffix='_lump')
+    total = total.select('contributor', 'effect', (pl.col('value') + pl.col('value_lump')).alias('value'))
+    return {'temporal': temporal, 'lump': Table(lump), 'total': Table(total)}
+
+
+def assert_same(actual: Table, expected: Table) -> None:
+    """Two tables hold the same numbers on the same labels."""
+    assert actual.dims == expected.dims
+    np.testing.assert_allclose(actual.values, expected.values)
 
 
 class TestSumToTotal:
@@ -122,7 +133,7 @@ class TestSumToTotal:
         assert list(ept.values.round(6)) == [2.0, 3.2, 2.4]
         contrib = breakdown(result)
         temporal_sum = contrib['temporal'].sel(effect='cost').sum('contributor')
-        xr.testing.assert_allclose(temporal_sum, ept)
+        assert_same(temporal_sum, ept)
 
 
 class TestProportionalSplit:
@@ -550,9 +561,9 @@ class TestDirectContributions:
 
         with_cross = breakdown(result)
         direct = breakdown(result, priced=False)
-        xr.testing.assert_allclose(with_cross['temporal'], direct['temporal'])
-        xr.testing.assert_allclose(with_cross['lump'], direct['lump'])
-        xr.testing.assert_allclose(with_cross['total'], direct['total'])
+        assert_same(with_cross['temporal'], direct['temporal'])
+        assert_same(with_cross['lump'], direct['lump'])
+        assert_same(with_cross['total'], direct['total'])
 
     def test_direct_and_with_cross_differ_when_contribution_from_present(self):
         """Sanity invariant: when contribution_from is set, the two views must
@@ -610,7 +621,7 @@ class TestDirectContributions:
 
         # CO2 attribution itself doesn't change between the two views
         # (CO2 is a leaf with no contribution_from — Leontief is identity for it)
-        xr.testing.assert_allclose(direct['total'].sel(effect='co2'), with_cross['total'].sel(effect='co2'))
+        assert_same(direct['total'].sel(effect='co2'), with_cross['total'].sel(effect='co2'))
 
     def test_direct_sum_equals_raw_emission_total(self):
         """Direct co2 contributions sum to the raw integrated emissions
@@ -747,8 +758,8 @@ class TestBreakdownIsReadOffTheModel:
     def test_each_contribution_is_reachable_by_name(self):
         """A named expression is evaluated at the solution, direct and priced alike."""
         result = self._result()
-        assert read(result, 'contribution_flow_hour', 'expression').sum() != 0
-        assert read(result, 'priced_flow_hour', 'expression').sum() != 0
+        assert float(read(result, 'contribution_flow_hour', 'expression').sum()) != 0
+        assert float(read(result, 'priced_flow_hour', 'expression').sum()) != 0
 
     def test_the_two_views_differ_only_by_the_fold(self):
         """The priced view adds the chained share, so it exceeds the direct one exactly where a share applies."""
@@ -758,4 +769,4 @@ class TestBreakdownIsReadOffTheModel:
         # cost receives co2 priced at 50, so direct must be the smaller of the two
         assert float(direct['total'].sel(effect='cost').sum()) < float(charged['total'].sel(effect='cost').sum())
         # co2 emits into nothing, so both views agree on it
-        xr.testing.assert_allclose(direct['total'].sel(effect='co2'), charged['total'].sel(effect='co2'))
+        assert_same(direct['total'].sel(effect='co2'), charged['total'].sel(effect='co2'))

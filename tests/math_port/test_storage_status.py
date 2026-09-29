@@ -122,8 +122,8 @@ class TestStorageComponentStatus:
             ],
         )
         for name in ('running', 'startup', 'shutdown'):
-            assert 'Bat' in read(result, name).coords['status_entity'].values, f'{name} carries the component'
-        assert 'Bat' in read(result, 'running').rename(status_entity='component').coords['component'].values
+            assert 'Bat' in read(result, name).labels('status_entity'), f'{name} carries the component'
+        assert 'Bat' in read(result, 'running').rename(status_entity='component').labels('component')
 
     def test_status_gates_both_flows(self, optimize):
         """When component_on=0, both charging and discharging are forced to 0."""

@@ -56,11 +56,10 @@ def all_element_schemas() -> Mapping[str, dict[str, Any]]:
 def _inline_array_paths(obj: Any, path: str, out: list[str]) -> None:
     """Collect paths of array-valued leaves that cannot serialize to JSON."""
     import numpy as np
-    import pandas as pd
-    import xarray as xr
+    import polars as pl
     from pydantic import BaseModel
 
-    if isinstance(obj, (np.ndarray, pd.Series, pd.DataFrame, xr.DataArray)):
+    if isinstance(obj, (np.ndarray, pl.Series, pl.DataFrame)):
         out.append(path)
     elif isinstance(obj, dict):
         for key, value in obj.items():
@@ -98,7 +97,7 @@ def to_dict(element: object) -> dict[str, Any]:
             msg = (
                 'cannot serialize inline array values at: '
                 + '; '.join(arrays)
-                + ' — reference them with ProfileRef(dataset=..., variable=...) and supply the data via profiles={...} at solve time'
+                + ' — reference them with ProfileRef(table=..., column=...) and supply the data via profiles={...} at solve time'
             )
             raise ValueError(msg) from exc
         raise

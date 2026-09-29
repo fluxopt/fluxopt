@@ -16,8 +16,8 @@ API mapping (flixopt -> fluxopt):
 
 from __future__ import annotations
 
+import polars as pl
 import pytest
-import xarray as xr
 from conftest import read, ts, waste
 from numpy.testing import assert_allclose
 
@@ -353,7 +353,7 @@ class TestEffects:
         'factor',
         [
             pytest.param([1.0, 2.0], id='a list over the timesteps'),
-            pytest.param(xr.DataArray([1.0, 2.0], dims=['time']), id='an array over time'),
+            pytest.param(pl.DataFrame({'time': ts(2), 'value': [1.0, 2.0]}), id='a table over time'),
         ],
     )
     def test_effect_time_varying_contribution_is_refused(self, factor):
