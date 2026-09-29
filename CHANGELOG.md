@@ -7,6 +7,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/fluxopt/blob
 
 ## Upcoming version
 
+- docs: the site is built by zensical, and the notebooks are executed into its pages ([#360](https://github.com/fluxopt/fluxopt/pull/360))
 - refac!: land the spec/specsolve stack (#274 … #357) in one merge ([#358](https://github.com/fluxopt/fluxopt/pull/358))
 - docs(benchmark): measured comparison with flixopt on the stress system ([#271](https://github.com/fluxopt/fluxopt/pull/271))
 - perf(effects): fold Leontief inverse into term coefficients, not expressions ([#270](https://github.com/fluxopt/fluxopt/pull/270))
