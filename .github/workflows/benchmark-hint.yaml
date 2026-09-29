@@ -58,7 +58,7 @@ jobs:
             echo "uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json"
             echo '```'
             echo ''
-            echo 'One fresh venv per ref, checkout untouched; covers the archetype, IO and reference-system benchmarks. Alternative flows: benchmark/README.md.'
+            echo 'One fresh venv per ref, checkout untouched; covers the archetype and reference-system benchmarks. Alternative flows: benchmark/README.md.'
             echo '</details>'
           } > "$RUNNER_TEMP/comment.md"
           cat "$RUNNER_TEMP/comment.md" >> "$GITHUB_STEP_SUMMARY"

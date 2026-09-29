@@ -1,12 +1,14 @@
 # Benchmark
 
-fluxopt ships a user-runnable benchmark that builds a few realistic energy
-systems and reports how fast the build pipeline
+The repository has a benchmark that builds a few realistic energy systems
+and reports how fast the build pipeline
 (`Elements → sources → specsolve model`) runs on *your* hardware — and how much
-memory it peaks at:
+memory it peaks at. Run it from a checkout, in the `benchmark/` directory's own
+environment:
 
 ```console
-$ python -m fluxopt.benchmark
+$ cd benchmark
+$ uv run python reference.py
 fluxopt 0.9.0 — build-pipeline benchmark
 Python 3.13.2 · Darwin arm64 · 8 CPUs
 8760 hourly timesteps (1.0 years)
@@ -43,7 +45,7 @@ the same machine measure the same workload.
 The models are realistic and readable — constant and time-varying data,
 several effects, and cross-effect couplings (CO₂ priced into cost at
 45 €/t via `Effect.contribution_from`). Their builders in
-`fluxopt/benchmark.py` double as worked examples:
+`benchmark/reference.py` double as worked examples:
 
 - **`district_heating`** — a municipal utility: gas boiler, ramp-limited CHP
   and an air-source heat pump with a weather-driven COP feed a 20 MW-peak
@@ -74,10 +76,10 @@ several effects, and cross-effect couplings (CO₂ priced into cost at
 ## Options
 
 ```console
-$ python -m fluxopt.benchmark district_heating   # a single system
-$ python -m fluxopt.benchmark --timesteps 720    # one month instead of a year
-$ python -m fluxopt.benchmark --solve            # also time the HiGHS solve
-$ python -m fluxopt.benchmark --json             # machine-readable output
+$ uv run python reference.py district_heating   # a single system
+$ uv run python reference.py --timesteps 720    # one month instead of a year
+$ uv run python reference.py --solve            # also time the HiGHS solve
+$ uv run python reference.py --json             # machine-readable output
 ```
 
 The solve is excluded by default: solver time depends on HiGHS, not on

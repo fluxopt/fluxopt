@@ -1,13 +1,14 @@
-"""User-runnable benchmark: build a few realistic energy systems, report speed and memory.
+"""Reference benchmark: build a few realistic energy systems, report speed and memory.
 
-Run it against your installation to see how fast fluxopt's build pipeline
-(Elements → sources → specsolve model) is on your hardware::
+Run it from a checkout, in this directory's environment, to see how fast
+fluxopt's build pipeline (Elements → sources → specsolve model) is on your
+hardware::
 
-    python -m fluxopt.benchmark                        # all systems, one hourly year
-    python -m fluxopt.benchmark district_heating       # a single system
-    python -m fluxopt.benchmark --timesteps 720        # one month instead of a year
-    python -m fluxopt.benchmark --solve                # also time the HiGHS solve
-    python -m fluxopt.benchmark --json                 # machine-readable output
+    uv run python reference.py                         # all systems, one hourly year
+    uv run python reference.py district_heating        # a single system
+    uv run python reference.py --timesteps 720         # one month instead of a year
+    uv run python reference.py --solve                 # also time the HiGHS solve
+    uv run python reference.py --json                  # machine-readable output
 
 The reference systems are realistic, readable models — constant and
 time-varying data, several effects and cross-effect couplings — so the numbers
@@ -39,8 +40,7 @@ reflect real workloads and the builders double as examples:
 All data is deterministic (any randomness is drawn from fixed seeds), and
 each system is built in a fresh subprocess so peak memory is attributed per
 model. Memory is whole-process peak RSS — the number that has to fit in your
-RAM; for allocator-level profiles use pytest-benchmem on
-``benchmark/test_reference.py``.
+RAM; for allocator-level profiles use pytest-benchmem on ``test_reference.py``.
 """
 
 from __future__ import annotations
@@ -53,6 +53,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from importlib.metadata import version
+from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
@@ -1340,7 +1341,7 @@ def _peak_rss_mib() -> float | None:
 
 def _measure_in_subprocess(model: str, timesteps: int, solve: bool) -> dict[str, Any]:
     """Measure one system in a fresh interpreter so peak memory is attributed per model."""
-    cmd = [sys.executable, '-m', 'fluxopt.benchmark', '--worker', model, '--timesteps', str(timesteps)]
+    cmd = [sys.executable, str(Path(__file__).resolve()), '--worker', model, '--timesteps', str(timesteps)]
     if solve:
         cmd.append('--solve')
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -1429,7 +1430,7 @@ def _print_report(rows: list[dict[str, Any]], timesteps: int, solve: bool) -> No
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog='python -m fluxopt.benchmark',
+        prog='python reference.py',
         description='Build a few realistic reference energy systems and report speed and memory.',
     )
     parser.add_argument(
