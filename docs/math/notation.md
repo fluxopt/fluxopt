@@ -19,18 +19,18 @@ Each symbol maps to a specific field or variable in the code.
 
 | Symbol | Code | Domain | Unit | Description |
 |---|---|---|---|---|
-| \(P_{f,t(,p)}\) | `flow--rate[flow, time(, period)]` | \(\geq 0\) | MW | Flow rate |
-| \(E_{s,t(,p)}\) | `storage--level[storage, time(, period)]` | \(\geq 0\) | MWh | Stored energy |
-| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | expression (folded into totals at build) | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | `effect--lump[effect(, period)]` | \(\mathbb{R}\) | varies | Lump (sizing + one-time) effect |
-| \(\Phi_{k(,p)}\) | `effect--total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
-| \(S_{f(,p)}\) | `flow--size[flow(, period)]` | \(\geq 0\) | MW | Invested flow capacity |
-| \(y_{f(,p)}\) | `flow--size_indicator[flow(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (flow) |
-| \(S_{s(,p)}\) | `storage--capacity[storage(, period)]` | \(\geq 0\) | MWh | Invested storage capacity |
-| \(y_{s(,p)}\) | `storage--size_indicator[storage(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (storage) |
-| \(\sigma_{f,t(,p)}\) | `flow--on[flow, time(, period)]` | \(\{0, 1\}\) | — | On/off indicator |
-| \(\tau^+_{f,t(,p)}\) | `flow--startup[flow, time(, period)]` | \(\{0, 1\}\) | — | Startup event indicator |
-| \(\tau^-_{f,t(,p)}\) | `flow--shutdown[flow, time(, period)]` | \(\{0, 1\}\) | — | Shutdown event indicator |
+| \(P_{f,t(,p)}\) | `rate[flow, time(, period)]` | \(\geq 0\) | MW | Flow rate |
+| \(E_{s,t(,p)}\) | `level[storage, time(, period)]` | \(\geq 0\) | MWh | Stored energy |
+| \(\Phi_{k,t(,p)}^{\text{temporal}}\) | `effect_step[effect, time(, period)]` in the program | \(\mathbb{R}\) | varies | Temporal (per-timestep) effect |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | `effect_lump[effect(, period)]` | \(\mathbb{R}\) | varies | Lump (sizing + one-time) effect |
+| \(\Phi_{k(,p)}\) | `effect_total[effect(, period)]` | \(\mathbb{R}\) | varies | Total effect per period |
+| \(S_{f(,p)}\) | `chosen_size[flow(, period)]` | \(\geq 0\) | MW | Invested flow capacity |
+| \(y_{f(,p)}\) | `size_built[flow(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (flow) |
+| \(S_{s(,p)}\) | `chosen_capacity[storage(, period)]` | \(\geq 0\) | MWh | Invested storage capacity |
+| \(y_{s(,p)}\) | `capacity_built[storage(, period)]` | \(\{0, 1\}\) | — | Binary invest indicator (storage) |
+| \(\sigma_{f,t(,p)}\) | `running[status_entity, time(, period)]` | \(\{0, 1\}\) | — | On/off indicator |
+| \(\tau^+_{f,t(,p)}\) | `startup[status_entity, time(, period)]` | \(\{0, 1\}\) | — | Startup event indicator |
+| \(\tau^-_{f,t(,p)}\) | `shutdown[status_entity, time(, period)]` | \(\{0, 1\}\) | — | Shutdown event indicator |
 | \(\mathrm{D}^{\text{up}}_{f,t(,p)}\) | `uptime[flow, time(, period)]` | \(\geq 0\) | h | Consecutive uptime |
 | \(\mathrm{D}^{\text{down}}_{f,t(,p)}\) | `downtime[flow, time(, period)]` | \(\geq 0\) | h | Consecutive downtime |
 
@@ -67,7 +67,7 @@ The broadcast hierarchy:
   \(\underline{\mathrm{p}}_{f,t}, \bar{\mathrm{p}}_{f,t}\), profiles \(\pi_{f,t}\),
   efficiencies \(\eta^c_s, \eta^d_s\), losses \(\delta_s\), conversion
   coefficients \(\mathrm{a}_{f,i}\), effect / running / startup costs
-  \(\mathrm{c}_{f,k,t}, \mathrm{r}_{f,k,t}, \mathrm{u}_{f,k,t}\), cross-effects \(\alpha_{k,j,t}\).
+  \(\mathrm{c}_{f,k,t}, \mathrm{r}_{f,k,t}, \mathrm{u}_{f,k,t}\).
 - **Build period (\(p_b\))** — at-build investment coefficients only:
   \(\gamma^{\text{build}}_{f,k}, \phi^{\text{build}}_{f,k}\), …
 
@@ -94,8 +94,7 @@ omit unless we're discussing multi-period dynamics specifically.
 | \(\underline{\mathrm{e}}_s\) | [`Storage.relative_level_min`](../api/fluxopt/elements.md#fluxopt.elements.Storage.relative_level_min) | \([0, 1]\) | — | Relative min SOC |
 | \(\bar{\mathrm{e}}_s\) | [`Storage.relative_level_max`](../api/fluxopt/elements.md#fluxopt.elements.Storage.relative_level_max) | \([0, 1]\) | — | Relative max SOC |
 | \(\mathrm{a}_{f,i}\) | [`Converter.conversion_factors`](../api/fluxopt/components.md#fluxopt.components.Converter.conversion_factors) | \(\mathbb{R}\) | — | Conversion coefficient (per flow, per equation) |
-| \(\alpha_{k,j}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) | \(\mathbb{R}\) | varies | Cross-effect factor (scalar) |
-| \(\alpha_{k,j,t}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) (Variate) | \(\mathbb{R}\) | varies | Cross-effect factor (time-varying; lump uses time-mean) |
+| \(\alpha_{k,j}\) | [`Effect.contribution_from`](../api/fluxopt/elements.md#fluxopt.elements.Effect.contribution_from) | \(\mathbb{R}\) | varies | Cross-effect factor (scalar or per period) |
 | \(\bar{\Phi}_k\) | [`Effect.total_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.total_max) | \(\mathbb{R}\) | varies | Maximum aggregate (weighted sum across periods) |
 | \(\underline{\Phi}_k\) | [`Effect.total_min`](../api/fluxopt/elements.md#fluxopt.elements.Effect.total_min) | \(\mathbb{R}\) | varies | Minimum aggregate (weighted sum across periods) |
 | \(\bar{\Phi}_k^{\text{per period}}\) | [`Effect.periodic_max`](../api/fluxopt/elements.md#fluxopt.elements.Effect.periodic_max) | \(\mathbb{R}\) | varies | Maximum per period |

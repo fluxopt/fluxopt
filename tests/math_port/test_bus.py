@@ -5,7 +5,7 @@ from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Port
 
-from .conftest import ts
+from .conftest import read, ts
 
 
 class TestCarrierBalance:
@@ -39,10 +39,10 @@ class TestCarrierBalance:
         )
         # Src1 at max 20 @1€, Src2 covers remaining 10 @2€
         # cost = 2*(20*1 + 10*2) = 80
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 80.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 80.0, rtol=1e-5)
         # Verify individual flows to confirm dispatch split
-        src1 = result.flow_rate('Src1(Heat)').values
-        src2 = result.flow_rate('Src2(Heat)').values
+        src1 = read(result, 'rate').sel(flow='Src1(Heat)').values
+        src2 = read(result, 'rate').sel(flow='Src2(Heat)').values
         assert_allclose(src1, [20, 20], rtol=1e-5)
         assert_allclose(src2, [10, 10], rtol=1e-5)
 
@@ -69,10 +69,10 @@ class TestMultiNodeBalance:
             ],
         )
         # Each node dispatches its own cheap source, expensive unused
-        assert_allclose(result.flow_rate('cheap_a(heat:A)').values, [50, 50], rtol=1e-5)
-        assert_allclose(result.flow_rate('cheap_b(heat:B)').values, [80, 80], rtol=1e-5)
-        assert_allclose(result.flow_rate('exp_a(heat:A)').values, [0, 0], atol=1e-6)
-        assert_allclose(result.flow_rate('exp_b(heat:B)').values, [0, 0], atol=1e-6)
+        assert_allclose(read(result, 'rate').sel(flow='cheap_a(heat:A)').values, [50, 50], rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='cheap_b(heat:B)').values, [80, 80], rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='exp_a(heat:A)').values, [0, 0], atol=1e-6)
+        assert_allclose(read(result, 'rate').sel(flow='exp_b(heat:B)').values, [0, 0], atol=1e-6)
 
     def test_nodes_cannot_cross_subsidize(self, optimize):
         """Verify a cheap source on node A cannot serve demand on node B."""
@@ -93,9 +93,9 @@ class TestMultiNodeBalance:
             ],
         )
         # Node B must use expensive source — can't tap into node A's cheap source
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 1100.0, rtol=1e-5)
-        assert_allclose(result.flow_rate('cheap_a(heat:A)').values, [50, 50], rtol=1e-5)
-        assert_allclose(result.flow_rate('exp_b(heat:B)').values, [50, 50], rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 1100.0, rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='cheap_a(heat:A)').values, [50, 50], rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='exp_b(heat:B)').values, [50, 50], rtol=1e-5)
 
     def test_mixed_single_and_multi_node(self, optimize):
         """Verify single-node and multi-node carriers coexist in one optimization."""
@@ -120,10 +120,10 @@ class TestMultiNodeBalance:
             ],
         )
         # Electricity balance: grid serves 30 per timestep
-        assert_allclose(result.flow_rate('grid(elec)').values, [30, 30], rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='grid(elec)').values, [30, 30], rtol=1e-5)
         # Heat node A: boiler_a serves 40
-        assert_allclose(result.flow_rate('boiler_a(heat:A)').values, [40, 40], rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='boiler_a(heat:A)').values, [40, 40], rtol=1e-5)
         # Heat node B: boiler_b serves 60
-        assert_allclose(result.flow_rate('boiler_b(heat:B)').values, [60, 60], rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='boiler_b(heat:B)').values, [60, 60], rtol=1e-5)
         # Total cost: 2*(30*0.1 + 40*1 + 60*2) = 2*(3+40+120) = 326
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 326.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 326.0, rtol=1e-5)

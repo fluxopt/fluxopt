@@ -1,0 +1,90 @@
+# A flow's size as a decision: whether it is built, and how large. The rows
+# that scale the rate by it are in `envelope.yaml`.
+description: A flow's size may be a decision, and what building it costs.
+
+dimensions:
+  time: {dtype: datetime}
+  period: {dtype: int}
+  effect: {dtype: str}
+  flow: {dtype: str}
+
+parameters:
+  has_sizing: {dims: [flow], dtype: bool}
+  # Whether the build decision is already taken. Serves both mechanisms: a
+  # flow's size is a `Sizing` or an `Investment`, never both, so the two
+  # never claim the same row.
+  mandatory: {dims: [flow], dtype: bool}
+  # The size a flow may be built to. Shared by both mechanisms for the same
+  # reason `mandatory` is.
+  size_min: {dims: [flow]}
+  size_max: {dims: [flow]}
+  effects_per_size: {dims: [flow, effect, period]}
+  effects_fixed: {dims: [flow, effect, period]}
+
+variables:
+  # Investment flows share this variable — `size` is the capacity available in
+  # a period, whether it came from Sizing or from a build decision.
+  chosen_size:
+    dims: [flow, period]
+    where: "has_sizing OR has_invest"
+    bounds: {lower: 0, upper: size_max}
+
+  # Every sized flow has one, not only the optional ones: a mandatory build
+  # is the same decision already taken, and pinning it to 1 is cheaper than a
+  # constant term — a constant cannot be attributed to the flow that owes it.
+  size_built:
+    dims: [flow, period]
+    where: "has_sizing"
+    domain: binary
+
+expressions:
+  # What an envelope, a ramp or a load factor scales with: the decision where
+  # the size is one, and the number a flow was given otherwise.
+  size:
+    dims: [flow, period]
+    cases:
+      decided:
+        when: "chosen_size"
+        expression: chosen_size
+    otherwise: size_bound
+    description: The size a flow has, whether it is decided or given.
+  contribution_flow_per_size:
+    expression: chosen_size * effects_per_size
+    description: What a flow's built size costs, per period.
+  contribution_flow_fixed:
+    expression: size_built * effects_fixed
+    description: What deciding to build a flow costs at all, per period.
+  sizing_costs:
+    expression: sum(contribution_flow_per_size, over=flow) + sum(contribution_flow_fixed, over=flow)
+    description: What sizing the flows adds to each effect.
+
+given:
+  parameters:
+    has_invest: {dims: [flow], dtype: bool}
+    size_bound: {dims: [flow]}
+  expressions:
+    direct_lump: {dims: [effect, period], term: sizing_costs}
+
+constraints:
+  # A mandatory build is the same decision already taken, so the size rows
+  # hold for every sized flow and only the build is pinned.
+  sizing_mandatory_built:
+    dims: [flow, period]
+    where: "size_built AND mandatory"
+    expression: size_built == 1
+
+  sizing_min:
+    dims: [flow, period]
+    where: "size_built"
+    expression: chosen_size >= size_min * size_built
+
+  sizing_max:
+    dims: [flow, period]
+    where: "size_built"
+    expression: chosen_size <= size_max * size_built
+
+assumptions:
+  size_bounds_are_ordered:
+    holds: "size_min >= 0 AND size_min <= size_max"
+    where: "size_min"
+    description: a size is not negative, and its minimum does not exceed its maximum

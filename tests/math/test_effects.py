@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import ts
+from conftest import read, ts
 from numpy.testing import assert_allclose
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, optimize
@@ -53,7 +53,7 @@ class TestEffects:
         expected_co2 = demand_total * 0.5
 
         assert result.objective == pytest.approx(expected_cost, abs=1e-6)
-        co2_total = float(result.effect_totals.sel(effect='co2').values)
+        co2_total = float(read(result, 'effect_total').sel(effect='co2').values)
         assert co2_total == pytest.approx(expected_co2, abs=1e-6)
 
     def test_effect_maximum(self):
@@ -77,7 +77,7 @@ class TestEffects:
             ],
         )
 
-        co2_total = float(result.effect_totals.sel(effect='co2').values)
+        co2_total = float(read(result, 'effect_total').sel(effect='co2').values)
         assert co2_total <= co2_limit + 1e-6
 
     def test_time_varying_cost(self):
@@ -186,7 +186,7 @@ class TestContributionFrom:
 
         total_energy = sum(demand)
         expected_co2 = total_energy * 0.5
-        co2_total = float(result.effect_totals.sel(effect='co2').values)
+        co2_total = float(read(result, 'effect_total').sel(effect='co2').values)
         assert co2_total == pytest.approx(expected_co2, abs=1e-6)
 
     def test_contribution_from_transitive(self):
@@ -217,39 +217,33 @@ class TestContributionFrom:
         co2_total = pe_total * 0.3  # 114
         cost_total = co2_total * 50  # 5700
 
-        assert float(result.effect_totals.sel(effect='pe').values) == pytest.approx(pe_total, abs=1e-6)
-        assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
+        assert float(read(result, 'effect_total').sel(effect='pe').values) == pytest.approx(pe_total, abs=1e-6)
+        assert float(read(result, 'effect_total').sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
         assert result.objective == pytest.approx(cost_total, abs=1e-6)
 
-    def test_contribution_from_time_varying(self):
-        """Time-varying contribution_from uses per-timestep values for temporal."""
-        demand = [50.0, 80.0, 60.0]
+    def test_an_hourly_carbon_price_is_charged_on_the_flow(self):
+        """A price that varies over time is a flow coefficient, not a cross-effect factor.
 
+        `contribution_from` is one value per period, so an hourly carbon price
+        moves onto the flow that emits: 0.5 kg/MWh times the price, per step.
+        """
+        demand = [50.0, 80.0, 60.0]
+        carbon_prices = [40.0, 50.0, 60.0]
         source = Flow(
             carrier='elec',
             size=200,
-            effects_per_flow_hour={'co2': 0.5},
+            effects_per_flow_hour={'co2': 0.5, 'cost': [0.5 * p for p in carbon_prices]},
         )
         sink = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.8, 0.6])
 
-        carbon_prices = [40.0, 50.0, 60.0]
         result = optimize(
             timesteps=ts(3),
             carriers=[Carrier(id='elec')],
-            effects=[
-                Effect(
-                    id='cost',
-                    contribution_from={'co2': carbon_prices},  # time-varying
-                ),
-                Effect(id='co2', unit='kg'),
-            ],
+            effects=[Effect(id='cost'), Effect(id='co2', unit='kg')],
             objective='cost',
             ports=[Port(id='grid', imports=[source]), Port(id='demand', exports=[sink])],
         )
 
-        # per_ts[co2, t] = demand[t] * 0.5 (dt=1)
-        # per_ts[cost, t] = carbon_price[t] * per_ts[co2, t]
-        # total[cost] = sum(per_ts[cost, t])  (no lump costs)
         expected = sum(d * 0.5 * p for d, p in zip(demand, carbon_prices, strict=True))
         assert result.objective == pytest.approx(expected, abs=1e-6)
 
@@ -285,7 +279,7 @@ class TestContributionFrom:
         # cost = direct_cost + 50 * (op_co2 per_ts contribution summed) + 50 * invest_co2
         cost_total = direct_cost + op_co2 * 50 + invest_co2 * 50
 
-        assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
+        assert float(read(result, 'effect_total').sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-6)
         assert result.objective == pytest.approx(cost_total, abs=1e-6)
 
     def test_contribution_from_investment_transitive(self):
@@ -328,8 +322,8 @@ class TestContributionFrom:
         co2_total = co2_op + co2_inv  # 165
         cost_total = cost_op + cost_inv  # 8250
 
-        assert float(result.effect_totals.sel(effect='pe').values) == pytest.approx(pe_total, abs=1e-4)
-        assert float(result.effect_totals.sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-4)
+        assert float(read(result, 'effect_total').sel(effect='pe').values) == pytest.approx(pe_total, abs=1e-4)
+        assert float(read(result, 'effect_total').sel(effect='co2').values) == pytest.approx(co2_total, abs=1e-4)
         assert result.objective == pytest.approx(cost_total, abs=1e-4)
 
 
@@ -353,8 +347,8 @@ class TestPenaltyEffect:
             ],
         )
         assert_allclose(result.objective, 10.0, rtol=1e-5)
-        assert_allclose(result.flow_rate('SrcA(Heat)').values, [10.0], rtol=1e-5)
-        assert_allclose(result.flow_rate('SrcB(Heat)').values, [0.0], atol=1e-6)
+        assert_allclose(read(result, 'rate').sel(flow='SrcA(Heat)').values, [10.0], rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='SrcB(Heat)').values, [0.0], atol=1e-6)
 
     def test_penalty_contributes_to_objective_value(self):
         """Incurred penalty is part of the objective value.
@@ -373,7 +367,7 @@ class TestPenaltyEffect:
             ],
         )
         assert_allclose(result.objective, 15.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 10.0, rtol=1e-5)
 
     def test_penalty_weight_zero_ignores_penalty(self):
         """Naming penalty at weight 0 solves without the penalty term.
@@ -410,7 +404,7 @@ class TestPenaltyEffect:
             ],
         )
         assert_allclose(result.objective, 20.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 10.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 10.0, rtol=1e-5)
 
 
 class TestWeightedObjective:
@@ -435,7 +429,5 @@ class TestWeightedObjective:
             ],
         )
         assert_allclose(result.objective, 200.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 200.0, rtol=1e-5)
-        assert_allclose(result.effect_totals.sel(effect='co2').item(), 0.0, atol=1e-6)
-        # Provenance: the resolved weights are recorded on the result
-        assert result.objective_weights == {'cost': 1.0, 'co2': 50.0, 'penalty': 1.0}
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 200.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='co2').item(), 0.0, atol=1e-6)

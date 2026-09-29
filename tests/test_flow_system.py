@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import xarray as xr
+from conftest import read, ts
 from numpy.testing import assert_allclose
 
 from fluxopt import (
@@ -20,7 +21,7 @@ from fluxopt import (
 def _merit_order_spec(demand: object) -> FlowSystem:
     """Two priced sources meeting a fixed heat demand (see test_bus.py)."""
     return FlowSystem(
-        timesteps=[0, 1],
+        timesteps=ts(2),
         carriers=[Carrier(id='Heat')],
         effects=[Effect(id='cost')],
         objective='cost',
@@ -35,23 +36,23 @@ def _merit_order_spec(demand: object) -> FlowSystem:
 class TestPythonConstruction:
     def test_optimize_matches_free_function(self) -> None:
         result = _merit_order_spec(np.array([30, 30])).optimize()
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 80.0, rtol=1e-5)
-        assert_allclose(result.flow_rate('Src1(Heat)').values, [20, 20], rtol=1e-5)
-        assert_allclose(result.flow_rate('Src2(Heat)').values, [10, 10], rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 80.0, rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='Src1(Heat)').values, [20, 20], rtol=1e-5)
+        assert_allclose(read(result, 'rate').sel(flow='Src2(Heat)').values, [10, 10], rtol=1e-5)
 
 
 class TestRoundTrip:
     def test_dict_roundtrip_solves_identically(self) -> None:
         spec = _merit_order_spec([30, 30])
         rebuilt = FlowSystem.from_dict(spec.to_dict())
-        assert_allclose(rebuilt.optimize().effect_totals.sel(effect='cost').item(), 80.0, rtol=1e-5)
+        assert_allclose(read(rebuilt.optimize(), 'effect_total').sel(effect='cost').item(), 80.0, rtol=1e-5)
 
     def test_yaml_roundtrip(self, tmp_path) -> None:
         spec = _merit_order_spec([30, 30])
         path = tmp_path / 'system.yaml'
         spec.to_yaml(path)
         rebuilt = FlowSystem.from_yaml(path)
-        assert_allclose(rebuilt.optimize().effect_totals.sel(effect='cost').item(), 80.0, rtol=1e-5)
+        assert_allclose(read(rebuilt.optimize(), 'effect_total').sel(effect='cost').item(), 80.0, rtol=1e-5)
 
 
 class TestProfileRefResolution:
@@ -61,13 +62,13 @@ class TestProfileRefResolution:
     def test_ref_resolved_from_sources(self) -> None:
         spec = _merit_order_spec(ProfileRef(dataset='load', variable='demand'))
         result = spec.optimize(profiles=self._profiles([30, 30]))
-        assert_allclose(result.effect_totals.sel(effect='cost').item(), 80.0, rtol=1e-5)
+        assert_allclose(read(result, 'effect_total').sel(effect='cost').item(), 80.0, rtol=1e-5)
 
     def test_spec_reusable_across_sources(self) -> None:
         # Resolution runs on a copy, so the same spec solves with different data.
         spec = _merit_order_spec(ProfileRef(dataset='load', variable='demand'))
-        c_low = spec.optimize(profiles=self._profiles([10, 10])).effect_totals.sel(effect='cost').item()
-        c_high = spec.optimize(profiles=self._profiles([30, 30])).effect_totals.sel(effect='cost').item()
+        c_low = spec.optimize(profiles=self._profiles([10, 10])).to_dataarray('effect_total').sel(effect='cost').item()
+        c_high = spec.optimize(profiles=self._profiles([30, 30])).to_dataarray('effect_total').sel(effect='cost').item()
         assert c_low == pytest.approx(20.0)  # Src1 @1 covers 10 for 2h
         assert c_high == pytest.approx(80.0)  # Src1 @1 x20 + Src2 @2 x10, for 2h
         # The spec itself still carries the ProfileRef (not consumed).
@@ -81,20 +82,24 @@ class TestProfileRefResolution:
 
 
 class TestBuildModel:
-    def test_build_model_returns_inspectable_unbuilt_model(self) -> None:
+    def test_sources_are_the_tables_the_spec_is_bound_to(self) -> None:
         spec = _merit_order_spec([30, 30])
-        model = spec.build_model()
-        assert model.objective == {'cost': 1.0}
-        model.build()
-        assert 'flow--rate' in model.m.variables
-        result = model.solve()
-        assert result.effect_totals.sel(effect='cost').item() == pytest.approx(80.0)
+        sources = spec.sources()
+        assert list(sources['effect']['effect']) == ['cost', 'penalty'], 'the declared effects, then the penalty'
+        assert read(spec.optimize(), 'effect_total').sel(effect='cost').item() == pytest.approx(80.0)
+
+    def test_the_spec_is_readable_without_data(self) -> None:
+        """The equations are an artefact, available before anything is bound."""
+        math = _merit_order_spec([30, 30]).spec()
+        assert 'carrier_balance' in math.constraints
+        assert 'rate' in math.variables
+        assert 'constraints:' in math.to_yaml()
 
     def test_build_model_resolves_sources(self) -> None:
         spec = _merit_order_spec(ProfileRef(dataset='load', variable='demand'))
         profiles = {'load': {'demand': xr.DataArray([30.0, 30.0], dims=['time'])}}
-        result = spec.build_model(profiles).optimize()
-        assert result.effect_totals.sel(effect='cost').item() == pytest.approx(80.0)
+        result = spec.optimize(profiles)
+        assert read(result, 'effect_total').sel(effect='cost').item() == pytest.approx(80.0)
         # spec still carries the ref — resolution ran on a copy
         assert isinstance(spec.ports[0].exports[0].fixed_relative_profile, ProfileRef)
 
@@ -104,7 +109,7 @@ class TestFreeOptimizeProfiles:
         from fluxopt import optimize
 
         result = optimize(
-            timesteps=[0, 1],
+            timesteps=ts(2),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
             objective='cost',
@@ -121,13 +126,13 @@ class TestFreeOptimizeProfiles:
             ],
             profiles={'load': {'demand': xr.DataArray([30.0, 30.0], dims=['time'])}},
         )
-        assert result.effect_totals.sel(effect='cost').item() == pytest.approx(60.0)
+        assert read(result, 'effect_total').sel(effect='cost').item() == pytest.approx(60.0)
 
 
 class TestProfileErgonomics:
     def _two_ref_spec(self) -> FlowSystem:
         return FlowSystem(
-            timesteps=[0, 1],
+            timesteps=ts(2),
             carriers=[Carrier(id='Heat')],
             effects=[Effect(id='cost')],
             objective='cost',

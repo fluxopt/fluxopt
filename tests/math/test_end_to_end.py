@@ -1,19 +1,20 @@
 from __future__ import annotations
 
+import polars as pl
 import pytest
-from conftest import ts
+import specsolve
+from conftest import read, ts
 
 from fluxopt import (
     Carrier,
     Converter,
     Effect,
     Flow,
-    ModelData,
+    FlowSystem,
     Port,
     Storage,
     optimize,
 )
-from fluxopt.model import FlowSystemModel
 
 
 class TestEndToEnd:
@@ -41,7 +42,7 @@ class TestEndToEnd:
         )
 
         # Verify gas = heat / eta
-        gas_rates = result.flow_rate('boiler(gas)').values
+        gas_rates = read(result, 'rate').sel(flow='boiler(gas)').values
         for gas_rate, hd in zip(gas_rates, heat_demand, strict=False):
             assert gas_rate == pytest.approx(hd / eta, abs=1e-6)
 
@@ -79,7 +80,7 @@ class TestEndToEnd:
         )
 
         # Verify the optimizer uses more gas in cheap hours
-        gas_rates = result.flow_rate('grid(gas)').values
+        gas_rates = read(result, 'rate').sel(flow='grid(gas)').values
         assert gas_rates[0] > gas_rates[1]  # More gas bought in cheap hour
 
     def test_modified_data(self):
@@ -88,20 +89,25 @@ class TestEndToEnd:
         sink_flow = Flow(carrier='elec', size=100, fixed_relative_profile=[0.5, 0.5, 0.5])
         source_flow = Flow(carrier='elec', size=200, effects_per_flow_hour={'cost': 0.04})
 
-        data = ModelData.build(
-            ts(3),
+        system = FlowSystem(
+            timesteps=ts(3),
             carriers=[Carrier(id='elec')],
             effects=[Effect(id='cost')],
             ports=[Port(id='grid', imports=[source_flow]), Port(id='demand', exports=[sink_flow])],
+            objective='cost',
         )
+        sources = system.sources()
 
-        # Change demand from 0.5 to 0.7 (relative); absolute = 0.7 * 100 = 70
-        data.flows.fixed_profile.loc[{'flow': 'demand(elec)'}] = 0.7
+        # A profile pins the rate: move the demand from 0.5 * 100 to 70
+        demand = pl.col('flow') == 'demand(elec)'
+        for bound in ('rate_min', 'rate_max'):
+            sources[bound] = sources[bound].with_columns(
+                pl.when(demand).then(70.0).otherwise(pl.col('value')).alias('value')
+            )
 
-        model = FlowSystemModel(data)
-        result = model.optimize(objective='cost')
+        result = specsolve.solve(system.spec(), sources)
 
-        source_rates = result.flow_rate('grid(elec)').values
+        source_rates = read(result, 'rate').sel(flow='grid(elec)').values
         for rate in source_rates:
             assert rate == pytest.approx(70.0, abs=1e-6)
 
@@ -120,43 +126,16 @@ class TestEndToEnd:
         )
 
         # flow_rate accessor
-        sr = result.flow_rate('grid(elec)')
+        sr = read(result, 'rate').sel(flow='grid(elec)')
         assert 'time' in sr.dims
         assert len(sr) == 3
 
         # effect_totals DataArray
-        assert 'effect' in result.effect_totals.dims
+        assert 'effect' in read(result, 'effect_total').dims
 
         # effects_temporal
-        assert 'effect' in result.effects_temporal.dims
-        assert 'time' in result.effects_temporal.dims
+        assert 'effect' in read(result, 'effect_step', 'expression').dims
+        assert 'time' in read(result, 'effect_step', 'expression').dims
 
         # effects_lump
-        assert 'effect' in result.effects_lump.dims
-
-    def test_int_timesteps(self):
-        """Smoke test: int timesteps work end-to-end."""
-
-        timesteps = [0, 1, 2, 3]
-
-        demand_flow = Flow(carrier='heat', size=100, fixed_relative_profile=[0.4, 0.7, 0.5, 0.6])
-        gas_source = Flow(carrier='gas', size=500, effects_per_flow_hour={'cost': 0.04})
-        fuel = Flow(carrier='gas', size=300)
-        heat_flow = Flow(carrier='heat', size=200)
-
-        result = optimize(
-            timesteps=timesteps,
-            carriers=[Carrier(id='gas'), Carrier(id='heat')],
-            effects=[Effect(id='cost')],
-            objective='cost',
-            ports=[
-                Port(id='grid', imports=[gas_source]),
-                Port(id='demand', exports=[demand_flow]),
-            ],
-            converters=[Converter.boiler('boiler', 0.9, fuel, heat_flow)],
-        )
-
-        assert result.objective == pytest.approx(sum([40, 70, 50, 60]) / 0.9 * 0.04, abs=1e-6)
-        sr = result.flow_rate('boiler(gas)')
-        assert sr.dims == ('time',)
-        assert len(sr) == 4
+        assert 'effect' in read(result, 'effect_lump', 'expression').dims

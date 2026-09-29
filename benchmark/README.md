@@ -1,21 +1,20 @@
 # Benchmarks
 
 Time + memory benchmarks for the build pipeline —
-`Elements → ModelData (xarray) → FlowSystemModel (linopy)` — and for NetCDF IO
-(`ModelData ⇄ .nc`). The HiGHS solve is excluded (non-deterministic, not ours to
-profile); the solved-`Result` round-trip is excluded for the same reason (it
-needs a solve to produce).
+`Elements → sources → specsolve model`. The HiGHS solve is excluded
+(non-deterministic, not ours to profile). Persisting a spec and its sources is
+specsolve's archive, and benchmarked there.
 
 One `benchmark()` suite, served by [CodSpeed] in CI and [pytest-benchmem] locally.
 
 - `systems.py` — feature archetypes (`multi_node`, `status`, `piecewise`,
   `effects`, `sizing`) + `(n, timesteps)` scale tiers. Deterministic.
 - `test_build.py` — the feature matrix at one scale, and a multi_node scaling curve.
-- `test_io.py` — the same matrix + scaling curve for `ModelData.to_netcdf`
-  (write) and `ModelData.from_netcdf` (read). Solve-free, so no solved `Result`.
-- `test_reference.py` — the realistic reference systems bundled in the package
-  (`fluxopt.benchmark`, also behind `python -m fluxopt.benchmark`) at a quarter
-  year. Skips on fluxopt versions that predate the module.
+- `reference.py` — the realistic reference systems, and the command that times
+  them at a full year (`uv run python reference.py`, see `docs/benchmark.md`).
+- `test_reference.py` — the reference systems at a quarter year.
+- `test_reference_cli.py` — smoke tests for `reference.py`; not benchmarks, so
+  CodSpeed deselects them and only the CI smoke run executes them.
 
 ## Pinned, standalone env
 
@@ -62,8 +61,12 @@ uvx --from 'pytest-benchmem[plot]' benchmem compare .benchmarks/sweep/*.json
 in `extra_info` — the temporal grid, element stats and the measured
 solver-model size — via `--columns`, e.g.
 `--columns time,peak,extra:flows,extra:variables`; the full set is
-`timesteps/periods/components/flows/effects/series/variables/binaries/constraints`
+`timesteps/periods/components/flows/effects/series/variables/nonzeros/constraints`
 (pytest-benchmem >= 0.4.12).
+
+The suite, reference systems included, comes from your checkout and only
+fluxopt changes per ref. A ref whose element API differs from the checkout's
+therefore fails rather than compares; for such a pair, switch branches instead.
 
 Sweep resolves one fresh venv per ref (no lockfile — it can't, the dependency
 set differs per ref); add `--as-of YYYY-MM-DD` for a date-pinned resolve or
@@ -84,7 +87,7 @@ git switch -
 uv run benchmem compare base.json head.json
 ```
 
-Both flows run the whole suite — archetypes, IO, and the realistic reference
+Both flows run the whole suite — archetypes and the realistic reference
 systems. On PRs, the `benchmark-hint` workflow runs `test_reference.py` the
 same way and posts the numbers as a sticky comment.
 
