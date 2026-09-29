@@ -21,7 +21,7 @@ Includes the [HiGHS](https://highs.dev/) solver out of the box.
 
 ## Quick Start
 
-<!--quickstart-start-->
+<!-- --8<-- [start:quickstart] -->
 
 ```python
 # A gas boiler covers a heat demand, minimizing fuel cost
@@ -51,7 +51,7 @@ print(f'Total cost: {result.objective:.2f}')
 print(result.to_dataarray('rate').squeeze('period', drop=True))
 ```
 
-<!--quickstart-end-->
+<!-- --8<-- [end:quickstart] -->
 
 ## One API, three levels of control
 

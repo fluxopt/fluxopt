@@ -70,24 +70,33 @@ pre-commit-install = "lefthook install"
 lint = "lefthook run pre-commit --all-files"
 
 [feature.docs.dependencies]
-mkdocs = ">=1.6"
-mkdocs-material = ">=9.7"
-mkdocs-include-markdown-plugin = ">=7"
-mkdocs-gen-files = ">=0.6"
-mkdocs-literate-nav = ">=0.6"
+# The site generator. It reads `mkdocs.yml`, and carries the theme, the search
+# index and the renderer in one package.
+#
+# Pinned exactly, because this is pre-1.0 and what a 0.0.x bump changes is the
+# gate's own output.
+zensical = "==0.0.63"
+# The Python API pages render through mkdocstrings itself: zensical maps the
+# plugin configuration onto it and refuses to build when it is missing.
+mkdocstrings = ">=0.29"
 mkdocstrings-python = ">=2"
 griffe-pydantic = ">=1.3"
 pymdown-extensions = ">=11"
-# `execute: true` in mkdocs.yml runs every notebook at build time, so the
-# kernel and what the notebooks plot with are docs dependencies.
-mkdocs-jupyter = ">=0.26"
+nbconvert = ">=7"
 ipykernel = "*"
 plotly = ">=6"
 [feature.docs.tasks]
-docs-serve = "mkdocs serve"
+# zensical builds Markdown only, so each notebook is executed and written as
+# its page first. A cell that raises fails the build.
+docs-notebooks = "python -m tools.notebooks"
+[feature.docs.tasks.docs-serve]
+cmd = "zensical serve"
+depends-on = ["docs-notebooks"]
+[feature.docs.tasks.docs-build]
 # `--strict` turns every warning into a failure, so this catches a dead
 # cross-link and an anchor that stopped resolving.
-docs-build = "mkdocs build --strict"
+cmd = "zensical build --strict"
+depends-on = ["docs-notebooks"]
 
 # The benchmark suite, pinned by pixi.lock like everything else, so the CodSpeed
 # dashboard tracks fluxopt's code rather than upstream releases. Its own

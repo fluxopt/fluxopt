@@ -4,8 +4,6 @@ hide:
   - toc
 ---
 
-<div class="hero" markdown>
-
 # fluxopt
 
 Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) â€” detailed dispatch, scaled to multi-period planning.
@@ -16,14 +14,10 @@ Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) â
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-[Get Started](notebooks/01-quickstart.ipynb){ .md-button .md-button--primary }
+[Get Started](notebooks/01-quickstart.md){ .md-button .md-button--primary }
 [GitHub](https://github.com/FBumann/fluxopt){ .md-button }
 
-</div>
-
 ---
-
-<div class="landing" markdown>
 
 <div class="grid cards" markdown>
 
@@ -67,11 +61,7 @@ Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) â
 
 
 
-{%
-   include-markdown "../README.md"
-   start="<!--quickstart-start-->"
-   end="<!--quickstart-end-->"
-%}
+--8<-- "README.md:quickstart"
 
 ## Where to next
 
@@ -83,7 +73,7 @@ Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) â
 
     Seven executable notebooks from quickstart through investment and piecewise conversion.
 
-    [:octicons-arrow-right-24: Notebooks](notebooks/01-quickstart.ipynb)
+    [:octicons-arrow-right-24: Notebooks](notebooks/01-quickstart.md)
 
 -   :material-function-variant: __Math reference__
 
@@ -99,8 +89,6 @@ Energy system optimization with [specsolve](https://github.com/fluxopt/lpspec) â
 
     Auto-generated from source â€” every public class, every parameter.
 
-    [:octicons-arrow-right-24: API](api/fluxopt/index.md)
-
-</div>
+    [:octicons-arrow-right-24: API](api/index.md)
 
 </div>
