@@ -7,6 +7,7 @@ it releases that version ([RELEASING.md](https://github.com/fluxopt/fluxopt/blob
 
 ## Upcoming version
 
+- feat!: sizing, investment and status are in a system's spec only where an element uses them ([#369](https://github.com/fluxopt/fluxopt/pull/369))
 - feat!: a system's spec holds only the math its elements use ([#367](https://github.com/fluxopt/fluxopt/pull/367))
 - feat!: fluxopt installs the released specsolve 0.4 and mathspec 0.2.1, and a file of your own adds a cost to what an effect is charged ([#366](https://github.com/fluxopt/fluxopt/pull/366))
 - docs: the site says what fluxopt, mathspec and specsolve each do, and prints the math the solver reads ([#364](https://github.com/fluxopt/fluxopt/pull/364))
