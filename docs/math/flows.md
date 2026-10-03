@@ -1,6 +1,8 @@
 # Flows
 
-> The program states this in [flows](program/flows.md), [envelope](program/envelope.md) and [ramps](program/ramps.md).
+> The program states this in [flows](program/flows.md) and [ramps](program/ramps.md), and the envelope of a
+> decided or gated size in [sizing](program/sizing.md), [status](program/status.md) and
+> [status_sizing](program/status_sizing.md).
 
 A flow represents energy transfer on a carrier. Each flow \(f\) has a non-negative
 rate variable \(P_{f,t}\) bounded by an optional nominal capacity \(\bar{\mathrm{P}}_f\).
@@ -27,8 +29,10 @@ to a profile scaled by the capacity:
 P_{f,t} = \bar{\mathrm{P}}_f \cdot \pi_{f,t} \quad \forall \, f, t
 \]
 
-The program states it as its own constraint, `rate_envelope_fixed` in
-[envelope](program/envelope.md).
+A fixed size pins the rate through its bounds. Where the size is a decision,
+the program states the profile as a constraint of its own, `sized_rate_fixed`
+in [sizing](program/sizing.md). Where a Status gates the flow, it is
+`gated_rate_fixed` in [status](program/status.md).
 
 ## Aggregate Bounds
 

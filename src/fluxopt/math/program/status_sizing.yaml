@@ -1,0 +1,62 @@
+# A flow both gated and sized needs the binary and the decision at once:
+# P <= running*M+, P <= S*rel_ub, P >= (running-1)*M- + S*rel_lb. Composed
+# wherever `status.yaml` and `sizing.yaml` both are; it declares nothing of
+# its own but the rows that read both.
+description: A flow that a Status gates and a Sizing sizes.
+
+dimensions:
+  time: { dtype: datetime }
+  period: { dtype: int }
+  flow: { dtype: str }
+  status_entity: { dtype: str }
+
+relations:
+  status_of: { key: flow, values: status_entity }
+
+given:
+  parameters:
+    mandatory: { dims: [flow], dtype: bool }
+    size_min: { dims: [flow] }
+    size_max: { dims: [flow] }
+    relative_rate_min: { dims: [flow, time, period] }
+    relative_rate_max: { dims: [flow, time, period] }
+  variables:
+    rate: { dims: [flow, time, period] }
+    running: { dims: [status_entity, time, period], domain: binary }
+    chosen_size: { dims: [flow, period] }
+    size_built: { dims: [flow, period], domain: binary }
+
+expressions:
+  running_flow:
+    expression: at(running, by=status_of, over=status_entity, into=flow)
+    description: Whether the decision that gates a flow is on.
+
+constraints:
+  status_sizing_rate_bigm:
+    dims: [flow, time, period]
+    where: "status_of AND size_built"
+    expression: rate <= relative_rate_max * size_max * running_flow
+
+  status_sizing_rate_max:
+    dims: [flow, time, period]
+    where: "status_of AND size_built"
+    expression: rate <= relative_rate_max * chosen_size
+
+  status_sizing_rate_min:
+    dims: [flow, time, period]
+    where: "status_of AND size_built"
+    expression: >-
+      rate - relative_rate_min * size_max * running_flow
+      - relative_rate_min * chosen_size
+      >= 0 - relative_rate_min * size_max
+
+  # an unbuilt unit cannot be running
+  status_sizing_gate_size:
+    dims: [flow, time, period]
+    where: "status_of AND size_built AND size_min > 0"
+    expression: chosen_size >= size_min * running_flow
+
+  status_sizing_gate_built:
+    dims: [flow, time, period]
+    where: "status_of AND size_built AND NOT mandatory AND NOT (size_min > 0)"
+    expression: running_flow <= size_built

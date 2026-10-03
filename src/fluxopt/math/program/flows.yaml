@@ -28,6 +28,9 @@ parameters:
   # The largest rate a flow could ever carry: its fixed size, or the maximum
   # it could be sized to. A big-M wherever a binary has to release a rate.
   size_bound: { dims: [flow] }
+  # The size a flow was given as a number; 0 for every other flow, so `size`
+  # has a value at each flow and a decided size adds itself as a term.
+  fixed_size: { dims: [flow] }
   carrier_sign: { dims: [flow] }
 
   # The envelope as fractions of the size, for every flow whose rate is
@@ -55,6 +58,12 @@ variables:
     bounds: { lower: rate_min, upper: rate_max }
 
 expressions:
+  # What an envelope, a ramp or a load factor scales with. A decided size is
+  # a term `sizing.yaml` adds.
+  size:
+    dims: [flow, period]
+    expression: fixed_size
+    description: The size a flow has, whether it is decided or given.
   # Every contribution is named before it is summed, and keeps the entity it
   # came from. `time_weight` multiplies in the ledger rather than in the
   # coefficient, so a contribution reads as the physical per-step quantity.
@@ -72,7 +81,6 @@ expressions:
 given:
   expressions:
     direct_step: { dims: [effect, time, period] }
-    size: { dims: [flow, period] }
 
 constraints:
   carrier_balance:

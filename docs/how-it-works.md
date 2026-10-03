@@ -63,11 +63,17 @@ no second implementation in Python. The same files are:
 The Math pages explain each feature. The program pages show exactly what the
 solver reads.
 
-`system.spec()` merges only the files the system uses. Flows, effects,
-sizing, investment, status and reporting are always in it. The storage,
-converter, piecewise and ramp files are in it only where an element needs
-them, so a system with no storage has no storage rows, no storage tables and
-no storage math to print.
+`system.spec()` merges only the files the system uses. Flows, effects and
+reporting are always in it. Each other file is in it only where an element
+needs it: converters, piecewise curves, storage, sizing, investment, status
+and ramps. A system with no storage has no storage rows, no storage tables
+and no storage math to print.
+
+Where two features meet, a third file holds the rows that read both, such as
+a flow that a Status gates and a Sizing sizes. That file is in the spec
+exactly where both features are. What the features charge for building is
+added to the ledger by `lump.yaml`, which is in the spec wherever something
+is built.
 
 ## The data is tables
 

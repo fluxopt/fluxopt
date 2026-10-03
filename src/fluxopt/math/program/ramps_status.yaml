@@ -1,0 +1,44 @@
+# A gated flow may jump from zero to its minimum in the step it starts, so
+# the step it starts in is released by the most it could carry. Composed
+# wherever `ramps.yaml` and `status.yaml` both are.
+description: A ramp limit that a start-up or a shut-down releases.
+
+dimensions:
+  time: { dtype: datetime }
+  period: { dtype: int }
+  flow: { dtype: str }
+  status_entity: { dtype: str }
+
+relations:
+  status_of: { key: flow, values: status_entity }
+
+given:
+  parameters:
+    size_bound: { dims: [flow] }
+    ramp_up_coeff: { dims: [flow, time, period] }
+    ramp_down_coeff: { dims: [flow, time, period] }
+  variables:
+    rate: { dims: [flow, time, period] }
+    startup: { dims: [status_entity, time, period], domain: binary }
+    shutdown: { dims: [status_entity, time, period], domain: binary }
+  expressions:
+    size: { dims: [flow, period] }
+
+expressions:
+  startup_release:
+    expression: size_bound * at(startup, by=status_of, over=status_entity, into=flow)
+    description: How far a start-up relaxes the ramp-up limit.
+  shutdown_release:
+    expression: size_bound * at(shutdown, by=status_of, over=status_entity, into=flow)
+    description: How far a shut-down relaxes the ramp-down limit.
+
+constraints:
+  gated_ramp_up:
+    dims: [flow, time, period]
+    where: "ramp_up_coeff AND status_of AND position(time) != 0"
+    expression: rate - shift(rate, along=time, offset=1) <= ramp_up_coeff * size + startup_release
+
+  gated_ramp_down:
+    dims: [flow, time, period]
+    where: "ramp_down_coeff AND status_of AND position(time) != 0"
+    expression: shift(rate, along=time, offset=1) - rate <= ramp_down_coeff * size + shutdown_release

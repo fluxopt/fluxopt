@@ -14,7 +14,19 @@ import pytest
 import specsolve
 from conftest import read, ts
 
-from fluxopt import Carrier, Converter, Effect, Flow, FlowSystem, PiecewiseConversion, Port, Storage
+from fluxopt import (
+    Carrier,
+    Converter,
+    Effect,
+    Flow,
+    FlowSystem,
+    Investment,
+    PiecewiseConversion,
+    Port,
+    Sizing,
+    Status,
+    Storage,
+)
 from fluxopt.math import CORE, PROGRAM, build_sources, program
 from fluxopt.math.sources import _bind
 
@@ -84,11 +96,11 @@ def test_a_new_fragment_adds_to_the_ledger_without_editing_it() -> None:
 
 
 def _heat(**elements: object) -> FlowSystem:
-    """Gas buys heat for a fixed demand; *elements* add what a case needs."""
+    """Gas or district heat for a fixed demand; *elements* add what a case needs."""
     ports = [
         Port(id='gas', imports=[Flow(carrier='gas', size=100, effects_per_flow_hour={'cost': 1.0})]),
+        Port(id='district', imports=[Flow(carrier='heat', size=100, effects_per_flow_hour={'cost': 5.0})]),
         Port(id='demand', exports=[Flow(carrier='heat', size=100, fixed_relative_profile=[0.2, 0.6, 0.4])]),
-        *elements.pop('ports', []),
     ]
     return FlowSystem(
         timesteps=ts(3),
@@ -100,16 +112,18 @@ def _heat(**elements: object) -> FlowSystem:
     )
 
 
-def _boiler() -> Converter:
-    return Converter.boiler('boiler', 0.9, Flow(carrier='gas', size=100), Flow(carrier='heat', size=100))
+def _boiler(**heat: object) -> Converter:
+    """A boiler whose heat flow takes *heat*: a size, a status, a ramp."""
+    out = Flow(carrier='heat', **{'size': 100, **heat})
+    return Converter.boiler('boiler', 0.9, Flow(carrier='gas', size=100), out)
 
 
-def _curve() -> Converter:
+def _curve(**conversion: object) -> Converter:
     return Converter(
         id='curve',
         inputs=[Flow(carrier='gas', short_id='fuel', size=100)],
         outputs=[Flow(carrier='heat', size=100)],
-        conversion=PiecewiseConversion(points={'fuel': [0, 40, 100], 'heat': [0, 35, 80]}),
+        conversion=PiecewiseConversion(points={'fuel': [10, 40, 100], 'heat': [8, 35, 80]}, **conversion),
     )
 
 
@@ -119,31 +133,63 @@ def _tank() -> Storage:
     )
 
 
-def _ramped() -> Converter:
-    heat = Flow(carrier='heat', size=100, ramp_up_per_hour=0.5, ramp_down_per_hour=0.5)
-    return Converter.boiler('ramped', 0.9, Flow(carrier='gas', size=100), heat)
+ON = {'status': Status(effects_per_startup={'cost': 1.0}), 'relative_rate_min': 0.2}
+RAMP = {'ramp_up_per_hour': 0.5, 'ramp_down_per_hour': 0.5}
+SIZED = {'size': Sizing(size_min=10, size_max=100, effects_per_size={'cost': 0.1})}
+INVESTED = {'size': Investment(size_min=10, size_max=100, effects_per_size_at_build={'cost': 0.1})}
+PERIODS = {'periods': [2020, 2030], 'period_weights': [10, 10]}
 
-
+#: Each system, and the fragments it composes besides the core.
 CASES = [
+    pytest.param({}, set(), id='flows alone'),
     pytest.param({'converters': [_boiler()]}, {'converters'}, id='a linear converter'),
     pytest.param({'converters': [_curve()]}, {'piecewise'}, id='a piecewise converter'),
-    pytest.param({'converters': [_boiler()], 'storages': [_tank()]}, {'converters', 'storage'}, id='a storage'),
-    pytest.param({'converters': [_ramped()]}, {'converters', 'ramps'}, id='a ramp'),
+    pytest.param({'storages': [_tank()]}, {'storage', 'lump'}, id='a storage'),
+    pytest.param({'converters': [_boiler(**RAMP)]}, {'converters', 'ramps'}, id='a ramp'),
+    pytest.param({'converters': [_boiler(**SIZED)]}, {'converters', 'sizing', 'lump'}, id='a sizing'),
+    pytest.param(
+        {'converters': [_boiler(**INVESTED)], **PERIODS},
+        {'converters', 'sizing', 'investment', 'lump'},
+        id='an investment',
+    ),
+    pytest.param({'converters': [_boiler(**ON)]}, {'converters', 'status'}, id='a status'),
+    pytest.param(
+        {'converters': [_boiler(**ON, **SIZED)]},
+        {'converters', 'status', 'sizing', 'lump', 'status_sizing'},
+        id='a status on a sizing',
+    ),
+    pytest.param(
+        {'converters': [_boiler(**ON, **RAMP)]},
+        {'converters', 'status', 'ramps', 'ramps_status'},
+        id='a status on a ramp',
+    ),
+    pytest.param(
+        {'converters': [_curve(status=Status())]}, {'piecewise', 'status', 'piecewise_status'}, id='a gated curve'
+    ),
 ]
+
+
+def _composed(spec: object) -> set[str]:
+    """The fragments whose every own name *spec* holds, by file stem."""
+    out = set()
+    for stem, path in FRAGMENTS.items():
+        own = ms.to_spec(path)
+        names = {*own.constraints, *own.expressions, *own.variables}
+        held = {*spec.constraints, *spec.expressions, *spec.variables}  # type: ignore[attr-defined]
+        if names <= held:
+            out.add(stem)
+        else:
+            assert not names & held, f'{stem} is composed in part: {sorted(names & held)}'
+    return out
 
 
 @pytest.mark.parametrize(('elements', 'optional'), CASES)
 def test_a_system_composes_the_core_and_the_fragments_its_elements_use(elements: dict, optional: set[str]) -> None:
-    """A fragment no element needs is left out of the spec, and so is every table it reads."""
+    """A fragment no element needs is left out of the spec, and so is every table it declares."""
     system = _heat(**elements)
-    left_out = {path.stem for path in PROGRAM.glob('*.yaml')} - CORE - optional
-    composed = system.spec()
-    for stem in left_out:
-        own = ms.to_spec(FRAGMENTS[stem])
-        assert not set(own.constraints) & set(composed.constraints), f'{stem} is left out, rows and all'
-        assert not set(own.parameters) & set(system.sources()), f'{stem} is left out, tables and all'
-    for stem in optional:
-        assert set(ms.to_spec(FRAGMENTS[stem]).constraints) <= set(composed.constraints), f'{stem} is composed'
+    assert _composed(system.spec()) == CORE | optional
+    declared = {*system.spec().parameters, *system.spec().relations}
+    assert set(system.sources()) - {*system.spec().dimensions} == declared, 'one table per declared name, no more'
 
 
 @pytest.mark.parametrize(('elements', 'optional'), CASES)
@@ -158,6 +204,8 @@ def test_the_composed_spec_solves_as_the_whole_program_does(elements: dict, opti
         objective=system.objective,
         converters=system.converters,
         storages=system.storages,
+        periods=system.periods,
+        period_weights=system.period_weights,
     )
     expected = specsolve.solve(program().expand('sos'), whole).objective
     assert system.optimize().objective == pytest.approx(expected, rel=1e-9)

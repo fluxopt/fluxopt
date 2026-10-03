@@ -15,6 +15,7 @@ names:
   level: E
   effect_step: "\\Phi^{\\text{temporal}}"
   effect_lump: "\\Phi^{\\text{lump}}"
+  effect_charged: "\\Phi^{\\text{charged}}"
   effect_total: "\\Phi"
   chosen_size: S
   size_built: y

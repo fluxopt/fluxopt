@@ -1,0 +1,42 @@
+# A curve with its own on/off decision is on where that decision is: its
+# weights sum to the binary rather than to 1. Composed wherever
+# `piecewise.yaml` and `status.yaml` both are.
+description: A piecewise curve that a Status switches on and off.
+
+dimensions:
+  time: { dtype: datetime }
+  period: { dtype: int }
+  converter: { dtype: str }
+  flow: { dtype: str }
+  status_entity: { dtype: str }
+  bp: { dtype: int }
+
+relations:
+  curve_of: { key: flow, values: converter }
+  pw_status_of: { key: converter, values: status_entity }
+
+given:
+  parameters:
+    pw_bp_present: { dims: [converter, bp], dtype: bool }
+    pw_ref: { dims: [flow] }
+    pw_avail_bound: { dims: [converter, time, period] }
+  variables:
+    rate: { dims: [flow, time, period] }
+    lam: { dims: [converter, bp, time, period] }
+    running: { dims: [status_entity, time, period], domain: binary }
+
+expressions:
+  curve_on:
+    expression: at(running, by=pw_status_of, over=status_entity, into=converter)
+    description: Whether a gated curve operates in a step.
+
+constraints:
+  pw_gated_convexity:
+    dims: [converter, time, period]
+    where: "count(pw_bp_present, over=bp) >= 1 AND pw_status_of"
+    expression: sum(lam, over=bp) == curve_on
+
+  pw_gated_availability:
+    dims: [converter, time, period]
+    where: "count(pw_bp_present, over=bp) >= 1 AND pw_status_of"
+    expression: sum(rate * pw_ref, by=curve_of, over=flow, into=converter) <= pw_avail_bound * curve_on

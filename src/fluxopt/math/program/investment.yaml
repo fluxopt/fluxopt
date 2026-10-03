@@ -10,6 +10,11 @@ dimensions:
   build_period: { dtype: int }
   effect: { dtype: str }
   flow: { dtype: str }
+  # The effect a share is taken from, as `effects.yaml` declares it.
+  source: { dtype: str }
+
+relations:
+  same: { key: source, values: effect }
 
 parameters:
   has_invest: { dims: [flow], dtype: bool }
@@ -71,12 +76,26 @@ expressions:
       + sum(contribution_invest_fixed_recurring, over=flow)
     description: What building and keeping the investments adds to each effect.
     adds_to: direct_lump
+  # Reported only: evaluated against a solve, never a row.
+  priced_invest_per_size_at_build:
+    expression: contribution_invest_per_size_at_build + sum(share * at(contribution_invest_per_size_at_build, by=same, over=effect, into=source), over=source)
+    description: What the built size charges where it was built, cross-effects included.
+  priced_invest_fixed_at_build:
+    expression: contribution_invest_fixed_at_build + sum(share * at(contribution_invest_fixed_at_build, by=same, over=effect, into=source), over=source)
+    description: What the build decision charges where it happened, cross-effects included.
+  priced_invest_per_size_recurring:
+    expression: contribution_invest_per_size_recurring + sum(share * at(contribution_invest_per_size_recurring, by=same, over=effect, into=source), over=source)
+    description: What keeping the size charges, cross-effects included.
+  priced_invest_fixed_recurring:
+    expression: contribution_invest_fixed_recurring + sum(share * at(contribution_invest_fixed_recurring, by=same, over=effect, into=source), over=source)
+    description: What keeping the unit charges, cross-effects included.
 
 given:
   parameters:
     mandatory: { dims: [flow], dtype: bool }
     size_min: { dims: [flow] }
     size_max: { dims: [flow] }
+    share: { dims: [effect, source, period] }
   variables:
     chosen_size: { dims: [flow, period] }
   expressions:

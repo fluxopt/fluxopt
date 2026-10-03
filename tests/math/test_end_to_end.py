@@ -137,5 +137,5 @@ class TestEndToEnd:
         assert 'effect' in read(result, 'effect_step', 'expression').dims
         assert 'time' in read(result, 'effect_step', 'expression').dims
 
-        # effects_lump
-        assert 'effect' in read(result, 'effect_lump', 'expression').dims
+        # what each effect is charged per period; nothing is built here, so no effect_lump
+        assert 'effect' in read(result, 'effect_charged', 'expression').dims

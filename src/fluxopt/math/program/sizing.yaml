@@ -1,5 +1,6 @@
-# A flow's size as a decision: whether it is built, and how large. The rows
-# that scale the rate by it are in `envelope.yaml`.
+# A flow's size as a decision: whether it is built, and how large, the rows
+# that scale an ungated rate by it, and what building it costs. A flow that a
+# Status gates as well takes its rows from `status_sizing.yaml`.
 description: A flow's size may be a decision, and what building it costs.
 
 dimensions:
@@ -7,8 +8,19 @@ dimensions:
   period: { dtype: int }
   effect: { dtype: str }
   flow: { dtype: str }
+  status_entity: { dtype: str }
+  # The effect a share is taken from, as `effects.yaml` declares it.
+  source: { dtype: str }
+
+relations:
+  # A gated flow takes the rows of `status_sizing.yaml` instead of these.
+  status_of: { key: flow, values: status_entity }
+  same: { key: source, values: effect }
 
 parameters:
+  # A flow whose size is a decision: a `Sizing`, or an `Investment`, which
+  # `investment.yaml` decides through the same variable.
+  size_decided: { dims: [flow], dtype: bool }
   has_sizing: { dims: [flow], dtype: bool }
   # Whether the build decision is already taken. Serves both mechanisms: a
   # flow's size is a `Sizing` or an `Investment`, never both, so the two
@@ -26,7 +38,7 @@ variables:
   # a period, whether it came from Sizing or from a build decision.
   chosen_size:
     dims: [flow, period]
-    where: "has_sizing OR has_invest"
+    where: "size_decided"
     bounds: { lower: 0, upper: size_max }
 
   # Every sized flow has one, not only the optional ones: a mandatory build
@@ -38,16 +50,15 @@ variables:
     domain: binary
 
 expressions:
-  # What an envelope, a ramp or a load factor scales with: the decision where
-  # the size is one, and the number a flow was given otherwise.
-  size:
+  decided_size:
     dims: [flow, period]
     cases:
       decided:
         when: "chosen_size"
         expression: chosen_size
-    otherwise: size_bound
-    description: The size a flow has, whether it is decided or given.
+    otherwise: 0
+    description: The size the solver chooses, where it chooses one.
+    adds_to: size
   contribution_flow_per_size:
     expression: chosen_size * effects_per_size
     description: What a flow's built size costs, per period.
@@ -58,13 +69,27 @@ expressions:
     expression: sum(contribution_flow_per_size, over=flow) + sum(contribution_flow_fixed, over=flow)
     description: What sizing the flows adds to each effect.
     adds_to: direct_lump
+  # Reported only: evaluated against a solve, never a row.
+  priced_flow_per_size:
+    expression: contribution_flow_per_size + sum(share * at(contribution_flow_per_size, by=same, over=effect, into=source), over=source)
+    description: What a flow's built size charges, cross-effects included.
+  priced_flow_fixed:
+    expression: contribution_flow_fixed + sum(share * at(contribution_flow_fixed, by=same, over=effect, into=source), over=source)
+    description: What deciding to build a flow charges, cross-effects included.
 
 given:
   parameters:
-    has_invest: { dims: [flow], dtype: bool }
-    size_bound: { dims: [flow] }
+    is_bounded: { dims: [flow], dtype: bool }
+    is_profile: { dims: [flow], dtype: bool }
+    relative_rate_min: { dims: [flow, time, period] }
+    relative_rate_max: { dims: [flow, time, period] }
+    fixed_relative_profile: { dims: [flow, time, period] }
+    share: { dims: [effect, source, period] }
+  variables:
+    rate: { dims: [flow, time, period] }
   expressions:
     direct_lump: { dims: [effect, period] }
+    size: { dims: [flow, period] }
 
 constraints:
   # A mandatory build is the same decision already taken, so the size rows
@@ -83,6 +108,23 @@ constraints:
     dims: [flow, period]
     where: "size_built"
     expression: chosen_size <= size_max * size_built
+
+  # --- rel_lb * S <= P <= rel_ub * S, or P = profile * S, for a decided size
+  # that nothing gates. A fixed size has its envelope in `rate_min`/`rate_max`.
+  sized_rate_min:
+    dims: [flow, time, period]
+    where: "is_bounded AND chosen_size AND NOT status_of"
+    expression: rate >= relative_rate_min * chosen_size
+
+  sized_rate_max:
+    dims: [flow, time, period]
+    where: "is_bounded AND chosen_size AND NOT status_of"
+    expression: rate <= relative_rate_max * chosen_size
+
+  sized_rate_fixed:
+    dims: [flow, time, period]
+    where: "is_profile AND chosen_size AND NOT status_of"
+    expression: rate == fixed_relative_profile * chosen_size
 
 assumptions:
   size_bounds_are_ordered:
