@@ -25,6 +25,8 @@ from fluxopt.types import align, compute_dt, normalize_timesteps
 from fluxopt.validation import validate_system
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from fluxopt.components import Converter, Port
     from fluxopt.elements import Carrier, Effect, Investment, Sizing, Status, Storage, _BoundFlow
     from fluxopt.types import Timesteps
@@ -35,7 +37,12 @@ PROGRAM = Path(__file__).with_name('program')
 """The directory of YAML fragments that mathspec composes into fluxopt's spec."""
 
 
-def program() -> Any:
+#: The fragments every system is composed of. Each other file under
+#: [`PROGRAM`][fluxopt.math.PROGRAM] is a feature a system leaves out when it uses none of it.
+CORE = frozenset({'effects', 'envelope', 'flows', 'investment', 'reporting', 'sizing', 'status'})
+
+
+def program(features: Iterable[str] | None = None) -> Any:
     """fluxopt's math, composed from its fragments, loaded and checked.
 
     A `mathspec.Spec`. Each file under [`PROGRAM`][fluxopt.math.PROGRAM] states one
@@ -43,12 +50,47 @@ def program() -> Any:
     the ledger as sums, and every feature adds its own term to them with
     ``adds_to:``, so ``merge`` writes the ledger. The engine verbs come from
     specsolve.
+
+    Args:
+        features: The fragments to compose besides [`CORE`][fluxopt.math.CORE], by file
+            stem, as a system's elements use them. Every
+            fragment when None.
     """
     from mathspec import merge
 
-    return merge(
-        sorted(PROGRAM.glob('*.yaml')), description='fluxopt: flows, converters and storages, and what they cost.'
+    paths = sorted(PROGRAM.glob('*.yaml'))
+    if features is not None:
+        paths = [path for path in paths if path.stem in CORE | set(features)]
+    return merge(paths, description='fluxopt: flows, converters and storages, and what they cost.')
+
+
+def _features(ports: list[Port], converters: list[Converter], storages: list[Storage]) -> set[str]:
+    """The fragments outside [`CORE`][fluxopt.math.CORE] that a system uses, by file stem."""
+    flows = [bf.flow for comp in (*ports, *converters, *storages) for bf in comp._qualified_flows()]
+    used = {
+        'storage': bool(storages),
+        'converters': any(c.conversion is None for c in converters),
+        'piecewise': any(c.conversion is not None for c in converters),
+        'ramps': any(f.ramp_up_per_hour is not None or f.ramp_down_per_hour is not None for f in flows),
+    }
+    return {name for name, on in used.items() if on}
+
+
+def _bind(tables: dict[str, pl.DataFrame], spec: Any) -> dict[str, pl.DataFrame]:
+    """The tables *spec* declares a name for, out of every table `build_sources` built.
+
+    Raises:
+        RuntimeError: If a table the spec has no name for holds a row: the
+            fragment that reads it was left out, and the solve would drop
+            what the row says.
+    """
+    declared = {*spec.dimensions, *spec.relations, *spec.parameters}
+    stray = sorted(
+        name for name, table in tables.items() if name not in declared and table.columns != [name] and len(table)
     )
+    if stray:
+        raise RuntimeError(f'tables {stray} hold rows, but no fragment composed for this system declares them')
+    return {name: table for name, table in tables.items() if name in declared}
 
 
 #: The polars dtypes a table's columns take, by column name. A value column
@@ -547,10 +589,10 @@ def _converters(converters: list[Converter], horizon: _Horizon) -> tuple[dict[st
     return sources, converter_of, width
 
 
-def _piecewise(converters: list[Converter], horizon: _Horizon) -> tuple[dict[str, Any], dict[str, str], int]:
+def _piecewise(converters: list[Converter], horizon: _Horizon) -> tuple[dict[str, Any], int]:
     """Piecewise curves: a link is a row on `flow`, its breakpoints the rows on `bp`.
 
-    Returns the tables, the flow -> converter map, and the widest curve.
+    Returns the tables and the widest curve.
     """
     curves = [c for c in converters if c.conversion is not None]
     identity: list[tuple[str, str, Any]] = []
@@ -616,7 +658,7 @@ def _piecewise(converters: list[Converter], horizon: _Horizon) -> tuple[dict[str
         ),
     }
     width = max((len(next(iter(c.conversion._iter_normalized()))[1]) for c in curves), default=0)  # type: ignore[union-attr]
-    return sources, {fid: conv for fid, conv, _ in identity}, width
+    return sources, width
 
 
 # --- storages ---------------------------------------------------------------
@@ -1010,14 +1052,12 @@ def build_sources(
     sign = {bf.id: float(bf.sign) for bf in bound}
     sources['carrier_sign'] = _frame({'flow': ids, 'value': [sign[f] for f in ids]}, {'flow': _STR, 'value': _FLOAT})
     linear, converter_of, width = _converters(converters, horizon)
-    curves, curve_converter_of, bp_width = _piecewise(converters, horizon)
+    curves, bp_width = _piecewise(converters, horizon)
     sources |= linear | curves | _storages(storages, horizon)
     effect_ids = [e.id for e in effects]
     sources |= _effects(effects, objective_weights(effect_ids, objective), horizon)
     sources['dt'] = pl.DataFrame({'time': horizon.time_series, 'value': horizon.dt})
     sources['time_weight'] = pl.DataFrame({'time': horizon.time_series, 'value': np.ones(horizon.n_time)})
-
-    converter_of |= curve_converter_of
 
     def relation(mapping: dict[str, str], key: str, target: str) -> pl.DataFrame:
         pairs = [(k, mapping[k]) for k in ids if k in mapping]

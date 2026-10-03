@@ -212,15 +212,21 @@ class FlowSystem(BaseModel):
         """The equations this system is solved as, before any number is bound.
 
         A `mathspec.Spec`, composed from the fragments under
-        [`fluxopt.math.PROGRAM`][fluxopt.math.PROGRAM], with the piecewise special-ordered sets
+        [`fluxopt.math.PROGRAM`][fluxopt.math.PROGRAM] that the system uses: the
+        [`CORE`][fluxopt.math.CORE], and a storage, converter, piecewise or ramp fragment only
+        where an element needs it. The piecewise special-ordered sets are
         written out as binaries so every solver takes it. Read it, typeset it (``mathspec.to_latex``), or
         extend it — ``mathspec.override`` it with a patch, or ``merge`` a
         fragment of your own onto the shipped ones — and solve the result
         with `specsolve.solve` against [`sources`][fluxopt.FlowSystem.sources].
         """
-        from fluxopt.math import program
+        return self._program().expand('sos')
 
-        return program().expand('sos')
+    def _program(self) -> Any:
+        from fluxopt.math import program
+        from fluxopt.math.sources import _features
+
+        return program(_features(self.ports, self.converters, self.storages))
 
     def sources(self, profiles: Mapping[str, pl.DataFrame] | None = None) -> dict[str, Any]:
         """The numbers [`spec`][fluxopt.FlowSystem.spec] is bound to, one table per declared name.
@@ -242,6 +248,7 @@ class FlowSystem(BaseModel):
                 lists every unresolvable ref with its element/field path.
         """
         from fluxopt.math import build_sources
+        from fluxopt.math.sources import _bind
 
         refs: list[tuple[str, ProfileRef]] = []
         for group in (self.carriers, self.effects, self.ports, self.converters, self.storages):
@@ -254,7 +261,7 @@ class FlowSystem(BaseModel):
             for group in groups:
                 _resolve_refs(group, profiles or {})
         carriers, effects, ports, converters, storages = groups
-        return build_sources(
+        tables = build_sources(
             timesteps=self.timesteps,
             carriers=carriers,
             effects=effects,
@@ -266,6 +273,7 @@ class FlowSystem(BaseModel):
             periods=self.periods,
             period_weights=self.period_weights,
         )
+        return _bind(tables, self._program())
 
     def optimize(
         self,
@@ -299,10 +307,8 @@ class FlowSystem(BaseModel):
         """
         import specsolve
 
-        from fluxopt.math import program
-
         return specsolve.solve(
-            self.spec() if solver == 'highs' else program(),
+            self.spec() if solver == 'highs' else self._program(),
             self.sources(profiles),
             solver,
             solver_options=solver_options or None,
