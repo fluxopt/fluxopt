@@ -56,9 +56,9 @@ class TestReadable:
         assert carrier_of.sort('flow')['carrier'].to_list() == ['heat', 'heat']
 
     def test_a_relation_holds_only_the_labels_it_is_defined_at(self) -> None:
-        """No storage here, so nothing charges one: an absent map, not null rows."""
+        """A relation keeps only the labels it maps: an absent map, not null rows."""
         sources = _system().sources()
-        assert _frame(sources['port_of']).is_empty()
+        assert 'port_of' not in sources, 'no storage here, so no storage fragment and none of its tables'
         assert _frame(sources['carrier_of']).height == 2
 
 

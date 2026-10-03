@@ -63,6 +63,12 @@ no second implementation in Python. The same files are:
 The Math pages explain each feature. The program pages show exactly what the
 solver reads.
 
+`system.spec()` merges only the files the system uses. Flows, effects,
+sizing, investment, status and reporting are always in it. The storage,
+converter, piecewise and ramp files are in it only where an element needs
+them, so a system with no storage has no storage rows, no storage tables and
+no storage math to print.
+
 ## The data is tables
 
 `system.sources()` returns every table the spec declares, keyed by the labels

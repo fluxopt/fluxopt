@@ -4,6 +4,7 @@ import numpy as np
 import polars as pl
 import pytest
 from conftest import Table, read, ts
+from mathspec.errors import SchemaError
 
 from fluxopt import Carrier, Effect, Flow, Port, Sizing, Status, Storage, optimize
 from fluxopt.components import Converter
@@ -22,12 +23,20 @@ LUMP = {
 }
 
 
+def _evaluated(result, name: str) -> pl.DataFrame:
+    """The named expression, or no rows where the system composed no fragment that declares it."""
+    try:
+        return result.evaluate(name)
+    except SchemaError:
+        return pl.DataFrame()
+
+
 def _gathered(result, names: dict[str, str], prefix: str, grid: pl.DataFrame) -> pl.DataFrame:
     """The named contributions summed onto *grid*, a zero `(contributor, effect[, time], value)` table."""
     keys = [c for c in grid.columns if c != 'value']
     total = grid
     for name, entity in names.items():
-        if not len(result.evaluate(f'{prefix}_{name}')):
+        if not len(_evaluated(result, f'{prefix}_{name}')):
             continue
         frame = read(result, f'{prefix}_{name}', 'expression').frame.rename({entity: 'contributor'})
         frame = frame.group_by(keys).agg(pl.col('value').sum().alias('added'))
@@ -46,7 +55,7 @@ def breakdown(result, *, priced: bool = True) -> dict[str, Table]:
     """
     rate = read(result, 'rate')
     contributors = rate.labels('flow')
-    if len(result.evaluate('level')):
+    if len(_evaluated(result, 'level')):
         contributors += read(result, 'level').labels('storage')
     effects = read(result, 'effect_total').labels('effect')
     grid = pl.DataFrame({'contributor': contributors}).join(pl.DataFrame({'effect': effects}), how='cross')

@@ -19,6 +19,7 @@ A feature the program does not express yet raises
 """
 
 from fluxopt.math.sources import (
+    CORE,
     PROGRAM,
     UnsupportedFeatureError,
     build_sources,
@@ -27,6 +28,7 @@ from fluxopt.math.sources import (
 )
 
 __all__ = [
+    'CORE',
     'PROGRAM',
     'UnsupportedFeatureError',
     'build_sources',

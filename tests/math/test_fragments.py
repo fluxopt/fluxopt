@@ -14,8 +14,9 @@ import pytest
 import specsolve
 from conftest import read, ts
 
-from fluxopt import Carrier, Effect, Flow, FlowSystem, Port
-from fluxopt.math import PROGRAM, program
+from fluxopt import Carrier, Converter, Effect, Flow, FlowSystem, PiecewiseConversion, Port, Storage
+from fluxopt.math import CORE, PROGRAM, build_sources, program
+from fluxopt.math.sources import _bind
 
 FRAGMENTS = {path.stem: path for path in sorted(PROGRAM.glob('*.yaml'))}
 
@@ -75,12 +76,96 @@ def test_a_new_fragment_adds_to_the_ledger_without_editing_it() -> None:
     )
     base = read(system.optimize(), 'effect_total').sel(effect='cost').item()
 
-    math = ms.merge([*FRAGMENTS.values(), GRID_FEE])
+    math = ms.merge([system.spec(), GRID_FEE])
     fee = pl.DataFrame({'flow': ['grid(elec)'], 'effect': ['cost'], 'value': [2.0]})
-    charged = (
-        read(specsolve.solve(math.expand('sos'), system.sources() | {'fee': fee}), 'effect_total')
-        .sel(effect='cost')
-        .item()
-    )
+    charged = read(specsolve.solve(math, system.sources() | {'fee': fee}), 'effect_total').sel(effect='cost').item()
 
     assert charged == pytest.approx(3 * base, rel=1e-6), 'a fee of 2 on a unit cost of 1 triples the bill'
+
+
+def _heat(**elements: object) -> FlowSystem:
+    """Gas buys heat for a fixed demand; *elements* add what a case needs."""
+    ports = [
+        Port(id='gas', imports=[Flow(carrier='gas', size=100, effects_per_flow_hour={'cost': 1.0})]),
+        Port(id='demand', exports=[Flow(carrier='heat', size=100, fixed_relative_profile=[0.2, 0.6, 0.4])]),
+        *elements.pop('ports', []),
+    ]
+    return FlowSystem(
+        timesteps=ts(3),
+        carriers=[Carrier(id='gas'), Carrier(id='heat')],
+        effects=[Effect(id='cost')],
+        objective='cost',
+        ports=ports,
+        **elements,
+    )
+
+
+def _boiler() -> Converter:
+    return Converter.boiler('boiler', 0.9, Flow(carrier='gas', size=100), Flow(carrier='heat', size=100))
+
+
+def _curve() -> Converter:
+    return Converter(
+        id='curve',
+        inputs=[Flow(carrier='gas', short_id='fuel', size=100)],
+        outputs=[Flow(carrier='heat', size=100)],
+        conversion=PiecewiseConversion(points={'fuel': [0, 40, 100], 'heat': [0, 35, 80]}),
+    )
+
+
+def _tank() -> Storage:
+    return Storage(
+        id='tank', charging=Flow(carrier='heat', size=20), discharging=Flow(carrier='heat', size=20), capacity=50
+    )
+
+
+def _ramped() -> Converter:
+    heat = Flow(carrier='heat', size=100, ramp_up_per_hour=0.5, ramp_down_per_hour=0.5)
+    return Converter.boiler('ramped', 0.9, Flow(carrier='gas', size=100), heat)
+
+
+CASES = [
+    pytest.param({'converters': [_boiler()]}, {'converters'}, id='a linear converter'),
+    pytest.param({'converters': [_curve()]}, {'piecewise'}, id='a piecewise converter'),
+    pytest.param({'converters': [_boiler()], 'storages': [_tank()]}, {'converters', 'storage'}, id='a storage'),
+    pytest.param({'converters': [_ramped()]}, {'converters', 'ramps'}, id='a ramp'),
+]
+
+
+@pytest.mark.parametrize(('elements', 'optional'), CASES)
+def test_a_system_composes_the_core_and_the_fragments_its_elements_use(elements: dict, optional: set[str]) -> None:
+    """A fragment no element needs is left out of the spec, and so is every table it reads."""
+    system = _heat(**elements)
+    left_out = {path.stem for path in PROGRAM.glob('*.yaml')} - CORE - optional
+    composed = system.spec()
+    for stem in left_out:
+        own = ms.to_spec(FRAGMENTS[stem])
+        assert not set(own.constraints) & set(composed.constraints), f'{stem} is left out, rows and all'
+        assert not set(own.parameters) & set(system.sources()), f'{stem} is left out, tables and all'
+    for stem in optional:
+        assert set(ms.to_spec(FRAGMENTS[stem]).constraints) <= set(composed.constraints), f'{stem} is composed'
+
+
+@pytest.mark.parametrize(('elements', 'optional'), CASES)
+def test_the_composed_spec_solves_as_the_whole_program_does(elements: dict, optional: set[str]) -> None:
+    """Leaving a fragment out changes no answer: every row it would build is absent anyway."""
+    system = _heat(**elements)
+    whole = build_sources(
+        timesteps=system.timesteps,
+        carriers=system.carriers,
+        effects=system.effects,
+        ports=system.ports,
+        objective=system.objective,
+        converters=system.converters,
+        storages=system.storages,
+    )
+    expected = specsolve.solve(program().expand('sos'), whole).objective
+    assert system.optimize().objective == pytest.approx(expected, rel=1e-9)
+
+
+def test_a_table_with_rows_that_no_composed_fragment_reads_is_refused() -> None:
+    """The guard behind every left-out fragment: a dropped row would be a dropped constraint."""
+    system = _heat(converters=[_boiler()])
+    tables = system.sources() | {'port_of': pl.DataFrame({'flow': ['x'], 'storage': ['tank'], 'side': ['charge']})}
+    with pytest.raises(RuntimeError, match=r"\['port_of'\] hold rows"):
+        _bind(tables, system.spec())

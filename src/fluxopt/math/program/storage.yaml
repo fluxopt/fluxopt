@@ -8,6 +8,8 @@ dimensions:
   effect: { dtype: str }
   storage: { dtype: str }
   flow: { dtype: str }
+  # The effect a share is taken from, as `effects.yaml` declares it.
+  source: { dtype: str }
   # The two ports of a storage. A flow on the charge port fills it, a flow on
   # the discharge port empties it.
   side: { dtype: str }
@@ -15,6 +17,7 @@ dimensions:
 relations:
   # The storage and the port a flow is on. A flow on no storage has no row.
   port_of: { key: flow, values: [storage, side] }
+  same: { key: source, values: effect }
 
 parameters:
   # A storage whose capacity is given rather than decided.
@@ -125,15 +128,28 @@ expressions:
       + sum(contribution_storage_fixed, over=storage)
     description: What building the storages adds to each effect.
     adds_to: direct_lump
+  # Reported only: evaluated against a solve, never a row.
+  relative_mean_level:
+    expression: sum(level * dt * time_weight, over=time) / (total_duration * capacity)
+    description: The mean level of each storage, as a share of its capacity.
+  priced_storage_per_capacity:
+    expression: contribution_storage_per_capacity + sum(share * at(contribution_storage_per_capacity, by=same, over=effect, into=source), over=source)
+    description: What a storage's built capacity charges, cross-effects included.
+  priced_storage_fixed:
+    expression: contribution_storage_fixed + sum(share * at(contribution_storage_fixed, by=same, over=effect, into=source), over=source)
+    description: What deciding to build a storage charges, cross-effects included.
 
 given:
   parameters:
     size_bound: { dims: [flow] }
     dt: { dims: [time] }
+    time_weight: { dims: [time] }
+    share: { dims: [effect, source, period] }
   variables:
     rate: { dims: [flow, time, period] }
   expressions:
     direct_lump: { dims: [effect, period] }
+    total_duration: { dims: [] }
 
 constraints:
   storage_balance:

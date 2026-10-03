@@ -13,7 +13,6 @@ import specsolve as lpspec
 from conftest import ts
 
 from fluxopt import Carrier, Effect, Flow, FlowSystem, Investment, Port, Sizing, Status, Storage
-from fluxopt.math import program
 
 
 def _system() -> FlowSystem:
@@ -88,7 +87,7 @@ def _edit(table: object, value: float, side: str | None = None) -> pl.DataFrame:
 
 
 def test_the_shipped_numbers_hold_every_assumption() -> None:
-    lpspec.build(program().expand('sos'), _bound()).close()
+    lpspec.build(_system().spec(), _bound()).close()
 
 
 @pytest.mark.parametrize(
@@ -113,4 +112,4 @@ def test_an_edited_table_that_breaks_an_assumption_is_refused(
     bound = _bound()
     bound[parameter] = _edit(bound[parameter], value, side)
     with pytest.raises(lpspec.DataError, match=assumption):
-        lpspec.build(program().expand('sos'), bound)
+        lpspec.build(_system().spec(), bound)
