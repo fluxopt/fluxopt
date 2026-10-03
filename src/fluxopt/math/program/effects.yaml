@@ -1,8 +1,8 @@
 # The ledger: what each effect totals to, what bounds it, and what the solver
-# minimises. It knows no feature. What the features charge directly are sums
-# this file reads under `given:` and no file defines: each feature file adds
-# its own term with `adds_to:`, so a new feature adds a line to its own file
-# and none to this one.
+# minimises. It knows no feature. What the features charge in a step is a sum
+# this file reads under `given:`: each feature file adds its own term with
+# `adds_to:`, so a new feature adds a line to its own file and none to this
+# one. What building costs is a term `lump.yaml` adds to `effect_charged`.
 #
 # An effect may also be charged a share of another (CO2 priced into cost).
 # The shares arrive already chained through every path, so each effect is its
@@ -43,12 +43,15 @@ expressions:
   effect_step:
     expression: direct_step + sum(share * at(direct_step, by=same, over=effect, into=source), over=source)
     description: What running the system costs in a step, cross-effects included.
-  effect_lump:
-    expression: direct_lump + sum(share * at(direct_lump, by=same, over=effect, into=source), over=source)
-    description: What building it costs — one-time and recurring, cross-effects included.
   effect_temporal:
     expression: sum(effect_step * time_weight, over=time)
     description: What running the system costs, accumulated over the horizon.
+  # What running costs, and what building costs where `lump.yaml` adds it: a
+  # system may build nothing at all.
+  effect_charged:
+    dims: [effect, period]
+    expression: effect_temporal
+    description: What each effect is charged in a period, running and building together.
 
 given:
   parameters:
@@ -57,14 +60,11 @@ given:
     direct_step:
       dims: [effect, time, period]
       description: What the features charge each effect in a step.
-    direct_lump:
-      dims: [effect, period]
-      description: What the features charge each effect for building, per period.
 
 constraints:
   effect_accounting:
     dims: [effect, period]
-    expression: effect_total == effect_temporal + effect_lump
+    expression: effect_total == effect_charged
 
   effect_periodic_min:
     dims: [effect, period]

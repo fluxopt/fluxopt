@@ -12,12 +12,15 @@ dimensions:
   # The two states a decision can hold. Downtime is uptime with the state
   # inverted, so every duration rule is written once over `state`.
   state: { dtype: str }
+  # The effect a share is taken from, as `effects.yaml` declares it.
+  source: { dtype: str }
 
 relations:
   # The decision a flow's rate answers to: itself where the flow carries its
   # own Status, its component where a component's Status governs it, absent
   # where nothing gates it. `at()` reads the binary back through it.
   status_of: { key: flow, values: status_entity }
+  same: { key: source, values: effect }
 
 parameters:
   # A flow is gated where `status_of` has a row for it. Every parameter here
@@ -37,6 +40,9 @@ parameters:
   forced_at_start: { dims: [status_entity, state], dtype: bool }
   effects_per_running_hour: { dims: [status_entity, effect, time, period] } # running effects * dt
   effects_per_startup: { dims: [status_entity, effect, time, period] } # startup effects
+  # A gated flow whose envelope the decision scales by its size bound: every
+  # gated flow but one with a `Sizing`, which `status_sizing.yaml` bounds.
+  gates_rate: { dims: [flow], dtype: bool }
 
 variables:
   # No `where:` — membership of `status_entity` is the mask. An entity is in
@@ -94,10 +100,29 @@ expressions:
     expression: sum(contribution_running, over=status_entity) + sum(contribution_startup, over=status_entity)
     description: What running and starting add to each effect in a step.
     adds_to: direct_step
+  gated_size:
+    expression: size_bound * at(running, by=status_of, over=status_entity, into=flow)
+    description: The size a gated flow has while it runs, and 0 while it is off.
+  # Reported only: evaluated against a solve, never a row.
+  priced_running:
+    expression: contribution_running + sum(share * at(contribution_running, by=same, over=effect, into=source), over=source)
+    description: What being on charges per step, cross-effects included.
+  priced_startup:
+    expression: contribution_startup + sum(share * at(contribution_startup, by=same, over=effect, into=source), over=source)
+    description: What each start charges, cross-effects included.
 
 given:
   parameters:
     dt: { dims: [time] }
+    size_bound: { dims: [flow] }
+    is_bounded: { dims: [flow], dtype: bool }
+    is_profile: { dims: [flow], dtype: bool }
+    relative_rate_min: { dims: [flow, time, period] }
+    relative_rate_max: { dims: [flow, time, period] }
+    fixed_relative_profile: { dims: [flow, time, period] }
+    share: { dims: [effect, source, period] }
+  variables:
+    rate: { dims: [flow, time, period] }
   expressions:
     direct_step: { dims: [effect, time, period] }
 
@@ -147,6 +172,23 @@ constraints:
     dims: [status_entity, state, time, period]
     where: "position(time) == 0 AND forced_at_start"
     expression: in_state >= 1
+
+  # --- rel_lb * S <= P <= rel_ub * S, or P = profile * S, with S the size
+  # while the flow runs.
+  gated_rate_min:
+    dims: [flow, time, period]
+    where: "is_bounded AND gates_rate"
+    expression: rate >= relative_rate_min * gated_size
+
+  gated_rate_max:
+    dims: [flow, time, period]
+    where: "is_bounded AND gates_rate"
+    expression: rate <= relative_rate_max * gated_size
+
+  gated_rate_fixed:
+    dims: [flow, time, period]
+    where: "is_profile AND gates_rate"
+    expression: rate == fixed_relative_profile * gated_size
 
 assumptions:
   durations_are_ordered:

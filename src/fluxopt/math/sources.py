@@ -37,40 +37,67 @@ PROGRAM = Path(__file__).with_name('program')
 """The directory of YAML fragments that mathspec composes into fluxopt's spec."""
 
 
-CORE = frozenset({'effects', 'envelope', 'flows', 'investment', 'reporting', 'sizing', 'status'})
+CORE = frozenset({'effects', 'flows', 'reporting'})
 """The fragments every system is composed of, by file stem.
 
 Each other file under [`PROGRAM`][fluxopt.math.PROGRAM] is a feature a system leaves out when it
-uses none of it.
+uses none of it, the ledger of what the features build, or a join of two
+features that holds the rows reading both.
 """
+
+#: The features that charge for building: wherever one is composed,
+#: `lump.yaml` adds what they charge to the ledger.
+_BUILDERS = frozenset({'investment', 'sizing', 'storage'})
+
+#: Each join, and the features it joins. A join is composed exactly where
+#: all of its features are, so no row that reads two features is ever lost.
+_JOINS = {
+    'piecewise_status': frozenset({'piecewise', 'status'}),
+    'ramps_status': frozenset({'ramps', 'status'}),
+    'status_sizing': frozenset({'status', 'sizing'}),
+}
 
 
 def program(features: Iterable[str] | None = None) -> Any:
     """fluxopt's math, composed from its fragments, loaded and checked.
 
-    A `mathspec.Spec`. Each file under [`PROGRAM`][fluxopt.math.PROGRAM] states one
-    feature and loads on its own; ``effects.yaml`` reads the two halves of
-    the ledger as sums, and every feature adds its own term to them with
-    ``adds_to:``, so ``merge`` writes the ledger. The engine verbs come from
-    specsolve.
+    A `mathspec.Spec`. Each file under [`PROGRAM`][fluxopt.math.PROGRAM] loads on its own.
+    What the features charge in a step, and what they charge for building,
+    are sums each feature adds its own term to with ``adds_to:``, so
+    ``merge`` writes the ledger. A feature's rows that read another feature
+    live in a join of the two. The engine verbs come from specsolve.
 
     Args:
-        features: The fragments to compose besides [`CORE`][fluxopt.math.CORE], by file
-            stem, as a system's elements use them. Every
-            fragment when None.
+        features: The features to compose besides [`CORE`][fluxopt.math.CORE], by file
+            stem, as a system's elements use them; the ledger of what they
+            build and the joins between them follow. Every fragment when None.
     """
     from mathspec import merge
 
     paths = sorted(PROGRAM.glob('*.yaml'))
     if features is not None:
-        paths = [path for path in paths if path.stem in CORE | set(features)]
+        chosen = set(features) | ({'lump'} if _BUILDERS & set(features) else set())
+        chosen |= {join for join, parts in _JOINS.items() if parts <= chosen}
+        paths = [path for path in paths if path.stem in CORE | chosen]
     return merge(paths, description='fluxopt: flows, converters and storages, and what they cost.')
 
 
 def _features(ports: list[Port], converters: list[Converter], storages: list[Storage]) -> set[str]:
-    """The fragments outside [`CORE`][fluxopt.math.CORE] that a system uses, by file stem."""
+    """The features outside [`CORE`][fluxopt.math.CORE] that a system uses, by file stem.
+
+    Each test reads the elements the way `build_sources` fills the feature's
+    own tables, so a feature left out has no row to lose; `_bind` refuses
+    the solve where one disagrees.
+    """
+    from fluxopt.elements import Investment, Sizing
+
     flows = [bf.flow for comp in (*ports, *converters, *storages) for bf in comp._qualified_flows()]
     used = {
+        'sizing': any(isinstance(f.size, Sizing | Investment) for f in flows),
+        'investment': any(isinstance(f.size, Investment) for f in flows),
+        'status': any(f.status is not None for f in flows)
+        or any(s.status is not None for s in storages)
+        or any(c.conversion is not None and c.conversion.status is not None for c in converters),
         'storage': bool(storages),
         'converters': any(c.conversion is None for c in converters),
         'piecewise': any(c.conversion is not None for c in converters),
@@ -1049,6 +1076,10 @@ def build_sources(
     sources['is_bounded'] = _flags('flow', bounded)
     sources['is_profile'] = _flags('flow', flows.profiled)
     sources['size_bound'] = _size_bound(flows)
+    sources['fixed_size'] = _frame(
+        {'flow': ids, 'value': [flows.fixed_size.get(i, 0.0) for i in ids]}, {'flow': _STR, 'value': _FLOAT}
+    )
+    sources['size_decided'] = _flags('flow', [i for i in ids if i in sizing_ids or i in invest_ids])
     sources |= _sizing(flows, horizon)
 
     # --- carriers, conversion, storage, effects -------------------------------
@@ -1072,6 +1103,7 @@ def build_sources(
     sources['carrier_of'] = relation(carrier_of, 'flow', 'carrier')
     sources['converter_of'] = relation(converter_of, 'flow', 'converter')
     sources['status_of'] = relation(status_of, 'flow', 'status_entity')
+    sources['gates_rate'] = _flags('flow', [f for f in ids if f in status_of and f not in sizing_ids])
 
     carrier_ids = [node_id(c.id, n) if n else c.id for c in carriers for n in c.nodes or [None]]
     converter_ids = list(

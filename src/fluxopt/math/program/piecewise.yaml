@@ -38,22 +38,9 @@ variables:
     where: "pw_bp_present"
     bounds: { lower: 0, upper: 1 }
 
-expressions:
-  # A curve with its own on/off decision is on where that decision is; any
-  # other curve is always on.
-  curve_on:
-    dims: [converter, time, period]
-    cases:
-      gated:
-        when: "pw_status_of"
-        expression: at(running, by=pw_status_of, over=status_entity, into=converter)
-    otherwise: 1
-    description: Whether a curve operates in a step.
-
 given:
   variables:
     rate: { dims: [flow, time, period] }
-    running: { dims: [status_entity, time, period], domain: binary }
 
 # The restriction that makes the weights a piecewise curve rather than any
 # convex combination: at most two nonzero, and those two adjacent. A set
@@ -68,11 +55,13 @@ sos:
     description: The operating point lies on one segment of the curve.
 
 constraints:
-  # --- one convexity row per curve, one link row per curve flow.
+  # --- one convexity row per curve, one link row per curve flow. A curve
+  # with its own on/off decision takes its convexity and availability rows
+  # from `piecewise_status.yaml`; any other curve is always on.
   pw_convexity:
     dims: [converter, time, period]
-    where: "count(pw_bp_present, over=bp) >= 1"
-    expression: sum(lam, over=bp) == curve_on
+    where: "count(pw_bp_present, over=bp) >= 1 AND NOT pw_status_of"
+    expression: sum(lam, over=bp) == 1
 
   # A link is a row keyed on the flow, so a curve ties as many flows as it has.
   pw_link_equal:
@@ -94,5 +83,5 @@ constraints:
   # reference link instead of moving the breakpoints.
   pw_availability:
     dims: [converter, time, period]
-    where: "count(pw_bp_present, over=bp) >= 1"
-    expression: sum(rate * pw_ref, by=curve_of, over=flow, into=converter) <= pw_avail_bound * curve_on
+    where: "count(pw_bp_present, over=bp) >= 1 AND NOT pw_status_of"
+    expression: sum(rate * pw_ref, by=curve_of, over=flow, into=converter) <= pw_avail_bound

@@ -5,9 +5,7 @@ description: The quantities a result is reported in.
 dimensions:
   time: { dtype: datetime }
   period: { dtype: int }
-  build_period: { dtype: int }
   flow: { dtype: str }
-  status_entity: { dtype: str }
   effect: { dtype: str }
   source: { dtype: str }
 
@@ -32,30 +30,6 @@ expressions:
   priced_flow_hour:
     expression: contribution_flow_hour + sum(share * at(contribution_flow_hour, by=same, over=effect, into=source), over=source)
     description: What each flow's throughput charges per step, cross-effects included.
-  priced_running:
-    expression: contribution_running + sum(share * at(contribution_running, by=same, over=effect, into=source), over=source)
-    description: What being on charges per step, cross-effects included.
-  priced_startup:
-    expression: contribution_startup + sum(share * at(contribution_startup, by=same, over=effect, into=source), over=source)
-    description: What each start charges, cross-effects included.
-  priced_flow_per_size:
-    expression: contribution_flow_per_size + sum(share * at(contribution_flow_per_size, by=same, over=effect, into=source), over=source)
-    description: What a flow's built size charges, cross-effects included.
-  priced_flow_fixed:
-    expression: contribution_flow_fixed + sum(share * at(contribution_flow_fixed, by=same, over=effect, into=source), over=source)
-    description: What deciding to build a flow charges, cross-effects included.
-  priced_invest_per_size_at_build:
-    expression: contribution_invest_per_size_at_build + sum(share * at(contribution_invest_per_size_at_build, by=same, over=effect, into=source), over=source)
-    description: What the built size charges where it was built, cross-effects included.
-  priced_invest_fixed_at_build:
-    expression: contribution_invest_fixed_at_build + sum(share * at(contribution_invest_fixed_at_build, by=same, over=effect, into=source), over=source)
-    description: What the build decision charges where it happened, cross-effects included.
-  priced_invest_per_size_recurring:
-    expression: contribution_invest_per_size_recurring + sum(share * at(contribution_invest_per_size_recurring, by=same, over=effect, into=source), over=source)
-    description: What keeping the size charges, cross-effects included.
-  priced_invest_fixed_recurring:
-    expression: contribution_invest_fixed_recurring + sum(share * at(contribution_invest_fixed_recurring, by=same, over=effect, into=source), over=source)
-    description: What keeping the unit charges, cross-effects included.
 
 given:
   parameters:
@@ -69,11 +43,3 @@ given:
     size: { dims: [flow, period] }
     flow_hours: { dims: [flow, period] }
     contribution_flow_hour: { dims: [flow, effect, time, period] }
-    contribution_running: { dims: [status_entity, effect, time, period] }
-    contribution_startup: { dims: [status_entity, effect, time, period] }
-    contribution_flow_per_size: { dims: [flow, effect, period] }
-    contribution_flow_fixed: { dims: [flow, effect, period] }
-    contribution_invest_per_size_at_build: { dims: [flow, effect, period, build_period] }
-    contribution_invest_fixed_at_build: { dims: [flow, effect, period, build_period] }
-    contribution_invest_per_size_recurring: { dims: [flow, effect, period] }
-    contribution_invest_fixed_recurring: { dims: [flow, effect, period] }

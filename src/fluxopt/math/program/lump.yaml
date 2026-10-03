@@ -1,0 +1,29 @@
+# What the features charge for building is a sum each feature that builds
+# adds its term to. Priced here, with what it charges through
+# `contribution_from`, and added to the ledger. Composed wherever a feature
+# that builds is: sizing, investment or storage.
+description: What building charges each effect, cross-effects included.
+
+dimensions:
+  period: { dtype: int }
+  effect: { dtype: str }
+  # The effect a share is taken from, as `effects.yaml` declares it.
+  source: { dtype: str }
+
+relations:
+  same: { key: source, values: effect }
+
+given:
+  parameters:
+    share: { dims: [effect, source, period] }
+  expressions:
+    direct_lump:
+      dims: [effect, period]
+      description: What the features charge each effect for building, per period.
+    effect_charged: { dims: [effect, period] }
+
+expressions:
+  effect_lump:
+    expression: direct_lump + sum(share * at(direct_lump, by=same, over=effect, into=source), over=source)
+    description: What building it costs — one-time and recurring, cross-effects included.
+    adds_to: effect_charged

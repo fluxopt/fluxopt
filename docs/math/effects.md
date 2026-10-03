@@ -154,7 +154,7 @@ Per-timestep effect bounds do not exist: nothing binds effects per timestep.
 | Symbol | Description | Reference |
 |---|---|---|
 | \(\Phi_{k,t(,p)}^{\text{temporal}}\) | Per-timestep effect expression | `effect_step[effect, time(, period)]` in the program |
-| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect expression (sizing + one-time costs) | `effect_lump[effect(, period)]` |
+| \(\Phi_{k(,p)}^{\text{lump}}\) | Lump effect expression (sizing + one-time costs), in the spec where something is built | `effect_lump[effect(, period)]` |
 | \(\Phi_{k(,p)}\) | Total effect variable | `effect_total[effect(, period)]` |
 | \(\mathrm{c}_{f,k,t}\) | Effect coefficient per flow-hour | [`Flow.effects_per_flow_hour`][fluxopt.Flow.effects_per_flow_hour] |
 | \(\alpha_{k,j}\) | Cross-effect contribution factor (scalar or per period) | [`Effect.contribution_from`][fluxopt.Effect.contribution_from] |

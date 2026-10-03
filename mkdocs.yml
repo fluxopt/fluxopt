@@ -45,18 +45,23 @@ nav:
       - Status: math/status.md
       # One page per YAML fragment, printed by `python -m tools.program_pages`,
       # which `docs-build` runs first.
+      # Every system composes the core; a feature joins where an element
+      # uses it, and a join where both of its features do.
       - The program:
           - flows: math/program/flows.md
-          - envelope: math/program/envelope.md
-          - ramps: math/program/ramps.md
+          - effects: math/program/effects.md
+          - reporting: math/program/reporting.md
           - converters: math/program/converters.md
           - piecewise: math/program/piecewise.md
           - storage: math/program/storage.md
           - status: math/program/status.md
           - sizing: math/program/sizing.md
           - investment: math/program/investment.md
-          - effects: math/program/effects.md
-          - reporting: math/program/reporting.md
+          - ramps: math/program/ramps.md
+          - lump: math/program/lump.md
+          - status_sizing: math/program/status_sizing.md
+          - ramps_status: math/program/ramps_status.md
+          - piecewise_status: math/program/piecewise_status.md
   - Reference:
       - Data in and out: data.md
       # One page per module that declares an `__all__`: the public surface,
