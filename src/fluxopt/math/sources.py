@@ -37,9 +37,12 @@ PROGRAM = Path(__file__).with_name('program')
 """The directory of YAML fragments that mathspec composes into fluxopt's spec."""
 
 
-#: The fragments every system is composed of. Each other file under
-#: [`PROGRAM`][fluxopt.math.PROGRAM] is a feature a system leaves out when it uses none of it.
 CORE = frozenset({'effects', 'envelope', 'flows', 'investment', 'reporting', 'sizing', 'status'})
+"""The fragments every system is composed of, by file stem.
+
+Each other file under [`PROGRAM`][fluxopt.math.PROGRAM] is a feature a system leaves out when it
+uses none of it.
+"""
 
 
 def program(features: Iterable[str] | None = None) -> Any:
