@@ -61,7 +61,7 @@ constraints:
     where: carrier_sign > 0
     expression: rate <= cap
 """
-    spec = ms.override(system.spec(), {'cap': patch})
+    spec = ms.override(system.spec(), [patch])
     cap = pl.DataFrame({'time': ts(3), 'value': [5.0, 5.0, 5.0]})
     result = specsolve.solve(spec, system.sources() | {'cap': cap})
     assert result.objective == pytest.approx(12.0), 'a cap of 5 does not bind on a demand of at most 3'

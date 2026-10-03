@@ -103,7 +103,7 @@ def test_the_shipped_numbers_hold_every_assumption() -> None:
         pytest.param('capacity_min', 200.0, None, 'capacity_bounds_are_ordered', id='a capacity minimum above max'),
         pytest.param('storage_coeff', 1.5, 'charge', 'charging_efficiency_is_a_fraction', id='eta_charge above 1'),
         pytest.param('storage_coeff', -0.5, 'discharge', 'discharging_efficiency_is_a_fraction', id='eta_d above 1'),
-        pytest.param('retention', 1.2, None, 'loss_is_a_fraction', id='a negative loss'),
+        pytest.param('relative_loss_per_hour', -0.2, None, 'loss_is_a_fraction', id='a negative loss'),
     ],
 )
 def test_an_edited_table_that_breaks_an_assumption_is_refused(

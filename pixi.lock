@@ -123,12 +123,12 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/uc-micro-py-2.0.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zipp-4.1.0-pyhcf101f3_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/23/0a/ba69d2dde1ae12ef1d389ea5a216384c5ff6ef7a1e7a48d1e9b6686f6790/py_cpuinfo2-10.1.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/40/b5/1b84b2c784db76d69442334bc8b8748c840f13ca53be086f4f250ad4a0bc/narwhals-2.26.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9b/90/101196c24ffff5f6344e4c50b11a07bf8c4fafb88f960664dbede0cbd38a/pytest_benchmem-0.5.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/cb/67/0c0f18e38d7f2d2af8c24b3315bc4046e73bbdd4a5540405506671ad0c0d/pandas-3.0.6-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl
@@ -202,13 +202,13 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/tk-8.6.13-ha6c374e_4.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/yaml-0.2.5-had63097_3.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/23/0a/ba69d2dde1ae12ef1d389ea5a216384c5ff6ef7a1e7a48d1e9b6686f6790/py_cpuinfo2-10.1.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/40/b5/1b84b2c784db76d69442334bc8b8748c840f13ca53be086f4f250ad4a0bc/narwhals-2.26.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/4c/597d588c055d4373cff19cbbc32d4dd046c7be8fadee957585b5ba9e5b24/pandas-3.0.6-cp312-cp312-macosx_10_13_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9b/90/101196c24ffff5f6344e4c50b11a07bf8c4fafb88f960664dbede0cbd38a/pytest_benchmem-0.5.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/dc/bf/205d0004930ede8f542fb58f601526fccf4ae7626075ca1e6c4de5d3d652/typer-0.27.2-py3-none-any.whl
@@ -282,13 +282,13 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/tk-8.6.13-hbeba79b_4.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/yaml-0.2.5-h74c22ad_3.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/18/8f/48907c7c707b61a8e5018c32e1a3f70623209bfb59020a2f6196159d3aa7/pandas-3.0.6-cp312-cp312-macosx_11_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/23/0a/ba69d2dde1ae12ef1d389ea5a216384c5ff6ef7a1e7a48d1e9b6686f6790/py_cpuinfo2-10.1.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/40/b5/1b84b2c784db76d69442334bc8b8748c840f13ca53be086f4f250ad4a0bc/narwhals-2.26.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9b/90/101196c24ffff5f6344e4c50b11a07bf8c4fafb88f960664dbede0cbd38a/pytest_benchmem-0.5.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/dc/bf/205d0004930ede8f542fb58f601526fccf4ae7626075ca1e6c4de5d3d652/typer-0.27.2-py3-none-any.whl
@@ -507,9 +507,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zipp-4.1.0-pyhcf101f3_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       osx-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -702,9 +702,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/zizmor-1.30.1-he704061_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/zstd-1.5.7-hbc1a06c_7.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       osx-arm64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -897,9 +897,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zizmor-1.30.1-hc2d82ec_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zstd-1.5.7-hf451053_7.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       win-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1086,9 +1086,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/zizmor-1.30.1-h18a1a76_0.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/zstd-1.5.7-h534d264_7.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
   py312:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -1156,9 +1156,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       osx-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1214,9 +1214,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/tk-8.6.13-ha6c374e_4.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/yaml-0.2.5-had63097_3.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       osx-arm64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1273,9 +1273,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/tk-8.6.13-hbeba79b_4.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/yaml-0.2.5-h74c22ad_3.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       win-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1335,9 +1335,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/vcomp14-14.51.36247-habf1de7_41.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/yaml-0.2.5-h6a83c73_3.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
   py313:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -1404,9 +1404,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       osx-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1463,9 +1463,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/tk-8.6.13-ha6c374e_4.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/yaml-0.2.5-had63097_3.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       osx-arm64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1523,9 +1523,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/tk-8.6.13-hbeba79b_4.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/yaml-0.2.5-h74c22ad_3.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       win-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1586,9 +1586,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/vcomp14-14.51.36247-habf1de7_41.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/yaml-0.2.5-h6a83c73_3.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
   py314:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -1655,9 +1655,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.16.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       osx-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1715,9 +1715,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-64/yaml-0.2.5-had63097_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-64/zstd-1.5.7-hbc1a06c_7.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       osx-arm64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1776,9 +1776,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/yaml-0.2.5-h74c22ad_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zstd-1.5.7-hf451053_7.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
       win-64:
       - conda: https://conda.anaconda.org/conda-forge/noarch/_python_abi3_support-1.0-hd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/annotated-types-0.8.0-pyhd8ed1ab_0.conda
@@ -1840,9 +1840,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/win-64/yaml-0.2.5-h6a83c73_3.conda
       - conda: https://conda.anaconda.org/conda-forge/win-64/zstd-1.5.7-h534d264_7.conda
       - pypi: ./
-      - pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-      - pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
       - pypi: https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
 packages:
 - conda: https://conda.anaconda.org/conda-forge/linux-64/_openmp_mutex-4.5-20_gnu.conda
   build_number: 20
@@ -1872,7 +1872,7 @@ packages:
   - zstd >=1.5.7,<1.6.0a0
   license: BSD-3-Clause AND MIT AND EPL-2.0
   purls:
-  - pkg:pypi/backports-zstd?source=project-defined-mapping
+  - pkg:pypi/backports-zstd?source=compressed-mapping
   run_exports: {}
   size: 241113
   timestamp: 1788491295568
@@ -1890,7 +1890,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/brotli?source=project-defined-mapping
+  - pkg:pypi/brotli?source=hash-mapping
   run_exports: {}
   size: 367657
   timestamp: 1788480501027
@@ -1935,7 +1935,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/cffi?source=project-defined-mapping
+  - pkg:pypi/cffi?source=compressed-mapping
   run_exports: {}
   size: 302937
   timestamp: 1788485303634
@@ -1964,7 +1964,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 418196
   timestamp: 1790542080154
@@ -1979,7 +1979,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 426491
   timestamp: 1790542080154
@@ -1994,7 +1994,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 446880
   timestamp: 1790542080154
@@ -2014,7 +2014,7 @@ packages:
   - __glibc >=2.17
   license: Apache-2.0 AND BSD-3-Clause AND PSF-2.0 AND MIT
   purls:
-  - pkg:pypi/cryptography?source=project-defined-mapping
+  - pkg:pypi/cryptography?source=compressed-mapping
   run_exports: {}
   size: 1826946
   timestamp: 1789121519742
@@ -2047,7 +2047,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/debugpy?source=project-defined-mapping
+  - pkg:pypi/debugpy?source=compressed-mapping
   run_exports: {}
   size: 2839311
   timestamp: 1789745263829
@@ -2121,7 +2121,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 4734958
   timestamp: 1789930409571
@@ -2138,7 +2138,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 4736597
   timestamp: 1789930403356
@@ -2155,7 +2155,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 4742737
   timestamp: 1789930409300
@@ -2949,7 +2949,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/markupsafe?source=project-defined-mapping
+  - pkg:pypi/markupsafe?source=hash-mapping
   run_exports: {}
   size: 26057
   timestamp: 1772445297924
@@ -2970,7 +2970,7 @@ packages:
   - libunwind >=1.8.3,<1.9.0a0
   license: Apache-2.0 AND BSD-3-Clause
   purls:
-  - pkg:pypi/memray?source=project-defined-mapping
+  - pkg:pypi/memray?source=compressed-mapping
   run_exports: {}
   size: 1859271
   timestamp: 1789695325693
@@ -3016,7 +3016,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/nh3?source=project-defined-mapping
+  - pkg:pypi/nh3?source=compressed-mapping
   run_exports: {}
   size: 690746
   timestamp: 1787526819319
@@ -3065,7 +3065,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=compressed-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -3088,7 +3088,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -3111,7 +3111,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -3189,7 +3189,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/polars-runtime-32?source=project-defined-mapping
+  - pkg:pypi/polars-runtime-32?source=compressed-mapping
   run_exports: {}
   size: 38925458
   timestamp: 1788957763651
@@ -3217,7 +3217,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/psutil?source=project-defined-mapping
+  - pkg:pypi/psutil?source=compressed-mapping
   run_exports: {}
   size: 225549
   timestamp: 1789682039049
@@ -3235,7 +3235,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1877770
   timestamp: 1789996105430
@@ -3253,7 +3253,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1877183
   timestamp: 1789996106423
@@ -3271,7 +3271,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1876209
   timestamp: 1789996107060
@@ -3303,7 +3303,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pytest-codspeed?source=project-defined-mapping
+  - pkg:pypi/pytest-codspeed?source=hash-mapping
   run_exports: {}
   size: 257935
   timestamp: 1779476579037
@@ -3420,7 +3420,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 198293
   timestamp: 1770223620706
@@ -3436,7 +3436,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 201616
   timestamp: 1770223543730
@@ -3452,7 +3452,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 202391
   timestamp: 1770223462836
@@ -3471,7 +3471,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pyzmq?source=project-defined-mapping
+  - pkg:pypi/pyzmq?source=compressed-mapping
   run_exports: {}
   size: 216556
   timestamp: 1789730121925
@@ -3503,7 +3503,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/rpds-py?source=project-defined-mapping
+  - pkg:pypi/rpds-py?source=hash-mapping
   run_exports: {}
   size: 300882
   timestamp: 1788577343073
@@ -3518,7 +3518,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruamel-yaml-clib?source=project-defined-mapping
+  - pkg:pypi/ruamel-yaml-clib?source=compressed-mapping
   run_exports: {}
   size: 158648
   timestamp: 1788881211578
@@ -3535,7 +3535,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruff?source=project-defined-mapping
+  - pkg:pypi/ruff?source=hash-mapping
   run_exports: {}
   size: 9384917
   timestamp: 1784938279462
@@ -3582,7 +3582,7 @@ packages:
   license: Apache-2.0
   license_family: Apache
   purls:
-  - pkg:pypi/tornado?source=project-defined-mapping
+  - pkg:pypi/tornado?source=compressed-mapping
   run_exports: {}
   size: 895392
   timestamp: 1789911035492
@@ -3609,7 +3609,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/watchdog?source=project-defined-mapping
+  - pkg:pypi/watchdog?source=hash-mapping
   run_exports: {}
   size: 151153
   timestamp: 1788503137468
@@ -3626,7 +3626,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/wcwidth?source=project-defined-mapping
+  - pkg:pypi/wcwidth?source=compressed-mapping
   run_exports: {}
   size: 315557
   timestamp: 1790370054605
@@ -3667,7 +3667,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zensical?source=project-defined-mapping
+  - pkg:pypi/zensical?source=compressed-mapping
   run_exports: {}
   size: 8521821
   timestamp: 1789838439201
@@ -3699,7 +3699,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zizmor?source=project-defined-mapping
+  - pkg:pypi/zizmor?source=compressed-mapping
   run_exports: {}
   size: 7234541
   timestamp: 1788941488665
@@ -3738,7 +3738,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/annotated-types?source=project-defined-mapping
+  - pkg:pypi/annotated-types?source=hash-mapping
   run_exports: {}
   size: 19461
   timestamp: 1784935220549
@@ -3751,7 +3751,7 @@ packages:
   license: BSD-2-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/appnope?source=project-defined-mapping
+  - pkg:pypi/appnope?source=hash-mapping
   run_exports: {}
   size: 12232
   timestamp: 1787337124448
@@ -3765,7 +3765,7 @@ packages:
   license: Apache-2.0
   license_family: Apache
   purls:
-  - pkg:pypi/asttokens?source=project-defined-mapping
+  - pkg:pypi/asttokens?source=hash-mapping
   run_exports: {}
   size: 34639
   timestamp: 1783975742052
@@ -3778,7 +3778,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/attrs?source=project-defined-mapping
+  - pkg:pypi/attrs?source=hash-mapping
   run_exports: {}
   size: 64927
   timestamp: 1773935801332
@@ -3803,7 +3803,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/backports-tarfile?source=project-defined-mapping
+  - pkg:pypi/backports-tarfile?source=hash-mapping
   run_exports: {}
   size: 35739
   timestamp: 1767290467820
@@ -3817,7 +3817,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/beautifulsoup4?source=project-defined-mapping
+  - pkg:pypi/beautifulsoup4?source=hash-mapping
   run_exports: {}
   size: 92704
   timestamp: 1780853175566
@@ -3832,7 +3832,7 @@ packages:
   - tinycss2 >=1.1.0,<1.5
   license: Apache-2.0 AND MIT
   purls:
-  - pkg:pypi/bleach?source=project-defined-mapping
+  - pkg:pypi/bleach?source=hash-mapping
   run_exports: {}
   size: 142246
   timestamp: 1780675823953
@@ -3874,7 +3874,7 @@ packages:
   - python >=3.10
   license: ISC
   purls:
-  - pkg:pypi/certifi?source=project-defined-mapping
+  - pkg:pypi/certifi?source=hash-mapping
   run_exports: {}
   size: 137015
   timestamp: 1784717699092
@@ -3886,7 +3886,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/charset-normalizer?source=project-defined-mapping
+  - pkg:pypi/charset-normalizer?source=compressed-mapping
   run_exports: {}
   size: 64487
   timestamp: 1786835648298
@@ -3899,7 +3899,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/click?source=project-defined-mapping
+  - pkg:pypi/click?source=hash-mapping
   run_exports: {}
   size: 87749
   timestamp: 1747811451319
@@ -3913,7 +3913,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/click?source=project-defined-mapping
+  - pkg:pypi/click?source=hash-mapping
   run_exports: {}
   size: 88117
   timestamp: 1747811467132
@@ -3925,7 +3925,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/colorama?source=project-defined-mapping
+  - pkg:pypi/colorama?source=hash-mapping
   run_exports: {}
   size: 27011
   timestamp: 1733218222191
@@ -3938,7 +3938,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/comm?source=project-defined-mapping
+  - pkg:pypi/comm?source=hash-mapping
   run_exports: {}
   size: 14690
   timestamp: 1753453984907
@@ -3987,7 +3987,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/deepmerge?source=project-defined-mapping
+  - pkg:pypi/deepmerge?source=hash-mapping
   run_exports: {}
   size: 19047
   timestamp: 1788289944856
@@ -3999,7 +3999,7 @@ packages:
   license: PSF-2.0
   license_family: PSF
   purls:
-  - pkg:pypi/defusedxml?source=project-defined-mapping
+  - pkg:pypi/defusedxml?source=hash-mapping
   run_exports: {}
   size: 24062
   timestamp: 1615232388757
@@ -4012,7 +4012,7 @@ packages:
   license: LGPL-3.0-only
   license_family: LGPL
   purls:
-  - pkg:pypi/docutils?source=project-defined-mapping
+  - pkg:pypi/docutils?source=hash-mapping
   run_exports: {}
   size: 459540
   timestamp: 1779967837277
@@ -4025,7 +4025,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/editables?source=project-defined-mapping
+  - pkg:pypi/editables?source=hash-mapping
   run_exports: {}
   size: 13160
   timestamp: 1776172429816
@@ -4037,7 +4037,7 @@ packages:
   - typing_extensions >=4.6.0
   license: MIT and PSF-2.0
   purls:
-  - pkg:pypi/exceptiongroup?source=project-defined-mapping
+  - pkg:pypi/exceptiongroup?source=hash-mapping
   run_exports: {}
   size: 21333
   timestamp: 1763918099466
@@ -4049,7 +4049,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/execnet?source=project-defined-mapping
+  - pkg:pypi/execnet?source=hash-mapping
   run_exports: {}
   size: 39499
   timestamp: 1762974150770
@@ -4061,7 +4061,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/executing?source=project-defined-mapping
+  - pkg:pypi/executing?source=hash-mapping
   run_exports: {}
   size: 30753
   timestamp: 1756729456476
@@ -4074,7 +4074,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/ghp-import?source=project-defined-mapping
+  - pkg:pypi/ghp-import?source=hash-mapping
   run_exports: {}
   size: 16538
   timestamp: 1734344477841
@@ -4086,7 +4086,7 @@ packages:
   - python >=3.10
   license: ISC
   purls:
-  - pkg:pypi/griffe-pydantic?source=project-defined-mapping
+  - pkg:pypi/griffe-pydantic?source=hash-mapping
   run_exports: {}
   size: 18779
   timestamp: 1773144249922
@@ -4098,7 +4098,7 @@ packages:
   - python
   license: ISC
   purls:
-  - pkg:pypi/griffelib?source=project-defined-mapping
+  - pkg:pypi/griffelib?source=hash-mapping
   run_exports: {}
   size: 121899
   timestamp: 1788552621365
@@ -4113,7 +4113,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/h2?source=project-defined-mapping
+  - pkg:pypi/h2?source=hash-mapping
   run_exports: {}
   size: 100789
   timestamp: 1785796355216
@@ -4127,7 +4127,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/hatch-vcs?source=project-defined-mapping
+  - pkg:pypi/hatch-vcs?source=hash-mapping
   run_exports: {}
   size: 13842
   timestamp: 1748343600326
@@ -4146,7 +4146,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/hatchling?source=project-defined-mapping
+  - pkg:pypi/hatchling?source=compressed-mapping
   run_exports: {}
   size: 63070
   timestamp: 1789948339002
@@ -4158,7 +4158,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/hpack?source=project-defined-mapping
+  - pkg:pypi/hpack?source=hash-mapping
   run_exports: {}
   size: 32884
   timestamp: 1782283986153
@@ -4170,7 +4170,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/hyperframe?source=project-defined-mapping
+  - pkg:pypi/hyperframe?source=hash-mapping
   run_exports: {}
   size: 17397
   timestamp: 1737618427549
@@ -4184,7 +4184,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/id?source=project-defined-mapping
+  - pkg:pypi/id?source=hash-mapping
   run_exports: {}
   size: 27972
   timestamp: 1770237711404
@@ -4197,7 +4197,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/idna?source=project-defined-mapping
+  - pkg:pypi/idna?source=compressed-mapping
   run_exports: {}
   size: 178572
   timestamp: 1790020377150
@@ -4211,7 +4211,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/importlib-metadata?source=project-defined-mapping
+  - pkg:pypi/importlib-metadata?source=compressed-mapping
   run_exports: {}
   size: 34920
   timestamp: 1787943971257
@@ -4226,7 +4226,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/importlib-resources?source=project-defined-mapping
+  - pkg:pypi/importlib-resources?source=hash-mapping
   run_exports: {}
   size: 34809
   timestamp: 1776068839274
@@ -4238,7 +4238,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/iniconfig?source=project-defined-mapping
+  - pkg:pypi/iniconfig?source=hash-mapping
   run_exports: {}
   size: 13387
   timestamp: 1760831448842
@@ -4267,7 +4267,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/ipykernel?source=project-defined-mapping
+  - pkg:pypi/ipykernel?source=hash-mapping
   run_exports: {}
   size: 137725
   timestamp: 1781101860049
@@ -4295,7 +4295,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/ipykernel?source=project-defined-mapping
+  - pkg:pypi/ipykernel?source=hash-mapping
   run_exports: {}
   size: 138046
   timestamp: 1781101760172
@@ -4323,7 +4323,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/ipykernel?source=project-defined-mapping
+  - pkg:pypi/ipykernel?source=hash-mapping
   run_exports: {}
   size: 138635
   timestamp: 1781101665847
@@ -4347,7 +4347,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/ipython?source=project-defined-mapping
+  - pkg:pypi/ipython?source=compressed-mapping
   run_exports: {}
   size: 730678
   timestamp: 1788260388285
@@ -4371,7 +4371,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/ipython?source=project-defined-mapping
+  - pkg:pypi/ipython?source=hash-mapping
   run_exports: {}
   size: 729793
   timestamp: 1788260382682
@@ -4384,7 +4384,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/ipython-pygments-lexers?source=project-defined-mapping
+  - pkg:pypi/ipython-pygments-lexers?source=hash-mapping
   run_exports: {}
   size: 13993
   timestamp: 1737123723464
@@ -4398,7 +4398,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/jaraco-classes?source=project-defined-mapping
+  - pkg:pypi/jaraco-classes?source=hash-mapping
   run_exports: {}
   size: 14831
   timestamp: 1767294269456
@@ -4412,7 +4412,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/jaraco-context?source=project-defined-mapping
+  - pkg:pypi/jaraco-context?source=hash-mapping
   run_exports: {}
   size: 16222
   timestamp: 1776862415793
@@ -4426,7 +4426,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/jaraco-functools?source=project-defined-mapping
+  - pkg:pypi/jaraco-functools?source=hash-mapping
   run_exports: {}
   size: 18997
   timestamp: 1784015600777
@@ -4439,7 +4439,7 @@ packages:
   - python
   license: Apache-2.0 AND MIT
   purls:
-  - pkg:pypi/jedi?source=project-defined-mapping
+  - pkg:pypi/jedi?source=hash-mapping
   run_exports: {}
   size: 2715215
   timestamp: 1782251948616
@@ -4451,7 +4451,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/jeepney?source=project-defined-mapping
+  - pkg:pypi/jeepney?source=hash-mapping
   run_exports: {}
   size: 40015
   timestamp: 1740828380668
@@ -4465,7 +4465,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/jinja2?source=project-defined-mapping
+  - pkg:pypi/jinja2?source=hash-mapping
   run_exports: {}
   size: 120685
   timestamp: 1764517220861
@@ -4482,7 +4482,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/jsonschema?source=project-defined-mapping
+  - pkg:pypi/jsonschema?source=compressed-mapping
   run_exports: {}
   size: 82084
   timestamp: 1787579299493
@@ -4496,7 +4496,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/jsonschema-specifications?source=project-defined-mapping
+  - pkg:pypi/jsonschema-specifications?source=hash-mapping
   run_exports: {}
   size: 19236
   timestamp: 1757335715225
@@ -4515,7 +4515,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/jupyter-client?source=project-defined-mapping
+  - pkg:pypi/jupyter-client?source=compressed-mapping
   run_exports: {}
   size: 118962
   timestamp: 1787929615607
@@ -4534,7 +4534,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/jupyter-core?source=project-defined-mapping
+  - pkg:pypi/jupyter-core?source=hash-mapping
   run_exports: {}
   size: 64679
   timestamp: 1760643889625
@@ -4553,7 +4553,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/jupyter-core?source=project-defined-mapping
+  - pkg:pypi/jupyter-core?source=hash-mapping
   run_exports: {}
   size: 65503
   timestamp: 1760643864586
@@ -4568,7 +4568,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/jupyterlab-pygments?source=project-defined-mapping
+  - pkg:pypi/jupyterlab-pygments?source=hash-mapping
   run_exports: {}
   size: 18711
   timestamp: 1733328194037
@@ -4586,7 +4586,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/keyring?source=project-defined-mapping
+  - pkg:pypi/keyring?source=hash-mapping
   run_exports: {}
   size: 37924
   timestamp: 1763320995459
@@ -4605,7 +4605,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/keyring?source=project-defined-mapping
+  - pkg:pypi/keyring?source=hash-mapping
   run_exports: {}
   size: 38153
   timestamp: 1763320939579
@@ -4625,7 +4625,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/keyring?source=project-defined-mapping
+  - pkg:pypi/keyring?source=hash-mapping
   run_exports: {}
   size: 37717
   timestamp: 1763320674488
@@ -4639,7 +4639,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/linkify-it-py?source=project-defined-mapping
+  - pkg:pypi/linkify-it-py?source=hash-mapping
   run_exports: {}
   size: 27991
   timestamp: 1788173299262
@@ -4653,7 +4653,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/markdown?source=project-defined-mapping
+  - pkg:pypi/markdown?source=compressed-mapping
   run_exports: {}
   size: 87272
   timestamp: 1790351102689
@@ -4666,7 +4666,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/markdown-it-py?source=project-defined-mapping
+  - pkg:pypi/markdown-it-py?source=hash-mapping
   run_exports: {}
   size: 69017
   timestamp: 1778169663339
@@ -4679,7 +4679,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/matplotlib-inline?source=project-defined-mapping
+  - pkg:pypi/matplotlib-inline?source=hash-mapping
   run_exports: {}
   size: 15725
   timestamp: 1778264403247
@@ -4692,7 +4692,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/mdit-py-plugins?source=project-defined-mapping
+  - pkg:pypi/mdit-py-plugins?source=hash-mapping
   run_exports: {}
   size: 50460
   timestamp: 1778692223625
@@ -4704,7 +4704,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/mdurl?source=project-defined-mapping
+  - pkg:pypi/mdurl?source=hash-mapping
   run_exports: {}
   size: 14465
   timestamp: 1733255681319
@@ -4716,7 +4716,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/mergedeep?source=project-defined-mapping
+  - pkg:pypi/mergedeep?source=hash-mapping
   run_exports: {}
   size: 11676
   timestamp: 1734157119152
@@ -4730,7 +4730,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/mistune?source=project-defined-mapping
+  - pkg:pypi/mistune?source=hash-mapping
   run_exports: {}
   size: 93811
   timestamp: 1784722859728
@@ -4758,7 +4758,7 @@ packages:
   license: BSD-2-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/mkdocs?source=project-defined-mapping
+  - pkg:pypi/mkdocs?source=hash-mapping
   run_exports: {}
   size: 3524754
   timestamp: 1734344673481
@@ -4773,7 +4773,7 @@ packages:
   - python >=3.10
   license: ISC
   purls:
-  - pkg:pypi/mkdocs-autorefs?source=project-defined-mapping
+  - pkg:pypi/mkdocs-autorefs?source=hash-mapping
   run_exports: {}
   size: 35803
   timestamp: 1770749168710
@@ -4789,7 +4789,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/mkdocs-get-deps?source=project-defined-mapping
+  - pkg:pypi/mkdocs-get-deps?source=hash-mapping
   run_exports: {}
   size: 15572
   timestamp: 1773570672864
@@ -4809,7 +4809,7 @@ packages:
   - typing-extensions >=4.1
   license: ISC
   purls:
-  - pkg:pypi/mkdocstrings?source=project-defined-mapping
+  - pkg:pypi/mkdocstrings?source=hash-mapping
   run_exports: {}
   size: 37131
   timestamp: 1783874047038
@@ -4824,7 +4824,7 @@ packages:
   - typing_extensions >=4.0
   license: ISC
   purls:
-  - pkg:pypi/mkdocstrings-python?source=project-defined-mapping
+  - pkg:pypi/mkdocstrings-python?source=hash-mapping
   run_exports: {}
   size: 58594
   timestamp: 1788264033469
@@ -4837,7 +4837,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/more-itertools?source=project-defined-mapping
+  - pkg:pypi/more-itertools?source=hash-mapping
   run_exports: {}
   size: 71270
   timestamp: 1779478190496
@@ -4850,7 +4850,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/narwhals?source=project-defined-mapping
+  - pkg:pypi/narwhals?source=compressed-mapping
   run_exports: {}
   size: 296900
   timestamp: 1788964134075
@@ -4867,7 +4867,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/nbclient?source=project-defined-mapping
+  - pkg:pypi/nbclient?source=compressed-mapping
   run_exports: {}
   size: 29971
   timestamp: 1788212974885
@@ -4879,8 +4879,7 @@ packages:
   - nbconvert-pandoc ==7.17.1 h08b4883_0
   license: BSD-3-Clause
   license_family: BSD
-  purls:
-  - pkg:pypi/nbconvert?source=project-defined-mapping
+  purls: []
   run_exports: {}
   size: 5364
   timestamp: 1775615493260
@@ -4911,7 +4910,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/nbconvert?source=project-defined-mapping
+  - pkg:pypi/nbconvert?source=hash-mapping
   run_exports: {}
   size: 202229
   timestamp: 1775615493260
@@ -4940,7 +4939,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/nbformat?source=project-defined-mapping
+  - pkg:pypi/nbformat?source=compressed-mapping
   run_exports: {}
   size: 107750
   timestamp: 1787133512599
@@ -4953,7 +4952,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/nbstripout?source=project-defined-mapping
+  - pkg:pypi/nbstripout?source=hash-mapping
   run_exports: {}
   size: 24331
   timestamp: 1771778886946
@@ -4966,7 +4965,7 @@ packages:
   license: BSD-2-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/nest-asyncio2?source=project-defined-mapping
+  - pkg:pypi/nest-asyncio2?source=compressed-mapping
   run_exports: {}
   size: 16422
   timestamp: 1790240046978
@@ -4979,7 +4978,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/packaging?source=project-defined-mapping
+  - pkg:pypi/packaging?source=hash-mapping
   run_exports: {}
   size: 116363
   timestamp: 1785888127370
@@ -4991,7 +4990,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pandocfilters?source=project-defined-mapping
+  - pkg:pypi/pandocfilters?source=hash-mapping
   run_exports: {}
   size: 11627
   timestamp: 1631603397334
@@ -5004,7 +5003,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/parso?source=project-defined-mapping
+  - pkg:pypi/parso?source=hash-mapping
   run_exports: {}
   size: 82472
   timestamp: 1777722955579
@@ -5016,7 +5015,7 @@ packages:
   license: MPL-2.0
   license_family: MOZILLA
   purls:
-  - pkg:pypi/pathspec?source=project-defined-mapping
+  - pkg:pypi/pathspec?source=hash-mapping
   run_exports: {}
   size: 56559
   timestamp: 1777271601895
@@ -5028,7 +5027,7 @@ packages:
   - python >=3.9
   license: ISC
   purls:
-  - pkg:pypi/pexpect?source=project-defined-mapping
+  - pkg:pypi/pexpect?source=hash-mapping
   run_exports: {}
   size: 53561
   timestamp: 1733302019362
@@ -5040,7 +5039,7 @@ packages:
   - python
   license: MIT
   purls:
-  - pkg:pypi/platformdirs?source=project-defined-mapping
+  - pkg:pypi/platformdirs?source=compressed-mapping
   run_exports: {}
   size: 34083
   timestamp: 1790601106656
@@ -5056,7 +5055,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/plotly?source=project-defined-mapping
+  - pkg:pypi/plotly?source=compressed-mapping
   run_exports: {}
   size: 4790089
   timestamp: 1790103412929
@@ -5069,7 +5068,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pluggy?source=project-defined-mapping
+  - pkg:pypi/pluggy?source=hash-mapping
   run_exports: {}
   size: 25877
   timestamp: 1764896838868
@@ -5097,7 +5096,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/polars?source=project-defined-mapping
+  - pkg:pypi/polars?source=compressed-mapping
   run_exports: {}
   size: 559898
   timestamp: 1788957763651
@@ -5111,7 +5110,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pre-commit-hooks?source=project-defined-mapping
+  - pkg:pypi/pre-commit-hooks?source=hash-mapping
   run_exports: {}
   size: 35309
   timestamp: 1784284500973
@@ -5126,7 +5125,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/prompt-toolkit?source=project-defined-mapping
+  - pkg:pypi/prompt-toolkit?source=hash-mapping
   run_exports: {}
   size: 276081
   timestamp: 1785160613307
@@ -5137,7 +5136,7 @@ packages:
   - python >=3.9
   license: ISC
   purls:
-  - pkg:pypi/ptyprocess?source=project-defined-mapping
+  - pkg:pypi/ptyprocess?source=hash-mapping
   run_exports: {}
   size: 19457
   timestamp: 1733302371990
@@ -5149,7 +5148,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pure-eval?source=project-defined-mapping
+  - pkg:pypi/pure-eval?source=compressed-mapping
   run_exports: {}
   size: 18473
   timestamp: 1789159440378
@@ -5162,7 +5161,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pycparser?source=project-defined-mapping
+  - pkg:pypi/pycparser?source=hash-mapping
   run_exports: {}
   size: 55886
   timestamp: 1779293633166
@@ -5179,7 +5178,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic?source=project-defined-mapping
+  - pkg:pypi/pydantic?source=compressed-mapping
   run_exports: {}
   size: 346633
   timestamp: 1787941273167
@@ -5192,7 +5191,7 @@ packages:
   license: BSD-2-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pygments?source=project-defined-mapping
+  - pkg:pypi/pygments?source=compressed-mapping
   run_exports: {}
   size: 959376
   timestamp: 1786995678795
@@ -5206,7 +5205,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pymdown-extensions?source=project-defined-mapping
+  - pkg:pypi/pymdown-extensions?source=compressed-mapping
   run_exports: {}
   size: 179250
   timestamp: 1790213375964
@@ -5219,7 +5218,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyproject-hooks?source=project-defined-mapping
+  - pkg:pypi/pyproject-hooks?source=hash-mapping
   run_exports: {}
   size: 15528
   timestamp: 1733710122949
@@ -5233,7 +5232,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pysocks?source=project-defined-mapping
+  - pkg:pypi/pysocks?source=hash-mapping
   run_exports: {}
   size: 21784
   timestamp: 1733217448189
@@ -5246,7 +5245,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pysocks?source=project-defined-mapping
+  - pkg:pypi/pysocks?source=hash-mapping
   run_exports: {}
   size: 21085
   timestamp: 1733217331982
@@ -5268,7 +5267,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pytest?source=project-defined-mapping
+  - pkg:pypi/pytest?source=hash-mapping
   run_exports: {}
   size: 306724
   timestamp: 1782127176429
@@ -5284,7 +5283,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pytest-cov?source=project-defined-mapping
+  - pkg:pypi/pytest-cov?source=hash-mapping
   run_exports: {}
   size: 29559
   timestamp: 1774139250481
@@ -5300,7 +5299,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pytest-xdist?source=project-defined-mapping
+  - pkg:pypi/pytest-xdist?source=hash-mapping
   run_exports: {}
   size: 39300
   timestamp: 1751452761594
@@ -5320,7 +5319,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/build?source=project-defined-mapping
+  - pkg:pypi/build?source=compressed-mapping
   run_exports: {}
   size: 33470
   timestamp: 1790158724551
@@ -5334,7 +5333,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/python-dateutil?source=project-defined-mapping
+  - pkg:pypi/python-dateutil?source=hash-mapping
   run_exports: {}
   size: 233310
   timestamp: 1751104122689
@@ -5347,7 +5346,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/fastjsonschema?source=project-defined-mapping
+  - pkg:pypi/fastjsonschema?source=compressed-mapping
   run_exports: {}
   size: 254446
   timestamp: 1786892280524
@@ -5429,7 +5428,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml-env-tag?source=project-defined-mapping
+  - pkg:pypi/pyyaml-env-tag?source=hash-mapping
   run_exports: {}
   size: 11137
   timestamp: 1747237061448
@@ -5446,7 +5445,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/readme-renderer?source=project-defined-mapping
+  - pkg:pypi/readme-renderer?source=hash-mapping
   run_exports: {}
   size: 22552
   timestamp: 1788095111892
@@ -5462,7 +5461,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/referencing?source=project-defined-mapping
+  - pkg:pypi/referencing?source=hash-mapping
   run_exports: {}
   size: 51788
   timestamp: 1760379115194
@@ -5481,7 +5480,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/requests?source=project-defined-mapping
+  - pkg:pypi/requests?source=hash-mapping
   run_exports: {}
   size: 68709
   timestamp: 1778851103479
@@ -5494,7 +5493,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/requests-toolbelt?source=project-defined-mapping
+  - pkg:pypi/requests-toolbelt?source=hash-mapping
   run_exports: {}
   size: 44285
   timestamp: 1733734886897
@@ -5506,7 +5505,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/rfc3986?source=project-defined-mapping
+  - pkg:pypi/rfc3986?source=hash-mapping
   run_exports: {}
   size: 38028
   timestamp: 1733921806657
@@ -5522,7 +5521,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/rich?source=project-defined-mapping
+  - pkg:pypi/rich?source=hash-mapping
   run_exports: {}
   size: 208577
   timestamp: 1775991661559
@@ -5536,7 +5535,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruamel-yaml?source=project-defined-mapping
+  - pkg:pypi/ruamel-yaml?source=hash-mapping
   run_exports: {}
   size: 98448
   timestamp: 1767538149184
@@ -5553,7 +5552,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/secretstorage?source=project-defined-mapping
+  - pkg:pypi/secretstorage?source=compressed-mapping
   run_exports: {}
   size: 20124
   timestamp: 1790028131640
@@ -5565,7 +5564,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/setuptools?source=project-defined-mapping
+  - pkg:pypi/setuptools?source=compressed-mapping
   run_exports: {}
   size: 524488
   timestamp: 1786282924579
@@ -5583,7 +5582,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/setuptools-scm?source=project-defined-mapping
+  - pkg:pypi/setuptools-scm?source=compressed-mapping
   run_exports: {}
   size: 32727
   timestamp: 1790257649110
@@ -5596,7 +5595,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/six?source=project-defined-mapping
+  - pkg:pypi/six?source=hash-mapping
   run_exports: {}
   size: 18455
   timestamp: 1753199211006
@@ -5608,7 +5607,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/soupsieve?source=project-defined-mapping
+  - pkg:pypi/soupsieve?source=compressed-mapping
   run_exports: {}
   size: 39948
   timestamp: 1790238121393
@@ -5623,7 +5622,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/stack-data?source=project-defined-mapping
+  - pkg:pypi/stack-data?source=hash-mapping
   run_exports: {}
   size: 26988
   timestamp: 1733569565672
@@ -5646,7 +5645,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/textual?source=project-defined-mapping
+  - pkg:pypi/textual?source=hash-mapping
   run_exports: {}
   size: 538351
   timestamp: 1782808451993
@@ -5659,7 +5658,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/tinycss2?source=project-defined-mapping
+  - pkg:pypi/tinycss2?source=hash-mapping
   run_exports: {}
   size: 28285
   timestamp: 1729802975370
@@ -5672,7 +5671,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/tomli?source=project-defined-mapping
+  - pkg:pypi/tomli?source=hash-mapping
   run_exports: {}
   size: 21561
   timestamp: 1774492402955
@@ -5685,7 +5684,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/tomlkit?source=project-defined-mapping
+  - pkg:pypi/tomlkit?source=hash-mapping
   run_exports: {}
   size: 49054
   timestamp: 1784287707171
@@ -5698,7 +5697,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/traitlets?source=project-defined-mapping
+  - pkg:pypi/traitlets?source=hash-mapping
   run_exports: {}
   size: 116935
   timestamp: 1785761789772
@@ -5711,7 +5710,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/trove-classifiers?source=project-defined-mapping
+  - pkg:pypi/trove-classifiers?source=compressed-mapping
   run_exports: {}
   size: 24553
   timestamp: 1790234842223
@@ -5733,7 +5732,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/twine?source=project-defined-mapping
+  - pkg:pypi/twine?source=hash-mapping
   run_exports: {}
   size: 42936
   timestamp: 1785252141368
@@ -5758,7 +5757,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/typing-inspection?source=project-defined-mapping
+  - pkg:pypi/typing-inspection?source=compressed-mapping
   run_exports: {}
   size: 21070
   timestamp: 1786818918217
@@ -5771,7 +5770,7 @@ packages:
   license: PSF-2.0
   license_family: PSF
   purls:
-  - pkg:pypi/typing-extensions?source=project-defined-mapping
+  - pkg:pypi/typing-extensions?source=hash-mapping
   run_exports: {}
   size: 52631
   timestamp: 1783002732887
@@ -5791,7 +5790,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/uc-micro-py?source=project-defined-mapping
+  - pkg:pypi/uc-micro-py?source=hash-mapping
   run_exports: {}
   size: 13378
   timestamp: 1772479008776
@@ -5807,7 +5806,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/urllib3?source=project-defined-mapping
+  - pkg:pypi/urllib3?source=compressed-mapping
   run_exports: {}
   size: 107485
   timestamp: 1789566710244
@@ -5822,7 +5821,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/vcs-versioning?source=project-defined-mapping
+  - pkg:pypi/vcs-versioning?source=compressed-mapping
   run_exports: {}
   size: 95028
   timestamp: 1790249587479
@@ -5834,7 +5833,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/webencodings?source=project-defined-mapping
+  - pkg:pypi/webencodings?source=hash-mapping
   run_exports: {}
   size: 15496
   timestamp: 1733236131358
@@ -5846,7 +5845,7 @@ packages:
   - python >=3.9
   license: LicenseRef-Public-Domain
   purls:
-  - pkg:pypi/win-inet-pton?source=project-defined-mapping
+  - pkg:pypi/win-inet-pton?source=hash-mapping
   run_exports: {}
   size: 9555
   timestamp: 1733130678956
@@ -5859,7 +5858,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zipp?source=project-defined-mapping
+  - pkg:pypi/zipp?source=hash-mapping
   run_exports: {}
   size: 24190
   timestamp: 1779159948016
@@ -5887,7 +5886,7 @@ packages:
   - zstd >=1.5.7,<1.6.0a0
   license: BSD-3-Clause AND MIT AND EPL-2.0
   purls:
-  - pkg:pypi/backports-zstd?source=project-defined-mapping
+  - pkg:pypi/backports-zstd?source=hash-mapping
   run_exports: {}
   size: 238654
   timestamp: 1788491382636
@@ -5904,7 +5903,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/brotli?source=project-defined-mapping
+  - pkg:pypi/brotli?source=hash-mapping
   run_exports: {}
   size: 385962
   timestamp: 1788481423575
@@ -5957,7 +5956,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 416617
   timestamp: 1790542292049
@@ -5971,7 +5970,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 425495
   timestamp: 1790542251907
@@ -5985,7 +5984,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 445970
   timestamp: 1790542265886
@@ -6000,7 +5999,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/debugpy?source=project-defined-mapping
+  - pkg:pypi/debugpy?source=compressed-mapping
   run_exports: {}
   size: 2762123
   timestamp: 1789745389361
@@ -6016,7 +6015,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 4561069
   timestamp: 1789930568211
@@ -6032,7 +6031,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 4561749
   timestamp: 1789930582052
@@ -6048,7 +6047,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 4569068
   timestamp: 1789930581033
@@ -6508,7 +6507,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/markupsafe?source=project-defined-mapping
+  - pkg:pypi/markupsafe?source=hash-mapping
   run_exports: {}
   size: 25095
   timestamp: 1772445399364
@@ -6526,7 +6525,7 @@ packages:
   - python_abi 3.12.* *_cp312
   license: Apache-2.0 AND BSD-3-Clause
   purls:
-  - pkg:pypi/memray?source=project-defined-mapping
+  - pkg:pypi/memray?source=compressed-mapping
   run_exports: {}
   size: 1772028
   timestamp: 1789695633889
@@ -6556,7 +6555,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/nh3?source=project-defined-mapping
+  - pkg:pypi/nh3?source=compressed-mapping
   run_exports: {}
   size: 669167
   timestamp: 1787526901132
@@ -6603,7 +6602,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -6625,7 +6624,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -6647,7 +6646,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -6691,7 +6690,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/polars-runtime-32?source=project-defined-mapping
+  - pkg:pypi/polars-runtime-32?source=compressed-mapping
   run_exports: {}
   size: 38333225
   timestamp: 1788957742881
@@ -6718,7 +6717,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/psutil?source=project-defined-mapping
+  - pkg:pypi/psutil?source=compressed-mapping
   run_exports: {}
   size: 236844
   timestamp: 1789682205071
@@ -6735,7 +6734,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1861004
   timestamp: 1789996204549
@@ -6752,7 +6751,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1860338
   timestamp: 1789996266514
@@ -6769,7 +6768,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1862424
   timestamp: 1789996183831
@@ -6798,7 +6797,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pytest-codspeed?source=project-defined-mapping
+  - pkg:pypi/pytest-codspeed?source=hash-mapping
   run_exports: {}
   size: 212914
   timestamp: 1779476654290
@@ -6903,7 +6902,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 190417
   timestamp: 1770223755226
@@ -6918,7 +6917,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 192051
   timestamp: 1770223971430
@@ -6933,7 +6932,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 191947
   timestamp: 1770226344240
@@ -6951,7 +6950,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pyzmq?source=project-defined-mapping
+  - pkg:pypi/pyzmq?source=compressed-mapping
   run_exports: {}
   size: 202090
   timestamp: 1789730337471
@@ -6981,7 +6980,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/rpds-py?source=project-defined-mapping
+  - pkg:pypi/rpds-py?source=hash-mapping
   run_exports: {}
   size: 301249
   timestamp: 1788577488152
@@ -6995,7 +6994,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruamel-yaml-clib?source=project-defined-mapping
+  - pkg:pypi/ruamel-yaml-clib?source=compressed-mapping
   run_exports: {}
   size: 134936
   timestamp: 1788881301292
@@ -7011,7 +7010,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruff?source=project-defined-mapping
+  - pkg:pypi/ruff?source=hash-mapping
   run_exports: {}
   size: 9338197
   timestamp: 1784938409044
@@ -7052,7 +7051,7 @@ packages:
   license: Apache-2.0
   license_family: Apache
   purls:
-  - pkg:pypi/tornado?source=project-defined-mapping
+  - pkg:pypi/tornado?source=compressed-mapping
   run_exports: {}
   size: 895511
   timestamp: 1789911300150
@@ -7079,7 +7078,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/watchdog?source=project-defined-mapping
+  - pkg:pypi/watchdog?source=hash-mapping
   run_exports: {}
   size: 161559
   timestamp: 1788503356746
@@ -7095,7 +7094,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/wcwidth?source=project-defined-mapping
+  - pkg:pypi/wcwidth?source=compressed-mapping
   run_exports: {}
   size: 320116
   timestamp: 1790370101796
@@ -7134,7 +7133,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zensical?source=project-defined-mapping
+  - pkg:pypi/zensical?source=compressed-mapping
   run_exports: {}
   size: 8383461
   timestamp: 1789838473822
@@ -7164,7 +7163,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zizmor?source=project-defined-mapping
+  - pkg:pypi/zizmor?source=compressed-mapping
   run_exports: {}
   size: 7075352
   timestamp: 1788941608166
@@ -7206,7 +7205,7 @@ packages:
   - zstd >=1.5.7,<1.6.0a0
   license: BSD-3-Clause AND MIT AND EPL-2.0
   purls:
-  - pkg:pypi/backports-zstd?source=project-defined-mapping
+  - pkg:pypi/backports-zstd?source=compressed-mapping
   run_exports: {}
   size: 238779
   timestamp: 1788491297224
@@ -7223,7 +7222,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/brotli?source=project-defined-mapping
+  - pkg:pypi/brotli?source=hash-mapping
   run_exports: {}
   size: 365351
   timestamp: 1788480477036
@@ -7276,7 +7275,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 416135
   timestamp: 1790542144415
@@ -7290,7 +7289,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 424576
   timestamp: 1790542149774
@@ -7304,7 +7303,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 445693
   timestamp: 1790542151928
@@ -7319,7 +7318,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/debugpy?source=project-defined-mapping
+  - pkg:pypi/debugpy?source=compressed-mapping
   run_exports: {}
   size: 2742784
   timestamp: 1789745265461
@@ -7335,7 +7334,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 3824544
   timestamp: 1789930464415
@@ -7351,7 +7350,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 3825348
   timestamp: 1789930463664
@@ -7367,7 +7366,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 3835298
   timestamp: 1789930463481
@@ -7827,7 +7826,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/markupsafe?source=project-defined-mapping
+  - pkg:pypi/markupsafe?source=hash-mapping
   run_exports: {}
   size: 25564
   timestamp: 1772445846939
@@ -7845,7 +7844,7 @@ packages:
   - lz4-c >=1.10.0,<1.11.0a0
   license: Apache-2.0 AND BSD-3-Clause
   purls:
-  - pkg:pypi/memray?source=project-defined-mapping
+  - pkg:pypi/memray?source=compressed-mapping
   run_exports: {}
   size: 1736015
   timestamp: 1789695389790
@@ -7875,7 +7874,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/nh3?source=project-defined-mapping
+  - pkg:pypi/nh3?source=compressed-mapping
   run_exports: {}
   size: 644379
   timestamp: 1787526823269
@@ -7922,7 +7921,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -7944,7 +7943,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -7966,7 +7965,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -8010,7 +8009,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/polars-runtime-32?source=project-defined-mapping
+  - pkg:pypi/polars-runtime-32?source=compressed-mapping
   run_exports: {}
   size: 34546003
   timestamp: 1788957662024
@@ -8037,7 +8036,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/psutil?source=project-defined-mapping
+  - pkg:pypi/psutil?source=compressed-mapping
   run_exports: {}
   size: 236454
   timestamp: 1789682096356
@@ -8054,7 +8053,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1689941
   timestamp: 1789996115511
@@ -8071,7 +8070,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1689486
   timestamp: 1789996114969
@@ -8088,7 +8087,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1691226
   timestamp: 1789996111805
@@ -8118,7 +8117,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pytest-codspeed?source=project-defined-mapping
+  - pkg:pypi/pytest-codspeed?source=hash-mapping
   run_exports: {}
   size: 219216
   timestamp: 1779476634821
@@ -8224,7 +8223,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 187278
   timestamp: 1770223990452
@@ -8240,7 +8239,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 188763
   timestamp: 1770224094408
@@ -8256,7 +8255,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 189475
   timestamp: 1770223788648
@@ -8274,7 +8273,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pyzmq?source=project-defined-mapping
+  - pkg:pypi/pyzmq?source=compressed-mapping
   run_exports: {}
   size: 197695
   timestamp: 1789730185188
@@ -8304,7 +8303,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/rpds-py?source=project-defined-mapping
+  - pkg:pypi/rpds-py?source=hash-mapping
   run_exports: {}
   size: 285895
   timestamp: 1788577310709
@@ -8318,7 +8317,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruamel-yaml-clib?source=project-defined-mapping
+  - pkg:pypi/ruamel-yaml-clib?source=hash-mapping
   run_exports: {}
   size: 126649
   timestamp: 1788881217766
@@ -8334,7 +8333,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruff?source=project-defined-mapping
+  - pkg:pypi/ruff?source=hash-mapping
   run_exports: {}
   size: 8617591
   timestamp: 1784938415804
@@ -8375,7 +8374,7 @@ packages:
   license: Apache-2.0
   license_family: Apache
   purls:
-  - pkg:pypi/tornado?source=project-defined-mapping
+  - pkg:pypi/tornado?source=compressed-mapping
   run_exports: {}
   size: 897125
   timestamp: 1789911042185
@@ -8403,7 +8402,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/watchdog?source=project-defined-mapping
+  - pkg:pypi/watchdog?source=hash-mapping
   run_exports: {}
   size: 164554
   timestamp: 1788503293784
@@ -8419,7 +8418,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/wcwidth?source=project-defined-mapping
+  - pkg:pypi/wcwidth?source=compressed-mapping
   run_exports: {}
   size: 319625
   timestamp: 1790370113674
@@ -8458,7 +8457,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zensical?source=project-defined-mapping
+  - pkg:pypi/zensical?source=compressed-mapping
   run_exports: {}
   size: 8078281
   timestamp: 1789838430973
@@ -8488,7 +8487,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zizmor?source=project-defined-mapping
+  - pkg:pypi/zizmor?source=compressed-mapping
   run_exports: {}
   size: 6634020
   timestamp: 1788941486804
@@ -8518,7 +8517,7 @@ packages:
   - python_abi 3.12.* *_cp312
   license: BSD-3-Clause AND MIT AND EPL-2.0
   purls:
-  - pkg:pypi/backports-zstd?source=project-defined-mapping
+  - pkg:pypi/backports-zstd?source=hash-mapping
   run_exports: {}
   size: 239635
   timestamp: 1788491285357
@@ -8536,7 +8535,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/brotli?source=project-defined-mapping
+  - pkg:pypi/brotli?source=hash-mapping
   run_exports: {}
   size: 336661
   timestamp: 1788480540546
@@ -8580,7 +8579,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 443957
   timestamp: 1790542151689
@@ -8596,7 +8595,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 452882
   timestamp: 1790542154325
@@ -8612,7 +8611,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/coverage?source=project-defined-mapping
+  - pkg:pypi/coverage?source=compressed-mapping
   run_exports: {}
   size: 473739
   timestamp: 1790542151464
@@ -8628,7 +8627,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/debugpy?source=project-defined-mapping
+  - pkg:pypi/debugpy?source=compressed-mapping
   run_exports: {}
   size: 4019240
   timestamp: 1789745263781
@@ -8645,7 +8644,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 3313827
   timestamp: 1789930423243
@@ -8662,7 +8661,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 3315873
   timestamp: 1789930420760
@@ -8679,7 +8678,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/highspy?source=project-defined-mapping
+  - pkg:pypi/highspy?source=compressed-mapping
   run_exports: {}
   size: 3309155
   timestamp: 1789930422419
@@ -9038,7 +9037,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/markupsafe?source=project-defined-mapping
+  - pkg:pypi/markupsafe?source=hash-mapping
   run_exports: {}
   size: 28510
   timestamp: 1772445175216
@@ -9071,7 +9070,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/nh3?source=project-defined-mapping
+  - pkg:pypi/nh3?source=hash-mapping
   run_exports: {}
   size: 612065
   timestamp: 1787526818996
@@ -9103,7 +9102,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=compressed-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -9126,7 +9125,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=compressed-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -9149,7 +9148,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/numpy?source=project-defined-mapping
+  - pkg:pypi/numpy?source=hash-mapping
   run_exports:
     weak:
     - numpy >=1.25,<3
@@ -9194,7 +9193,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/polars-runtime-32?source=project-defined-mapping
+  - pkg:pypi/polars-runtime-32?source=compressed-mapping
   run_exports: {}
   size: 41244373
   timestamp: 1788957639558
@@ -9225,7 +9224,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/psutil?source=project-defined-mapping
+  - pkg:pypi/psutil?source=compressed-mapping
   run_exports: {}
   size: 242905
   timestamp: 1789682050500
@@ -9242,7 +9241,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1864589
   timestamp: 1789996104616
@@ -9259,7 +9258,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1865607
   timestamp: 1789996101138
@@ -9276,7 +9275,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pydantic-core?source=project-defined-mapping
+  - pkg:pypi/pydantic-core?source=compressed-mapping
   run_exports: {}
   size: 1861810
   timestamp: 1789996123032
@@ -9395,7 +9394,7 @@ packages:
   license: PSF-2.0
   license_family: PSF
   purls:
-  - pkg:pypi/pywin32?source=project-defined-mapping
+  - pkg:pypi/pywin32?source=compressed-mapping
   run_exports: {}
   size: 4459739
   timestamp: 1789685718719
@@ -9408,7 +9407,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pywin32-ctypes?source=project-defined-mapping
+  - pkg:pypi/pywin32-ctypes?source=hash-mapping
   run_exports: {}
   size: 57402
   timestamp: 1788533839500
@@ -9425,7 +9424,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 179738
   timestamp: 1770223468771
@@ -9442,7 +9441,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 180992
   timestamp: 1770223457761
@@ -9459,7 +9458,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/pyyaml?source=project-defined-mapping
+  - pkg:pypi/pyyaml?source=hash-mapping
   run_exports: {}
   size: 181257
   timestamp: 1770223460931
@@ -9478,7 +9477,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/pyzmq?source=project-defined-mapping
+  - pkg:pypi/pyzmq?source=compressed-mapping
   run_exports: {}
   size: 191813
   timestamp: 1789730188711
@@ -9494,7 +9493,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/rpds-py?source=project-defined-mapping
+  - pkg:pypi/rpds-py?source=hash-mapping
   run_exports: {}
   size: 218830
   timestamp: 1788577404487
@@ -9510,7 +9509,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruamel-yaml-clib?source=project-defined-mapping
+  - pkg:pypi/ruamel-yaml-clib?source=hash-mapping
   run_exports: {}
   size: 119231
   timestamp: 1788881211494
@@ -9526,7 +9525,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/ruff?source=project-defined-mapping
+  - pkg:pypi/ruff?source=hash-mapping
   run_exports: {}
   size: 9842185
   timestamp: 1784938326190
@@ -9583,7 +9582,7 @@ packages:
   license: Apache-2.0
   license_family: Apache
   purls:
-  - pkg:pypi/tornado?source=project-defined-mapping
+  - pkg:pypi/tornado?source=compressed-mapping
   run_exports: {}
   size: 901913
   timestamp: 1789911147481
@@ -9662,7 +9661,7 @@ packages:
   license: Apache-2.0
   license_family: APACHE
   purls:
-  - pkg:pypi/watchdog?source=project-defined-mapping
+  - pkg:pypi/watchdog?source=hash-mapping
   run_exports: {}
   size: 178797
   timestamp: 1788503199468
@@ -9680,7 +9679,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/wcwidth?source=project-defined-mapping
+  - pkg:pypi/wcwidth?source=compressed-mapping
   run_exports: {}
   size: 294476
   timestamp: 1790370047084
@@ -9724,7 +9723,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zensical?source=project-defined-mapping
+  - pkg:pypi/zensical?source=compressed-mapping
   run_exports: {}
   size: 8608208
   timestamp: 1789838431539
@@ -9755,7 +9754,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zizmor?source=project-defined-mapping
+  - pkg:pypi/zizmor?source=compressed-mapping
   run_exports: {}
   size: 7449610
   timestamp: 1788941481900
@@ -9779,32 +9778,12 @@ packages:
   name: fluxopt
   requires_dist:
   - highspy>=1.13.1,!=1.14.*
-  - mathspec
+  - mathspec>=0.2.1,<0.3
   - numpy>=1.26
   - polars>=1.30
   - pydantic>=2.7
   - pyyaml>=6.0
-  - specsolve
-  requires_python: '>=3.12'
-- pypi: git+https://github.com/energy-models/mathspec?rev=0b0e4b0aa218ba38059615bc1af085bc10b80cda#0b0e4b0aa218ba38059615bc1af085bc10b80cda
-  name: mathspec
-  version: 0.2.1.dev24+g0b0e4b0aa
-  requires_dist:
-  - pydantic>=2.1
-  - pyparsing>=3.1
-  - pyyaml>=6.0
-  requires_python: '>=3.12'
-- pypi: git+https://github.com/fluxopt/lpspec.git?rev=e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2#e78c1a3a04fc72ddfb3c5f04ddba326be2f72bb2
-  name: specsolve
-  version: 0.2.1.dev3+ge78c1a3a0
-  requires_dist:
-  - highspy>=1.13
-  - mathspec>=0.2.0
-  - numpy>=1.26
-  - polars>=1.30
-  - gurobipy>=11 ; extra == 'gurobi'
-  - scipy>=1.11 ; extra == 'gurobi'
-  - xpress>=9.5 ; extra == 'xpress'
+  - specsolve>=0.4.0,<0.5
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/18/8f/48907c7c707b61a8e5018c32e1a3f70623209bfb59020a2f6196159d3aa7/pandas-3.0.6-cp312-cp312-macosx_11_0_arm64.whl
   name: pandas
@@ -9935,6 +9914,19 @@ packages:
   - sqlparse>=0.5.5 ; extra == 'sql'
   - sqlframe>=3.22.0,!=3.39.3 ; extra == 'sqlframe'
   requires_python: '>=3.10'
+- pypi: https://files.pythonhosted.org/packages/6b/08/a6a49ff4d3f1194498338b2e904ea38a13353bfad8a96538777c0be5d81b/specsolve-0.4.0-py3-none-any.whl
+  name: specsolve
+  version: 0.4.0
+  sha256: 0476cc4f6f93c66ebc1814ab691faf0a0c1ddf32fc09f5a5e6c4dd5fa5e92d8d
+  requires_dist:
+  - highspy>=1.13
+  - mathspec>=0.2.1,<0.3
+  - numpy>=1.26
+  - polars>=1.30
+  - gurobipy>=11 ; extra == 'gurobi'
+  - scipy>=1.11 ; extra == 'gurobi'
+  - xpress>=9.5 ; extra == 'xpress'
+  requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/77/4c/597d588c055d4373cff19cbbc32d4dd046c7be8fadee957585b5ba9e5b24/pandas-3.0.6-cp312-cp312-macosx_10_13_x86_64.whl
   name: pandas
   version: 3.0.6
@@ -10025,6 +10017,15 @@ packages:
   - xlsxwriter>=3.2.0 ; extra == 'all'
   - zstandard>=0.23.0 ; extra == 'all'
   requires_python: '>=3.11'
+- pypi: https://files.pythonhosted.org/packages/7b/d8/36bf56eb6aa5475a6c6b8f146fdf7b8d707fdbe79d3823b8e9307e16dd51/mathspec-0.2.1-py3-none-any.whl
+  name: mathspec
+  version: 0.2.1
+  sha256: 0f05dace4d460e50589c17c35621aff769de764572b868f529c89a511131b279
+  requires_dist:
+  - pydantic>=2.1
+  - pyparsing>=3.1
+  - pyyaml>=6.0
+  requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/9b/90/101196c24ffff5f6344e4c50b11a07bf8c4fafb88f960664dbede0cbd38a/pytest_benchmem-0.5.5-py3-none-any.whl
   name: pytest-benchmem
   version: 0.5.5

@@ -7,7 +7,7 @@ of a math program, and hands both to a solver. Three packages share the work:
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **fluxopt**                                             | The components (`Carrier`, `Flow`, `Port`, `Converter`, `Storage`, `Effect`), their checks, and the tables built from them. It also owns the math, as YAML files. |
 | [mathspec](https://github.com/energy-models/mathspec)   | The language the math is written in. It composes fluxopt's YAML files into one spec, checks it with no data, and prints it as equations. |
-| [specsolve](https://github.com/fluxopt/lpspec)          | Binding the tables to the spec, building the model, solving it, and returning the answer as tables.    |
+| [specsolve](https://github.com/fluxopt/specsolve)          | Binding the tables to the spec, building the model, solving it, and returning the answer as tables.    |
 
 ## The path of one solve
 

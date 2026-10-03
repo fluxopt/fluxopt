@@ -3,7 +3,7 @@
 Two layers: Elements -> this. The math is
 [`PROGRAM`][fluxopt.math.PROGRAM], a directory of YAML fragments that
 mathspec composes into one spec, built and solved by
-[specsolve](https://github.com/fluxopt/lpspec);
+[specsolve](https://github.com/fluxopt/specsolve);
 [`build_sources`][fluxopt.math.build_sources] builds the tables bound to it straight
 from the elements, and the answer is specsolve's own ``Result``.
 

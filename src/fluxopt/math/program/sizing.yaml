@@ -57,13 +57,14 @@ expressions:
   sizing_costs:
     expression: sum(contribution_flow_per_size, over=flow) + sum(contribution_flow_fixed, over=flow)
     description: What sizing the flows adds to each effect.
+    adds_to: direct_lump
 
 given:
   parameters:
     has_invest: { dims: [flow], dtype: bool }
     size_bound: { dims: [flow] }
   expressions:
-    direct_lump: { dims: [effect, period], term: sizing_costs }
+    direct_lump: { dims: [effect, period] }
 
 constraints:
   # A mandatory build is the same decision already taken, so the size rows

@@ -1,9 +1,9 @@
 """The math is composed from one fragment per feature.
 
-`effects.yaml` declares what the features charge directly as sums with a
-frame and no body, and each feature file adds its own term to them. These tests hold
-the files to that shape, and show that a caller extends the ledger by adding
-a file rather than by editing one.
+`effects.yaml` reads what the features charge directly as sums no file
+defines, and each feature file adds its own term to them with `adds_to:`.
+These tests hold the files to that shape, and show that a caller extends the
+ledger by adding a file rather than by editing one.
 """
 
 from __future__ import annotations
@@ -53,10 +53,11 @@ given:
   variables:
     rate: {dims: [flow, time, period]}
   expressions:
-    direct_step: {dims: [effect, time, period], term: fees}
+    direct_step: {dims: [effect, time, period]}
 expressions:
   fees:
     expression: sum(rate * dt * fee, over=flow)
+    adds_to: direct_step
 """
 
 
@@ -74,7 +75,7 @@ def test_a_new_fragment_adds_to_the_ledger_without_editing_it() -> None:
     )
     base = read(system.optimize(), 'effect_total').sel(effect='cost').item()
 
-    math = ms.merge({**FRAGMENTS, 'grid_fee': GRID_FEE})
+    math = ms.merge([*FRAGMENTS.values(), GRID_FEE])
     fee = pl.DataFrame({'flow': ['grid(elec)'], 'effect': ['cost'], 'value': [2.0]})
     charged = (
         read(specsolve.solve(math.expand('sos'), system.sources() | {'fee': fee}), 'effect_total')
