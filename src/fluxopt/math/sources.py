@@ -39,14 +39,16 @@ def program() -> Any:
     """fluxopt's math, composed from its fragments, loaded and checked.
 
     A `mathspec.Spec`. Each file under [`PROGRAM`][fluxopt.math.PROGRAM] states one
-    feature and loads on its own; ``effects.yaml`` declares the two halves of
-    the ledger as sums, and every feature adds its own term to them, so
-    ``merge`` writes the ledger. The engine verbs come from specsolve.
+    feature and loads on its own; ``effects.yaml`` reads the two halves of
+    the ledger as sums, and every feature adds its own term to them with
+    ``adds_to:``, so ``merge`` writes the ledger. The engine verbs come from
+    specsolve.
     """
     from mathspec import merge
 
-    fragments = {path.stem: path for path in sorted(PROGRAM.glob('*.yaml'))}
-    return merge(fragments, description='fluxopt: flows, converters and storages, and what they cost.')
+    return merge(
+        sorted(PROGRAM.glob('*.yaml')), description='fluxopt: flows, converters and storages, and what they cost.'
+    )
 
 
 #: The polars dtypes a table's columns take, by column name. A value column
@@ -637,7 +639,6 @@ def _storages(storages: list[Storage], horizon: _Horizon) -> dict[str, Any]:
         return _per_step({'storage': ids}, blocks, horizon, {'storage': _STR}).select(['storage', 'time', 'value'])
 
     dt = pl.DataFrame({'time': horizon.time_series, 'dt': horizon.dt})
-    loss = per_step(lambda s: s.relative_loss_per_hour).join(dt, on='time')
     eta_c = per_step(lambda s: s.eta_charge).join(dt, on='time')
     eta_d = per_step(lambda s: s.eta_discharge).join(dt, on='time')
     rel_min = per_step(lambda s: s.relative_level_min)
@@ -667,7 +668,7 @@ def _storages(storages: list[Storage], horizon: _Horizon) -> dict[str, Any]:
             schema={'flow': _STR, 'storage': _STR, 'side': _STR},
             orient='row',
         ),
-        'retention': loss.select(['storage', 'time', ((1 - pl.col('value')) ** pl.col('dt')).alias('value')]),
+        'relative_loss_per_hour': per_step(lambda s: s.relative_loss_per_hour),
         'storage_coeff': pl.concat(
             [
                 eta_c.select(

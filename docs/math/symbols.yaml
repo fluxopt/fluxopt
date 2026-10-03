@@ -24,3 +24,4 @@ names:
   startup: "\\tau^{+}"
   shutdown: "\\tau^{-}"
   dt: "\\Delta t"
+  relative_loss_per_hour: "\\delta"

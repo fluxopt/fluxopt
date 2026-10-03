@@ -93,12 +93,13 @@ expressions:
   status_costs:
     expression: sum(contribution_running, over=status_entity) + sum(contribution_startup, over=status_entity)
     description: What running and starting add to each effect in a step.
+    adds_to: direct_step
 
 given:
   parameters:
     dt: { dims: [time] }
   expressions:
-    direct_step: { dims: [effect, time, period], term: status_costs }
+    direct_step: { dims: [effect, time, period] }
 
 constraints:
   # The first step has a row only where the state before the horizon is known.

@@ -68,7 +68,7 @@ class TestEditingTheMath:
         assert read(base, 'rate').sel(flow='grid(elec)').values == pytest.approx([50.0] * 3, abs=1e-6)
 
         system = FlowSystem(**simple_system)
-        spec = ms.override(system.spec(), {'grid cap': GRID_CAP})
+        spec = ms.override(system.spec(), [GRID_CAP])
         sources = system.sources() | {
             'grid_cap': pl.DataFrame({'time': ts(3), 'value': [30.0, 30.0, 30.0]}),
             'is_grid': pl.DataFrame({'flow': ['grid(elec)'], 'value': [True]}),
@@ -100,7 +100,7 @@ class TestEditingTheMath:
     def test_a_caller_s_own_expression_comes_back_and_survives_the_archive(self, simple_system, tmp_path):
         """Naming a quantity is how you ask for it; the archive carries it home."""
         system = FlowSystem(**simple_system)
-        spec = ms.override(system.spec(), {'grid energy': GRID_ENERGY})
+        spec = ms.override(system.spec(), [GRID_ENERGY])
 
         archive = tmp_path / 'run.zip'
         result = specsolve.solve(spec, system.sources(), archive=archive)

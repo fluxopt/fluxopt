@@ -1,9 +1,10 @@
 # Extending the math
 
 This guide adds a constraint of your own to a fluxopt system, edits one of
-the tables fluxopt builds, and asks the result for a quantity of your own. It
-uses [mathspec](https://github.com/energy-models/mathspec) to change the spec
-and [specsolve](https://github.com/fluxopt/lpspec) to solve it. Read
+the tables fluxopt builds, charges a cost of your own, and asks the result for
+a quantity of your own. It uses
+[mathspec](https://github.com/energy-models/mathspec) to change the spec and
+[specsolve](https://github.com/fluxopt/specsolve) to solve it. Read
 [How fluxopt works](how-it-works.md) first if the spec and the tables are new
 to you.
 
@@ -53,7 +54,7 @@ constraints:
     where: is_grid
     expression: rate <= grid_cap
 """
-capped = mathspec.override(spec, {'grid cap': grid_cap})
+capped = mathspec.override(spec, [grid_cap])
 ```
 
 Give each new parameter a table, keyed by the labels fluxopt uses, and solve
@@ -86,6 +87,44 @@ dearer = sources | {'effects_per_flow_hour': rates.with_columns(pl.col('value') 
 assert specsolve.solve(spec, dearer).objective == 3 * system.optimize().objective
 ```
 
+## Charge a new cost
+
+What each effect is charged in a step is the sum `direct_step`, and each
+feature of fluxopt adds its own term to it. A file of your own adds a term the
+same way: it reads the sum under `given:` and names it with `adds_to:`. Here a
+fee is charged on every unit a flow carries:
+
+```python
+grid_fee = """
+dimensions:
+  time: {dtype: datetime}
+  period: {dtype: int}
+  effect: {dtype: str}
+  flow: {dtype: str}
+parameters:
+  fee: {dims: [flow, effect]}
+given:
+  parameters:
+    dt: {dims: [time]}
+  variables:
+    rate: {dims: [flow, time, period]}
+  expressions:
+    direct_step: {dims: [effect, time, period]}
+expressions:
+  grid_fees:
+    expression: sum(rate * dt * fee, over=flow)
+    adds_to: direct_step
+"""
+charged = mathspec.merge([spec, grid_fee])
+fee = pl.DataFrame({'flow': ['grid(elec)'], 'effect': ['cost'], 'value': [2.0]})
+
+assert specsolve.solve(charged, sources | {'fee': fee}).objective == 3 * system.optimize().objective
+```
+
+`mathspec.merge` appends `grid_fees` to the sum, and no file of fluxopt
+changes. The fee file loads and prints on its own, so `mathspec.to_markdown`
+shows the new cost before any merge.
+
 ## Name a quantity to read it
 
 A result holds the names the spec declares. Declare an expression to get a
@@ -98,7 +137,7 @@ expressions:
     expression: sum(rate * dt, over=flow)
     description: every flow the system moved, per step
 """
-result = specsolve.solve(mathspec.override(spec, {'grid energy': grid_energy}), sources)
+result = specsolve.solve(mathspec.override(spec, [grid_energy]), sources)
 print(result.evaluate('grid_energy'))
 ```
 

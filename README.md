@@ -2,7 +2,7 @@
 
 <!--- --8<-- [start:intro] -->
 
-Energy system models from components: fluxopt writes them into tables for its math, which [mathspec](https://github.com/energy-models/mathspec) states and [specsolve](https://github.com/fluxopt/lpspec) solves — detailed dispatch, scaled to multi-period planning.
+Energy system models from components: fluxopt writes them into tables for its math, which [mathspec](https://github.com/energy-models/mathspec) states and [specsolve](https://github.com/fluxopt/specsolve) solves — detailed dispatch, scaled to multi-period planning.
 
 [![PyPI](https://img.shields.io/pypi/v/fluxopt)](https://pypi.org/project/fluxopt/)
 [![Downloads](https://img.shields.io/pypi/dm/fluxopt)](https://pypi.org/project/fluxopt/)
@@ -108,7 +108,7 @@ it. Read, typeset or extend the spec, edit any table, and solve with specsolve:
 ```python
 import mathspec, specsolve
 
-spec = mathspec.override(system.spec(), {'my cap': 'my_cap.yaml'})
+spec = mathspec.override(system.spec(), ['my_cap.yaml'])
 sources = system.sources(profiles={'load': load}) | {'grid_cap': caps}
 result = specsolve.solve(spec, sources)
 ```

@@ -67,10 +67,11 @@ expressions:
   flow_hour_costs:
     expression: sum(contribution_flow_hour, over=flow)
     description: What the flows' throughput adds to each effect in a step.
+    adds_to: direct_step
 
 given:
   expressions:
-    direct_step: { dims: [effect, time, period], term: flow_hour_costs }
+    direct_step: { dims: [effect, time, period] }
     size: { dims: [flow, period] }
 
 constraints:

@@ -123,7 +123,7 @@ def test_a_caller_s_own_relation_reaches_the_constraint_that_reads_it() -> None:
     )
     assert_allclose(read(system.optimize(), 'effect_total').sel(effect='cost').item(), 8.0, rtol=1e-6)
 
-    spec = ms.override(system.spec(), {'regions': REGIONS})
+    spec = ms.override(system.spec(), [REGIONS])
     sources = system.sources() | {
         'region': pl.DataFrame({'region': ['cheap']}),
         'region_of': pl.DataFrame({'flow': ['north(heat)'], 'region': ['cheap']}),

@@ -22,7 +22,8 @@ parameters:
   # What one unit of rate on a port does to the level in a step:
   # eta_c * dt on the charge port, -dt / eta_d on the discharge port.
   storage_coeff: { dims: [storage, side, time] }
-  retention: { dims: [storage, time] } # (1 - loss) ** dt
+  # The share of its level a storage loses in an hour.
+  relative_loss_per_hour: { dims: [storage, time] }
   # `relative_level_* * capacity`, folded data-side for the same reason
   # `rate_min` is, and dense for the same reason: a storage whose capacity is
   # a variable is bounded 0..inf here, and the relative pair does the work.
@@ -93,6 +94,9 @@ expressions:
         expression: prior_level
     otherwise: shift(level, along=time, offset=1)
     description: The level a storage carries into a step.
+  retention:
+    expression: (1 - relative_loss_per_hour) ** dt
+    description: The share of its level a storage keeps through a step.
   port_rate:
     expression: sum(rate, by=port_of, over=flow, into=[storage, side])
     description: What flows through each port of a storage.
@@ -120,6 +124,7 @@ expressions:
       sum(contribution_storage_per_capacity, over=storage)
       + sum(contribution_storage_fixed, over=storage)
     description: What building the storages adds to each effect.
+    adds_to: direct_lump
 
 given:
   parameters:
@@ -128,7 +133,7 @@ given:
   variables:
     rate: { dims: [flow, time, period] }
   expressions:
-    direct_lump: { dims: [effect, period], term: storage_costs }
+    direct_lump: { dims: [effect, period] }
 
 constraints:
   storage_balance:
@@ -199,5 +204,5 @@ assumptions:
     where: "side == 'discharge'"
     description: discharging draws at least what flows out, eta_discharge in (0, 1]
   loss_is_a_fraction:
-    holds: "retention >= 0 AND retention <= 1"
+    holds: "relative_loss_per_hour >= 0 AND relative_loss_per_hour <= 1"
     description: a storage loses between none and all of its level per hour

@@ -46,11 +46,11 @@ def test_the_headline_quantities_of_a_sized_flow():
 
 
 def test_an_unsized_flow_reads_size_zero_but_real_throughput():
-    """An expression has a value everywhere, so no size reads 0 and its capacity factor is infinite."""
+    """No size reads 0, and a capacity factor over a size of 0 has no value."""
     result = _solve(Flow(carrier='elec', effects_per_flow_hour={'cost': 0.04}))
 
     assert _reported(result, 'size').sel(flow=_GRID).item() == 0
-    assert np.isinf(_reported(result, 'capacity_factor').sel(flow=_GRID).item())
+    assert _GRID not in _reported(result, 'capacity_factor').frame['flow'], 'a quotient over a zero divisor is absent'
     assert np.isclose(_reported(result, 'flow_hours').sel(flow=_GRID).item(), _DEMAND_ENERGY)
 
 

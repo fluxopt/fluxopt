@@ -1,7 +1,8 @@
 # The ledger: what each effect totals to, what bounds it, and what the solver
 # minimises. It knows no feature. What the features charge directly are sums
-# declared here with a frame and no body: each feature file adds its own term,
-# so a new feature adds a line to its own file and none to this one.
+# this file reads under `given:` and no file defines: each feature file adds
+# its own term with `adds_to:`, so a new feature adds a line to its own file
+# and none to this one.
 #
 # An effect may also be charged a share of another (CO2 priced into cost).
 # The shares arrive already chained through every path, so each effect is its
@@ -39,12 +40,6 @@ variables:
     bounds: { lower: null, upper: null }
 
 expressions:
-  direct_step:
-    dims: [effect, time, period]
-    description: What the features charge each effect in a step.
-  direct_lump:
-    dims: [effect, period]
-    description: What the features charge each effect for building, per period.
   effect_step:
     expression: direct_step + sum(share * at(direct_step, by=same, over=effect, into=source), over=source)
     description: What running the system costs in a step, cross-effects included.
@@ -58,6 +53,13 @@ expressions:
 given:
   parameters:
     time_weight: { dims: [time] }
+  expressions:
+    direct_step:
+      dims: [effect, time, period]
+      description: What the features charge each effect in a step.
+    direct_lump:
+      dims: [effect, period]
+      description: What the features charge each effect for building, per period.
 
 constraints:
   effect_accounting:
@@ -86,4 +88,4 @@ constraints:
 
 objective:
   sense: minimize
-  expression: sum(sum(effect_total * objective_weight, over=period), over=effect)
+  expression: sum(effect_total * objective_weight, over=[effect, period])

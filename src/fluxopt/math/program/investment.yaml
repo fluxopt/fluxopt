@@ -65,11 +65,12 @@ expressions:
     description: What keeping the unit costs, every period it is alive.
   investment_costs:
     expression: >-
-      sum(sum(contribution_invest_per_size_at_build, over=build_period), over=flow)
-      + sum(sum(contribution_invest_fixed_at_build, over=build_period), over=flow)
+      sum(contribution_invest_per_size_at_build, over=[flow, build_period])
+      + sum(contribution_invest_fixed_at_build, over=[flow, build_period])
       + sum(contribution_invest_per_size_recurring, over=flow)
       + sum(contribution_invest_fixed_recurring, over=flow)
     description: What building and keeping the investments adds to each effect.
+    adds_to: direct_lump
 
 given:
   parameters:
@@ -79,7 +80,7 @@ given:
   variables:
     chosen_size: { dims: [flow, period] }
   expressions:
-    direct_lump: { dims: [effect, period], term: investment_costs }
+    direct_lump: { dims: [effect, period] }
 
 constraints:
   # --- build at most once (exactly once when mandatory); never when capacity
