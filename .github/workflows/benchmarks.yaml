@@ -33,13 +33,13 @@ jobs:
         with:
           fetch-depth: 0 # hatch-vcs
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
         with:
           locked: true
           cache: true
           environments: bench
       - name: Run benchmarks under CodSpeed (memory)
-        uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
+        uses: CodSpeedHQ/action@78102a468f96d8e0ccb92d0ec49425753fc42062 # v5.6.0
         with:
           mode: memory
           run: pixi run -e bench bench-codspeed
@@ -61,13 +61,13 @@ jobs:
         with:
           fetch-depth: 0 # hatch-vcs
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+      - uses: prefix-dev/setup-pixi@ad1da6449d9e506fd127fd67ab2d054a769f6a94 # v0.11.2
         with:
           locked: true
           cache: true
           environments: bench
       - name: Run benchmarks under CodSpeed (walltime)
-        uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
+        uses: CodSpeedHQ/action@78102a468f96d8e0ccb92d0ec49425753fc42062 # v5.6.0
         with:
           mode: walltime
           run: pixi run -e bench bench-codspeed
